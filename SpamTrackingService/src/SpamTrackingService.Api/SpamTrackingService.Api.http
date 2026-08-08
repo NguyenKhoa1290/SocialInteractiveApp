@@ -1,0 +1,6 @@
+@SpamTrackingService.Api_HostAddress = http://localhost:5160
+
+GET {{SpamTrackingService.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

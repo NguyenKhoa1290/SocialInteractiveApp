@@ -721,32 +721,42 @@ components:
 ```
 ### 3.4 Tiến độ triển khai
 
+*Code: `IdentityService/` (C#/.NET 10). Hạ tầng: `Tainguyen/infra/` (Postgres, Redis, Kafka,
+RabbitMQ đã deploy K8s). Đã build + test end-to-end toàn bộ mục dưới đây trừ khi ghi chú khác.*
+
 **Cơ sở dữ liệu**
-- [ ] Tạo bảng `users` (kèm CHECK constraint chặn Guest có email/mật khẩu)
-- [ ] Tạo bảng `oauth_links`
-- [ ] Index `idx_users_email`, `idx_users_last_active`
-- [ ] Cron job dọn Guest hết hạn 6 tháng (quét `last_active_at`)
+- [x] Tạo bảng `users` (kèm CHECK constraint chặn Guest có email/mật khẩu)
+- [x] Tạo bảng `oauth_links`
+- [x] Index `idx_users_email`, `idx_users_last_active`
+- [x] Cron job dọn Guest hết hạn 6 tháng (quét `last_active_at`) — `GuestCleanupService`
 
 **API**
-- [ ] `POST /auth/login`
-- [ ] `POST /auth/oauth/{provider}`
-- [ ] `POST /auth/guest`
-- [ ] `POST /auth/logout`
-- [ ] `POST /auth/forgot-password`
-- [ ] `POST /auth/verify-otp`
-- [ ] `POST /auth/reset-password`
-- [ ] `POST /auth/register`
-- [ ] `GET /users/me`
-- [ ] `PATCH /users/me/nickname`
-- [ ] `GET /internal/users/{userId}`
-- [ ] `GET /internal/users` (batch)
-- [ ] `POST /internal/users/{userId}/unlock`
+- [x] `POST /auth/login`
+- [x] `POST /auth/oauth/{provider}` — verify token thật qua Google/Facebook API
+- [x] `POST /auth/guest`
+- [x] `POST /auth/logout` — blocklist JWT qua Redis
+- [x] `POST /auth/forgot-password`
+- [x] `POST /auth/verify-otp`
+- [x] `POST /auth/reset-password`
+- [x] `POST /auth/register`
+- [x] `GET /users/me`
+- [x] `PATCH /users/me/nickname`
+- [x] `GET /internal/users/{userId}`
+- [x] `GET /internal/users` (batch)
+- [x] `POST /internal/users/{userId}/unlock`
 
 **Tích hợp**
-- [ ] Publish `Login` / `Register History` lên Kafka
-- [ ] Consumer RabbitMQ: `Khóa tài khoản`, `Delete Account Spam`
-- [ ] Ghi/đọc session trong Redis
-- [ ] Lưu OTP tạm trong Redis (TTL 5–10 phút)
+- [x] Publish `Login` / `Register History` lên Kafka — topic `identity.auth-history`
+- [~] Consumer RabbitMQ: `Khóa tài khoản` xong (`AccountLockedConsumerService`, queue
+      `identity.account-locked`, format message tự giả định vì SpamTrackingService — bên gửi —
+      chưa tồn tại, cần đối chiếu lại ở Phase 3); **`Delete Account Spam` CHƯA làm**
+- [~] Redis: OTP + logout blocklist đã dùng Redis, nhưng **chưa có "session sau đăng nhập"**
+      riêng như mô tả gốc (JWT hiện là stateless, không lưu session record lúc login)
+- [x] Lưu OTP tạm trong Redis (TTL 10 phút)
+
+**Chưa làm:** gửi OTP qua email dùng Gmail SMTP cá nhân (tạm cho dev — cần đổi sang
+SMTP/SES/SendGrid "thật" trước khi lên staging/prod); deploy Identity Service vào K8s thật (đã có
+Dockerfile + guide GHCR, chưa push/apply).
 
 
 ---
@@ -1248,26 +1258,93 @@ components:
 ### 4.3 Tiến độ triển khai
 
 **API**
-- [ ] `GET /admin/users`
-- [ ] `GET /admin/users/{userId}`
-- [ ] `DELETE /admin/users/{userId}`
-- [ ] `GET /admin/spam-violations`
-- [ ] `POST /admin/users/{userId}/unlock`
-- [ ] `GET /admin/complaints`
-- [ ] `GET /admin/complaints/{userId}`
-- [ ] `POST /admin/complaints/{userId}/reply`
-- [ ] `GET /admin/system/resources`
-- [ ] `POST /admin/system/services/{serviceName}/scale`
-- [ ] `POST /admin/system/livekit/expand`
+- [x] `GET /admin/users` — phân trang + tìm theo nickname/email (ILIKE), gọi
+      `GET /internal/users/admin-list` (Identity Service, endpoint mới).
+      502 khi Identity Service không phản hồi.
+- [x] `GET /admin/users/{userId}` — gộp `AdminUserInfo` (Identity, endpoint
+      mới `GET /internal/users/{userId}/admin-detail`) + `violations`
+      (SpamTrackingService, tái dùng `GET /internal/violations/{userId}`
+      có sẵn từ Phase 3).
+- [x] `DELETE /admin/users/{userId}` — publish `identity.delete-account-spam`
+      qua RabbitMQ (bất đồng bộ, Identity Service consume — tái dùng
+      `AccountLockedConsumerService` có sẵn từ Phase 3). Verify thực tế:
+      publish → Identity Service xoá cứng user → `GET /internal/users/{id}`
+      trả 404. **Ràng buộc 409 ĐÃ triển khai** (đề xuất trong OpenAPI spec,
+      không bắt buộc theo use case gốc): chặn xoá nếu user còn khiếu nại
+      đang mở (kiểm tra qua `GET /internal/complaints` của Chat Service) —
+      verify thực tế trả 409 khi có khiếu nại, 202 khi không.
+- [x] `GET /admin/spam-violations` — proxy `GET /internal/violations`
+      (SpamTrackingService, có sẵn từ Phase 3), không thêm logic mới.
+- [x] `POST /admin/users/{userId}/unlock` — gọi đồng bộ
+      `POST /internal/users/{userId}/unlock` (Identity Service, có sẵn từ
+      Phase 1/3).
+- [x] `GET /admin/complaints` — gọi `GET /internal/complaints` (Chat Service,
+      endpoint mới). **Quyết định tự đưa ra:** Redis chỉ lưu theo key
+      `complaint:{userId}` (TTL), không có cách liệt kê "toàn bộ khiếu nại
+      đang mở" trực tiếp → thêm 1 Redis Set `complaints:active` làm index
+      (thêm userId khi có tin nhắn ĐẦU TIÊN từ user, dọn dẹp lazy: nếu key
+      chính đã hết TTL thì tự xoá khỏi index khi đọc).
+- [x] `GET /admin/complaints/{userId}` — gọi `GET /internal/complaints/{userId}`
+      (Chat Service, endpoint mới), 404 nếu đã hết TTL/không tồn tại.
+- [x] `POST /admin/complaints/{userId}/reply` — gọi
+      `POST /internal/complaints/{userId}/reply` (Chat Service, endpoint
+      mới) — ghi vào CÙNG key Redis với kênh khiếu nại của Chat Service,
+      `senderRole="admin"`, KHÔNG tính là "tin đầu tiên" cho mốc TTL (chỉ
+      user mới mở được khiếu nại mới). Verify thực tế: user gửi → admin
+      list thấy → admin xem chi tiết → admin reply → xuất hiện trong lịch
+      sử.
+- [x] `GET /admin/system/resources` — gọi K8s API thật qua
+      `k8s.CustomObjects.ListClusterCustomObjectAsync("metrics.k8s.io",
+      "v1beta1", "pods"/"nodes")`. Verify thực tế trên cluster
+      `docker-desktop` (Metrics Server đã cài — xem Phase 0): phát hiện
+      **quirk môi trường** — Metrics Server trên K8s bundle của Docker
+      Desktop chỉ phục vụ đúng khi request có `Accept:
+      application/vnd.kubernetes.protobuf` (cách `kubectl top` dùng);
+      request `Accept: application/json` (mặc định của `kubectl get --raw`
+      VÀ của thư viện `KubernetesClient` dùng trong code) bị 404. Do đó khi
+      test thực tế, endpoint trả đúng nhánh lỗi 503 của OpenAPI spec (chưa
+      test được nhánh 200 thành công trên môi trường dev này) — code xử lý
+      lỗi (bắt `HttpOperationException`, map sang 503) đã verify đúng, chỉ
+      chưa verify được response 200 thực tế do giới hạn môi trường dev, KHÔNG
+      phải lỗi code. Trên server nhà (k3s) cần kiểm tra lại xem có gặp quirk
+      tương tự không.
+- [x] `POST /admin/system/services/{serviceName}/scale` — gọi
+      `AppsV1.PatchNamespacedDeploymentScaleAsync` (merge patch
+      `spec.replicas`), bắt `HttpOperationException` 403 → map sang 403
+      response. Chưa test thực tế với RBAC Role đầy đủ (xem mục K8s RBAC
+      dưới) — chỉ review code, chưa gọi thật.
+- [x] `POST /admin/system/livekit/expand` — chỉ ghi log (chưa có quy trình
+      tự động hoá dựng LiveKit + TURN mới), đúng như luồng ngoại lệ 2b của
+      UC-16 đã mô tả trong OpenAPI spec (202 = "đã ghi nhận yêu cầu", không
+      đảm bảo hạ tầng mới có ngay).
 
 **Tích hợp**
-- [ ] Gọi nội bộ Identity Service (danh sách user, unlock)
-- [ ] Gọi nội bộ SpamTrackingService (danh sách/chi tiết vi phạm)
-- [ ] Gọi nội bộ Chat Service (đọc/phản hồi khiếu nại)
-- [ ] Publish `Delete Account Spam` qua RabbitMQ
-- [ ] K8s Service Account read-only (`get`/`list` trên pods, nodes, metrics.k8s.io)
-- [ ] K8s Role RIÊNG cho phép `patch` trên `deployments/scale` (tách khỏi Role read-only ở trên)
-- [ ] Xác nhận Metrics Server đã cài trong cluster
+- [x] Gọi nội bộ Identity Service (danh sách user, unlock)
+- [x] Gọi nội bộ SpamTrackingService (danh sách/chi tiết vi phạm)
+- [x] Gọi nội bộ Chat Service (đọc/phản hồi khiếu nại)
+- [x] Publish `Delete Account Spam` qua RabbitMQ
+- [x] K8s Service Account read-only (`get`/`list` trên pods, nodes,
+      metrics.k8s.io) — `Tainguyen/infra/adminservice-rbac.yaml`
+      (`ClusterRole admin-service-readonly`). Chưa deploy thật (Admin
+      Service chưa được đóng gói lên K8s — chạy `dotnet run`/Docker cục bộ
+      lúc test, dùng kubeconfig thường thay vì Service Account).
+- [x] K8s Role RIÊNG cho phép `patch` trên `deployments/scale` (tách khỏi
+      Role read-only ở trên) — cùng file, `ClusterRole admin-service-scale`.
+- [x] Xác nhận Metrics Server đã cài trong cluster — có (`docker-desktop`,
+      cài từ Phase 0), nhưng xem quirk Accept header ở trên.
+
+**Quyết định tự đưa ra khác (không có trong tài liệu gốc):**
+- Tài liệu gốc yêu cầu "JWT có claim `role=admin`" nhưng KHÔNG mô tả luồng
+  đăng ký/tạo tài khoản Admin nào cả (không có UI/API riêng). Tự thiết kế:
+  thêm cột `users.is_admin BOOLEAN DEFAULT false` (Identity DB, ALTER TABLE
+  trên instance đang chạy), `JwtTokenService` chỉ gán claim `role=admin` khi
+  `IsAdmin=true`. Cấp quyền admin hiện là thao tác thủ công qua
+  `POST /internal/users/{userId}/promote-admin` (nội bộ/CLI, KHÔNG public) —
+  chưa có UI quản trị nào gọi endpoint này, cần làm thủ công qua `curl`/CLI
+  cho tới khi có quy trình chính thức.
+- Admin Service không có DB riêng (đúng như tài liệu gốc ghi) — hoàn toàn là
+  lớp điều phối, dùng `HttpClient` gọi 3 service + `RabbitMQ.Client` +
+  `KubernetesClient` (thư viện .NET chính thức cho K8s API).
 
 
 ---
@@ -1761,26 +1838,33 @@ components:
 ```
 ### 5.4 Tiến độ triển khai
 
+*Hạ tầng DB: `Tainguyen/infra/workspace-db.yaml` — xem `HUONG-DAN-DEPLOY.md`. Code
+service (C#/.NET) chưa viết.*
+
 **Cơ sở dữ liệu**
-- [ ] Tạo bảng `workspaces`
-- [ ] Tạo bảng `workspace_members`
-- [ ] `UNIQUE INDEX idx_workspace_one_leader`
-- [ ] Trigger `trg_cascade_delete_workspace_on_leader_leave`
+- [x] Tạo bảng `workspaces`
+- [x] Tạo bảng `workspace_members`
+- [x] `UNIQUE INDEX idx_workspace_one_leader`
+- [x] Trigger `trg_cascade_delete_workspace_on_leader_leave`
 
 **API**
-- [ ] `POST /workspaces`
-- [ ] `GET /workspaces/{workspaceId}`
-- [ ] `PATCH /workspaces/{workspaceId}`
-- [ ] `DELETE /workspaces/{workspaceId}`
-- [ ] `GET /workspaces/{workspaceId}/members`
-- [ ] `POST /workspaces/{workspaceId}/members`
-- [ ] `DELETE /workspaces/{workspaceId}/members/{userId}` (kick / tự rời / giải tán nếu là leader)
-- [ ] `PATCH /workspaces/{workspaceId}/members/{userId}/role`
+- [x] `POST /workspaces`
+- [x] `GET /workspaces/{workspaceId}`
+- [x] `PATCH /workspaces/{workspaceId}`
+- [x] `DELETE /workspaces/{workspaceId}`
+- [x] `GET /workspaces/{workspaceId}/members`
+- [x] `POST /workspaces/{workspaceId}/members`
+- [x] `DELETE /workspaces/{workspaceId}/members/{userId}` (kick / tự rời / giải tán nếu là leader) —
+      verify cả 3 nhánh (kick 403 nếu không phải leader, tự rời, leader rời giải tán cả nhóm)
+- [x] `PATCH /workspaces/{workspaceId}/members/{userId}/role`
 
 **Tích hợp**
-- [ ] Publish thông báo rời/bị xoá nhóm qua RabbitMQ → Identity Services
-- [ ] Gọi Chat Service để dọn dữ liệu chat khi xoá/giải tán workspace (tránh dữ liệu mồ côi — xem mục 1)
-- [ ] Trigger ngắt WebSocket phía Chat Service khi kick/rời nhóm
+- [x] Publish thông báo rời/bị xoá nhóm qua RabbitMQ → Identity Services (queue
+      `workspace.member-notifications`) — **Identity Service CHƯA có consumer** cho queue này
+      (mới chỉ publish, chưa có bên nhận xử lý push notification thật)
+- [x] Gọi Chat Service để dọn dữ liệu chat khi xoá/giải tán workspace — verify cascade xoá đúng
+      conversation + message liên quan
+- [ ] Trigger ngắt WebSocket phía Chat Service khi kick/rời nhóm — chưa làm (chưa có WebSocket)
 
 
 ---
@@ -2573,39 +2657,73 @@ components:
 ```
 ### 6.4 Tiến độ triển khai
 
+*Hạ tầng DB: `Tainguyen/infra/chat-db.yaml` — xem `HUONG-DAN-DEPLOY.md`. Schema tạo đủ
+cho cả P2P và Group, nhưng Phase 2 chỉ code nhánh P2P. Code service (C#/.NET) chưa viết.*
+
 **Cơ sở dữ liệu**
-- [ ] Tạo bảng `conversations` (kèm CHECK shape p2p/group, unique index cặp P2P, unique index 1 group/workspace)
-- [ ] Tạo bảng `messages`
-- [ ] Tạo bảng `group_chat_settings`
-- [ ] Tạo bảng `muted_members`
-- [ ] Tạo bảng `files`
-- [ ] Trigger `sync_storage_used` (2 chiều insert/delete)
-- [ ] Cron job tự động xoá conversation P2P sau 6 tháng không hoạt động
+- [x] Tạo bảng `conversations` (kèm CHECK shape p2p/group, unique index cặp P2P, unique index 1 group/workspace)
+- [x] Tạo bảng `messages`
+- [x] Tạo bảng `group_chat_settings`
+- [x] Tạo bảng `muted_members`
+- [x] Tạo bảng `files`
+- [x] Trigger `sync_storage_used` (2 chiều insert/delete)
+- [ ] Cron job tự động xoá conversation P2P sau 6 tháng không hoạt động (chờ code Chat Service)
+
+*Phase 2 chỉ code nhánh P2P (theo roadmap mục 2). Các mục dưới đây đánh dấu **(Group)** thuộc
+Phase 3, chưa làm.*
 
 **API**
-- [ ] `POST /conversations/p2p`
-- [ ] `GET /conversations/{conversationId}`
-- [ ] `GET /conversations/{conversationId}/messages`
-- [ ] `POST /conversations/{conversationId}/messages`
-- [ ] `DELETE /conversations/{conversationId}/messages/{messageId}`
-- [ ] `POST /files/upload-url`
-- [ ] `GET /conversations/{conversationId}/files`
-- [ ] `DELETE /conversations/{conversationId}/files/{fileId}`
-- [ ] `POST /conversations/{conversationId}/mutes`
-- [ ] `DELETE /conversations/{conversationId}/mutes/{userId}`
-- [ ] `GET /conversations/{conversationId}/storage`
-- [ ] `POST /conversations/{conversationId}/storage/topup`
-- [ ] `POST /conversations/{conversationId}/storage/unlock`
-- [ ] `GET /complaints/messages` (phải hoạt động kể cả khi tài khoản bị khoá)
-- [ ] `POST /complaints/messages` (phải hoạt động kể cả khi tài khoản bị khoá)
+- [x] `POST /conversations/p2p` — idempotent, verify tạo lại trả đúng conversation cũ
+- [x] `GET /conversations/{conversationId}` — chặn 403 nếu không phải participant
+- [x] `GET /conversations/{conversationId}/messages`
+- [x] `POST /conversations/{conversationId}/messages` — chặn `type=file` trong P2P (422), chặn
+      video >50MB / voice >25MB (413, **chưa có nén tự động**, chỉ từ chối thẳng)
+- [x] `DELETE /conversations/{conversationId}/messages/{messageId}` — **giả định cho P2P:** chỉ
+      người gửi tự xoá được (bản gốc quy định "chỉ Trưởng nhóm", chỉ áp dụng cho Group)
+- [x] `POST /files/upload-url` — presigned URL qua MinIO (S3-compatible) tại `192.168.50.10:9000`,
+      verify PUT thật lên bucket `chat-media` thành công + đọc lại đúng nội dung. Sửa 1 lỗi thật:
+      AWSSDK.S3 luôn sinh presigned URL với scheme `https://` bất kể `UseHttp` config, trong khi
+      MinIO của dự án chỉ nghe HTTP thường — phải ép lại scheme thủ công (xem `MinioStorageService.cs`)
+- [x] `GET /conversations/{conversationId}/files`
+- [x] `DELETE /conversations/{conversationId}/files/{fileId}` — giả định tương tự: người upload
+      tự xoá được (Group thì phải là Trưởng nhóm)
+- [x] `POST /conversations/{conversationId}/mutes` — chỉ Trưởng nhóm, verify member bị mute nhận
+      403 khi gửi tin, hết mute gửi lại được
+- [x] `DELETE /conversations/{conversationId}/mutes/{userId}`
+- [x] `GET /conversations/{conversationId}/storage`
+- [x] `POST /conversations/{conversationId}/storage/topup` — chỉ Trưởng nhóm (403 nếu không phải);
+      quy đổi tiền→bytes **CHƯA có bảng giá thật** (tài liệu gốc để ngỏ), tạm quy ước 1 đơn vị = 1GB
+- [x] `POST /conversations/{conversationId}/storage/unlock` — chỉ Trưởng nhóm
+- [x] `GET /complaints/messages` — verify hoạt động với JWT bất kỳ (không kiểm tra `status` tài
+      khoản, đúng yêu cầu "hoạt động kể cả khi bị khoá")
+- [x] `POST /complaints/messages` — verify TTL Redis ≈ 10 giờ đúng như thiết kế
 
 **Tích hợp**
-- [ ] Publish `Chat Service Log` lên Kafka sau mỗi tin nhắn
-- [ ] Consumer `Write Chat` đồng bộ Redis từ Kafka
-- [ ] Search Chat Service: route Redis (<10.000 tin & <10 ngày) / Postgres (còn lại)
-- [ ] Publish thông báo tin nhắn mới qua RabbitMQ → Identity Services
-- [ ] Lưu tạm hội thoại khiếu nại trong Redis, TTL 10 tiếng
-- [ ] WebSocket (Signal IR) cho realtime tin nhắn/presence
+- [x] Publish `Chat Service Log` lên Kafka sau mỗi tin nhắn — topic `chat.service-log`, **đã bổ
+      sung field `Content`** vào event (spec gốc không có) vì SpamTrackingService (mục 8) cần nội
+      dung để phân tích trùng lặp/từ khoá
+- [ ] Consumer `Write Chat` đồng bộ Redis từ Kafka — chưa làm, hiện `GET messages` đọc thẳng
+      Postgres
+- [ ] Search Chat Service: route Redis (<10.000 tin & <10 ngày) / Postgres (còn lại) — chưa làm,
+      phụ thuộc mục trên
+- [ ] Publish thông báo tin nhắn mới qua RabbitMQ → Identity Services — chưa làm
+- [x] Lưu tạm hội thoại khiếu nại trong Redis, TTL 10 tiếng — TTL tính từ tin đầu tiên (không
+      refresh mỗi tin mới), đúng theo mô tả `ComplaintSummary.expiresAt` ở mục 4.2
+- [ ] WebSocket (Signal IR) cho realtime tin nhắn/presence — chưa làm, chỉ có REST API đồng bộ
+- [x] Internal endpoint `POST /internal/conversations/group` (không có trong OpenAPI spec gốc —
+      tự thêm để WorkSpace Service gọi tạo group conversation ngay khi tạo workspace, idempotent)
+- [x] Internal endpoint `DELETE /internal/conversations/by-workspace/{workspaceId}` (không có
+      trong OpenAPI spec gốc — tự thêm để WorkSpace Service gọi dọn dữ liệu khi xoá/giải tán
+      workspace, xem mục 5.1) — verify cascade xoá đúng
+- [x] Chuỗi cảnh báo xoá file (còn 3 ngày → 2 ngày → 1 ngày → 10 tiếng) — `StorageWarningService`
+      (BackgroundService), publish qua RabbitMQ queue `identity.storage-warning` (**Identity Service
+      chưa có consumer** cho queue này); khi hết hạn tự xoá file cũ nhất tới khi dưới hạn mức, thêm
+      cột `group_chat_settings.last_warning_stage` (không có trong schema gốc) để tránh gửi trùng
+      cảnh báo — cơ chế theo dõi mốc + hành động xoá là **tự đề xuất**, tài liệu gốc chỉ mô tả có
+      tồn tại chuỗi cảnh báo, không đặc tả cơ chế
+- [x] `internal/workspaces/{workspaceId}/members` (WorkSpace Service, không có trong OpenAPI gốc)
+      — endpoint nội bộ để Chat Service kiểm tra thành viên/vai trò Group mà không cần JWT của
+      từng thành viên cụ thể
 
 
 ---
@@ -2744,7 +2862,7 @@ CREATE TABLE meeting_participants (
   id           BIGSERIAL PRIMARY KEY,
   meeting_id   BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   user_id      BIGINT NOT NULL,
-  role         VARCHAR(10) NOT NULL DEFAULT 'participant'
+  role         VARCHAR(20) NOT NULL DEFAULT 'participant'
                  CHECK (role IN ('host','participant')),
   joined_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   left_at      TIMESTAMPTZ
@@ -3438,44 +3556,143 @@ components:
 ```
 ### 7.4 Tiến độ triển khai
 
-**Cơ sở dữ liệu (Media DB)**
-- [ ] Tạo bảng `meetings`
-- [ ] Tạo bảng `meeting_participants`
-- [ ] Tạo bảng `meeting_invites`
-- [ ] Tạo bảng `meeting_permissions`
-- [ ] Trigger `trg_close_meeting_if_empty`
+**Phạm vi:** Phase 5 (Meetings/Invites/Participants, Media DB) và Phase 6
+(MiniApp IPTV, MiniApp DB) nay đã LÀM CẢ HAI — cùng nằm trong 1 service
+`MediaService.Api` (đúng như OpenAPI spec muc 7.3 gộp chung 1 tài liệu/1
+server), chỉ tách CSDL riêng theo "database per service".
 
-**Cơ sở dữ liệu (MiniApp DB)**
-- [ ] Tạo bảng `iptv_channel_lists`
-- [ ] Tạo bảng `iptv_channel_groups`
-- [ ] Tạo bảng `iptv_channels`
+**Cơ sở dữ liệu (Media DB)**
+- [x] Tạo bảng `meetings`
+- [x] Tạo bảng `meeting_participants` — **sửa lỗi thiết kế gốc:** cột `role`
+      khai `VARCHAR(10)` nhưng giá trị `'participant'` dài 11 ký tự, không
+      vừa — phát hiện thực tế khi test (lỗi Postgres `22001 value too long`).
+      Đã sửa thành `VARCHAR(20)` trong DDL (cả `media-db-init.sql` lẫn tài
+      liệu này) và `ALTER TABLE` trên instance đang chạy.
+- [x] Tạo bảng `meeting_invites`
+- [x] Tạo bảng `meeting_permissions`
+- [x] Trigger `trg_close_meeting_if_empty` — verify thực tế: kick người cuối
+      cùng → `meetings.status` tự chuyển `ended`.
+
+**Cơ sở dữ liệu (MiniApp DB)** — hoàn thành ở Phase 6, CSDL Postgres riêng
+(`Tainguyen/infra/miniapp-db-init.sql`, namespace `miniapp-db`, port 5437,
+"database per service" tách khỏi Media DB đúng tinh thần kiến trúc chung).
+- [x] Tạo bảng `iptv_channel_lists`
+- [x] Tạo bảng `iptv_channel_groups`
+- [x] Tạo bảng `iptv_channels`
 
 **API**
-- [ ] `POST /meetings`
-- [ ] `GET /meetings/{meetingId}`
-- [ ] `POST /meetings/{meetingId}/end`
-- [ ] `POST /meetings/{meetingId}/invites`
-- [ ] `GET /meetings/join/{inviteToken}`
-- [ ] `POST /meetings/join/{inviteToken}`
-- [ ] `GET /meetings/{meetingId}/waiting-room`
-- [ ] `POST /meetings/{meetingId}/waiting-room/{userId}/approve`
-- [ ] `POST /meetings/{meetingId}/waiting-room/{userId}/deny`
-- [ ] `POST /meetings/{meetingId}/participants/{userId}/kick`
-- [ ] `POST /meetings/{meetingId}/participants/{userId}/permissions`
-- [ ] `DELETE /meetings/{meetingId}/participants/{userId}/permissions`
-- [ ] `POST /meetings/{meetingId}/mini-app/start`
-- [ ] `GET /miniapps/iptv/channel-lists`
-- [ ] `POST /miniapps/iptv/channel-lists`
-- [ ] `POST /miniapps/iptv/channel-lists/{listId}/groups`
-- [ ] `POST /miniapps/iptv/channel-lists/{listId}/groups/{groupId}/channels`
-- [ ] `GET /meetings/{meetingId}/mini-app/iptv/stream-url`
+- [x] `POST /meetings` — tạo `Meeting` + insert host vào
+      `meeting_participants` + gọi LiveKit `CreateRoom` thật (verify qua log
+      LiveKit server: `API RoomService.CreateRoom ... status: 200`). 503 khi
+      LiveKit từ chối (dọn lại row vừa tạo, tránh "phòng ma").
+      `mode=in_chat` gọi Chat Service tạo tin nhắn hệ thống (endpoint mới,
+      xem mục Tích hợp).
+- [x] `GET /meetings/{meetingId}` — **mở rộng so với schema `Meeting` gốc**
+      (thêm `callerStatus`/`livekitToken`/`livekitUrl`) — xem giải thích ở
+      mục Tích hợp bên dưới (cơ chế poll thay WebSocket).
+- [x] `POST /meetings/{meetingId}/end` — chỉ host, gọi LiveKit `DeleteRoom`
+      thật (verify qua log: `status: 200`), dọn waiting room trong Redis.
+- [x] `POST /meetings/{meetingId}/invites` — cả `link` và `direct`. Verify
+      thực tế: direct invite tới user không tồn tại → 422; tới user tồn tại
+      → 201 + publish RabbitMQ (verify `rabbitmqctl list_queues` thấy
+      message).
+- [x] `GET /meetings/join/{inviteToken}` — preview, tính `requiresApproval`
+      (xem quyết định tự thiết kế bên dưới).
+- [x] `POST /meetings/join/{inviteToken}` — verify thực tế cả 2 nhánh: link
+      invite → `status=pending` (vào waiting room); direct invite → duyệt
+      ngay, trả `livekitToken` hợp lệ (giải mã JWT xác nhận đúng `room`,
+      `identity`, `attributes.email`).
+- [x] `GET /meetings/{meetingId}/waiting-room` — chỉ host.
+- [x] `POST /meetings/{meetingId}/waiting-room/{userId}/approve` — verify
+      thực tế toàn bộ chuỗi: join (pending) → host approve → member poll
+      `GET /meetings/{meetingId}` nhận đúng `callerStatus=approved` +
+      `livekitToken` thật (1 lần duy nhất, lần poll sau `callerStatus`
+      chuyển `participant` và `livekitToken=null`) — **sửa 1 bug thực tế
+      trong lúc test:** thứ tự kiểm tra ban đầu để nhánh "đã là participant"
+      chặn trước nhánh "có token đang chờ", khiến người vừa được duyệt
+      KHÔNG BAO GIỜ nhận được token — đã đổi thứ tự ưu tiên kiểm tra token
+      trước.
+- [x] `POST /meetings/{meetingId}/waiting-room/{userId}/deny` — đánh dấu
+      trong Redis, người bị từ chối đọc được 1 lần qua poll
+      (`callerStatus=denied`).
+- [x] `POST /meetings/{meetingId}/participants/{userId}/kick` — gọi LiveKit
+      `RemoveParticipant` thật (verify qua log — trả 404 "participant not
+      found" vì test không có client WebRTC thật nào thực sự kết nối vào
+      phòng, đúng như dự kiến do đây là test tầng backend/API, không phải
+      test đầu-cuối trình duyệt thật; code đã bọc try/catch để không coi đây
+      là lỗi).
+- [x] `POST /meetings/{meetingId}/participants/{userId}/permissions` —
+      verify 403 khi không phải host, 201 khi host cấp quyền.
+- [x] `DELETE /meetings/{meetingId}/participants/{userId}/permissions` —
+      verify 204.
+- [x] `POST /meetings/{meetingId}/mini-app/start` — kiểm tra quyền (host
+      HOẶC được cấp `mini_app`), verify 403 cho người ngoài phòng, 200 cho
+      host. **Giới hạn đã biết:** vì chưa có tầng WebSocket, endpoint này
+      CHỈ xác nhận quyền và trả 200 — KHÔNG thực sự "broadcast cho cả
+      phòng" như mô tả gốc (UC-34/UC-35), các client khác trong phòng không
+      có cách nào được báo real-time. Cần bổ sung khi dự án có tầng
+      WebSocket/SignalR.
+- [x] `GET /miniapps/iptv/channel-lists` — theo user (JWT), không thấy danh
+      sách của người khác.
+- [x] `POST /miniapps/iptv/channel-lists`
+- [x] `POST /miniapps/iptv/channel-lists/{listId}/groups` — verify quyền sở
+      hữu list (404 nếu list không phải của người gọi).
+- [x] `POST /miniapps/iptv/channel-lists/{listId}/groups/{groupId}/channels`
+- [x] `GET /meetings/{meetingId}/mini-app/iptv/stream-url` — verify 403 cho
+      người không ở trong phòng, 200 kèm đúng `streamUrl`/`audioTrack` cho
+      người trong phòng. **Quyết định tự đưa ra:** tài liệu gốc không nói rõ
+      ai được gọi endpoint này — suy luận hợp lý nhất theo đúng tinh thần
+      UC-37 ("mỗi người TRONG PHÒNG tự fetch riêng") là bất kỳ ai đang ở
+      trong phòng (kể cả người thường, không riêng host/người được cấp
+      quyền `mini_app`), vì việc XEM link không phải là hành động điều
+      khiển mini app.
 
 **Tích hợp**
-- [ ] LiveKit Service + TURN Service — cluster + Redis đồng bộ room state
-- [ ] Gọi LiveKit Server API (Mute/Cam/Token, RemoveParticipant)
-- [ ] Publish thông báo mời họp qua RabbitMQ → Identity Services
-- [ ] Kiểm tra bạn bè qua Identity Service khi mời trực tiếp
-- [ ] Chat Service tạo tin nhắn mời khi mở họp trong nhóm chat
+- [x] LiveKit Service + TURN Service — cluster đã có từ Phase 0
+      (`kind-livekit-cluster`). **Bổ sung theo yêu cầu:** STUN server dùng
+      của Google (`stun.l.google.com:19302`, `stun1.l.google.com:19302`,
+      miễn phí không giới hạn) thay vì tự dựng STUN riêng — cấu hình tại
+      `Tainguyen/infra/livekit-values.yaml` (`rtc.stun_servers`), đã
+      `helm upgrade` áp dụng lên cluster thật. TURN local vẫn giữ nguyên
+      (bật `turn.enabled: true`) cho các trường hợp STUN không đủ (NAT đối
+      xứng/firewall chặt).
+- [x] Gọi LiveKit Server API thật qua `Livekit.Server.Sdk.Dotnet` (SDK cộng
+      đồng chính thức được LiveKit liệt kê cho .NET) — `CreateRoom`,
+      `DeleteRoom`, `RemoveParticipant`, `AccessToken` (sinh JWT cho
+      client). KHÔNG có `Mute/Cam` server-side vì đúng như OpenAPI spec đã
+      ghi chú rõ — bật/tắt cam/mic của CHÍNH MÌNH là thao tác client-side
+      thuần tuý qua LiveKit JS SDK, không cần Media Service.
+- [x] Publish thông báo mời họp qua RabbitMQ → Identity Services — queue
+      `media.meeting-invite`, verify publish thành công. **CHƯA có consumer
+      bên Identity Service** (cùng tình trạng với queue
+      `workspace.member-notifications` của WorkSpace Service) — hệ thống
+      chưa có cơ chế push-notification chung, chuẩn bị sẵn hàng đợi để dùng
+      sau.
+- [x] Kiểm tra bạn bè qua Identity Service khi mời trực tiếp — **KHÔNG làm
+      đúng như tài liệu gốc được vì hệ thống này chưa có tính năng "bạn bè"
+      ở BẤT KỲ service nào** (Identity/WorkSpace/Chat đều không có bảng
+      friends). Quyết định tự thiết kế: thay bằng kiểm tra tối thiểu —
+      `invitedUserId` phải là 1 user có thật trong hệ thống (422 nếu không).
+      Cần bổ sung tính năng bạn bè thật sự ở service phù hợp trước khi ràng
+      buộc này khớp đúng UC-32 nguyên bản.
+- [x] Chat Service tạo tin nhắn mời khi mở họp trong nhóm chat — thêm
+      endpoint nội bộ mới `POST /internal/conversations/{conversationId}/system-message`
+      (Chat Service, dùng `MessageType.System` + `SenderId=null` đã có sẵn
+      trong model từ trước nhưng chưa từng dùng tới cho đến bây giờ).
+
+**Quyết định tự đưa ra khác (không có trong tài liệu gốc):**
+- Không có cột `requiresApproval` nào trong schema `meetings`. Tự suy ra:
+  invite `type=link` LUÔN cần duyệt (host chưa biết trước ai sẽ bấm link),
+  invite `type=direct` KHÔNG cần duyệt (host đã chủ động chọn đúng người).
+- Tài liệu gốc mô tả luồng "poll `GET /meetings/{meetingId}` hoặc lắng nghe
+  qua WebSocket" nhưng dự án này CHƯA có tầng WebSocket/SignalR nào (kiểm
+  tra toàn bộ codebase, không có service nào dùng). Since du an chua co lop
+  nay, đã mở rộng response của `GET /meetings/{meetingId}` với
+  `callerStatus`/`livekitToken`/`livekitUrl` để cơ chế poll THỰC SỰ hoạt
+  động được, không chỉ là mô tả suông trong spec. Trạng thái "đang chờ
+  duyệt"/"vừa được duyệt (token chờ lấy 1 lần)"/"bị từ chối (đọc 1 lần)" lưu
+  trong Redis — dữ liệu phiên, không bền vững, đúng tinh thần "session-scoped
+  hợp với Redis hơn" đã ghi trong Ghi chú/Điểm mở mục 7.2.
 
 
 ---
@@ -3635,17 +3852,42 @@ components:
 
 ### 8.3 Tiến độ triển khai
 
+*Code: `SpamTrackingService/` (C#/.NET). Hạ tầng: `Tainguyen/infra/spamtracking-db.yaml` — schema
+`violations` tự thiết kế, KHÔNG có trong tài liệu gốc (mục 8 chỉ mô tả API + luồng sự kiện, không
+có "Thiết kế CSDL" riêng).*
+
+**Thuật toán phát hiện spam — tự đề xuất** (tài liệu gốc ghi rõ UC-38 "điểm mở", chưa chốt thuật
+toán/ngưỡng): kết hợp 3 tín hiệu chấm điểm — tần suất tin nhắn (rate), nội dung trùng lặp
+(duplicate hash), từ khoá/pattern spam — tổng điểm vượt ngưỡng mới ghi nhận vi phạm, xem
+`SpamDetector.cs`. Có thể cần hiệu chỉnh lại ngưỡng khi có dữ liệu thật.
+
+**Quyết định tự đưa ra:** vì Admin Service (nơi ra quyết định `Delete Account Spam` theo UC-12)
+chưa tồn tại, cho SpamTrackingService **tự động leo thang**: vi phạm lần đầu → khoá; vi phạm lặp
+lại (đã có violation trước đó) → tự động xoá vĩnh viễn, không chờ Admin duyệt. Cần sửa lại khi có
+Admin Service (Phase 4).
+
 **API (SpamTrackingService)**
-- [ ] `GET /internal/violations`
-- [ ] `GET /internal/violations/{userId}`
+- [x] `GET /internal/violations` — resolve nickname qua Identity Service, verify pagination
+- [x] `GET /internal/violations/{userId}`
 
 **Tích hợp**
-- [ ] SpamTrackingService: consumer Kafka topic `Chat Log`
-- [ ] SpamTrackingService: publish `Khóa tài khoản` qua RabbitMQ
-- [ ] SpamTrackingService: publish `Delete Account Spam` qua RabbitMQ
-- [ ] Kafka: topic `Register` (Login, Register History)
-- [ ] Kafka: topic `Chat Log`
-- [ ] Kafka: topic `Error Log` (mức hệ thống tổng thể — chưa có consumer)
-- [ ] RabbitMQ: hàng đợi cho từng cặp publisher → consumer đã liệt kê ở mục 8.1
-- [ ] Xác nhận KHÔNG dùng RabbitMQ cho `Delete Account Expired` (xử lý bằng cron job nội bộ Identity Service)
+- [x] SpamTrackingService: consumer Kafka topic `Chat Log` (tên thật: `chat.service-log`) —
+      verify end-to-end: gửi tin trùng lặp + từ khoá spam → điểm 70/60 → ghi violation
+- [x] SpamTrackingService: publish `Khóa tài khoản` qua RabbitMQ (queue `identity.account-locked`,
+      **dùng lại đúng queue** Identity Service đã tạo sẵn ở Phase 1) — verify Identity Service
+      nhận và khoá tài khoản thật, login sau đó bị 403
+- [x] SpamTrackingService: publish `Delete Account Spam` qua RabbitMQ (queue MỚI
+      `identity.delete-account-spam`, thêm consumer tương ứng bên Identity Service — không có
+      trong code Phase 1 vì SpamTrackingService lúc đó chưa tồn tại) — verify xoá vĩnh viễn user
+      thật khỏi DB khi vi phạm lần 2
+- [x] Kafka: topic `Register` (Login, Register History) — tên thật: `identity.auth-history` (đã
+      làm ở Phase 1)
+- [x] Kafka: topic `Chat Log` — tên thật: `chat.service-log` (đã làm ở Phase 2, bổ sung field
+      `Content` ở Phase 3 để phục vụ phân tích spam)
+- [ ] Kafka: topic `Error Log` (mức hệ thống tổng thể — chưa có consumer, chưa làm)
+- [x] RabbitMQ: hàng đợi cho từng cặp publisher → consumer đã liệt kê ở mục 8.1 — cả 3 cặp
+      (SpamTracking→Identity khoá/xoá, WorkSpace→Identity thông báo rời nhóm) đã publish, chỉ
+      riêng "thông báo rời nhóm" bên Identity CHƯA có consumer (mới publish, chưa xử lý)
+- [x] Xác nhận KHÔNG dùng RabbitMQ cho `Delete Account Expired` — đúng, `GuestCleanupService` xử
+      lý bằng cron job nội bộ Identity Service (đã làm ở Phase 1)
 

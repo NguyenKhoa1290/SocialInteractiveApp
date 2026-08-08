@@ -4,7 +4,10 @@
       "Bash(kubectl version *)",
       "Bash(kubectl config *)",
       "Bash(kubectl get *)",
-      "Bash(docker version *)"
+      "Bash(docker version *)",
+      "Bash(echo \"File: e:\\\\\\\\Chat_APP\\\\\\\\ChatService\\\\\\\\src\\\\\\\\ChatService.Api\\\\\\\\appsettings.json\")",
+      "Read(//tmp/**)",
+      "Bash(docker run *)"
     ]
   }
 }

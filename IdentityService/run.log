@@ -1,7 +1,4 @@
 Using launch settings from E:\Chat_APP\IdentityService\src\IdentityService.Api\Properties\launchSettings.json...
-Building...
-E:\Chat_APP\IdentityService\src\IdentityService.Api\IdentityService.Api.csproj : warning NU1903: Package 'Microsoft.OpenApi' 2.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc
-E:\Chat_APP\IdentityService\src\IdentityService.Api\IdentityService.Api.csproj : warning NU1903: Package 'Microsoft.OpenApi' 2.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc
 info: Microsoft.Hosting.Lifetime[14]
       Now listening on: http://localhost:5194
 info: Microsoft.Hosting.Lifetime[0]
@@ -10,14 +7,46 @@ info: Microsoft.Hosting.Lifetime[0]
       Hosting environment: Development
 info: Microsoft.Hosting.Lifetime[0]
       Content root path: E:\Chat_APP\IdentityService\src\IdentityService.Api
+info: IdentityService.Api.BackgroundServices.AccountLockedConsumerService[0]
+      AccountLockedConsumerService dang lang nghe queue 'identity.account-locked'
 info: Microsoft.EntityFrameworkCore.Database.Command[20101]
-      Executed DbCommand (45ms) [Parameters=[@p0='?' (DbType = DateTime), @p1='?', @p2='?' (DbType = DateTime), @p3='?', @p4='?', @p5='?', @p6='?'], CommandType='Text', CommandTimeout='30']
+      Executed DbCommand (44ms) [Parameters=[@cutoff='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT u.id, u.created_at, u.email, u.last_active_at, u.nickname, u.password_hash, u.status, u.user_type
+      FROM users AS u
+      WHERE u.user_type = 'guest' AND u.last_active_at < @cutoff
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (5ms) [Parameters=[@req_Email='?'], CommandType='Text', CommandTimeout='30']
+      SELECT EXISTS (
+          SELECT 1
+          FROM users AS u
+          WHERE u.email = @req_Email)
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (3ms) [Parameters=[@p0='?' (DbType = DateTime), @p1='?', @p2='?' (DbType = DateTime), @p3='?', @p4='?', @p5='?', @p6='?'], CommandType='Text', CommandTimeout='30']
       INSERT INTO users (created_at, email, last_active_at, nickname, password_hash, status, user_type)
       VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6)
       RETURNING id;
-info: Microsoft.EntityFrameworkCore.Database.Command[20101]
-      Executed DbCommand (4ms) [Parameters=[@p='?' (DbType = Int64)], CommandType='Text', CommandTimeout='30']
-      SELECT u.id, u.created_at, u.email, u.last_active_at, u.nickname, u.password_hash, u.status, u.user_type
-      FROM users AS u
-      WHERE u.id = @p
-      LIMIT 1
+%3|1786162604.537|FAIL|rdkafka#producer-1| [thrd:localhost:9092/bootstrap]: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT)
+%3|1786162604.537|ERROR|rdkafka#producer-1| [thrd:localhost:9092/bootstrap]: 1/1 brokers are down
+%3|1786162604.537|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT)
+%3|1786162625.603|FAIL|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT)
+%3|1786162625.603|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162625.603|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT)
+%3|1786162646.719|FAIL|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT, 1 identical error(s) suppressed)
+%3|1786162646.719|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162646.719|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT, 1 identical error(s) suppressed)
+%3|1786162649.582|FAIL|rdkafka#producer-1| [thrd:localhost:9092/bootstrap]: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT)
+%3|1786162649.582|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT)
+%3|1786162651.635|FAIL|rdkafka#producer-1| [thrd:localhost:9092/bootstrap]: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT, 1 identical error(s) suppressed)
+%3|1786162651.635|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: localhost:9092/bootstrap: Connect to ipv6#[::1]:9092 failed: Unknown error (after 2003ms in state CONNECT, 1 identical error(s) suppressed)
+%3|1786162667.868|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162688.997|FAIL|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT, 2 identical error(s) suppressed)
+%3|1786162688.997|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162688.997|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21002ms in state CONNECT, 2 identical error(s) suppressed)
+%3|1786162710.135|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162731.271|FAIL|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21003ms in state CONNECT, 2 identical error(s) suppressed)
+%3|1786162731.271|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162731.271|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21003ms in state CONNECT, 2 identical error(s) suppressed)
+%3|1786162752.373|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162773.480|FAIL|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21011ms in state CONNECT, 2 identical error(s) suppressed)
+%3|1786162773.480|ERROR|rdkafka#producer-1| [thrd:172.18.0.2:30909/1]: 1/1 brokers are down
+%3|1786162773.480|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: 172.18.0.2:30909/1: Connect to ipv4#172.18.0.2:30909 failed: Unknown error (after 21011ms in state CONNECT, 2 identical error(s) suppressed)

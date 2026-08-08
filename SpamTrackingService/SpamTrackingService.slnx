@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SpamTrackingService.Api/SpamTrackingService.Api.csproj" />
+  </Folder>
+</Solution>

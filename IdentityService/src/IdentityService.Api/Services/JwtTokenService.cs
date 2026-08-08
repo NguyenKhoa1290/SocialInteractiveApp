@@ -18,20 +18,30 @@ public class JwtOptions
     public int GuestTokenExpiryMinutes { get; set; } = 30;
 }
 
+public record IssuedToken(string AccessToken, string Jti, DateTime ExpiresAtUtc);
+
 public class JwtTokenService(JwtOptions options)
 {
-    public string IssueToken(User user)
+    public IssuedToken IssueToken(User user)
     {
         var expiryMinutes = user.UserType == UserType.Guest
             ? options.GuestTokenExpiryMinutes
             : options.RegisteredTokenExpiryMinutes;
+        var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
+        var jti = Guid.NewGuid().ToString("N");
 
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Jti, jti),
             new("user_type", user.UserType == UserType.Guest ? "guest" : "registered"),
             new("nickname", user.Nickname),
         };
+
+        // role=admin chi duoc gan khi User.IsAdmin=true (Phase 4, Admin Service
+        // kiem tra claim nay). Khong co claim "role" cho user thuong.
+        if (user.IsAdmin)
+            claims.Add(new Claim("role", "admin"));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -40,9 +50,10 @@ public class JwtTokenService(JwtOptions options)
             issuer: options.Issuer,
             audience: options.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
+            expires: expiresAt,
             signingCredentials: credentials);
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        return new IssuedToken(accessToken, jti, expiresAt);
     }
 }

@@ -1,0 +1,42 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "ChatDb": "Host=localhost;Port=5434;Database=chat;Username=chat_admin;Password=<mat-khau>",
+    "Redis": "localhost:6379,password=<mat-khau-redis>"
+  },
+  "Jwt": {
+    "SigningKey": "<PHAI GIONG HET Jwt:SigningKey cua Identity Service>",
+    "Issuer": "identity-service",
+    "Audience": "chat-app"
+  },
+  "Kafka": {
+    "BootstrapServers": "localhost:9092",
+    "ChatLogTopic": "chat.service-log"
+  },
+  "Minio": {
+    "Endpoint": "http://192.168.50.10:9000",
+    "AccessKey": "<minio-access-key>",
+    "SecretKey": "<minio-secret-key>",
+    "BucketName": "chat-media",
+    "PresignedUrlExpirySeconds": 300
+  },
+  "WorkspaceClient": {
+    "BaseUrl": "http://localhost:5153"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "StorageWarningQueue": "identity.storage-warning"
+  },
+  "StorageWarning": {
+    "CheckIntervalMinutes": 60
+  }
+}

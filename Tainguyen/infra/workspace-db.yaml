@@ -1,0 +1,81 @@
+# Workspace DB (Postgres) - "Database per Service", rieng cho WorkSpace Service.
+# ConfigMap workspace-db-init tao rieng bang:
+#   kubectl create configmap workspace-db-init -n workspace-db --from-file=init.sql=workspace-db-init.sql
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workspace-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workspace-db
+  namespace: workspace-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: workspace-db
+  template:
+    metadata:
+      labels:
+        app: workspace-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: workspace-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: workspace-db-data
+        - name: init-script
+          configMap:
+            name: workspace-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: workspace-db-data
+  namespace: workspace-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workspace-db
+  namespace: workspace-db
+spec:
+  # LoadBalancer (khong phai NodePort) - da xac nhan tren cluster docker-desktop
+  # chi LoadBalancer moi duoc tu dong forward ra localhost.
+  type: LoadBalancer
+  selector:
+    app: workspace-db
+  ports:
+    # Dung port host rieng 5433 (khac 5432 cua identity-db) de tranh dung
+    # localhost:5432 - Postgres BEN TRONG container van lang nghe 5432 binh
+    # thuong (targetPort), chi port ngoai (localhost) la khac.
+    - port: 5433
+      targetPort: 5432

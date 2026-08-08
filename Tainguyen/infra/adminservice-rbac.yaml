@@ -1,0 +1,65 @@
+# RBAC cho Admin Service (Phase 4) - dung theo muc 4.1 cua
+# Congviec/he-thong-tong-hop-kien-truc-csdl-api-roadmap.md: "K8s Service
+# Account rieng, RBAC read-only" cho GET /admin/system/resources, cong voi
+# 1 Role RIENG chi cho phep patch deployments/scale cho POST
+# /admin/system/services/{serviceName}/scale (tach biet 2 quyen theo dung
+# yeu cau thiet ke). Ap dung cho cluster dang chay cac service (docker-desktop
+# luc dev, k3s luc len server nha) - khong ap dung rieng cho AdminService's
+# own namespace vi no can doc/ghi pods/deployments cua CA cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-service
+  namespace: default
+---
+# ClusterRole read-only: get/list tren pods, nodes, metrics.k8s.io (Metrics
+# Server) - dung cho GET /admin/system/resources.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: admin-service-readonly
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-service-readonly-binding
+subjects:
+  - kind: ServiceAccount
+    name: admin-service
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: admin-service-readonly
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClusterRole RIENG: chi patch tren deployments/scale - dung cho POST
+# /admin/system/services/{serviceName}/scale. Tach khoi Role read-only o tren
+# theo dung luu y trong OpenAPI spec (muc 4.2, endpoint scale).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: admin-service-scale
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-service-scale-binding
+subjects:
+  - kind: ServiceAccount
+    name: admin-service
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: admin-service-scale
+  apiGroup: rbac.authorization.k8s.io

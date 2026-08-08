@@ -1,0 +1,42 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "IdentityDb": "Host=localhost;Port=5432;Database=identity;Username=identity_admin;Password=<mat-khau>"
+  },
+  "Jwt": {
+    "SigningKey": "<sinh bang: openssl rand -base64 48>",
+    "Issuer": "identity-service",
+    "Audience": "chat-app",
+    "RegisteredTokenExpiryMinutes": 60,
+    "GuestTokenExpiryMinutes": 30
+  },
+  "Smtp": {
+    "Host": "smtp.gmail.com",
+    "Port": 587,
+    "Username": "<gmail-cua-ban@gmail.com>",
+    "AppPassword": "<Gmail App Password 16 ky tu, KHONG phai mat khau Gmail thuong>",
+    "FromName": "Chat App"
+  },
+  "Kafka": {
+    "BootstrapServers": "localhost:9092",
+    "AuthHistoryTopic": "identity.auth-history"
+  },
+  "GuestCleanup": {
+    "IntervalHours": 24,
+    "ExpiryMonths": 6
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "AccountLockedQueue": "identity.account-locked",
+    "DeleteAccountSpamQueue": "identity.delete-account-spam"
+  }
+}

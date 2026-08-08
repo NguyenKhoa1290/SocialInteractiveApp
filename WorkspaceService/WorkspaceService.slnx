@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WorkspaceService.Api/WorkspaceService.Api.csproj" />
+  </Folder>
+</Solution>

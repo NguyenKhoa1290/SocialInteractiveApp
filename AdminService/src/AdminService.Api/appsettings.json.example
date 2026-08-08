@@ -1,0 +1,33 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Jwt": {
+    "SigningKey": "<PHAI GIONG HET Jwt:SigningKey cua Identity Service>",
+    "Issuer": "identity-service",
+    "Audience": "chat-app"
+  },
+  "IdentityClient": {
+    "BaseUrl": "http://localhost:5194"
+  },
+  "SpamTrackingClient": {
+    "BaseUrl": "http://localhost:5160"
+  },
+  "ChatServiceClient": {
+    "BaseUrl": "http://localhost:5261"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "DeleteAccountSpamQueue": "identity.delete-account-spam"
+  },
+  "K8s": {
+    "UseInCluster": true
+  }
+}

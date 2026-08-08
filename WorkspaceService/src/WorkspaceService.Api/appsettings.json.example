@@ -1,0 +1,30 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "WorkspaceDb": "Host=localhost;Port=5433;Database=workspace;Username=workspace_admin;Password=<mat-khau>"
+  },
+  "Jwt": {
+    "SigningKey": "<PHAI GIONG HET Jwt:SigningKey cua Identity Service - vi Identity phat hanh token, WorkSpace chi validate>",
+    "Issuer": "identity-service",
+    "Audience": "chat-app"
+  },
+  "IdentityClient": {
+    "BaseUrl": "http://localhost:5194"
+  },
+  "ChatServiceClient": {
+    "BaseUrl": "http://localhost:5195"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "MemberNotificationQueue": "workspace.member-notifications"
+  }
+}

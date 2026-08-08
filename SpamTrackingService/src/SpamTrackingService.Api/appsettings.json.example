@@ -1,0 +1,39 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "SpamTrackingDb": "Host=localhost;Port=5435;Database=spamtracking;Username=spamtracking_admin;Password=<mat-khau>",
+    "Redis": "localhost:6379,password=<mat-khau-redis>"
+  },
+  "IdentityClient": {
+    "BaseUrl": "http://localhost:5194"
+  },
+  "Kafka": {
+    "BootstrapServers": "localhost:9092",
+    "ChatLogTopic": "chat.service-log",
+    "ConsumerGroupId": "spamtracking-service"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "AccountLockedQueue": "identity.account-locked",
+    "DeleteAccountSpamQueue": "identity.delete-account-spam"
+  },
+  "SpamDetection": {
+    "RateWindowSeconds": 60,
+    "RateThresholdMessages": 20,
+    "RateScore": 40,
+    "DuplicateWindowSeconds": 120,
+    "DuplicateThresholdCount": 4,
+    "DuplicateScore": 40,
+    "KeywordScore": 30,
+    "ViolationThreshold": 60
+  }
+}

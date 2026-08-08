@@ -31,6 +31,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
                 .HasConversion(
                     v => v == UserStatus.Active ? "active" : "locked",
                     v => v == "active" ? UserStatus.Active : UserStatus.Locked);
+            entity.Property(u => u.IsAdmin).HasColumnName("is_admin");
             entity.Property(u => u.CreatedAt).HasColumnName("created_at");
             entity.Property(u => u.LastActiveAt).HasColumnName("last_active_at");
         });

@@ -1,0 +1,39 @@
+namespace ChatService.Api.Models;
+
+public enum FileType
+{
+    Image,
+    Video,
+    Voice,
+    File
+}
+
+// Ten class "FileAttachment" (khong dat "File" de tranh dung ten voi System.IO.File).
+// Anh xa vao bang "files" trong DB.
+public class FileAttachment
+{
+    public long Id { get; set; }
+    public long ConversationId { get; set; }
+    public long? MessageId { get; set; }
+    public long UploadedBy { get; set; }
+    public string ObjectKey { get; set; } = string.Empty;
+    public FileType FileType { get; set; }
+    public long SizeBytes { get; set; }
+    public DateTimeOffset UploadedAt { get; set; }
+
+    public static string TypeToString(FileType t) => t switch
+    {
+        FileType.Image => "image",
+        FileType.Video => "video",
+        FileType.Voice => "voice",
+        _ => "file",
+    };
+
+    public static FileType TypeFromString(string t) => t switch
+    {
+        "image" => FileType.Image,
+        "video" => FileType.Video,
+        "voice" => FileType.Voice,
+        _ => FileType.File,
+    };
+}

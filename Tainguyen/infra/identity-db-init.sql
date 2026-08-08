@@ -12,6 +12,13 @@ CREATE TABLE users (
   password_hash   VARCHAR(255),
   status          VARCHAR(20) NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active','locked')),
+  -- Them o Phase 4 (Admin Service, ALTER TABLE tren instance dang chay, khong
+  -- co trong ban thiet ke goc). Chua co UI/luong dang ky Admin nao duoc dinh
+  -- nghia trong tai lieu goc, nen viec cap quyen admin hien tai la thao tac
+  -- thu cong (UPDATE users SET is_admin = true) hoac qua internal endpoint
+  -- POST /internal/users/{userId}/promote-admin (chi dung noi bo/CLI, KHONG
+  -- public) - xem InternalEndpoints.cs.
+  is_admin        BOOLEAN NOT NULL DEFAULT false,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_active_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT chk_guest_no_credentials

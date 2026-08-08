@@ -1,0 +1,77 @@
+# Media DB (Postgres) - "Database per Service", rieng cho MediaService.
+# ConfigMap media-db-init tao rieng bang:
+#   kubectl create configmap media-db-init -n media-db --from-file=init.sql=media-db-init.sql
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-db
+  namespace: media-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: media-db
+  template:
+    metadata:
+      labels:
+        app: media-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: media-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: media-db-data
+        - name: init-script
+          configMap:
+            name: media-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-db-data
+  namespace: media-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-db
+  namespace: media-db
+spec:
+  type: LoadBalancer
+  selector:
+    app: media-db
+  ports:
+    # 5436 - tiep theo sau identity(5432)/workspace(5433)/chat(5434)/spamtracking(5435)
+    - port: 5436
+      targetPort: 5432

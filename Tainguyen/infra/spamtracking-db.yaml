@@ -1,0 +1,77 @@
+# SpamTracking DB (Postgres) - "Database per Service", rieng cho SpamTrackingService.
+# ConfigMap spamtracking-db-init tao rieng bang:
+#   kubectl create configmap spamtracking-db-init -n spamtracking-db --from-file=init.sql=spamtracking-db-init.sql
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spamtracking-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spamtracking-db
+  namespace: spamtracking-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: spamtracking-db
+  template:
+    metadata:
+      labels:
+        app: spamtracking-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: spamtracking-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: spamtracking-db-data
+        - name: init-script
+          configMap:
+            name: spamtracking-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spamtracking-db-data
+  namespace: spamtracking-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spamtracking-db
+  namespace: spamtracking-db
+spec:
+  type: LoadBalancer
+  selector:
+    app: spamtracking-db
+  ports:
+    # 5435 - tiep theo sau identity(5432)/workspace(5433)/chat(5434)
+    - port: 5435
+      targetPort: 5432

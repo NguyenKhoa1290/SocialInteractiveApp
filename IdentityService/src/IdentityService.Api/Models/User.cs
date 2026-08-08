@@ -20,6 +20,7 @@ public class User
     public string? Email { get; set; }
     public string? PasswordHash { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;
+    public bool IsAdmin { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastActiveAt { get; set; }
 

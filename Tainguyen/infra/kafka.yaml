@@ -46,7 +46,7 @@ spec:
             # ket noi se that bai vi 9092 khong duoc bind ra ngoai container (chi co
             # NodePort 30909 duoc kube-proxy forward vao pod:9092).
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://172.18.0.7:30909"
+              value: "PLAINTEXT://172.18.0.2:30909"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP

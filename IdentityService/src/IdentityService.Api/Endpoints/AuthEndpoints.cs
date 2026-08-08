@@ -1,20 +1,23 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using IdentityService.Api.Data;
 using IdentityService.Api.Models;
 using IdentityService.Api.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Api.Endpoints;
 
 public static class AuthEndpoints
 {
+    private static readonly TimeSpan OtpTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ResetTokenTtl = TimeSpan.FromMinutes(10);
+
     public static void MapAuthEndpoints(this WebApplication app)
     {
         var auth = app.MapGroup("/auth");
 
         // UC-06: Dang ky bang email + mat khau
-        auth.MapPost("/register", async (RegisterRequest req, IdentityDbContext db, JwtTokenService jwt) =>
+        auth.MapPost("/register", async (RegisterRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password) || string.IsNullOrWhiteSpace(req.Nickname))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Email, password va nickname la bat buoc"));
@@ -40,11 +43,12 @@ public static class AuthEndpoints
             await db.SaveChangesAsync();
 
             var token = jwt.IssueToken(user);
-            return Results.Created($"/users/{user.Id}", new AuthSuccessResponse(token, UserResponse.FromEntity(user)));
+            await kafka.PublishAuthEventAsync("register", user.Id, user.Email, "registered");
+            return Results.Created($"/users/{user.Id}", new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
 
         // UC-01: Dang nhap email + mat khau
-        auth.MapPost("/login", async (LoginRequest req, IdentityDbContext db, JwtTokenService jwt) =>
+        auth.MapPost("/login", async (LoginRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
         {
             var user = await db.Users.SingleOrDefaultAsync(u => u.Email == req.Email);
             if (user is null || user.PasswordHash is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
@@ -59,11 +63,12 @@ public static class AuthEndpoints
             await db.SaveChangesAsync();
 
             var token = jwt.IssueToken(user);
-            return Results.Ok(new AuthSuccessResponse(token, UserResponse.FromEntity(user)));
+            await kafka.PublishAuthEventAsync("login", user.Id, user.Email, "registered");
+            return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
 
         // UC-04: Truy cap dang Guest - chi can nickname
-        auth.MapPost("/guest", async (GuestRequest req, IdentityDbContext db, JwtTokenService jwt) =>
+        auth.MapPost("/guest", async (GuestRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
         {
             if (string.IsNullOrWhiteSpace(req.Nickname) || req.Nickname.Length > 50)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Nickname bat buoc, toi da 50 ky tu"));
@@ -80,18 +85,128 @@ public static class AuthEndpoints
             await db.SaveChangesAsync();
 
             var token = jwt.IssueToken(user);
-            return Results.Ok(new AuthSuccessResponse(token, UserResponse.FromEntity(user)));
+            await kafka.PublishAuthEventAsync("guest", user.Id, null, "guest");
+            return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
 
-        // GET /users/me - can JWT hop le
-        app.MapGet("/users/me", async (ClaimsPrincipal principal, IdentityDbContext db) =>
+        // UC-02/03/07/08: Dang nhap/Dang ky qua OAuth (Google/Facebook) - dung chung endpoint
+        auth.MapPost("/oauth/{provider}", async (string provider, OAuthRequest req, IdentityDbContext db, JwtTokenService jwt, IOAuthVerifier verifier, KafkaProducerService kafka) =>
         {
-            var sub = principal.FindFirstValue("sub");
-            if (sub is null || !long.TryParse(sub, out var userId))
-                return Results.Unauthorized();
+            if (provider is not ("google" or "facebook"))
+                return Results.BadRequest(new ErrorResponse("invalid_provider", "provider phai la google hoac facebook"));
 
-            var user = await db.Users.FindAsync(userId);
-            return user is null ? Results.NotFound() : Results.Ok(UserResponse.FromEntity(user));
+            var info = await verifier.VerifyAsync(provider, req.OauthToken);
+            if (info is null)
+                return Results.Json(new ErrorResponse("invalid_oauth_token", "Khong xac thuc duoc oauthToken voi provider"), statusCode: 401);
+
+            var providerEnum = provider == "google" ? OAuthProvider.Google : OAuthProvider.Facebook;
+
+            var existingLink = await db.OAuthLinks
+                .Include(l => l.User)
+                .SingleOrDefaultAsync(l => l.Provider == providerEnum && l.ProviderUserId == info.ProviderUserId);
+
+            if (existingLink is not null)
+            {
+                var existingUser = existingLink.User!;
+                if (existingUser.Status == UserStatus.Locked)
+                    return Results.Json(new { error = "account_locked", message = "Tai khoan dang bi khoa vi vi pham chinh sach chong spam" }, statusCode: 403);
+
+                existingUser.LastActiveAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+                var tok = jwt.IssueToken(existingUser);
+                await kafka.PublishAuthEventAsync("login", existingUser.Id, existingUser.Email, "registered");
+                return Results.Ok(new OAuthSuccessResponse(tok.AccessToken, UserResponse.FromEntity(existingUser), IsNewUser: false, RequiresNickname: false));
+            }
+
+            // Email tu provider da ton tai voi phuong thuc dang ky khac - CHUA CHOT xu ly
+            // (xem UC-07, muc Ghi chu/Diem mo trong tai lieu roadmap). Tam thoi tu choi 409.
+            if (info.Email is not null && await db.Users.AnyAsync(u => u.Email == info.Email))
+                return Results.Conflict(new ErrorResponse("email_already_linked_other_method", "Email nay da dang ky bang phuong thuc khac"));
+
+            var newUser = new User
+            {
+                UserType = UserType.Registered,
+                Nickname = $"user_{Guid.NewGuid():N}"[..12], // tam, bat buoc doi qua PATCH /users/me/nickname
+                Email = null, // KHONG tu lay email lam dinh danh chinh - nickname bat buoc nhap rieng theo UC-07/08
+                Status = UserStatus.Active,
+                CreatedAt = DateTimeOffset.UtcNow,
+                LastActiveAt = DateTimeOffset.UtcNow,
+            };
+            newUser.OAuthLinks.Add(new OAuthLink
+            {
+                Provider = providerEnum,
+                ProviderUserId = info.ProviderUserId,
+                LinkedAt = DateTimeOffset.UtcNow,
+            });
+            db.Users.Add(newUser);
+            await db.SaveChangesAsync();
+
+            var newTok = jwt.IssueToken(newUser);
+            await kafka.PublishAuthEventAsync("register", newUser.Id, newUser.Email, "registered");
+            return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresNickname: true));
+        });
+
+        // UC-05 buoc 1-2: Gui OTP qua email
+        auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, IdentityDbContext db, RedisAuthStore store, IEmailSender email) =>
+        {
+            var user = await db.Users.SingleOrDefaultAsync(u => u.Email == req.Email);
+            if (user is not null)
+            {
+                var otp = Random.Shared.Next(0, 1_000_000).ToString("D6");
+                await store.StoreOtpAsync(req.Email, otp, OtpTtl);
+                await email.SendOtpAsync(req.Email, otp);
+            }
+            // Luon tra 202 ke ca email khong ton tai - tranh lo thong tin email nao da dang ky
+            return Results.Accepted();
+        });
+
+        // UC-05 buoc 3: Xac thuc OTP
+        auth.MapPost("/verify-otp", async (VerifyOtpRequest req, IdentityDbContext db, RedisAuthStore store) =>
+        {
+            var valid = await store.VerifyAndConsumeOtpAsync(req.Email, req.Otp);
+            if (!valid)
+                return Results.BadRequest(new ErrorResponse("invalid_otp", "OTP sai hoac het han"));
+
+            var user = await db.Users.SingleOrDefaultAsync(u => u.Email == req.Email);
+            if (user is null)
+                return Results.BadRequest(new ErrorResponse("invalid_otp", "OTP sai hoac het han"));
+
+            var resetToken = await store.IssueResetTokenAsync(req.Email, ResetTokenTtl);
+            return Results.Ok(new VerifyOtpResponse(resetToken, IsFirstTimePassword: user.PasswordHash is null));
+        });
+
+        // UC-05 buoc 4: Dat mat khau moi (ap dung ca lan dau tao mat khau cho tai khoan OAuth-only)
+        auth.MapPost("/reset-password", async (ResetPasswordRequest req, IdentityDbContext db, RedisAuthStore store) =>
+        {
+            if (req.NewPassword.Length < 8)
+                return Results.BadRequest(new ErrorResponse("weak_password", "Mat khau toi thieu 8 ky tu"));
+
+            var email = await store.ConsumeResetTokenAsync(req.ResetToken);
+            if (email is null)
+                return Results.BadRequest(new ErrorResponse("invalid_reset_token", "resetToken khong hop le hoac da het han"));
+
+            var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email);
+            if (user is null)
+                return Results.BadRequest(new ErrorResponse("invalid_reset_token", "resetToken khong hop le hoac da het han"));
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
+            await db.SaveChangesAsync();
+            return Results.Ok();
+        });
+
+        // Dang xuat - danh dau jti cua token hien tai vao blocklist toi khi het han tu nhien
+        auth.MapPost("/logout", async (ClaimsPrincipal principal, RedisAuthStore store) =>
+        {
+            var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
+            var expClaim = principal.FindFirstValue(JwtRegisteredClaimNames.Exp);
+            if (jti is not null && expClaim is not null && long.TryParse(expClaim, out var expUnix))
+            {
+                var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix);
+                var ttl = expiresAt - DateTimeOffset.UtcNow;
+                if (ttl > TimeSpan.Zero)
+                    await store.BlocklistTokenAsync(jti, ttl);
+            }
+            return Results.NoContent();
         }).RequireAuthorization();
     }
 }

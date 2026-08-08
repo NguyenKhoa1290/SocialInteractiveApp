@@ -1,0 +1,38 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "MediaDb": "Host=localhost;Port=5436;Database=media;Username=media_admin;Password=<mat-khau>",
+    "MiniAppDb": "Host=localhost;Port=5437;Database=miniapp;Username=miniapp_admin;Password=<mat-khau>",
+    "Redis": "localhost:6379,password=<mat-khau-redis>"
+  },
+  "Jwt": {
+    "SigningKey": "<PHAI GIONG HET Jwt:SigningKey cua Identity Service>",
+    "Issuer": "identity-service",
+    "Audience": "chat-app"
+  },
+  "IdentityClient": {
+    "BaseUrl": "http://localhost:5194"
+  },
+  "ChatServiceClient": {
+    "BaseUrl": "http://localhost:5261"
+  },
+  "LiveKit": {
+    "ServerUrl": "http://localhost:7880",
+    "ClientUrl": "ws://localhost:7880",
+    "ApiKey": "<livekit-api-key>",
+    "ApiSecret": "<livekit-api-secret>"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "<mat-khau-rabbitmq>",
+    "MeetingInviteQueue": "media.meeting-invite"
+  }
+}

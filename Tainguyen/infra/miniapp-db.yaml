@@ -1,0 +1,77 @@
+# MiniApp DB (Postgres) - "Database per Service", rieng cho phan Mini App
+# (IPTV) cua Media Service. ConfigMap miniapp-db-init tao rieng bang:
+#   kubectl create configmap miniapp-db-init -n miniapp-db --from-file=init.sql=miniapp-db-init.sql
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: miniapp-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: miniapp-db
+  namespace: miniapp-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: miniapp-db
+  template:
+    metadata:
+      labels:
+        app: miniapp-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: miniapp-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: miniapp-db-data
+        - name: init-script
+          configMap:
+            name: miniapp-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: miniapp-db-data
+  namespace: miniapp-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: miniapp-db
+  namespace: miniapp-db
+spec:
+  type: LoadBalancer
+  selector:
+    app: miniapp-db
+  ports:
+    # 5437 - tiep theo sau identity(5432)/workspace(5433)/chat(5434)/spamtracking(5435)/media(5436)
+    - port: 5437
+      targetPort: 5432

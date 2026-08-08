@@ -1,0 +1,23 @@
+# ===== .NET (IdentityService va cac service C# sau nay) =====
+bin/
+obj/
+*.user
+*.suo
+run.log
+
+# appsettings.json dang chua Gmail App Password hardcode (theo yeu cau tien
+# loi dev) - KHONG commit. appsettings.Development.json cung co the chua
+# secret tuong tu trong tuong lai nen ignore luon.
+appsettings.json
+appsettings.*.json
+!appsettings.json.example
+
+# ===== Credentials sinh ra luc deploy ha tang (Tainguyen/infra) =====
+Tainguyen/infra/.*.txt
+Tainguyen/infra/*-credentials.txt
+
+# ===== OS / editor noise =====
+.vs/
+.vscode/
+*.swp
+.DS_Store

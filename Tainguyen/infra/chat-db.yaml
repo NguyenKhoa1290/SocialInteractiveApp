@@ -1,0 +1,77 @@
+# Chat/Social DB (Postgres) - "Database per Service", rieng cho Chat Service.
+# ConfigMap chat-db-init tao rieng bang:
+#   kubectl create configmap chat-db-init -n chat-db --from-file=init.sql=chat-db-init.sql
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chat-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-db
+  namespace: chat-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chat-db
+  template:
+    metadata:
+      labels:
+        app: chat-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: chat-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: chat-db-data
+        - name: init-script
+          configMap:
+            name: chat-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chat-db-data
+  namespace: chat-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-db
+  namespace: chat-db
+spec:
+  type: LoadBalancer
+  selector:
+    app: chat-db
+  ports:
+    # 5434 - khac identity-db (5432) va workspace-db (5433)
+    - port: 5434
+      targetPort: 5432

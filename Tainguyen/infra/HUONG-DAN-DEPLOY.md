@@ -1,0 +1,1032 @@
+# Hướng dẫn triển khai hạ tầng — tổng hợp
+
+Gộp toàn bộ các tài liệu hướng dẫn hạ tầng của dự án vào 1 file duy nhất (trước đây tách thành 8
+file riêng — `HUONG-DAN-TRIEN-KHAI-PHASE0/1/2.md`, `HUONG-DAN-EXPOSE-LAN.md`,
+`HUONG-DAN-DONG-GOI-SERVICE.md`, `HUONG-DAN-DEPLOY-SERVER-NHA.md`, `HUONG-DAN-LIVEKIT-VPS.md`,
+`HUONG-DAN-TU-DONG-MO-RONG-AWS.md` — nay không còn tồn tại riêng lẻ, nội dung đã chuyển hết vào đây).
+Tham chiếu kiến trúc gốc: `Congviec/he-thong-tong-hop-kien-truc-csdl-api-roadmap.md`.
+
+## Mục lục
+
+0. [Tổng quan kiến trúc & 2 môi trường](#0-tổng-quan-kiến-trúc--2-môi-trường)
+1. [Máy dev — Hạ tầng nền (Docker Desktop + kind, 3 cluster)](#1-máy-dev--hạ-tầng-nền)
+2. [Máy dev — Cơ sở dữ liệu từng service](#2-máy-dev--cơ-sở-dữ-liệu-từng-service)
+3. [Máy dev — MinIO & mạng LAN](#3-máy-dev--minio--mạng-lan)
+4. [Đóng gói & đẩy image lên GHCR](#4-đóng-gói--đẩy-image-lên-ghcr)
+5. [Deploy lên server nhà (k3s thật)](#5-deploy-lên-server-nhà-k3s-thật)
+6. [LiveKit trên VPS riêng](#6-livekit-trên-vps-riêng)
+7. [Tự động mở rộng (burst) sang AWS khi quá tải](#7-tự-động-mở-rộng-burst-sang-aws-khi-quá-tải)
+8. [Cạm bẫy đã gặp — tổng hợp](#8-cạm-bẫy-đã-gặp--tổng-hợp)
+9. [Checklist tổng hợp](#9-checklist-tổng-hợp)
+
+---
+
+## 0. Tổng quan kiến trúc & 2 môi trường
+
+**Môi trường dev** (máy làm việc hiện tại, Windows + Docker Desktop): **3 cluster K8s tách biệt**
+(`docker-desktop`, `kind-livekit-cluster`, `kind-messaging-cluster`) — vì Docker Desktop chỉ chạy
+được 1 cluster K8s qua toggle "Enable Kubernetes", nên dùng thêm `kind` CLI tạo cluster độc lập cho
+LiveKit và cho nhóm hạ tầng nhắn tin (Redis/Kafka/RabbitMQ).
+
+**Môi trường thật (server nhà + VPS/AWS khi cần):** **1 cluster k3s duy nhất** trên server nhà,
+LiveKit đặt ở VPS riêng có IP public thật (vì server nhà bị NAT), và có thể mở rộng thêm node AWS
+tạm thời khi quá tải (Service hoặc LiveKit). Không cần tách nhiều cluster như máy dev — đó chỉ là
+workaround riêng của Docker Desktop.
+
+| | Môi trường dev | Môi trường thật |
+|---|---|---|
+| Số cluster K8s | 3 (`docker-desktop`, `kind-livekit-cluster`, `kind-messaging-cluster`) | 1 (k3s, server nhà) |
+| Cách cô lập tài nguyên | Tách cluster | Namespace + `ResourceQuota`/`LimitRange` trong cùng 1 cluster |
+| LiveKit | `kind-livekit-cluster`, `localhost:7880` | VPS riêng có IP public thật |
+| Giao tiếp cross-cluster | `<IP container node>:<NodePort>` qua Docker network `kind` chung | DNS nội bộ K8s (`<svc>.<ns>.svc.cluster.local`), cùng 1 cluster |
+| Mở rộng khi quá tải | Không áp dụng | Node AWS tạm thời (mục 7) |
+
+---
+
+## 1. Máy dev — Hạ tầng nền
+
+**Kiến trúc 3 cluster:**
+
+| Cluster | Công cụ tạo | Chứa gì | Lý do tách riêng |
+|---|---|---|---|
+| **Cluster chính** (`docker-desktop`) | Docker Desktop → Enable Kubernetes | Ingress-Nginx, Metrics Server, các service nghiệp vụ (Identity, WorkSpace, Chat, SpamTracking, Admin, Media), toàn bộ Postgres DB | Nhóm service nghiệp vụ, scale cùng nhau |
+| **livekit-cluster** | `kind` CLI | LiveKit Server (WebRTC/TURN) | Nặng nhất CPU/network, cần scale độc lập |
+| **messaging-cluster** | `kind` CLI | Redis, Kafka (KRaft), RabbitMQ | Tách khỏi service nghiệp vụ để không cạnh tranh tài nguyên, gộp chung với nhau vì không cần scale riêng lẻ |
+
+MinIO: **không qua Docker/K8s** — cài trực tiếp trên hệ điều hành, xem mục 3.
+
+**Giao tiếp giữa các cluster:** vì tách biệt hoàn toàn, không dùng chung DNS/mạng nội bộ K8s. Mọi
+node container (Docker Desktop lẫn `kind`) nằm chung 1 Docker network tên `kind`
+(`docker network inspect kind`) — service ở cluster A gọi sang cluster B qua
+**`<IP container node cụm B>:<NodePort>`** (ví dụ Kafka ở `messaging-cluster`:
+`172.18.0.7:30909`), KHÔNG qua `localhost`, KHÔNG qua K8s Service DNS. IP container có thể đổi nếu
+cluster bị xoá tạo lại — kiểm tra lại bằng `docker network inspect kind`.
+
+### 1.1 Yêu cầu tài nguyên máy
+
+Chạy 3 control-plane K8s cùng lúc cần tối thiểu **12-16GB RAM** cấp cho Docker Desktop (RAM mặc
+định thấp ~2GB khiến `kube-scheduler` crash loop âm thầm → mọi pod kẹt `Pending` mãi mãi, triệu
+chứng dễ nhầm là "pod bug"). Cấp qua Docker Desktop → ⚙️ Settings → Resources → Memory → Apply & Restart.
+
+### 1.2 Cài `kubectl`, `helm`, `kind` (portable, không cần admin)
+
+`kubectl` có sẵn kèm Docker Desktop. `helm`/`kind` tải portable:
+
+```powershell
+$dest = "$env:LOCALAPPDATA\helm"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+Invoke-WebRequest -Uri "https://get.helm.sh/helm-v3.16.4-windows-amd64.zip" -OutFile "$dest\helm.zip"
+Expand-Archive -Path "$dest\helm.zip" -DestinationPath $dest -Force
+Copy-Item "$dest\windows-amd64\helm.exe" "$dest\helm.exe" -Force
+Remove-Item "$dest\helm.zip"
+
+Invoke-WebRequest -Uri "https://kind.sigs.k8s.io/dl/v0.24.0/kind-windows-amd64" -OutFile "$dest\kind.exe"
+
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+[Environment]::SetEnvironmentVariable("Path", "$userPath;$dest", "User")
+```
+
+Git Bash/WSL bash cần export PATH thủ công mỗi phiên mới (không tự lan từ biến PATH Windows):
+`export PATH="$PATH:/c/Users/<user>/AppData/Local/helm"`.
+
+### 1.3 Cluster chính: Metrics Server + Ingress-Nginx
+
+```bash
+kubectl config use-context docker-desktop
+
+# Metrics Server - can cho Admin Service (GET /admin/system/resources, Phase 4)
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl patch deployment metrics-server -n kube-system --type='json' \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+kubectl rollout status deployment/metrics-server -n kube-system --timeout=120s
+kubectl top nodes
+
+# Ingress-Nginx
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.ingressClassResource.default=true
+```
+
+Docker Desktop tự forward Service `LoadBalancer` ra `localhost`. Verify: `curl http://localhost/` →
+`404` (đúng, chưa có Ingress rule nào).
+
+### 1.4 Cluster LiveKit (`kind`)
+
+**Vì sao `kind` chứ không phải Docker Desktop K8s:** `podHostNetwork: true` (cách LiveKit khuyến
+nghị chính thức) không hoạt động trên Docker Desktop — node chạy trong 1 container ẩn,
+`hostNetwork` chỉ bind vào namespace container đó, không bind ra Windows host thật. `kind` hỗ trợ
+`extraPortMappings` publish thẳng port ra host, dùng NodePort thay vì hostNetwork.
+
+```yaml
+# kind-livekit-cluster.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: livekit-cluster
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30880
+        hostPort: 7880
+        protocol: TCP
+      - containerPort: 30881
+        hostPort: 7881
+        protocol: TCP
+      - containerPort: 30882
+        hostPort: 7882
+        protocol: UDP
+      - containerPort: 30478
+        hostPort: 3478
+        protocol: UDP
+```
+
+```bash
+kind create cluster --config kind-livekit-cluster.yaml
+kubectl config use-context kind-livekit-cluster
+
+helm repo add livekit https://helm.livekit.io
+helm repo update
+helm install livekit livekit/livekit-server -n livekit --create-namespace -f livekit-values.yaml
+```
+
+`livekit-values.yaml` điểm mấu chốt: `podHostNetwork: false` (lý do ở trên); dùng **UDP mux 1
+cổng** (`rtc.udp_port: 7882`) thay vì dải port range (không thực tế NodePort-từng-port cho dải
+50000-50100); `loadBalancer.type: disable` (chart không tự đặt NodePort, phải patch tay); STUN dùng
+server của Google (`stun.l.google.com:19302`, miễn phí không giới hạn) qua `rtc.stun_servers`.
+
+Patch Service sang NodePort cố định (verify thứ tự port bằng
+`kubectl get svc livekit-livekit-server -n livekit -o jsonpath='{range .spec.ports[*]}{.name}{"\t"}{.nodePort}{"\n"}{end}'`
+trước nếu chart version khác):
+```bash
+kubectl patch service livekit-livekit-server -n livekit --type='json' -p='[
+  {"op":"replace","path":"/spec/type","value":"NodePort"},
+  {"op":"add","path":"/spec/ports/0/nodePort","value":30880},
+  {"op":"add","path":"/spec/ports/1/nodePort","value":30881},
+  {"op":"add","path":"/spec/ports/2/nodePort","value":30882}
+]'
+```
+
+Chart **không tự tạo Service cho TURN UDP thường** (chỉ có TURN qua TLS/443, cần cert thật) — áp
+`livekit-turn-service.yaml` riêng: `kubectl apply -f livekit-turn-service.yaml`.
+
+Nếu rolling-update bị `Pending` (pod mới kẹt vì pod cũ giữ chỗ hostPort trên cluster 1-node), xoá
+pod cũ tay: `kubectl delete pod -n livekit <ten-pod-cu>`.
+
+Verify: `curl http://localhost:7880/` → `OK`; `kubectl logs -n livekit deployment/livekit-livekit-server --tail=20` không có `ERROR`.
+
+### 1.5 Cluster messaging (`kind`, gộp Redis + Kafka + RabbitMQ)
+
+```yaml
+# kind-messaging-cluster.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: messaging-cluster
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30637
+        hostPort: 6379
+        protocol: TCP
+      - containerPort: 30909
+        hostPort: 9092
+        protocol: TCP
+      - containerPort: 30567
+        hostPort: 5672
+        protocol: TCP
+      - containerPort: 31567
+        hostPort: 15672
+        protocol: TCP
+```
+
+**Không dùng Helm chart Bitnami** (phần lớn image bị khoá từ 8/2025, xem mục 8) — dùng manifest
+YAML thuần, image chính thức: `redis:7-alpine`, `apache/kafka:3.8.0` (KRaft, không cần Zookeeper),
+`rabbitmq:3.13-management-alpine`.
+
+```bash
+kind create cluster --config kind-messaging-cluster.yaml
+kubectl config use-context kind-messaging-cluster
+
+# Redis
+REDIS_PASS=$(openssl rand -hex 16)
+kubectl create namespace redis
+kubectl create secret generic redis-credentials -n redis --from-literal=REDIS_PASSWORD="$REDIS_PASS"
+kubectl apply -f redis.yaml
+
+# Kafka
+kubectl apply -f kafka.yaml
+
+# RabbitMQ
+RABBIT_PASS=$(openssl rand -hex 16)
+kubectl create namespace rabbitmq
+kubectl create secret generic rabbitmq-credentials -n rabbitmq \
+  --from-literal=RABBITMQ_DEFAULT_USER=admin \
+  --from-literal=RABBITMQ_DEFAULT_PASS="$RABBIT_PASS"
+kubectl apply -f rabbitmq.yaml
+```
+
+**Điểm mấu chốt `kafka.yaml` — `KAFKA_ADVERTISED_LISTENERS` phải dùng NodePort, không dùng cổng nội
+bộ:**
+```yaml
+- name: KAFKA_ADVERTISED_LISTENERS
+  value: "PLAINTEXT://172.18.0.7:30909"   # NodePort 30909, KHONG phai 9092
+```
+Client Kafka làm việc 2 bước: (1) bootstrap tới địa chỉ được cho, (2) nhận metadata trả về địa chỉ
+"advertised" của broker rồi **mở kết nối MỚI** tới đúng địa chỉ đó. Nếu advertised khai cổng nội bộ
+`9092`, bước (2) luôn timeout vì `9092` không được expose ra ngoài container. `172.18.0.7` = IP
+container `messaging-cluster-control-plane` trên network `kind` — verify lại bằng
+`docker network inspect kind` nếu IP đổi.
+
+Verify:
+```bash
+kubectl exec -n redis deploy/redis -- redis-cli -a "$REDIS_PASS" ping   # PONG
+MSYS_NO_PATHCONV=1 kubectl exec -n kafka deployment/kafka -- /opt/kafka/bin/kafka-topics.sh \
+  --list --bootstrap-server localhost:9092
+curl http://localhost:15672/   # RabbitMQ management UI, HTTP 200
+```
+(`MSYS_NO_PATHCONV=1` trên Git Bash Windows — tự động convert đường dẫn Unix thành Windows, gây lỗi.)
+
+Verify cross-cluster (mô phỏng service ở cluster chính gọi vào):
+```bash
+kubectl config use-context docker-desktop
+kubectl run redis-test --rm -i --restart=Never --image=redis:7-alpine -- \
+  redis-cli -h 172.18.0.7 -p 30637 -a "$REDIS_PASS" ping        # PONG
+kubectl run kafka-test --rm -i --restart=Never --image=apache/kafka:3.8.0 -- \
+  /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server 172.18.0.7:30909
+kubectl run rabbit-test --rm -i --restart=Never --image=busybox -- \
+  sh -c "nc -zv -w3 172.18.0.7 30567"
+```
+
+---
+
+## 2. Máy dev — Cơ sở dữ liệu từng service
+
+**"Database per Service"** — mỗi service 1 Postgres riêng, namespace riêng, trong cluster chính
+(`docker-desktop`). Cùng 1 quy trình lặp lại cho từng DB: tạo namespace → tạo Secret (mật khẩu random)
+→ tạo ConfigMap từ file `*-db-init.sql` → `kubectl apply -f *-db.yaml`.
+
+### 2.1 Vì sao Service phải là `LoadBalancer`, không phải `NodePort`
+
+**Đã verify:** trên `docker-desktop`, `NodePort` KHÔNG được Docker Desktop tự forward ra
+`localhost` (khác `kind`, nơi `extraPortMappings` làm việc này). Chỉ `LoadBalancer` mới tự forward.
+Dưới lớp `LoadBalancer`, K8s vẫn cấp 1 NodePort song song (`kubectl get svc` cột `PORT(S)` dạng
+`5432:XXXXX/TCP`) — NodePort này mới dùng để truy cập **cross-cluster**, còn port chính
+(`LoadBalancer`) chỉ hoạt động qua cơ chế forward riêng của Docker Desktop cho `localhost`.
+
+| Ai kết nối | Địa chỉ |
+|---|---|
+| Công cụ dev trên máy này (psql, DBeaver...) | `localhost:<port>` |
+| Service ở cluster khác (`livekit-cluster`, `messaging-cluster`) | `<IP container node desktop-control-plane>:<NodePort>` |
+
+### 2.2 Bảng tổng hợp các DB (port `localhost`, namespace)
+
+| Service | DB namespace | Port `localhost` | Bảng chính |
+|---|---|---|---|
+| Identity | `identity-db` | 5432 | `users`, `oauth_links` |
+| WorkSpace | `workspace-db` | 5433 | `workspaces`, `workspace_members` |
+| Chat | `chat-db` | 5434 | `conversations`, `messages`, `group_chat_settings`, `muted_members`, `files` |
+| SpamTracking | `spamtracking-db` | 5435 | `violations` |
+| Media | `media-db` | 5436 | `meetings`, `meeting_participants`, `meeting_invites`, `meeting_permissions` |
+| MiniApp (IPTV) | `miniapp-db` | 5437 | `iptv_channel_lists`, `iptv_channel_groups`, `iptv_channels` |
+
+*(Admin Service không có DB riêng — hoạt động thuần lớp điều phối, xem roadmap mục 4.)*
+
+Ví dụ deploy 1 DB (lặp lại đúng pattern này cho từng dòng ở bảng trên, đổi tên service/port):
+```bash
+kubectl create namespace identity-db
+DB_PASS=$(openssl rand -hex 16)
+kubectl create secret generic identity-db-credentials -n identity-db \
+  --from-literal=POSTGRES_DB=identity \
+  --from-literal=POSTGRES_USER=identity_admin \
+  --from-literal=POSTGRES_PASSWORD="$DB_PASS"
+# Luu DB_PASS vao .identity-db-credentials.txt (KHONG commit git - da co trong .gitignore)
+kubectl create configmap identity-db-init -n identity-db --from-file=init.sql=identity-db-init.sql
+kubectl apply -f identity-db.yaml
+```
+
+Init script chạy **1 lần duy nhất** lúc container Postgres khởi tạo lần đầu (cơ chế chuẩn image
+`postgres`: file trong `/docker-entrypoint-initdb.d/` chạy khi `pgdata` còn trống). Muốn chạy lại
+từ đầu phải xoá PVC tương ứng trước.
+
+**Lưu ý schema Chat DB dùng chung P2P + Group:** bảng `conversations`/`messages`/`files` phục vụ cả
+2 loại chat qua cột `type`; `group_chat_settings`/`muted_members` chỉ có ý nghĩa với `type='group'`
+— 1 schema thống nhất, không tách bảng riêng theo phase.
+
+### 2.3 Verify nhanh (ví dụ Identity DB)
+
+```bash
+DB_PASS=$(cat .identity-db-credentials.txt | grep POSTGRES_PASSWORD | cut -d= -f2)
+kubectl exec -n identity-db deployment/identity-db -- env PGPASSWORD="$DB_PASS" \
+  psql -U identity_admin -d identity -c "\dt"
+
+# Constraint hoat dong dung: Guest co email PHAI bi tu choi
+kubectl exec -n identity-db deployment/identity-db -- env PGPASSWORD="$DB_PASS" \
+  psql -U identity_admin -d identity -c \
+  "INSERT INTO users (user_type, nickname, email) VALUES ('guest','x','a@b.com');"
+# Ky vong: ERROR chk_guest_no_credentials
+```
+
+---
+
+## 3. Máy dev — MinIO & mạng LAN
+
+MinIO **không qua Docker/K8s** — cài trực tiếp trên hệ điều hành, theo lựa chọn riêng của người vận
+hành, chạy trên 1 máy/thiết bị khác trong mạng LAN (không phải máy đang chạy Docker/K8s này).
+
+**Kiến trúc mạng đã verify:**
+
+| Thành phần | Chạy ở đâu | Truy cập qua |
+|---|---|---|
+| Docker Desktop K8s (cluster chính) | Local, máy đang dùng | `localhost` |
+| `kind-livekit-cluster` | Local, máy đang dùng | `localhost:7880/7881/7882/3478` |
+| MinIO | Máy/thiết bị khác trong LAN | `http://192.168.50.10:9000` (API), `:9001` (Console) |
+
+Địa chỉ MinIO **không phải** IP của máy chạy Docker/K8s — là 1 máy hoàn toàn khác trong cùng LAN.
+Cấu hình biến môi trường cho các service cần MinIO:
+```
+MINIO_ENDPOINT=192.168.50.10:9000
+MINIO_CONSOLE=192.168.50.10:9001
+```
+
+**Bug đã gặp — presigned URL luôn trả `https://` dù server chỉ nghe HTTP:** `AWSSDK.S3` (dùng
+trong Chat Service) luôn generate `https://` bất kể `AmazonS3Config.UseHttp = true` — phải tự thay
+chuỗi `https://` → `http://` sau khi generate (xem `MinioStorageService.cs`).
+
+**Nếu sau này cần expose Ingress/LiveKit ra LAN** (không chỉ `localhost`): đặt IP tĩnh, mở Windows
+Firewall, và quan trọng nhất với LiveKit — quyết định STUN tự dò IP (`use_external_ip: true`, hợp
+khi truy cập từ Internet) hay gán thẳng `node_ip` bằng IP LAN (`use_external_ip: false`, hợp khi
+chỉ dùng nội bộ LAN — STUN trả IP public Internet khiến client cùng LAN không kết nối được media do
+NAT hairpin thường không hoạt động trên router gia đình).
+
+---
+
+## 4. Đóng gói & đẩy image lên GHCR
+
+Áp dụng cho **mọi service** (Identity/WorkSpace/Chat/SpamTracking/Admin/Media) — quy trình chuẩn
+dùng lại, không làm riêng lẻ từng lần. Dùng **GitHub Container Registry** (`ghcr.io`) — miễn phí,
+không giới hạn số repo private.
+
+### 4.1 Tạo Personal Access Token (làm 1 lần)
+
+GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → scope tối
+thiểu `write:packages` (kèm `read:packages`):
+```bash
+echo "<PAT>" | docker login ghcr.io -u <github-username> --password-stdin
+```
+
+### 4.2 Build + tag + push (mỗi lần cập nhật code)
+
+```bash
+cd IdentityService/src/IdentityService.Api
+docker build -t ghcr.io/<github-username>/identity-service:latest .
+docker tag ghcr.io/<github-username>/identity-service:latest ghcr.io/<github-username>/identity-service:v0.1.0
+docker push ghcr.io/<github-username>/identity-service:latest
+docker push ghcr.io/<github-username>/identity-service:v0.1.0
+```
+
+### 4.3 Bảng tổng hợp cả 6 service
+
+Toàn bộ service dùng CHUNG `Jwt:SigningKey`/`Issuer`/`Audience` (JWT do Identity Service phát
+hành). Cột "Gọi nội bộ tới" dùng biến `*Client__BaseUrl` trỏ DNS nội bộ K8s
+`http://<service>.<namespace>.svc.cluster.local` khi cùng 1 cluster thật (server nhà).
+
+| Service | Thư mục | Image | Namespace | Container port | CSDL | Gọi nội bộ tới |
+|---|---|---|---|---|---|---|
+| Identity | `IdentityService/src/IdentityService.Api` | `identity-service` | `identity-service` | 8080 | `identity-db` / 5432 | — |
+| WorkSpace | `WorkspaceService/src/WorkspaceService.Api` | `workspace-service` | `workspace-service` | 8080 | `workspace-db` / 5432 | Identity, Chat |
+| Chat | `ChatService/src/ChatService.Api` | `chat-service` | `chat-service` | 8080 | `chat-db` / 5432 | Identity (qua WorkSpace), WorkSpace |
+| SpamTracking | `SpamTrackingService/src/SpamTrackingService.Api` | `spamtracking-service` | `spamtracking-service` | 8080 | `spamtracking-db` / 5432 | Identity |
+| Admin | `AdminService/src/AdminService.Api` | `admin-service` | `admin-service` | 8080 | *(không có DB riêng)* | Identity, SpamTracking, Chat, K8s API |
+| Media | `MediaService/src/MediaService.Api` | `media-service` | `media-service` | 8080 | `media-db` / 5432, `miniapp-db` / 5432 | Identity, Chat, LiveKit |
+
+Script build + push toàn bộ 6 image trong 1 lệnh (chạy từ thư mục gốc repo):
+```bash
+GH_USER=<github-username>
+for svc in IdentityService:identity-service WorkspaceService:workspace-service \
+           ChatService:chat-service SpamTrackingService:spamtracking-service \
+           AdminService:admin-service MediaService:media-service; do
+  dir="${svc%%:*}"; name="${svc##*:}"
+  proj_dir=$(find "$dir/src" -maxdepth 1 -type d -name "*.Api")
+  docker build -t "ghcr.io/$GH_USER/$name:latest" "$proj_dir"
+  docker push "ghcr.io/$GH_USER/$name:latest"
+done
+```
+
+**Riêng Admin Service:** cần `ServiceAccount`/`ClusterRoleBinding` từ
+`Tainguyen/infra/adminservice-rbac.yaml` (2 quyền tách biệt: đọc tài nguyên và patch scale) — gắn
+`serviceAccountName: admin-service` vào `Deployment`, KHÔNG dùng service account mặc định (không
+có quyền gì trên `pods`/`nodes`/`metrics.k8s.io`).
+
+### 4.4 Cho server nhà (k3s) pull image private
+
+Package GHCR mặc định **private** — cần secret để pull:
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  -n identity-service \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username> \
+  --docker-password=<PAT> \
+  --docker-email=<email-bat-ky>
+```
+Hoặc đơn giản hơn: đổi package sang **Public** (Package settings → Change visibility) — chấp nhận
+được cho dự án cá nhân (secret thật nằm ở biến môi trường/K8s Secret riêng, không nằm trong image),
+bỏ được bước tạo `ghcr-pull-secret`.
+
+### 4.5 Deployment manifest tham khảo (Identity Service)
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: identity-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+  namespace: identity-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity-service
+  template:
+    metadata:
+      labels:
+        app: identity-service
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret   # bo neu da doi package sang Public
+      containers:
+        - name: identity-service
+          image: ghcr.io/<github-username>/identity-service:v0.1.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: identity-service-secrets
+          env:
+            - name: ConnectionStrings__IdentityDb
+              value: "Host=identity-db.identity-db.svc.cluster.local;Port=5432;Database=identity;Username=identity_admin;Password=$(DB_PASSWORD)"
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-service
+  namespace: identity-service
+spec:
+  type: ClusterIP
+  selector:
+    app: identity-service
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+Địa chỉ DB dùng **DNS nội bộ K8s** (`identity-db.identity-db.svc.cluster.local`) — trên server nhà
+(1 cluster k3s duy nhất), Service và DB cùng cluster, không cần qua NodePort/IP node như lúc dev
+nhiều cluster.
+
+Tạo Secret chứa mật khẩu DB + JWT signing key thật (KHÔNG hardcode trong manifest):
+```bash
+kubectl create secret generic identity-service-secrets -n identity-service \
+  --from-literal=DB_PASSWORD="<mat-khau-that>" \
+  --from-literal=Jwt__SigningKey="<jwt-key-that>"
+```
+
+Ingress rule (khi sẵn sàng expose ra ngoài):
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: identity-service
+  namespace: identity-service
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /identity
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 80
+```
+
+---
+
+## 5. Deploy lên server nhà (k3s thật)
+
+Chuyển từ môi trường dev (Docker Desktop K8s + nhiều cluster `kind`) sang **1 cluster K8s thật
+(k3s)** chạy trên server nhà — máy chủ vật lý riêng, hoạt động 24/7.
+
+**Vì sao k3s thay vì Docker Desktop K8s:** toàn bộ "cạm bẫy" ở Docker Desktop (NodePort không tự
+forward ra `localhost`, `podHostNetwork` không hoạt động...) là giới hạn riêng của Docker Desktop —
+chỉ định hướng dev/test 1-node. k3s là K8s **thật, đầy đủ tính năng, nhẹ**, dùng phổ biến cho
+production/home-lab, hành xử đúng chuẩn K8s.
+
+**Vì sao 1 cluster (không tách 3 như máy dev):** tách 3 cluster `kind` là workaround riêng vì Docker
+Desktop chỉ cho 1 cluster. Trên k3s thật dùng đúng cách K8s thiết kế: 1 cluster, nhiều namespace, cô
+lập bằng `ResourceQuota`/`LimitRange`, cô lập theo node (nếu thêm node) bằng `nodeSelector`/`taints`.
+
+### 5.1 Cài WSL2 + Ubuntu
+
+```powershell
+# PowerShell voi quyen Administrator
+wsl --install -d Ubuntu-22.04
+```
+
+**Bật `mirrored` networking mode** (WSL 0.67+) để service trong WSL2 truy cập trực tiếp qua IP LAN
+server, không bị NAT 2 lớp. Tạo/sửa `C:\Users\<user>\.wslconfig`:
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+`wsl --shutdown` rồi mở lại Ubuntu. Verify: `ip addr` phải thấy IP LAN thật của server.
+
+### 5.2 Cài k3s
+
+```bash
+curl -sfL https://get.k3s.io | sh -
+sudo systemctl status k3s   # active (running)
+```
+
+Lấy kubeconfig để quản lý từ xa:
+```bash
+sudo cat /etc/rancher/k3s/k3s.yaml
+```
+Sửa `server: https://127.0.0.1:6443` thành `server: https://<IP-LAN-server-nha>:6443`, gộp vào
+`kubectl config` hiện có (context riêng `home-server-k3s`).
+
+**k3s có sẵn Metrics Server** (khác Docker Desktop phải cài tay) — verify: `kubectl top nodes`.
+
+### 5.3 Deploy lại các thành phần
+
+Copy `Tainguyen/infra/` sang server (hoặc chạy `kubectl`/`helm` từ xa trỏ context `home-server-k3s`).
+
+**Ingress-Nginx:**
+```bash
+helm install ingress-nginx ingress-nginx/ingress-nginx \
+  -n ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.ingressClassResource.default=true
+```
+k3s có sẵn **ServiceLB** (klipper-lb) — tự bind `LoadBalancer` vào IP thật của node, truy cập ngay
+từ LAN qua `http://<IP-server-nha>/`.
+
+**Từng DB** (lặp lại pattern mục 2.2 cho đủ 6 DB): có thể đổi `type: LoadBalancer` thành `NodePort`
+trong `*-db.yaml` nếu muốn — trên k3s **cả 2 loại đều hoạt động đúng chuẩn** (khác Docker Desktop).
+
+**LiveKit — KHÔNG deploy ở đây:** chạy trên VPS riêng, xem mục 6.
+
+**Redis + Kafka + RabbitMQ:**
+```bash
+kubectl apply -f redis.yaml
+kubectl apply -f kafka.yaml   # SUA truoc - xem duoi
+kubectl apply -f rabbitmq.yaml
+```
+**Phải sửa `kafka.yaml` trước khi apply:** `KAFKA_ADVERTISED_LISTENERS` đang trỏ IP container Docker
+network `kind` (không tồn tại trên server nhà) — đổi thành IP LAN thật + NodePort:
+```yaml
+- name: KAFKA_ADVERTISED_LISTENERS
+  value: "PLAINTEXT://<IP-LAN-server-nha>:30909"
+```
+
+**MinIO:** giữ nguyên như đang làm — cài trực tiếp OS, không qua K8s (mục 3).
+
+### 5.4 Chia tài nguyên: 60% Database / 30% Service / 10% dự trữ hệ thống
+
+**Lý do:** Database không scale ngang được (1 instance/DB) — cần tài nguyên đủ lớn, cố định, ổn
+định. Service là stateless, tự scale ngang bằng HPA — chỉ cần đủ tài nguyên nền. 10% còn lại dành
+cho hệ thống K8s (kube-system, Ingress-Nginx, Metrics Server) — hết sạch tài nguyên node sẽ không
+ổn định (kể cả crash kube-scheduler như đã gặp ở máy dev khi thiếu RAM).
+
+Đo tổng tài nguyên node trước:
+```bash
+kubectl describe node <ten-node> | grep -A 5 "Allocatable"
+# hoac
+kubectl top nodes
+```
+Ví dụ node 16 core / 32Gi RAM: Database 60% → `9500m` CPU / `19Gi` RAM; Service 30% → `4800m` CPU /
+`9Gi` RAM; còn lại ~10% không cấp quota, để trống cho hệ thống.
+
+Áp `ResourceQuota` riêng cho từng namespace (K8s không có "namespace nhóm" thật sự):
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: db-quota
+  namespace: identity-db
+spec:
+  hard:
+    requests.cpu: "9500m"
+    requests.memory: "19Gi"
+    limits.cpu: "9500m"
+    limits.memory: "19Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: service-quota
+  namespace: identity-service
+spec:
+  hard:
+    requests.cpu: "4800m"
+    requests.memory: "9Gi"
+    limits.cpu: "4800m"
+    limits.memory: "9Gi"
+```
+Khi thêm DB/Service khác, **chia nhỏ tiếp trong đúng ngân sách 60%/30%** — không phải mỗi cái lại
+được thêm 60% mới.
+
+HPA cho Service (nằm trong quota, không vượt):
+```bash
+kubectl autoscale deployment chat-service -n chat-service --cpu-percent=70 --min=1 --max=5
+```
+HPA tự tăng replica khi tải cao, bị chặn cứng bởi `ResourceQuota` — không vượt quá 30% tổng tài
+nguyên node dành cho nhóm Service.
+
+### 5.5 Backup định kỳ lên S3 (dự phòng, chưa triển khai)
+
+Ý tưởng: `CronJob` trong cluster chạy `pg_dump` (từng DB) + `mc mirror` (MinIO) định kỳ, đẩy lên 1
+S3 bucket. Chi phí gần như chỉ tính dung lượng lưu trữ, không cần EC2/compute chạy thường trực.
+
+---
+
+## 6. LiveKit trên VPS riêng
+
+LiveKit **không** chạy trên server nhà — server nhà bị NAT (không IP public thật), trong khi LiveKit
+(WebRTC/TURN) cần IP public thật để client ngoài mạng kết nối media ổn định. VPS giá rẻ có sẵn IP
+public là cách đơn giản nhất, tránh vật lộn port-forward/NAT hairpin/CGNAT.
+
+### 6.1 Chọn VPS
+
+Tối thiểu: 2 vCPU, 4GB RAM, **IP public thật**. Gợi ý: DigitalOcean, Vultr, Linode (hoặc AWS EC2 —
+xem mục 7 nếu muốn gộp chung với node burst).
+
+Mở Firewall VPS:
+- TCP 80, 443 (nếu dùng domain + TLS)
+- TCP 7880 (HTTP/WebSocket API), TCP 7881 (RTC TCP fallback)
+- UDP 50000-60000 (dải ICE — VPS có IP public thật nên dùng được dải gốc, không cần workaround
+  UDP-mux-1-cổng như lúc dev)
+- UDP 3478 (TURN), TCP 5349 (TURN over TLS, nếu bật)
+
+### 6.2 Cài đặt — 2 cách
+
+**Cách A — k3s (đồng bộ pattern server nhà):**
+```bash
+curl -sfL https://get.k3s.io | sh -
+helm repo add livekit https://helm.livekit.io
+helm install livekit livekit/livekit-server -n livekit --create-namespace -f livekit-values-vps.yaml
+```
+
+**Cách B — Docker Compose thuần (đơn giản hơn cho 1 VM):**
+```yaml
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    command: --config /etc/livekit.yaml
+```
+Cả 2 cách dùng `podHostNetwork: true`/`network_mode: host` đúng khuyến nghị LiveKit — **VPS có IP
+public thật nên không dính giới hạn đã gặp trên Docker Desktop**.
+
+### 6.3 Cấu hình `livekit-values-vps.yaml`
+
+```yaml
+podHostNetwork: true   # hoat dong dung tren VPS (khac Docker Desktop)
+
+livekit:
+  keys:
+    <api-key-moi>: <api-secret-moi>   # SINH LAI, khong dung key demo dev
+  rtc:
+    tcp_port: 7881
+    port_range_start: 50000
+    port_range_end: 60000
+    use_external_ip: true
+  turn:
+    enabled: true
+    domain: turn.<domain-cua-ban>.com
+    tls_port: 5349
+    udp_port: 3478
+
+loadBalancer:
+  type: disable
+```
+Khác máy dev: có thể bật **TURN qua TLS thật** vì giờ có domain + cert Let's Encrypt qua ACME thật.
+
+### 6.4 Trỏ Media Service vào LiveKit VPS
+
+`LiveKit:ServerUrl`/`LiveKit:ClientUrl` trỏ vào `https://<domain-hoac-IP-VPS>:7880` — khác các thành
+phần khác (Redis/Kafka/Identity DB) nằm cùng server nhà gọi qua IP LAN, LiveKit giờ ở ngoài Internet
+gọi qua domain/IP public + bảo vệ bằng API key/secret của chính nó.
+
+### 6.5 Checklist
+
+- [ ] VPS tạo xong, có IP public, ghi lại IP/domain
+- [ ] Firewall VPS mở đủ port (mục 6.1)
+- [ ] LiveKit deploy (Cách A/B), sinh API key/secret mới
+- [ ] `curl http://<IP-VPS>:7880/` trả `OK`
+- [ ] (Nếu có domain) TURN qua TLS hoạt động với cert Let's Encrypt thật
+- [ ] Test WebRTC thật từ 2 client ở 2 mạng khác nhau (không cùng LAN với VPS) — xác nhận NAT traversal hoạt động đúng
+
+---
+
+## 7. Tự động mở rộng (burst) sang AWS khi quá tải
+
+**2 cơ chế burst độc lập, không liên quan nhau** — vì bản chất tải khác nhau:
+
+| | Phần A — Service burst | Phần B — LiveKit burst |
+|---|---|---|
+| Áp dụng khi | Identity/WorkSpace/Chat/SpamTracking/Admin/Media quá tải (nhiều API request) | LiveKit quá tải (nhiều phòng họp/media stream cùng lúc) |
+| Cơ chế | Node AWS join vào cụm k3s ở nhà (qua Tailscale) | Node AWS chạy LiveKit riêng, join cụm LiveKit qua Redis chung |
+| Vì sao tách | Service là API service bình thường, K8s tự dàn thêm replica được | LiveKit là SFU media relay — mỗi node cần IP public riêng để relay trực tiếp, không thể chỉ "thêm replica" |
+
+**MinIO KHÔNG nằm trong phạm vi 2 cơ chế này** — Chat Service chỉ tạo `presigned URL`, client tự
+upload thẳng lên MinIO (xem `FileEndpoints.cs`), nên quá tải MinIO (băng thông/disk IO) không giải
+quyết được bằng thêm node K8s. MinIO tự quản lý scale riêng (distributed mode nhiều node/ổ đĩa),
+nằm ngoài phạm vi K8s.
+
+**Ngân sách:** cả 2 phần thiết kế để **0đ khi không có node burst nào đang chạy** (EC2 tính tiền
+theo giây chạy, không phải thuê bao cố định). Ngưỡng đã thống nhất: **AWS Budget Alert 50.000
+VNĐ/tháng** (~2 USD) — bao luôn các khoản lặt vặt nếu có sót, vượt ngưỡng có cảnh báo email ngay.
+
+### 7.0 Chuẩn bị chung
+
+**IAM user riêng, quyền tối thiểu** (KHÔNG dùng access key cá nhân/quyền Admin), giới hạn instance
+type để chặn launch nhầm loại máy đắt tiền:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances", "ec2:TerminateInstances",
+        "ec2:DescribeInstances", "ec2:CreateTags",
+        "ec2:AllocateAddress", "ec2:AssociateAddress",
+        "ec2:ReleaseAddress", "ec2:DescribeAddresses"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "ec2:InstanceType": ["t3.medium", "t3.large"] }
+      }
+    }
+  ]
+}
+```
+
+**Nguyên tắc "0đ khi rảnh" — 2 điều PHẢI tránh:**
+1. **Không đặt trước Elastic IP tĩnh** — AWS tính phí giờ cho IP không gắn instance đang chạy. Luôn
+   cấp IP lúc launch, release ngay trước khi terminate.
+2. **Không tự đóng AMI riêng** — snapshot EBS backing AMI tính phí lưu trữ dù không chạy máy nào.
+   Dùng AMI gốc chuẩn (Ubuntu 22.04) + cloud-init cài lúc khởi động, chấp nhận chờ thêm 1-2 phút.
+
+**AWS Budget Alert:** Billing → Budgets → Create budget → 2 USD/tháng → Alert threshold 80%/100% →
+email. Lớp phòng vệ cuối cùng, vẫn báo được kể cả khi code có bug (launch lặp vô hạn, quên terminate).
+
+### 7.1 Phần A — Service burst
+
+**Tailscale — bắc cầu qua NAT của server nhà.** Server nhà không có IP public thật, node AWS không
+"gõ cửa" trực tiếp vào `:6443` được. Dùng Tailscale (mesh VPN WireGuard, tự vượt NAT):
+```bash
+# Tren server nha
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+tailscale ip -4   # 100.x.y.z
+
+sudo systemctl stop k3s
+curl -sfL https://get.k3s.io | sh -s - --flannel-iface=tailscale0
+sudo systemctl start k3s
+sudo cat /var/lib/rancher/k3s/server/node-token   # luu lai
+```
+
+**Cloud-init cho node AWS — tự join cụm k3s làm agent:**
+```bash
+#!/bin/bash
+set -e
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --authkey="${TAILSCALE_AUTHKEY}" --hostname="aws-burst-$(hostname)"
+
+curl -sfL https://get.k3s.io | K3S_URL="https://${HOME_SERVER_TAILSCALE_IP}:6443" \
+  K3S_TOKEN="${K3S_NODE_TOKEN}" \
+  sh -s - agent \
+  --node-label "node-role=burst-aws" \
+  --node-taint "cloud-burst=true:NoSchedule"
+```
+`--node-taint cloud-burst=true:NoSchedule`: mặc định KHÔNG pod nào được xếp vào — quan trọng nhất để
+Database (StatefulSet, không nên chạy trên node tạm/Spot) không bao giờ bị xếp nhầm sang đây.
+`TAILSCALE_AUTHKEY` sinh ở Tailscale Admin Console (chọn **Ephemeral** để node tự rút khỏi tailnet
+khi tắt máy) — truyền qua EC2 User Data lúc `RunInstances`, KHÔNG commit git.
+
+**Chỉ Service được xếp vào node burst, KHÔNG bao giờ Database:** thêm `tolerations` vào Deployment
+của TỪNG Service — TUYỆT ĐỐI không thêm vào Deployment Database:
+```yaml
+tolerations:
+  - key: "cloud-burst"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+```
+Kết hợp HPA (mục 5.4): tải cao → HPA tăng replica → hết chỗ node nhà → tự tràn sang node burst; tải
+giảm → HPA tự rút bớt — không cần logic tự viết thêm ở tầng Pod.
+
+**Tích hợp launch/terminate vào Admin Service (Phase 4):** endpoint mới (tự đề xuất, cùng tinh thần
+`POST /admin/system/livekit/expand` đã có):
+```
+POST /admin/system/burst/launch
+POST /admin/system/burst/{nodeId}/terminate
+GET  /admin/system/burst
+```
+Thêm `AWSSDK.EC2` vào `AdminService.Api.csproj`, viết `AwsBurstService.cs` (style giống
+`K8sResourceService.cs`) gọi `RunInstances`/`TerminateInstances`, kèm **giới hạn cứng số node burst
+đồng thời** trong code (ví dụ 2) — chặn launch tràn lan nếu logic đo tải lỗi/loop.
+
+```bash
+kubectl create secret generic admin-service-aws -n admin-service \
+  --from-literal=AwsBurst__AccessKey="<access-key>" \
+  --from-literal=AwsBurst__SecretKey="<secret-key>" \
+  --from-literal=AwsBurst__TailscaleAuthKey="<tailscale-authkey>" \
+  --from-literal=AwsBurst__K3sNodeToken="<k3s-node-token>"
+```
+
+**Quy trình vận hành (bán tự động — khuyến nghị mặc định):**
+1. Xem `GET /admin/system/resources` thấy node nhà quá tải liên tục.
+2. `POST /admin/system/burst/launch` — Admin Service launch EC2, IP cấp động, node tự join sau ~1-2 phút.
+3. Verify `kubectl get nodes` thấy node mới `Ready`.
+4. HPA tự tràn Service pod sang khi cần — không thao tác thêm.
+5. Hết cao điểm: HPA tự rút replica, `POST /admin/system/burst/{nodeId}/terminate` — release Elastic
+   IP trước, rồi terminate instance.
+
+*(Tuỳ chọn tự động hoàn toàn qua CronJob theo dõi tải: chỉ bật khi đã có đủ rào chắn mục 7.0 — giới
+hạn số node cứng, Budget Alert, và thêm auto-terminate theo thời gian chạy tối đa vô điều kiện đề
+phòng job đo tải bị treo.)*
+
+### 7.2 Phần B — LiveKit burst
+
+LiveKit hỗ trợ **clustering nhiều node sẵn có** — không cần Tailscale/k3s. Nhiều LiveKit node (IP
+public riêng) cùng trỏ **1 Redis dùng chung** để đồng bộ trạng thái phòng/người tham gia; LiveKit tự
+phân phối phòng mới sang node còn chỗ.
+
+**Kiến trúc:**
+- **Node 1** — VPS LiveKit hiện tại (mục 6), chạy thường trực.
+- **Node 2 (AWS)** — chỉ tồn tại lúc Node 1 quá tải, cũng chạy LiveKit, trỏ CÙNG Redis với Node 1.
+- **Redis dùng chung** — đặt cạnh Node 1, bật `requirepass` mật khẩu mạnh, mở port cho Node 2 gọi
+  tới. Vì IP Node 2 cấp động (mục 7.0, không đặt trước Elastic IP), không giới hạn được theo IP
+  nguồn cố định — mật khẩu Redis là lớp bảo vệ chính, chấp nhận đánh đổi này ở quy mô cá nhân.
+
+**Cấu hình LiveKit (cả 2 node dùng chung `keys` + `redis`):**
+```yaml
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+redis:
+  address: "<IP-Node-1>:6379"
+  password: "<mat-khau-redis-manh>"
+keys:
+  <api-key>: <api-secret>     # GIONG HET tren ca 2 node
+turn:
+  enabled: true
+  udp_port: 3478
+```
+
+**Cloud-init cho Node 2 (AWS) — chạy Docker thuần, KHÔNG cần k3s/Tailscale:**
+```bash
+#!/bin/bash
+set -e
+apt-get update && apt-get install -y docker.io
+
+cat <<EOF > /etc/livekit.yaml
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+redis:
+  address: "${REDIS_HOST}:${REDIS_PORT}"
+  password: "${REDIS_PASSWORD}"
+keys:
+  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+turn:
+  enabled: true
+  udp_port: 3478
+EOF
+
+docker run -d --name livekit --restart unless-stopped --network host \
+  -v /etc/livekit.yaml:/etc/livekit.yaml \
+  livekit/livekit-server:latest --config /etc/livekit.yaml
+```
+Security Group Node 2: mở đúng port mục 6.1. IP cấp động lúc `RunInstances`, gắn Elastic IP ngay lúc
+đó để có địa chỉ ổn định suốt vòng đời node (release lúc terminate).
+
+**Media Service cần biết node nào đang phục vụ phòng nào — thay đổi code cần thiết (chưa có ở
+Phase 5):** `LiveKitOptions` hiện giả định CHỈ 1 node cố định. Khi tạo phòng (`POST /meetings`),
+Media Service phải **chọn 1 node cụ thể** (Node 1 mặc định, chuyển Node 2 nếu Node 1 báo hết chỗ
+qua LiveKit Server API `ListRooms`/thống kê tải) và **lưu lại node đó gắn với `meeting`** (cần thêm
+cột, ví dụ `meetings.livekit_node_url`) — vì `GenerateAccessToken`/`ClientUrl` trả cho client phải
+trỏ đúng node đang giữ phòng đó, không đoán lại được sau. Đây là phần code thật cần viết khi bắt tay
+triển khai — tài liệu này chỉ mô tả yêu cầu, chưa implement.
+
+**Quy trình vận hành:**
+1. Theo dõi tải Node 1 (số phòng/người hoạt động qua LiveKit Server API, hoặc CPU).
+2. Quá tải → launch Node 2 (cloud-init trên, IP động) → LiveKit tự nhận diện qua Redis, sẵn sàng
+   nhận phòng mới trong vài giây (nhanh hơn Phần A vì không phải chờ join cụm K8s).
+3. Media Service bắt đầu route phòng MỚI sang Node 2 khi Node 1 báo đầy.
+4. Hết cao điểm: Media Service **ngừng route phòng mới sang Node 2**, đợi các phòng đang chạy trên
+   Node 2 tự kết thúc (KHÔNG ngắt cuộc họp đang diễn ra) → release Elastic IP → `TerminateInstances`.
+
+---
+
+## 8. Cạm bẫy đã gặp — tổng hợp
+
+1. **Bitnami Helm charts** (`bitnami/minio` và nhiều chart khác) từ 28/8/2025 chỉ còn image công
+   khai hạn chế — nhiều tag báo `404 not found`. Kiểm tra trước xem image còn public không, hoặc
+   tìm chart chính thức thay thế (MinIO có chart tại `https://charts.min.io/`, image
+   `quay.io/minio/*`, vẫn public).
+2. **Chart mặc định định cỡ cho production, không phải dev** — MinIO chart chính thức mặc định
+   `mode: distributed, replicas: 16, resources.requests.memory: 16Gi`, chạy thẳng trên cluster dev
+   1-node sẽ treo `Pending` vĩnh viễn. Luôn `helm show values <chart>` và hạ cấu hình trước khi
+   `helm install` trên máy dev/home-lab.
+3. **RAM Docker Desktop quá thấp** làm `kube-scheduler` crash loop âm thầm (triệu chứng dễ nhầm
+   "pod bug" — `kubectl describe pod` không hề có `FailedScheduling` vì scheduler chưa kịp chạy).
+   Luôn kiểm tra `kubectl get pods -n kube-system` trước khi debug sâu ứng dụng.
+4. **`podHostNetwork: true` không hoạt động trên Docker Desktop K8s** — chỉ hoạt động trên cluster
+   có node là máy/VM thật (`kind` với `extraPortMappings`, hoặc K8s Linux bare-metal thật).
+5. **Nhiều cluster `kind` cùng lúc cần thêm RAM đáng kể** — 2 cluster ~8GB, thêm cluster thứ 3 (có
+   Kafka, chạy JVM) cần ~12-16GB. Kiểm tra `docker stats --no-stream` trước khi tạo cluster mới nếu
+   nghi thiếu RAM.
+6. **Advertised listener của Kafka (và hệ thống có "2-bước kết nối" tương tự) phải khai đúng
+   NodePort, không phải cổng nội bộ container.** Lỗi dễ nhầm nhất khi chạy Kafka multi-cluster/
+   multi-network vì bootstrap connection vẫn thành công, chỉ giao dịch thật (sau khi nhận metadata)
+   mới thất bại. IP container có thể đổi sau khi Docker Desktop restart — kiểm tra lại
+   `docker network inspect kind`, cập nhật lại `KAFKA_ADVERTISED_LISTENERS` nếu IP đổi (đã gặp thực
+   tế: register/message-send hang vô thời hạn vì IP cũ không còn đúng).
+7. **Nhiều cluster `kind` (kể cả cluster Docker Desktop) mặc định nằm chung 1 Docker network tên
+   `kind`** — dùng để cross-cluster networking qua `<IP container node>:<NodePort>`, không cần
+   VPN/mesh phức tạp thêm cho môi trường dev. Verify `docker network inspect kind`. IP container
+   không cố định nếu cluster bị xoá tạo lại.
+8. **Windows host không tự route được vào `172.18.0.x`** (dải Docker bridge network) dù IP đúng —
+   chỉ container thật sự nằm trên network `kind` mới gọi vào được. Test mọi thứ chạm tới Kafka
+   advertised-listener/RabbitMQ qua `docker run --network kind ...` (hoặc `kubectl run` pod), không
+   test bằng `dotnet run` trần trên Windows host.
+9. **Presigned URL của `AWSSDK.S3` luôn trả `https://`** dù cấu hình `UseHttp = true`/`ServiceURL`
+   là `http://` — phải tự thay chuỗi scheme sau khi generate nếu MinIO chỉ nghe HTTP thuần (mục 3).
+10. **Cột `VARCHAR(n)` quá ngắn so với giá trị enum thật** — ví dụ `meeting_participants.role
+    VARCHAR(10)` nhưng `'participant'` dài 11 ký tự, lỗi Postgres `22001 value too long` (phát hiện
+    khi test Phase 5, đã sửa `VARCHAR(20)`). Luôn đếm ký tự giá trị `CHECK IN (...)` dài nhất trước
+    khi chốt độ dài cột.
+11. **RabbitMQ.Client 7.x dùng API async** (`IChannel`, `CreateChannelAsync`, `BasicPublishAsync`)
+    — khác hẳn ví dụ/tutorial cũ dùng `IModel` đồng bộ, dễ nhầm khi tra cứu tài liệu ngoài.
+12. **`JsonSerializer.Deserialize<T>(RedisValue)` báo lỗi ambiguous overload** — `RedisValue` implicit
+    convert được cả `string` lẫn `ReadOnlySpan<byte>`. Ép kiểu tường minh `(string)value!` trước khi
+    deserialize (gặp lặp lại ở nhiều service dùng StackExchange.Redis).
+
+---
+
+## 9. Checklist tổng hợp
+
+**Máy dev (mục 1-3)**
+- [ ] Docker Desktop RAM ≥ 12-16GB, `helm`/`kind` cài portable trong PATH
+- [ ] Metrics Server + Ingress-Nginx cài trên `docker-desktop`, `kubectl top nodes` chạy được
+- [ ] `kind-livekit-cluster` + LiveKit cài qua Helm, patch NodePort, Service TURN riêng, `curl http://localhost:7880/` → `OK`
+- [ ] `kind-messaging-cluster` + Redis/Kafka/RabbitMQ deploy, verify `PONG`/list topic/management UI 200, verify cross-cluster
+- [ ] Cả 6 DB deploy trên `docker-desktop` (mục 2.2), verify schema + constraint từng cái
+- [ ] MinIO chạy trên máy LAN riêng, biến môi trường `MINIO_ENDPOINT` đúng
+
+**Đóng gói & deploy (mục 4-5)**
+- [ ] PAT tạo xong, `docker login ghcr.io` thành công
+- [ ] Cả 6 image build + push lên GHCR, package Public HOẶC `ghcr-pull-secret` đã tạo trên server
+- [ ] Cả 6 Secret tạo đúng namespace, `Jwt__SigningKey` GIỐNG NHAU tuyệt đối giữa các service
+- [ ] Admin Service có `serviceAccountName: admin-service`, verify `GET /admin/system/resources` trả 200 thật
+- [ ] WSL2 + k3s cài trên server nhà, `networkingMode=mirrored`, `kubectl get nodes` → `Ready`
+- [ ] Toàn bộ hạ tầng (Ingress, 6 DB, Redis/Kafka/RabbitMQ) deploy lại trên k3s, `KAFKA_ADVERTISED_LISTENERS` đã sửa đúng IP LAN
+- [ ] `ResourceQuota` 60/30/10 áp cho từng namespace, HPA cấu hình cho từng Service
+- [ ] Cả 6 Deployment + Service apply thành công, `kubectl get pods -A` toàn bộ `Running`
+- [ ] Ingress rule cho từng service public cần thiết, test 1 luồng nghiệp vụ thật qua Ingress (không qua `kubectl exec`/`port-forward`)
+
+**LiveKit VPS (mục 6)**
+- [ ] VPS có IP public, firewall mở đủ port, LiveKit deploy, `curl http://<IP-VPS>:7880/` → `OK`
+- [ ] Media Service trỏ đúng LiveKit VPS, test WebRTC thật từ 2 mạng khác nhau
+
+**AWS burst (mục 7 — khi thực sự cần)**
+- [ ] IAM user riêng, Budget Alert 2 USD/tháng đã tạo
+- [ ] Xác nhận KHÔNG đặt Elastic IP tĩnh trước, KHÔNG tự đóng AMI riêng
+- [ ] Phần A: Tailscale + k3s agent test launch tay 1 node, `tolerations` thêm vào từng Service Deployment, `AwsBurstService` tích hợp Admin Service
+- [ ] Phần B: Redis dùng chung cấu hình xong, Node 2 test launch tay, code Media Service chọn node/lưu `livekit_node_url` đã viết, test WebRTC thật qua Node 2
+- [ ] (Nếu tự động hoàn toàn) đủ rào chắn mục 7.0 trước khi để cụm tự vận hành không giám sát
