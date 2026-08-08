@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl version *)",
+      "Bash(kubectl config *)",
+      "Bash(kubectl get *)",
+      "Bash(docker version *)"
+    ]
+  }
+}

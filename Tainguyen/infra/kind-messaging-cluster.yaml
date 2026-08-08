@@ -1,0 +1,18 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: messaging-cluster
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30637
+        hostPort: 6379
+        protocol: TCP
+      - containerPort: 30909
+        hostPort: 9092
+        protocol: TCP
+      - containerPort: 30567
+        hostPort: 5672
+        protocol: TCP
+      - containerPort: 31567
+        hostPort: 15672
+        protocol: TCP

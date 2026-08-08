@@ -1,0 +1,23 @@
+Using launch settings from E:\Chat_APP\IdentityService\src\IdentityService.Api\Properties\launchSettings.json...
+Building...
+E:\Chat_APP\IdentityService\src\IdentityService.Api\IdentityService.Api.csproj : warning NU1903: Package 'Microsoft.OpenApi' 2.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc
+E:\Chat_APP\IdentityService\src\IdentityService.Api\IdentityService.Api.csproj : warning NU1903: Package 'Microsoft.OpenApi' 2.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5194
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: E:\Chat_APP\IdentityService\src\IdentityService.Api
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (45ms) [Parameters=[@p0='?' (DbType = DateTime), @p1='?', @p2='?' (DbType = DateTime), @p3='?', @p4='?', @p5='?', @p6='?'], CommandType='Text', CommandTimeout='30']
+      INSERT INTO users (created_at, email, last_active_at, nickname, password_hash, status, user_type)
+      VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6)
+      RETURNING id;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (4ms) [Parameters=[@p='?' (DbType = Int64)], CommandType='Text', CommandTimeout='30']
+      SELECT u.id, u.created_at, u.email, u.last_active_at, u.nickname, u.password_hash, u.status, u.user_type
+      FROM users AS u
+      WHERE u.id = @p
+      LIMIT 1

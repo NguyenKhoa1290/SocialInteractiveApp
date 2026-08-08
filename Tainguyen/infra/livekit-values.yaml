@@ -1,0 +1,30 @@
+replicaCount: 1
+
+# Cluster rieng cho LiveKit (kind-livekit-cluster), tao bang `kind` CLI
+# (khong phai Docker Desktop K8s) vi kind CLI ho tro extraPortMappings ->
+# publish thang port ra Windows host, con Docker Desktop K8s thi khong.
+# Dung UDP mux 1 cong duy nhat (rtc.udp_port) thay vi dai port range vi
+# NodePort tung-port-mot khong thuc te voi dai lon (50000-50100).
+podHostNetwork: false
+
+livekit:
+  keys:
+    devkey_1e01d3e9a13a: cdbb2977cd95310f859cd9eeedc9d4233ec2959ce1300f44
+  rtc:
+    tcp_port: 7881
+    udp_port: 7882
+    use_external_ip: true
+  turn:
+    enabled: true
+    udp_port: 3478
+    # tls_port bo qua o dev: bat tls_port se buoc LiveKit tu xin cert
+    # qua ACME (Let's Encrypt) voi domain that, khong dung duoc offline/local.
+    # Bat lai khi co domain + cert that cho moi truong staging/prod.
+
+# loadBalancer.type mac dinh "disable" -> chart tao 1 Service chua ca
+# http + rtc-tcp + rtc-udp nhung KHONG tu dat type: NodePort.
+# Sau khi helm install, phai patch tay sang NodePort voi nodePort co dinh
+# khop voi extraPortMappings cua kind-livekit-cluster (xem
+# patch-livekit-service.yaml trong cung thu muc).
+loadBalancer:
+  type: disable

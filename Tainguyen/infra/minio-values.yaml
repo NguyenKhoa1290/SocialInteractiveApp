@@ -1,0 +1,33 @@
+# Chart chinh thuc cua MinIO (charts.min.io), KHONG dung Bitnami chart nua -
+# Bitnami da khoa gan het image mien phi tu 8/2025, image
+# bitnami/minio + bitnami/minio-object-browser khong con public.
+rootUser: admin
+rootPassword: "Y2aaJmpxYHB9w6i5c46FBc0"
+
+# Mac dinh chart chay "distributed" voi 16 replicas (danh cho production
+# multi-node) - qua nang cho 1 node dev/home-lab. Chuyen standalone 1 pod.
+mode: standalone
+replicas: 1
+
+# Mac dinh chart doi hoi request 16Gi RAM (chuan production) - giam xuong
+# muc hop ly cho dev/home-lab. Tang lai khi len staging/prod that.
+resources:
+  requests:
+    memory: 512Mi
+
+buckets:
+  - name: chat-media
+    policy: none
+    purge: false
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+service:
+  type: NodePort
+  nodePort: 30900
+
+consoleService:
+  type: NodePort
+  nodePort: 30901

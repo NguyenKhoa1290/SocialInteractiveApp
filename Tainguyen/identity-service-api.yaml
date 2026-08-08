@@ -1,0 +1,500 @@
+openapi: 3.0.3
+info:
+  title: Identity Service API
+  version: "1.0.0"
+  description: |
+    API cho Identity Service — đăng nhập, đăng ký, quản lý phiên, thông tin user.
+    Tham chiếu Use Case: UC-01 đến UC-09.
+
+    Lưu ý: file này chỉ mô tả REST API (đồng bộ, qua API Gateway).
+    Các sự kiện bất đồng bộ Identity Service consume qua RabbitMQ
+    (Khóa tài khoản, Delete Account Spam, Delete Account Expired)
+    KHÔNG nằm trong phạm vi OpenAPI vì không phải HTTP endpoint.
+
+servers:
+  - url: https://api.example.com/identity
+    description: Qua API Gateway (Nginx) — rate limit + JWT check áp dụng ở tầng Gateway
+
+tags:
+  - name: Authentication
+    description: Đăng nhập, OAuth, Guest (UC-01 → UC-04)
+  - name: Password
+    description: Quên mật khẩu / đặt mật khẩu (UC-05)
+  - name: Registration
+    description: Đăng ký tài khoản (UC-06 → UC-08)
+  - name: Profile
+    description: Thông tin & cài đặt tài khoản của chính user
+  - name: Internal
+    description: >-
+      Endpoint nội bộ, chỉ gọi được từ service khác trong hệ thống (không đi
+      qua Gateway public) — dùng để resolve thông tin user (liên kết logic
+      cross-DB) hoặc thao tác đồng bộ từ Admin Service.
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============== AUTHENTICATION ==============
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Đăng nhập bằng email & mật khẩu
+      description: Tham chiếu UC-01.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+        "401":
+          description: Sai email hoặc mật khẩu (UC-01, luồng ngoại lệ 3a)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Tài khoản đang bị khoá vì spam (UC-01, luồng ngoại lệ 4a)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedResponse"
+
+  /auth/oauth/{provider}:
+    post:
+      tags: [Authentication]
+      summary: Đăng nhập hoặc Đăng ký qua OAuth (Google / Facebook)
+      description: |
+        Tham chiếu UC-02, UC-03, UC-07, UC-08.
+        Endpoint DÙNG CHUNG cho cả đăng nhập lẫn đăng ký: nếu email từ
+        provider trả về đã tồn tại trong hệ thống → coi như đăng nhập
+        (UC-02/UC-03); nếu chưa tồn tại → tự tạo tài khoản mới (UC-07/UC-08)
+        và trả về `requiresNickname: true` để Frontend hiển thị màn hình
+        nhập nickname bắt buộc trước khi hoàn tất.
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, facebook]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oauthToken]
+              properties:
+                oauthToken:
+                  type: string
+                  description: Access token nhận được từ provider sau bước consent
+      responses:
+        "200":
+          description: Đăng nhập/Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AuthSuccessResponse"
+                  - type: object
+                    properties:
+                      isNewUser:
+                        type: boolean
+                      requiresNickname:
+                        type: boolean
+                        description: true nếu là user mới, cần gọi PATCH /users/me/nickname trước khi dùng đầy đủ tính năng
+        "403":
+          description: Tài khoản đang bị khoá vì spam
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedResponse"
+        "409":
+          description: >-
+            Email từ provider trùng với tài khoản đã đăng ký bằng phương thức
+            khác — hành vi cụ thể (tự động liên kết hay từ chối) CHƯA ĐƯỢC
+            CHỐT (xem UC-07, mục Ghi chú/Điểm mở). Mã lỗi này là placeholder
+            cho tới khi quyết định nghiệp vụ được xác nhận.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/guest:
+    post:
+      tags: [Authentication]
+      summary: Truy cập dạng Guest
+      description: Tham chiếu UC-04. Không cần email/mật khẩu, chỉ cần nickname.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nickname]
+              properties:
+                nickname:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+      responses:
+        "200":
+          description: Tạo phiên Guest thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Đăng xuất, huỷ session hiện tại
+      responses:
+        "204":
+          description: Đăng xuất thành công, không có nội dung trả về
+
+  # ============== PASSWORD ==============
+  /auth/forgot-password:
+    post:
+      tags: [Password]
+      summary: Bắt đầu luồng quên mật khẩu — gửi OTP qua email
+      description: Tham chiếu UC-05, bước 1–2.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "202":
+          description: >-
+            OTP đã được gửi (luôn trả 202 kể cả khi email không tồn tại,
+            tránh lộ thông tin email nào đã đăng ký trong hệ thống)
+
+  /auth/verify-otp:
+    post:
+      tags: [Password]
+      summary: Xác thực mã OTP
+      description: Tham chiếu UC-05, bước 3.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp]
+              properties:
+                email:
+                  type: string
+                  format: email
+                otp:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+      responses:
+        "200":
+          description: OTP hợp lệ, trả về resetToken dùng cho bước đặt mật khẩu mới
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resetToken:
+                    type: string
+        "400":
+          description: OTP sai hoặc hết hạn (UC-05, luồng ngoại lệ 3a)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password:
+    post:
+      tags: [Password]
+      summary: Đặt mật khẩu mới
+      description: |
+        Tham chiếu UC-05, bước 4. Áp dụng cho cả 2 trường hợp: đặt lại mật
+        khẩu (user đã từng có mật khẩu) và tạo mật khẩu lần đầu (user chỉ
+        từng đăng nhập OAuth) — về mặt API là cùng 1 thao tác, chỉ khác
+        thông điệp hiển thị phía Frontend tuỳ `isFirstTimePassword` trong
+        response của bước verify-otp trước đó.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetToken, newPassword]
+              properties:
+                resetToken:
+                  type: string
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "200":
+          description: Đặt mật khẩu thành công
+        "400":
+          description: resetToken không hợp lệ hoặc đã hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ============== REGISTRATION ==============
+  /auth/register:
+    post:
+      tags: [Registration]
+      summary: Đăng ký bằng email & mật khẩu
+      description: Tham chiếu UC-06.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, nickname]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                nickname:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+      responses:
+        "201":
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+        "409":
+          description: Email đã tồn tại (UC-06, luồng ngoại lệ 2a)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ============== PROFILE ==============
+  /users/me:
+    get:
+      tags: [Profile]
+      summary: Lấy thông tin tài khoản hiện tại
+      responses:
+        "200":
+          description: Thông tin user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/nickname:
+    patch:
+      tags: [Profile]
+      summary: Đặt/đổi nickname
+      description: >-
+        Bắt buộc gọi ngay sau khi đăng ký/đăng nhập OAuth lần đầu
+        (khi `requiresNickname: true`), có thể gọi lại bất kỳ lúc nào để đổi tên hiển thị.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nickname]
+              properties:
+                nickname:
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+      responses:
+        "200":
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ============== INTERNAL (service-to-service) ==============
+  /internal/users/{userId}:
+    get:
+      tags: [Internal]
+      summary: Resolve thông tin cơ bản của 1 user theo id
+      description: >-
+        Dùng bởi WorkSpace/Chat/Media Service để hiển thị nickname/avatar khi
+        chỉ có user_id (liên kết logic cross-DB, xem mục 5.1 tài liệu thiết
+        kế CSDL). KHÔNG đi qua API Gateway public.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Thông tin cơ bản
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublicInfo"
+        "404":
+          description: Không tồn tại user này (đã bị xoá vĩnh viễn hoặc id sai)
+
+  /internal/users:
+    get:
+      tags: [Internal]
+      summary: Resolve nhiều user cùng lúc (batch)
+      description: >-
+        Tránh N+1 request khi 1 service cần hiển thị danh sách nhiều user
+        cùng lúc (VD: WorkSpace Service liệt kê thành viên nhóm).
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Danh sách user id, phân tách bằng dấu phẩy
+          schema:
+            type: string
+            example: "1,2,3"
+      responses:
+        "200":
+          description: Danh sách thông tin cơ bản
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublicInfo"
+
+  /internal/users/{userId}/unlock:
+    post:
+      tags: [Internal]
+      summary: Gỡ khoá tài khoản (đồng bộ, do Admin chủ động thực hiện)
+      description: >-
+        Dùng bởi Admin Service khi Admin quyết định gỡ khoá (UC-12, nhánh
+        3a). Khác với hành động "Khoá tài khoản", vốn đi qua RabbitMQ bất
+        đồng bộ từ SpamTrackingService — gỡ khoá là thao tác Admin chủ động,
+        nên gọi trực tiếp đồng bộ để có phản hồi ngay cho Admin Page.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Gỡ khoá thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Không tìm thấy user
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userType:
+          type: string
+          enum: [guest, registered]
+        nickname:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: null với Guest
+        status:
+          type: string
+          enum: [active, locked]
+        createdAt:
+          type: string
+          format: date-time
+
+    UserPublicInfo:
+      type: object
+      description: Tập con của User, đủ dùng để hiển thị (không lộ email/status)
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        userType:
+          type: string
+          enum: [guest, registered]
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT — với Guest có cơ chế sliding expiration (UC-04)
+        user:
+          $ref: "#/components/schemas/User"
+
+    AccountLockedResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: account_locked
+        message:
+          type: string
+          example: Tài khoản đang bị khoá vì vi phạm chính sách chống spam
+        complaintChannelUrl:
+          type: string
+          description: Đường dẫn tới kênh Khiếu nại (Chat Service), truy cập được dù tài khoản đang bị khoá
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

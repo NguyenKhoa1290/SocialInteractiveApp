@@ -1,0 +1,578 @@
+openapi: 3.0.3
+info:
+  title: Chat Service API
+  version: "1.0.0"
+  description: |
+    API cho Chat Service — chat 1-1 (P2P), chat nhóm (Group), và kênh Khiếu
+    nại. Tham chiếu Use Case: UC-25 đến UC-30 (và UC-09 phía user).
+
+    Realtime (nhận tin nhắn mới, presence) đi qua WebSocket (Signal IR),
+    KHÔNG nằm trong phạm vi OpenAPI này — file này chỉ mô tả REST API đồng
+    bộ (gửi tin nhắn, quản trị, tra cứu lịch sử).
+
+servers:
+  - url: https://api.example.com/chat
+    description: Qua API Gateway (Nginx) — rate limit + JWT check áp dụng ở tầng Gateway
+
+tags:
+  - name: Conversations
+    description: Tạo/xem cuộc trò chuyện
+  - name: Messages
+    description: Gửi/xoá/tra cứu tin nhắn (UC-25, UC-27, UC-28)
+  - name: Files
+    description: Upload & quản lý file đính kèm (UC-28)
+  - name: Moderation
+    description: Cấm chat, quản lý dung lượng nhóm (UC-28, UC-29)
+  - name: Complaints
+    description: Khiếu nại khi tài khoản bị khoá (UC-09, UC-30) — phía user
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============== CONVERSATIONS ==============
+  /conversations/p2p:
+    post:
+      tags: [Conversations]
+      summary: Tạo hoặc lấy cuộc trò chuyện P2P với 1 user
+      description: >-
+        Idempotent theo cặp user: nếu đã tồn tại cuộc trò chuyện P2P giữa 2
+        người (ràng buộc UNIQUE theo cặp — xem tài liệu thiết kế CSDL mục
+        5.6), trả về cuộc trò chuyện đã có thay vì tạo mới.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otherUserId]
+              properties:
+                otherUserId:
+                  type: integer
+                  format: int64
+      responses:
+        "200":
+          description: Trả về cuộc trò chuyện (mới tạo hoặc đã có sẵn)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /conversations/{conversationId}:
+    get:
+      tags: [Conversations]
+      summary: Xem thông tin 1 cuộc trò chuyện
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: Thông tin cuộc trò chuyện
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "403":
+          description: User không phải thành viên/không thuộc cuộc trò chuyện này
+
+  # ============== MESSAGES ==============
+  /conversations/{conversationId}/messages:
+    get:
+      tags: [Messages]
+      summary: Lấy lịch sử tin nhắn
+      description: >-
+        Phía server tự quyết định nguồn dữ liệu theo logic Search Chat
+        Service: nếu số tin nhắn của conversation < 10.000 VÀ tin nhắn
+        trong vòng 10 ngày gần nhất → đọc Redis (nhanh); nếu vượt 1 trong 2
+        mốc → query trực tiếp Postgres. Client không cần biết/chọn nguồn,
+        chỉ nhận kết quả giống nhau. Xem UC-25/UC-27 và Use Case UC-39.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: before
+          in: query
+          description: Lấy tin nhắn trước thời điểm này (phân trang dạng cursor)
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        "200":
+          description: Danh sách tin nhắn, mới nhất trước
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+    post:
+      tags: [Messages]
+      summary: Gửi tin nhắn (text/ảnh/video/file/voice/vote)
+      description: >-
+        Tham chiếu UC-25 (P2P) và UC-27 (Group). Áp rule tuỳ loại nội dung
+        và loại conversation:
+
+        - `type=video`: >50MB tự động nén; từ chối nếu nén xong vẫn quá
+          giới hạn (413).
+        - `type=voice`: chỉ chấp nhận <25MB (413 nếu vượt).
+        - `type=file`: **CHỈ hợp lệ với conversation type='group'** — chat
+          1-1 không hỗ trợ gửi File (quyết định có chủ đích, xem UC-25 Ghi
+          chú). Gửi file trong P2P trả lỗi 422.
+        - `type=file` trong group: bị trừ vào quota lưu trữ của nhóm, có
+          thể trả 507 nếu vượt hạn mức (xem endpoint storage bên dưới).
+
+        Với `type` khác `text`, trường `fileId` phải tham chiếu tới file đã
+        upload trước đó qua `POST /files/upload-url` (xem tag Files).
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+      responses:
+        "201":
+          description: Tin nhắn đã được gửi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "403":
+          description: User đang bị mute trong conversation này (UC-27, luồng ngoại lệ 2a)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Video/voice vượt giới hạn kích thước sau khi đã thử nén (nếu áp dụng)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: type='file' được gửi trong conversation P2P (không hỗ trợ)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "507":
+          description: >-
+            Gửi file làm vượt quota lưu trữ của nhóm (UC-27, luồng ngoại lệ
+            3a) — cần Trưởng nhóm nạp thêm hoặc xoá bớt file cũ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /conversations/{conversationId}/messages/{messageId}:
+    delete:
+      tags: [Messages]
+      summary: Xoá tin nhắn (soft-delete)
+      description: >-
+        Tham chiếu UC-28. Chỉ Trưởng nhóm được gọi (với group). Đánh dấu
+        `is_deleted=true`, không xoá cứng khỏi Social DB.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã xoá
+        "403":
+          description: Người gọi không phải Trưởng nhóm
+
+  # ============== FILES ==============
+  /files/upload-url:
+    post:
+      tags: [Files]
+      summary: Lấy presigned URL để upload trực tiếp lên MinIO
+      description: >-
+        Client upload thẳng lên MinIO bằng URL này (không qua Chat Service),
+        sau đó dùng `fileId` trả về để tham chiếu khi gọi
+        `POST /conversations/{conversationId}/messages`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conversationId, fileType, sizeBytes]
+              properties:
+                conversationId:
+                  type: integer
+                  format: int64
+                fileType:
+                  type: string
+                  enum: [image, video, voice, file]
+                sizeBytes:
+                  type: integer
+                  format: int64
+      responses:
+        "200":
+          description: URL upload tạm thời + fileId để tham chiếu sau
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fileId:
+                    type: integer
+                    format: int64
+                  uploadUrl:
+                    type: string
+                  expiresInSeconds:
+                    type: integer
+                    example: 300
+
+  /conversations/{conversationId}/files:
+    get:
+      tags: [Files]
+      summary: Danh sách file trong 1 nhóm
+      description: Tham chiếu UC-28 (Quản lý file).
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: Danh sách file
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileMeta"
+
+  /conversations/{conversationId}/files/{fileId}:
+    delete:
+      tags: [Files]
+      summary: Xoá 1 file để giải phóng quota
+      description: >-
+        Tham chiếu UC-28. Chỉ Trưởng nhóm được gọi. Storage_used_bytes tự
+        động trừ theo qua trigger DB (xem tài liệu thiết kế CSDL mục 5.6).
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã xoá
+        "403":
+          description: Người gọi không phải Trưởng nhóm
+
+  # ============== MODERATION ==============
+  /conversations/{conversationId}/mutes:
+    post:
+      tags: [Moderation]
+      summary: Cấm chat (mute) 1 thành viên
+      description: Tham chiếu UC-28. Chỉ Trưởng nhóm được gọi.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+      responses:
+        "201":
+          description: Đã mute
+        "403":
+          description: Người gọi không phải Trưởng nhóm
+
+  /conversations/{conversationId}/mutes/{userId}:
+    delete:
+      tags: [Moderation]
+      summary: Gỡ mute
+      description: >-
+        Không có trong danh sách hành động tường minh ở UC-28, nhưng suy ra
+        cần thiết vì mute được thiết kế có hiệu lực vĩnh viễn tới khi được
+        gỡ chủ động (xem tài liệu thiết kế CSDL mục 5.6) — nếu không có
+        endpoint này, mute sẽ không bao giờ gỡ được.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã gỡ mute
+        "403":
+          description: Người gọi không phải Trưởng nhóm
+
+  /conversations/{conversationId}/storage:
+    get:
+      tags: [Moderation]
+      summary: Xem dung lượng lưu trữ hiện tại của nhóm
+      description: Tham chiếu UC-29.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: Thông tin dung lượng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageInfo"
+
+  /conversations/{conversationId}/storage/topup:
+    post:
+      tags: [Moderation]
+      summary: Nạp tiền để tăng hạn mức lưu trữ
+      description: Tham chiếu UC-29. Chỉ Trưởng nhóm được gọi.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  description: Số tiền nạp — quy đổi ra hạn mức bytes tuỳ bảng giá (ngoài phạm vi spec này)
+      responses:
+        "200":
+          description: Hạn mức đã được cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageInfo"
+
+  /conversations/{conversationId}/storage/unlock:
+    post:
+      tags: [Moderation]
+      summary: Mở khoá + quy định lại thời gian lưu trữ mới
+      description: >-
+        Tham chiếu UC-29, bước 5. Dùng sau khi nhóm đã bị khoá vì vượt hạn
+        mức không gia hạn kịp. Chỉ Trưởng nhóm được gọi.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                storageExpiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Đã mở khoá
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageInfo"
+
+  # ============== COMPLAINTS (phía user) ==============
+  /complaints/messages:
+    get:
+      tags: [Complaints]
+      summary: Xem lịch sử khiếu nại của chính mình
+      description: >-
+        Tham chiếu UC-09, UC-30. Đọc từ Redis, TTL 10 tiếng — trả mảng rỗng
+        nếu chưa từng khiếu nại hoặc đã quá 10 tiếng.
+
+        **Đặc biệt:** endpoint này PHẢI truy cập được kể cả khi tài khoản
+        đang ở trạng thái `locked` (khác với mọi endpoint khác trong toàn
+        hệ thống, vốn bị chặn bởi API Gateway khi tài khoản bị khoá) — đây
+        là lý do kênh khiếu nại được thiết kế tách biệt hoàn toàn khỏi chat
+        thông thường ngay từ đầu.
+      responses:
+        "200":
+          description: Lịch sử khiếu nại
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComplaintMessage"
+
+    post:
+      tags: [Complaints]
+      summary: Gửi tin nhắn khiếu nại
+      description: Tham chiếu UC-09 bước 4, UC-30 bước 4. Xem lưu ý ở GET cùng path.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        "201":
+          description: Khiếu nại đã được ghi nhận
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintMessage"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [p2p, group]
+        workspaceId:
+          type: integer
+          format: int64
+          nullable: true
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        conversationId:
+          type: integer
+          format: int64
+        senderId:
+          type: integer
+          format: int64
+          nullable: true
+          description: null = tin nhắn hệ thống
+        senderDisplayName:
+          type: string
+          description: >-
+            Tính động: nếu sender không còn là thành viên workspace (đã bị
+            xoá khỏi nhóm, UC-22), giá trị này trả về "người trong nhóm"
+            thay vì nickname thật — xem tài liệu thiết kế CSDL mục 5.6.
+        type:
+          type: string
+          enum: [text, image, video, file, voice, vote, system]
+        content:
+          type: string
+          nullable: true
+        fileId:
+          type: integer
+          format: int64
+          nullable: true
+        isDeleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateMessageRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [text, image, video, file, voice, vote]
+        content:
+          type: string
+          description: Nội dung text, hoặc caption đi kèm media
+        fileId:
+          type: integer
+          format: int64
+          description: Bắt buộc nếu type khác 'text' — lấy từ POST /files/upload-url
+
+    FileMeta:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        fileType:
+          type: string
+          enum: [image, video, voice, file]
+        sizeBytes:
+          type: integer
+          format: int64
+        uploadedBy:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
+
+    StorageInfo:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, paid]
+        quotaBytes:
+          type: integer
+          format: int64
+        usedBytes:
+          type: integer
+          format: int64
+        isLocked:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ComplaintMessage:
+      type: object
+      properties:
+        senderRole:
+          type: string
+          enum: [user, admin]
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

@@ -1,0 +1,612 @@
+openapi: 3.0.3
+info:
+  title: Media Service API
+  version: "1.0.0"
+  description: |
+    API cho Media Service — mở/tham gia cuộc họp, điều khiển phòng, mini
+    app. Tham chiếu Use Case: UC-31 đến UC-37.
+
+    **Quan trọng — những gì KHÔNG nằm trong API này:** một số hành động ở
+    UC-34 là thao tác client-side thuần tuý (client tự xử lý qua LiveKit
+    JS SDK, không cần Media Service backend tham gia), nên KHÔNG có endpoint
+    tương ứng ở đây:
+      - Bật/tắt cam, mic của chính mình — gọi thẳng LiveKit SDK phía client.
+      - Chia sẻ màn hình (của chính mình) — tương tự, LiveKit SDK client.
+      - Điều chỉnh âm lượng người khác (client) — chỉ ảnh hưởng phía người
+        nghe, xử lý local, không đồng bộ lên server.
+      - Tắt hiển thị camera người khác (client) — tương tự, chỉ là lựa chọn
+        render cục bộ để tiết kiệm băng thông phía người xem.
+
+    Các hành động còn lại của UC-34 (đuổi người, duyệt vào phòng, kết thúc
+    họp) cần thẩm quyền server-side thật sự (gọi LiveKit Server API), nên
+    có endpoint riêng bên dưới.
+
+servers:
+  - url: https://api.example.com/media
+    description: Qua API Gateway (Nginx) — rate limit + JWT check áp dụng ở tầng Gateway
+
+tags:
+  - name: Meetings
+    description: Mở/xem/kết thúc cuộc họp (UC-31, UC-34)
+  - name: Invites
+    description: Mời & tham gia cuộc họp (UC-32, UC-33)
+  - name: Participants
+    description: Duyệt phòng chờ, đuổi người, cấp quyền (UC-33, UC-34, UC-35)
+  - name: MiniApp
+    description: Mini App IPTV (UC-37)
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============== MEETINGS ==============
+  /meetings:
+    post:
+      tags: [Meetings]
+      summary: Mở cuộc họp mới
+      description: >-
+        Tham chiếu UC-31. `mode=in_chat` gắn phòng với 1 conversation cụ
+        thể (Chat Service sẽ tự tạo tin nhắn mời trong luồng chat của
+        nhóm/cuộc trò chuyện đó); `mode=standalone` mở độc lập.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [in_chat, standalone]
+                conversationId:
+                  type: integer
+                  format: int64
+                  description: Bắt buộc nếu mode=in_chat
+      responses:
+        "201":
+          description: Phòng đã được tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meeting"
+        "503":
+          description: >-
+            Cụm LiveKit hiện tại đã đạt giới hạn 100 người/room cho các
+            phòng đang chạy (UC-31, luồng ngoại lệ 2a) — cần Admin can
+            thiệp scale thêm node
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /meetings/{meetingId}:
+    get:
+      tags: [Meetings]
+      summary: Xem thông tin phòng họp
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      responses:
+        "200":
+          description: Thông tin phòng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meeting"
+
+  /meetings/{meetingId}/end:
+    post:
+      tags: [Meetings]
+      summary: Kết thúc cuộc họp
+      description: Tham chiếu UC-34. Chỉ Chủ phòng họp được gọi.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      responses:
+        "204":
+          description: Đã kết thúc
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  # ============== INVITES ==============
+  /meetings/{meetingId}/invites:
+    post:
+      tags: [Invites]
+      summary: Tạo link mời hoặc mời bạn bè trực tiếp
+      description: >-
+        Tham chiếu UC-32. Với `type=direct`, Media Service kiểm tra qua
+        Identity Service để xác nhận `invitedUserId` đúng là bạn bè của
+        người gửi trước khi tạo lời mời.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  enum: [link, direct]
+                invitedUserId:
+                  type: integer
+                  format: int64
+                  description: Bắt buộc nếu type=direct
+      responses:
+        "201":
+          description: Lời mời đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invite"
+        "422":
+          description: invitedUserId không phải bạn bè của người gửi (UC-32, luồng ngoại lệ 1c)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /meetings/join/{inviteToken}:
+    get:
+      tags: [Invites]
+      summary: Xem thông tin phòng trước khi tham gia (chưa vào phòng)
+      description: Dùng để hiển thị màn hình xác nhận trước khi user bấm "Tham gia".
+      parameters:
+        - name: inviteToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Thông tin cơ bản của phòng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingPreview"
+        "404":
+          description: Link không hợp lệ hoặc đã hết hạn
+
+    post:
+      tags: [Invites]
+      summary: Tham gia cuộc họp qua link
+      description: >-
+        Tham chiếu UC-33. Với Guest chỉ cần `nickname`; với user đã đăng
+        nhập, `nickname` + email được lấy tự động từ JWT. Kết quả trả về
+        tuỳ trạng thái duyệt: nếu phòng yêu cầu duyệt thủ công, trả
+        `status=pending` và client phải chờ (poll `GET
+        /meetings/{meetingId}` hoặc lắng nghe qua WebSocket); nếu được vào
+        thẳng, trả kèm `livekitToken`.
+      parameters:
+        - name: inviteToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname:
+                  type: string
+                  description: Bắt buộc nếu đang ở trạng thái Guest
+      responses:
+        "200":
+          description: Kết quả tham gia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinResult"
+
+  # ============== PARTICIPANTS ==============
+  /meetings/{meetingId}/waiting-room:
+    get:
+      tags: [Participants]
+      summary: Danh sách người đang chờ duyệt vào phòng
+      description: >-
+        Tham chiếu UC-33 bước 3. Chỉ Chủ phòng họp gọi được — quyền duyệt
+        vào phòng CHỈ dành cho host, không áp dụng cho participant thường
+        (đã xác nhận trong quá trình thiết kế).
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      responses:
+        "200":
+          description: Danh sách đang chờ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WaitingParticipant"
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  /meetings/{meetingId}/waiting-room/{userId}/approve:
+    post:
+      tags: [Participants]
+      summary: Duyệt cho 1 người vào phòng
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Đã duyệt, người dùng nhận được livekitToken qua WebSocket
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  /meetings/{meetingId}/waiting-room/{userId}/deny:
+    post:
+      tags: [Participants]
+      summary: Từ chối cho 1 người vào phòng
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã từ chối
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  /meetings/{meetingId}/participants/{userId}/kick:
+    post:
+      tags: [Participants]
+      summary: Đuổi người tham gia khỏi phòng
+      description: >-
+        Tham chiếu UC-34. Chỉ Chủ phòng họp được gọi. Gọi Server API của
+        LiveKit (RemoveParticipant) để thực thi ngay lập tức. Hành động
+        này là độc lập trong phạm vi 1 phiên họp — KHÔNG ảnh hưởng tới tư
+        cách thành viên của người đó trong WorkSpace (khác với UC-22, xoá
+        khỏi nhóm).
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã đuổi khỏi phòng
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  /meetings/{meetingId}/participants/{userId}/permissions:
+    post:
+      tags: [Participants]
+      summary: Cấp quyền sử dụng 1 tính năng cho participant thường
+      description: >-
+        Tham chiếu UC-35. Cấp riêng lẻ từng tính năng (không phải
+        all-or-nothing) — chỉ Chủ phòng họp được gọi.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permissionType]
+              properties:
+                permissionType:
+                  type: string
+                  enum: [share_screen, mini_app, focus_mode]
+      responses:
+        "201":
+          description: Đã cấp quyền
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+    delete:
+      tags: [Participants]
+      summary: Thu hồi quyền đã cấp
+      description: >-
+        Không nêu tường minh trong UC-35, nhưng suy ra cần thiết theo cùng
+        logic đã áp dụng cho endpoint mute/unmute bên Chat Service — nếu
+        chỉ có chiều cấp quyền mà không có chiều thu hồi, Chủ phòng họp
+        không có cách nào rút lại quyền đã cấp nhầm hoặc không còn muốn
+        cấp nữa.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: permissionType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [share_screen, mini_app, focus_mode]
+      responses:
+        "204":
+          description: Đã thu hồi
+        "403":
+          description: Người gọi không phải Chủ phòng họp
+
+  /meetings/{meetingId}/mini-app/start:
+    post:
+      tags: [Participants]
+      summary: Bắt đầu mini app trong phòng (broadcast cho cả phòng)
+      description: >-
+        Tham chiếu UC-34 (Chủ phòng họp) và UC-35 (participant được cấp
+        quyền mini_app). Server kiểm tra quyền tương ứng trước khi phát
+        sự kiện qua WebSocket cho toàn phòng biết mini app nào vừa được mở.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                appId:
+                  type: string
+                  example: iptv
+      responses:
+        "200":
+          description: Mini app đã được kích hoạt cho cả phòng
+        "403":
+          description: Không phải host và không được cấp quyền mini_app (UC-35, luồng ngoại lệ 3a)
+
+  # ============== MINI APP: IPTV ==============
+  /miniapps/iptv/channel-lists:
+    get:
+      tags: [MiniApp]
+      summary: Xem danh sách kênh của chính mình
+      responses:
+        "200":
+          description: Danh sách
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IptvChannelList"
+
+    post:
+      tags: [MiniApp]
+      summary: Tạo danh sách kênh mới
+      description: Tham chiếu UC-37 bước 2.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Đã tạo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IptvChannelList"
+
+  /miniapps/iptv/channel-lists/{listId}/groups:
+    post:
+      tags: [MiniApp]
+      summary: Tạo nhóm kênh trong 1 danh sách
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupName]
+              properties:
+                groupName:
+                  type: string
+      responses:
+        "201":
+          description: Đã tạo
+
+  /miniapps/iptv/channel-lists/{listId}/groups/{groupId}/channels:
+    post:
+      tags: [MiniApp]
+      summary: Thêm 1 kênh (.m3u8) vào nhóm kênh
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channelName, streamUrl]
+              properties:
+                channelName:
+                  type: string
+                streamUrl:
+                  type: string
+                audioTrack:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: Đã thêm kênh
+
+  /meetings/{meetingId}/mini-app/iptv/stream-url:
+    get:
+      tags: [MiniApp]
+      summary: Lấy link tải riêng cho chính client này
+      description: >-
+        Tham chiếu UC-37 bước 4: mỗi người trong phòng tự gọi endpoint này
+        để lấy link `.m3u8` riêng — KHÔNG relay qua LiveKit, mỗi client tự
+        fetch trực tiếp từ nguồn. Có thể lệch vài giây giữa các client do
+        cách này (đánh đổi đã chấp nhận, xem UC-37 Ghi chú).
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+        - name: channelId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Link stream riêng cho client này
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  streamUrl:
+                    type: string
+                  audioTrack:
+                    type: string
+                    nullable: true
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    MeetingId:
+      name: meetingId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+    Meeting:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        hostId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [active, ended]
+        maxParticipants:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    MeetingPreview:
+      type: object
+      description: Thông tin tối giản, xem được TRƯỚC khi tham gia (chưa xác thực là thành viên phòng)
+      properties:
+        meetingId:
+          type: integer
+          format: int64
+        hostNickname:
+          type: string
+        participantCount:
+          type: integer
+        requiresApproval:
+          type: boolean
+
+    Invite:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [link, direct]
+        inviteToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    JoinResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, pending]
+        livekitToken:
+          type: string
+          nullable: true
+          description: Chỉ có giá trị khi status=approved
+        meetingId:
+          type: integer
+          format: int64
+
+    WaitingParticipant:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+
+    IptvChannelList:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

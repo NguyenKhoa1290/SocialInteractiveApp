@@ -1,0 +1,467 @@
+openapi: 3.0.3
+info:
+  title: Admin Service API
+  version: "1.0.0"
+  description: |
+    API cho Admin Service — quản lý người dùng, xử lý spam/khiếu nại, giám sát
+    và vận hành hạ tầng. Tham chiếu Use Case: UC-10 đến UC-16.
+
+    Toàn bộ endpoint yêu cầu JWT có claim role = "admin" (chỉ Admin Page mới
+    gọi được). Admin Service không có DB riêng — hoạt động như lớp điều phối,
+    nội bộ gọi sang Identity Service, SpamTrackingService, Chat Service, và
+    K8s API tuỳ endpoint.
+
+servers:
+  - url: https://api.example.com/admin
+    description: Qua API Gateway (Nginx) — rate limit + JWT check áp dụng ở tầng Gateway
+
+tags:
+  - name: Users
+    description: Quản lý người dùng & xử lý spam (UC-10, UC-11, UC-12)
+  - name: Complaints
+    description: Xử lý khiếu nại từ tài khoản bị khoá (UC-13)
+  - name: Infrastructure
+    description: Giám sát tài nguyên & yêu cầu mở rộng hạ tầng (UC-14, UC-15, UC-16)
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============== USERS & SPAM ==============
+  /admin/users:
+    get:
+      tags: [Users]
+      summary: Xem danh sách toàn bộ người dùng trong hệ thống
+      description: Tham chiếu UC-10. Nội bộ gọi Identity Service.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: search
+          in: query
+          description: Tìm theo nickname hoặc email
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Danh sách người dùng (có phân trang)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedUsers"
+        "502":
+          description: Identity Service không phản hồi (UC-10, luồng ngoại lệ 3a) — không có cache dự phòng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users/{userId}:
+    get:
+      tags: [Users]
+      summary: Xem chi tiết 1 người dùng, kèm lịch sử vi phạm nếu có
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Chi tiết người dùng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserDetail"
+        "404":
+          description: Không tìm thấy
+    delete:
+      tags: [Users]
+      summary: Xoá vĩnh viễn tài khoản (vì spam)
+      description: >-
+        Tham chiếu UC-12, nhánh 3b. Publish sự kiện `Delete Account Spam`
+        qua RabbitMQ (bất đồng bộ) — Identity Service consume và thực thi
+        xoá thật. Response 202 nghĩa là yêu cầu đã được chấp nhận, không
+        đảm bảo đã xoá xong tại thời điểm trả response.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "202":
+          description: Yêu cầu xoá đã được publish, đang xử lý bất đồng bộ
+        "409":
+          description: >-
+            Tài khoản đang có khiếu nại chưa xử lý xong (UC-12, luồng ngoại
+            lệ 2a) — Admin cần xử lý UC-13 trước. Đây là ràng buộc ĐỀ XUẤT
+            thêm khi thiết kế API, vì use case gốc ghi nhận đây là "quy
+            trình làm việc" chứ chưa phải ràng buộc hệ thống bắt buộc;
+            có thể bỏ qua nếu không muốn chặn cứng.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/spam-violations:
+    get:
+      tags: [Users]
+      summary: Xem danh sách người dùng vi phạm spam
+      description: >-
+        Tham chiếu UC-11. Nội bộ gọi SpamTrackingService — dữ liệu xử lý
+        bất đồng bộ từ Kafka Chat Log nên có thể chưa phản ánh vi phạm vừa
+        xảy ra trong vài giây/phút gần nhất (UC-11, luồng ngoại lệ 2a).
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Danh sách vi phạm
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SpamViolation"
+                  total:
+                    type: integer
+
+  /admin/users/{userId}/unlock:
+    post:
+      tags: [Users]
+      summary: Gỡ khoá tài khoản
+      description: >-
+        Tham chiếu UC-12, nhánh 3a. Gọi đồng bộ tới Identity Service
+        (`POST /internal/users/{userId}/unlock`) để có phản hồi ngay.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Gỡ khoá thành công
+        "404":
+          description: Không tìm thấy user
+
+  # ============== COMPLAINTS ==============
+  /admin/complaints:
+    get:
+      tags: [Complaints]
+      summary: Danh sách khiếu nại đang chờ xử lý
+      description: >-
+        Tham chiếu UC-13. Đọc từ Redis cache (TTL 10 tiếng) qua Chat Service
+        — khiếu nại quá 10 tiếng sẽ không còn xuất hiện trong danh sách này
+        vì dữ liệu đã bị xoá theo TTL.
+      responses:
+        "200":
+          description: Danh sách khiếu nại
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComplaintSummary"
+
+  /admin/complaints/{userId}:
+    get:
+      tags: [Complaints]
+      summary: Xem toàn bộ nội dung khiếu nại của 1 user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Nội dung hội thoại khiếu nại
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComplaintMessage"
+        "404":
+          description: >-
+            Không còn dữ liệu — khiếu nại đã quá 10 tiếng, Redis đã tự xoá
+            theo TTL (UC-13, luồng ngoại lệ 2a). Với Guest, không có bằng
+            chứng thay thế qua email (xem UC-09).
+
+  /admin/complaints/{userId}/reply:
+    post:
+      tags: [Complaints]
+      summary: Admin phản hồi trong kênh khiếu nại
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        "201":
+          description: Phản hồi đã được gửi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintMessage"
+
+  # ============== INFRASTRUCTURE ==============
+  /admin/system/resources:
+    get:
+      tags: [Infrastructure]
+      summary: Xem thông tin tiêu thụ tài nguyên hệ thống
+      description: >-
+        Tham chiếu UC-14. Gọi trực tiếp K8s API bằng Service Account riêng,
+        RBAC read-only (get/list trên pods, nodes, metrics.k8s.io).
+      responses:
+        "200":
+          description: Số liệu tài nguyên hiện tại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemResources"
+        "503":
+          description: >-
+            Metrics Server chưa được cài trong cluster (UC-14, luồng ngoại
+            lệ 2a) — chỉ trả được thông tin pod/node cơ bản, không có CPU/RAM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/system/services/{serviceName}/scale:
+    post:
+      tags: [Infrastructure]
+      summary: Yêu cầu mở rộng (scale) 1 service
+      description: >-
+        Tham chiếu UC-15. **Lưu ý vận hành:** Service Account của Admin
+        Service mặc định chỉ có quyền read-only trên K8s (dùng cho
+        /admin/system/resources) — endpoint này cần một RBAC Role RIÊNG,
+        chỉ cho phép patch trên `deployments/scale`, mới gọi được K8s API
+        thành công. Xem UC-15, mục Ghi chú/Điểm mở.
+      parameters:
+        - name: serviceName
+          in: path
+          required: true
+          schema:
+            type: string
+            example: chat-service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [replicas]
+              properties:
+                replicas:
+                  type: integer
+                  minimum: 1
+      responses:
+        "202":
+          description: Yêu cầu scale đã được gửi tới K8s
+        "403":
+          description: Service Account chưa có quyền ghi cần thiết (xem mô tả endpoint)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/system/livekit/expand:
+    post:
+      tags: [Infrastructure]
+      summary: Yêu cầu dựng thêm server LiveKit + TURN
+      description: >-
+        Tham chiếu UC-16. Cùng vướng vấn đề quyền hạn K8s như endpoint scale
+        ở trên. Nếu quy trình chưa tự động hoá hoàn toàn, response 202 ở
+        đây chỉ có nghĩa "đã tạo yêu cầu/ticket cho đội vận hành", không
+        đảm bảo node mới có ngay lập tức (UC-16, luồng ngoại lệ 2b).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  example: "Cụm hiện tại thường xuyên đầy 100 người/room vào giờ cao điểm"
+      responses:
+        "202":
+          description: Yêu cầu đã được ghi nhận
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AdminUserDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userType:
+          type: string
+          enum: [guest, registered]
+        nickname:
+          type: string
+        email:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, locked]
+        createdAt:
+          type: string
+          format: date-time
+        lastActiveAt:
+          type: string
+          format: date-time
+        violations:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpamViolation"
+
+    PaginatedUsers:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserDetail"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    SpamViolation:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          description: >-
+            Diễn giải lý do bị đánh dấu vi phạm — thuật toán/ngưỡng cụ thể
+            thuộc phạm vi nghiệp vụ riêng của SpamTrackingService (xem UC-38)
+        accountStatus:
+          type: string
+          enum: [locked, deleted]
+
+    ComplaintSummary:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        lastMessageAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Thời điểm Redis sẽ tự xoá nội dung (10 tiếng kể từ tin đầu tiên)
+
+    ComplaintMessage:
+      type: object
+      properties:
+        senderId:
+          type: integer
+          format: int64
+          description: id của user khiếu nại hoặc null nếu là Admin
+          nullable: true
+        senderRole:
+          type: string
+          enum: [user, admin]
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    SystemResources:
+      type: object
+      properties:
+        pods:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              cpuUsage:
+                type: string
+                example: "120m"
+              memoryUsage:
+                type: string
+                example: "256Mi"
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              cpuUsage:
+                type: string
+              memoryUsage:
+                type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string

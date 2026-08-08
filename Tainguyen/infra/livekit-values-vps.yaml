@@ -1,0 +1,25 @@
+# Dung cho LiveKit tren VPS rieng (co IP public that) - xem HUONG-DAN-LIVEKIT-VPS.md
+# KHAC voi livekit-values.yaml (dung cho may dev Docker Desktop): o day dung
+# hostNetwork + dai UDP port range that, khong can workaround UDP-mux-1-cong.
+replicaCount: 1
+
+podHostNetwork: true
+
+livekit:
+  keys:
+    # SINH LAI key/secret moi, KHONG dung gia tri demo trong livekit-values.yaml
+    <api-key-moi>: <api-secret-moi>
+  rtc:
+    tcp_port: 7881
+    port_range_start: 50000
+    port_range_end: 60000
+    use_external_ip: true
+  turn:
+    enabled: true
+    # Can domain that + DNS tro ve IP VPS de xin cert Let's Encrypt qua ACME that.
+    domain: "turn.<domain-cua-ban>.com"
+    tls_port: 5349
+    udp_port: 3478
+
+loadBalancer:
+  type: disable

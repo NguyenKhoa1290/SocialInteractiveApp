@@ -1,0 +1,80 @@
+# Identity DB (Postgres) - "Database per Service", chi rieng cho Identity Service.
+# Chay trong cluster chinh (docker-desktop), namespace rieng "identity-db".
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: identity-db
+---
+# ConfigMap identity-db-init tao rieng bang:
+#   kubectl create configmap identity-db-init -n identity-db --from-file=init.sql=identity-db-init.sql
+# (khong nhung SQL truc tiep vao file YAML nay de tranh loi indent/escape)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-db
+  namespace: identity-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: identity-db
+  template:
+    metadata:
+      labels:
+        app: identity-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: identity-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: identity-db-data
+        - name: init-script
+          configMap:
+            name: identity-db-init
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: identity-db-data
+  namespace: identity-db
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity-db
+  namespace: identity-db
+spec:
+  # Docker Desktop K8s CHI tu dong forward Service kieu LoadBalancer ra
+  # localhost - da verify NodePort KHONG duoc forward (khac voi kind).
+  type: LoadBalancer
+  selector:
+    app: identity-db
+  ports:
+    - port: 5432
+      targetPort: 5432

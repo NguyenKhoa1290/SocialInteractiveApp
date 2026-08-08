@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: SpamTrackingService API
+  version: "1.0.0"
+  description: |
+    API cho SpamTrackingService (AntiSpamService). Tham chiếu Use Case:
+    UC-11, UC-38.
+
+    **Vì sao spec này rất mỏng:** SpamTrackingService về bản chất là một
+    service hướng sự kiện (event-driven), không phải service hướng API:
+      - Đầu vào (phát hiện spam): consume liên tục từ Kafka topic `Chat
+        Log` — không có endpoint REST nào kích hoạt việc phân tích.
+      - Đầu ra (hành động khi phát hiện vi phạm): publish "Khóa tài khoản"
+        / "Delete Account Spam" qua RabbitMQ — không trả kết quả qua REST.
+
+    REST API dưới đây CHỈ tồn tại cho 1 mục đích duy nhất: cho Admin
+    Service truy vấn dữ liệu đã phân tích, phục vụ UC-11 (xem danh sách vi
+    phạm) và UC-12 (xem chi tiết trước khi quyết định). Không có endpoint
+    nào để "yêu cầu" SpamTrackingService phân tích hay hành động — đó là
+    việc tự động, bất đồng bộ, không đồng bộ hoá được qua HTTP request/response.
+
+servers:
+  - url: https://internal.example.com/spam-tracking
+    description: >-
+      Nội bộ — chỉ Admin Service gọi được, KHÔNG đi qua API Gateway public.
+
+tags:
+  - name: Violations
+    description: Truy vấn dữ liệu vi phạm đã phân tích (UC-11, UC-38)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /internal/violations:
+    get:
+      tags: [Violations]
+      summary: Danh sách người dùng vi phạm spam
+      description: >-
+        Tham chiếu UC-11. Dữ liệu phản ánh kết quả phân tích BẤT ĐỒNG BỘ từ
+        Kafka Chat Log — có thể chưa cập nhật vi phạm vừa xảy ra trong vài
+        giây/phút gần nhất (UC-11, luồng ngoại lệ 2a). Không có cách nào
+        để client "ép" service phân tích ngay lập tức và chờ kết quả đồng bộ.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          description: Lọc theo trạng thái xử lý hiện tại
+          schema:
+            type: string
+            enum: [locked, deleted]
+      responses:
+        "200":
+          description: Danh sách vi phạm
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Violation"
+                  total:
+                    type: integer
+
+  /internal/violations/{userId}:
+    get:
+      tags: [Violations]
+      summary: Chi tiết lịch sử vi phạm của 1 user
+      description: >-
+        Dùng bởi Admin Service khi Admin xem chi tiết trước khi ra quyết
+        định ở UC-12. Trả về TOÀN BỘ lịch sử vi phạm đã ghi nhận, không chỉ
+        vi phạm gần nhất.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Lịch sử vi phạm
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Violation"
+        "404":
+          description: User này chưa từng bị đánh dấu vi phạm
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Violation:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          description: >-
+            Diễn giải lý do vi phạm — ngưỡng/thuật toán phát hiện cụ thể
+            (tần suất tin nhắn, từ khoá, pattern lặp...) thuộc phạm vi nội
+            bộ của service này, CHƯA được đặc tả chi tiết ở tầng use case
+            (xem UC-38, phần Ghi chú/Điểm mở) nên không đưa vào enum cố
+            định ở đây — để dạng free-text cho tới khi quyết định nghiệp
+            vụ đó được chốt.
+        accountStatus:
+          type: string
+          enum: [locked, deleted]
