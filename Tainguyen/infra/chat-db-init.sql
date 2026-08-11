@@ -42,12 +42,45 @@ CREATE TABLE messages (
   type             VARCHAR(20) NOT NULL
                      CHECK (type IN ('text','image','video','file','voice','vote','system')),
   content          TEXT,
+  -- Them ngoai schema goc - E2EE cho tin nhan Text (tu de xuat, tai lieu goc
+  -- chi ghi ten "E2EE" khong co co che cu the). content_nonce la nonce/IV
+  -- AES-GCM base64, BAT BUOC khi is_encrypted=true. Voi type != 'text',
+  -- content van la plaintext nhu truoc (URL/metadata file, khong phai noi
+  -- dung nhay cam can ma hoa).
+  is_encrypted     BOOLEAN NOT NULL DEFAULT false,
+  content_nonce    VARCHAR(64),
   is_deleted       BOOLEAN NOT NULL DEFAULT false,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_messages_conversation_time
   ON messages(conversation_id, created_at);
+
+-- E2EE: danh ba khoa cong khai, moi user 1 khoa (X25519). Khoa rieng tu
+-- KHONG BAO GIO gui len server - client tu sinh/luu/bao ve bang PIN cuc bo.
+CREATE TABLE user_public_keys (
+  user_id      BIGINT PRIMARY KEY,
+  public_key   VARCHAR(200) NOT NULL,
+  algorithm    VARCHAR(20) NOT NULL DEFAULT 'x25519',
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- E2EE cho Group: 1 tin nhan ma hoa bang 1 khoa phien ngau nhien dung 1 lan;
+-- khoa phien do lai duoc ma hoa RIENG cho tung thanh vien bang khoa cong
+-- khai cua nguoi do (fan-out, dung pattern chuan Signal/WhatsApp group).
+-- Voi P2P KHONG dung bang nay - nguoi gui/nhan tu tinh duoc shared secret
+-- qua ECDH (X25519) tu khoa cong khai cua nhau, khong can "phan phoi" gi
+-- them.
+CREATE TABLE message_recipient_keys (
+  id                  BIGSERIAL PRIMARY KEY,
+  message_id          BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  recipient_user_id   BIGINT NOT NULL,
+  encrypted_key       VARCHAR(200) NOT NULL,
+  UNIQUE (message_id, recipient_user_id)
+);
+
+CREATE INDEX idx_message_recipient_keys_lookup
+  ON message_recipient_keys(message_id, recipient_user_id);
 
 CREATE TABLE group_chat_settings (
   conversation_id       BIGINT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,

@@ -13,6 +13,8 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
     public DbSet<FileAttachment> Files => Set<FileAttachment>();
     public DbSet<MutedMember> MutedMembers => Set<MutedMember>();
     public DbSet<GroupChatSettings> GroupChatSettings => Set<GroupChatSettings>();
+    public DbSet<UserPublicKey> UserPublicKeys => Set<UserPublicKey>();
+    public DbSet<MessageRecipientKey> MessageRecipientKeys => Set<MessageRecipientKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -42,6 +44,8 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
                 .HasColumnName("type")
                 .HasConversion(v => Message.TypeToString(v), v => Message.TypeFromString(v));
             entity.Property(m => m.Content).HasColumnName("content");
+            entity.Property(m => m.IsEncrypted).HasColumnName("is_encrypted");
+            entity.Property(m => m.ContentNonce).HasColumnName("content_nonce");
             entity.Property(m => m.IsDeleted).HasColumnName("is_deleted");
             entity.Property(m => m.CreatedAt).HasColumnName("created_at");
 
@@ -49,6 +53,31 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
                 .WithMany(c => c.Messages)
                 .HasForeignKey(m => m.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(m => m.RecipientKeys)
+                .WithOne()
+                .HasForeignKey(k => k.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserPublicKey>(entity =>
+        {
+            entity.ToTable("user_public_keys");
+            entity.HasKey(k => k.UserId);
+            entity.Property(k => k.UserId).HasColumnName("user_id");
+            entity.Property(k => k.PublicKey).HasColumnName("public_key");
+            entity.Property(k => k.Algorithm).HasColumnName("algorithm");
+            entity.Property(k => k.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<MessageRecipientKey>(entity =>
+        {
+            entity.ToTable("message_recipient_keys");
+            entity.HasKey(k => k.Id);
+            entity.Property(k => k.Id).HasColumnName("id");
+            entity.Property(k => k.MessageId).HasColumnName("message_id");
+            entity.Property(k => k.RecipientUserId).HasColumnName("recipient_user_id");
+            entity.Property(k => k.EncryptedKey).HasColumnName("encrypted_key");
         });
 
         modelBuilder.Entity<FileAttachment>(entity =>

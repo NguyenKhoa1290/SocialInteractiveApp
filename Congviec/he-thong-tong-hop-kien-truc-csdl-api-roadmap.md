@@ -2725,6 +2725,85 @@ Phase 3, chưa làm.*
       — endpoint nội bộ để Chat Service kiểm tra thành viên/vai trò Group mà không cần JWT của
       từng thành viên cụ thể
 
+### 6.5 E2EE cho tin nhắn Text — tự thiết kế (không có trong tài liệu gốc)
+
+Tài liệu gốc chỉ ghi từ khoá "E2EE" ở mục tổng quan (mục 1) và mô tả Chat 1-1 (mục 6.1), **không mô
+tả cơ chế mã hoá cụ thể nào**. Toàn bộ thiết kế dưới đây tự đề xuất trong quá trình trao đổi trực
+tiếp với người dùng dự án, chốt các quyết định sau:
+
+**Phạm vi:** chỉ tin nhắn `type=text` được mã hoá (giống Facebook Messenger "Cuộc trò chuyện bí
+mật" cũng chỉ mã hoá được nội dung văn bản). Ảnh/video/voice/file/vote/system giữ nguyên plaintext
+như trước — không đổi.
+
+**Cơ chế (giống Signal Protocol/WhatsApp, không phải tự nghĩ ra thuật toán mới):**
+- Mỗi user có 1 cặp khoá **X25519** (ECDH) sinh ngay trên thiết bị lúc thiết lập lần đầu. Khoá
+  **riêng tư không bao giờ rời thiết bị, không bao giờ gửi lên server** — mã hoá tại chỗ bằng khoá
+  dẫn xuất từ mã PIN cục bộ của user trước khi lưu (hoàn toàn phía client, ngoài phạm vi backend).
+- Khoá **công khai** đăng ký lên Chat Service (`POST /keys`) — đóng vai trò "danh bạ khoá công
+  khai", trao đổi khoá diễn ra **tự động, người dùng không thấy/không phải làm gì** (đúng như cách
+  Facebook/WhatsApp vận hành, không phải "không trao đổi khoá" như cảm nhận bên ngoài).
+- **P2P:** người gửi/nhận tự tính ra 1 shared secret giống hệt nhau qua ECDH (khoá riêng của mình +
+  khoá công khai của đối phương lấy từ server) → SHA-256 shared secret này làm khoá AES-256-GCM mã
+  hoá/giải mã trực tiếp. Không cần bảng phụ nào — 2 bên tự suy ra được khoá, không phải phân phối.
+- **Group:** 1 tin nhắn = 1 khoá phiên AES-256 ngẫu nhiên, dùng 1 lần, mã hoá nội dung. Khoá phiên
+  đó lại được mã hoá **riêng cho từng thành viên** bằng shared secret ECDH giữa người gửi và từng
+  người nhận (fan-out, đúng pattern Signal/WhatsApp group) — lưu vào bảng `message_recipient_keys`.
+  Mỗi người khi đọc **chỉ thấy đúng 1 bản mã hoá dành cho chính mình**, không thấy của người khác
+  (verify thực tế: response `GET messages` chỉ trả về `recipientEncryptedKey` khớp với `sub` của
+  JWT gọi, không phải mảng toàn bộ thành viên).
+- **Server (Chat Service) không bao giờ giải mã, không có khả năng đọc nội dung** — chỉ lưu/relay
+  ciphertext + nonce nguyên vẹn, và validate "hình dạng" dữ liệu (bắt buộc có nonce, bắt buộc có
+  `recipientKeys` khi Group) chứ không thể verify mã hoá có đúng hay không.
+
+**Đánh đổi đã xác nhận với người dùng:** SpamTrackingService **không còn đọc được nội dung tin nhắn
+Text** để khớp từ khoá/phát hiện trùng lặp (ciphertext khác nhau mỗi lần dù cùng nội dung, do nonce
+ngẫu nhiên) — chỉ còn tín hiệu tần suất gửi (rate-limit) hoạt động với tin nhắn Text. Đây là đánh
+đổi bắt buộc của E2EE thật (Facebook/WhatsApp cũng không quét được nội dung tin nhắn đã mã hoá) —
+xem mục 8.3 để biết `SpamDetector.cs` đã xử lý ra sao.
+
+**Thiết kế CSDL (Chat DB, thêm mới):**
+
+```sql
+ALTER TABLE messages ADD COLUMN is_encrypted BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE messages ADD COLUMN content_nonce VARCHAR(64);
+
+CREATE TABLE user_public_keys (
+  user_id      BIGINT PRIMARY KEY,
+  public_key   VARCHAR(200) NOT NULL,
+  algorithm    VARCHAR(20) NOT NULL DEFAULT 'x25519',
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE message_recipient_keys (
+  id                  BIGSERIAL PRIMARY KEY,
+  message_id          BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  recipient_user_id   BIGINT NOT NULL,
+  encrypted_key       VARCHAR(200) NOT NULL,
+  UNIQUE (message_id, recipient_user_id)
+);
+```
+
+**API mới (Chat Service, không có trong OpenAPI spec gốc):**
+- [x] `POST /keys` — đăng ký/ghi đè khoá công khai của chính mình (upsert)
+- [x] `GET /keys/{userId}` — lấy khoá công khai của 1 user, 404 nếu chưa đăng ký
+- [x] `GET /keys/batch?ids=...` — lấy nhiều khoá cùng lúc (dùng khi mã hoá fan-out cho Group,
+      tránh N+1)
+
+**Thay đổi API hiện có:**
+- [x] `POST /conversations/{conversationId}/messages` — khi `type=text`: bắt buộc `contentNonce`
+      (400 nếu thiếu), Group bắt buộc thêm `recipientKeys` (400 nếu thiếu/rỗng). Kafka publish gửi
+      `Content=null` cho tin nhắn Text đã mã hoá (server không còn plaintext để gửi)
+- [x] `GET /conversations/{conversationId}/messages` — trả thêm `isEncrypted`, `contentNonce`,
+      `recipientEncryptedKey` (Group: chỉ khoá của người gọi, P2P: luôn `null` vì không cần bảng
+      phụ)
+
+**Verify end-to-end thật** (script Node.js mô phỏng client thật, dùng `crypto.generateKeyPairSync
+('x25519')` + `diffieHellman` + `aes-256-gcm` — không mock): sinh khoá thật cho 2 user → đăng ký
+khoá công khai → tạo conversation P2P → mã hoá tin nhắn bằng shared secret ECDH → gửi → người nhận
+tự tính lại đúng shared secret từ khoá công khai lấy từ server → giải mã đúng y hệt plaintext gốc.
+Lặp lại cho Group (workspace 2 thành viên) với cơ chế fan-out — xác nhận qua truy vấn DB trực tiếp:
+cột `content`/`encrypted_key` trong Postgres chỉ chứa ciphertext (chuỗi base64 ngẫu nhiên), không hề
+có plaintext ở bất kỳ đâu trong Chat DB.
 
 ---
 
@@ -3860,6 +3939,15 @@ có "Thiết kế CSDL" riêng).*
 toán/ngưỡng): kết hợp 3 tín hiệu chấm điểm — tần suất tin nhắn (rate), nội dung trùng lặp
 (duplicate hash), từ khoá/pattern spam — tổng điểm vượt ngưỡng mới ghi nhận vi phạm, xem
 `SpamDetector.cs`. Có thể cần hiệu chỉnh lại ngưỡng khi có dữ liệu thật.
+
+**Cập nhật do E2EE (mục 6.5, sau khi tin nhắn Text được mã hoá client-side):** tín hiệu 2 (nội
+dung trùng lặp) và tín hiệu 3 (từ khoá) **không còn hoạt động với tin nhắn Text** — Chat Service
+publish `Content=null` lên Kafka cho tin nhắn Text đã mã hoá vì bản thân nó cũng không đọc được nội
+dung. `SpamDetector.CheckAsync` đã có sẵn guard `if (!string.IsNullOrWhiteSpace(content))` bao quanh
+2 tín hiệu này từ trước — không cần sửa logic, tự động bỏ qua đúng cách khi `content=null`, không
+gây false-positive (nếu không có guard này, hash của chuỗi rỗng sẽ trùng nhau ở MỌI tin nhắn Text,
+kích hoạt "phát hiện trùng lặp" sai cho toàn bộ user). Chỉ còn tín hiệu 1 (tần suất) hoạt động đầy đủ
+cho tin nhắn Text — đánh đổi đã xác nhận với người dùng, giống hạn chế thật của Facebook/WhatsApp.
 
 **Quyết định tự đưa ra:** vì Admin Service (nơi ra quyết định `Delete Account Spam` theo UC-12)
 chưa tồn tại, cho SpamTrackingService **tự động leo thang**: vi phạm lần đầu → khoá; vi phạm lặp

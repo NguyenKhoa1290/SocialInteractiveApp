@@ -62,7 +62,12 @@ public class SpamDetector(IConnectionMultiplexer redis, SpamDetectionOptions opt
             reasons.Add($"Gui {rateCount} tin nhan trong {options.RateWindowSeconds}s (nguong: {options.RateThresholdMessages})");
         }
 
-        // --- Tin hieu 2: noi dung lap lai ---
+        // --- Tin hieu 2 + 3: noi dung lap lai + tu khoa ---
+        // Chat Service (Phase E2EE, tu de xuat) gui Content=null cho tin nhan
+        // Text da ma hoa client-side (server khong con thay plaintext) - 2
+        // tin hieu nay tu dong bi bo qua (khong sai/khong crash), chi con
+        // tin hieu 1 (tan suat) hoat dong voi tin nhan Text. Danh doi da duoc
+        // xac nhan chap nhan - xem Congviec/... muc 8.3.
         if (!string.IsNullOrWhiteSpace(content))
         {
             var contentHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content.Trim().ToLowerInvariant())));

@@ -78,6 +78,18 @@ public static class ConversationEndpoints
             var fileIds = await db.Files.Where(f => f.ConversationId == conversationId && f.MessageId != null)
                 .ToDictionaryAsync(f => f.MessageId!.Value, f => f.Id);
 
+            // E2EE Group: moi user chi duoc thay khoa phien DA MA HOA CHO
+            // CHINH MINH, khong thay khoa cua nguoi khac (moi nguoi 1 ban ma
+            // hoa rieng, xem MessageRecipientKey.cs).
+            Dictionary<long, string>? ownRecipientKeys = null;
+            if (conversation.Type == ConversationType.Group)
+            {
+                var messageIds = messages.Where(m => m.IsEncrypted).Select(m => m.Id).ToList();
+                ownRecipientKeys = await db.MessageRecipientKeys
+                    .Where(k => messageIds.Contains(k.MessageId) && k.RecipientUserId == userId)
+                    .ToDictionaryAsync(k => k.MessageId, k => k.EncryptedKey);
+            }
+
             // senderDisplayName: tinh dong, "nguoi trong nhom" neu sender khong
             // con la thanh vien workspace (UC-22) - CHI ap dung cho group,
             // dung theo tai lieu roadmap muc 5.6/6.2 Ghi chu.
@@ -98,7 +110,8 @@ public static class ConversationEndpoints
                         : "người trong nhóm";
                 }
                 var fileId = fileIds.GetValueOrDefault(m.Id);
-                return MessageResponse.FromEntity(m, displayName, fileId == 0 ? null : fileId);
+                var recipientKey = ownRecipientKeys?.GetValueOrDefault(m.Id);
+                return MessageResponse.FromEntity(m, displayName, fileId == 0 ? null : fileId, recipientKey);
             });
 
             return Results.Ok(result);
@@ -118,6 +131,20 @@ public static class ConversationEndpoints
 
             if (type == MessageType.File && conversation.Type == ConversationType.P2P)
                 return Results.Json(new ErrorResponse("file_not_supported_in_p2p", "Chat 1-1 khong ho tro gui File"), statusCode: 422);
+
+            // E2EE bat buoc cho tin nhan Text (tu de xuat) - server khong tu
+            // ma hoa thay, chi kiem tra client da guI dung "hinh dang" du
+            // lieu da ma hoa (ciphertext + nonce, kem khoa fan-out neu la
+            // Group) truoc khi luu, KHONG the kiem tra ma hoa co dung hay
+            // khong (server khong co khoa de verify).
+            if (type == MessageType.Text)
+            {
+                if (string.IsNullOrWhiteSpace(req.Content) || string.IsNullOrWhiteSpace(req.ContentNonce))
+                    return Results.BadRequest(new ErrorResponse("invalid_request", "Tin nhan Text bat buoc phai ma hoa (content + contentNonce)"));
+
+                if (conversation.Type == ConversationType.Group && (req.RecipientKeys is null || req.RecipientKeys.Count == 0))
+                    return Results.BadRequest(new ErrorResponse("invalid_request", "Tin nhan Text trong Group bat buoc kem recipientKeys (khoa phien ma hoa rieng cho tung thanh vien)"));
+            }
 
             if (conversation.Type == ConversationType.Group)
             {
@@ -145,6 +172,8 @@ public static class ConversationEndpoints
                 SenderId = userId,
                 Type = type,
                 Content = req.Content,
+                IsEncrypted = type == MessageType.Text,
+                ContentNonce = type == MessageType.Text ? req.ContentNonce : null,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             db.Messages.Add(message);
@@ -157,9 +186,29 @@ public static class ConversationEndpoints
                 await db.SaveChangesAsync();
             }
 
-            await kafka.PublishChatLogAsync(conversationId, message.Id, userId, req.Type, req.Content);
+            string? ownRecipientKey = null;
+            if (type == MessageType.Text && conversation.Type == ConversationType.Group)
+            {
+                var keyRows = req.RecipientKeys!.Select(k => new MessageRecipientKey
+                {
+                    MessageId = message.Id,
+                    RecipientUserId = k.UserId,
+                    EncryptedKey = k.EncryptedKey,
+                });
+                db.MessageRecipientKeys.AddRange(keyRows);
+                await db.SaveChangesAsync();
+                ownRecipientKey = req.RecipientKeys!.FirstOrDefault(k => k.UserId == userId)?.EncryptedKey;
+            }
 
-            return Results.Created($"/conversations/{conversationId}/messages/{message.Id}", MessageResponse.FromEntity(message, fileId: file?.Id));
+            // Tin nhan Text da ma hoa client-side - Content la ciphertext,
+            // KHONG con y nghia gi cho SpamTrackingService phan tich tu khoa/
+            // trung lap nua (danh doi da chap nhan cua E2EE that, xem
+            // SpamDetector.cs ben SpamTrackingService) - chi truyen null,
+            // van giu publish de con tin hieu tan suat gui (rate limit).
+            await kafka.PublishChatLogAsync(conversationId, message.Id, userId, req.Type, type == MessageType.Text ? null : req.Content);
+
+            return Results.Created($"/conversations/{conversationId}/messages/{message.Id}",
+                MessageResponse.FromEntity(message, fileId: file?.Id, recipientEncryptedKey: ownRecipientKey));
         });
 
         // UC-28: xoa tin nhan (soft-delete). Group: chi Truong nhom. P2P: chi

@@ -84,6 +84,7 @@ app.MapConversationEndpoints();
 app.MapFileEndpoints();
 app.MapInternalEndpoints();
 app.MapComplaintsEndpoints();
+app.MapKeysEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

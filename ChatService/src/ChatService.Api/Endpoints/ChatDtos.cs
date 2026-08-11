@@ -14,12 +14,24 @@ public record ConversationResponse(
         c.LastMessageAt, c.CreatedAt);
 }
 
-public record CreateMessageRequest(string Type, string? Content, long? FileId);
+// E2EE: khoa phien ma hoa RIENG cho 1 thanh vien Group (fan-out) - client tu
+// tinh, server chi luu/relay nguyen van. P2P khong can truyen field nay (2
+// ben tu tinh shared secret qua ECDH tu khoa cong khai cua nhau).
+public record RecipientKeyInput(long UserId, string EncryptedKey);
 
-public record MessageResponse(long Id, long ConversationId, long? SenderId, string? SenderDisplayName, string Type, string? Content, long? FileId, bool IsDeleted, DateTimeOffset CreatedAt)
+// ContentNonce BAT BUOC khi Type == "text" (E2EE bat buoc cho tin nhan
+// Text, tu de xuat - xem KeysEndpoints.cs). Voi Group + Text, RecipientKeys
+// cung BAT BUOC (>= 1 phan tu, thuong la toan bo thanh vien tai thoi diem
+// gui).
+public record CreateMessageRequest(string Type, string? Content, long? FileId, string? ContentNonce, List<RecipientKeyInput>? RecipientKeys);
+
+public record MessageResponse(
+    long Id, long ConversationId, long? SenderId, string? SenderDisplayName, string Type, string? Content,
+    long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, string? RecipientEncryptedKey)
 {
-    public static MessageResponse FromEntity(Message m, string? senderDisplayName = null, long? fileId = null) => new(
-        m.Id, m.ConversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, fileId, m.IsDeleted, m.CreatedAt);
+    public static MessageResponse FromEntity(Message m, string? senderDisplayName = null, long? fileId = null, string? recipientEncryptedKey = null) => new(
+        m.Id, m.ConversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, fileId,
+        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey);
 }
 
 public record UploadUrlRequest(long ConversationId, string FileType, long SizeBytes);
