@@ -54,4 +54,25 @@ public class MinioStorageService
 
         return url;
     }
+
+    // Tu de xuat - thieu sot phat hien khi build Frontend F2: chi co presign
+    // PUT (upload), khong co cach nao lay lai URL de XEM/TAI file da gui
+    // (anh/video/voice/file). Xem GET /files/{fileId}/download-url o
+    // FileEndpoints.cs.
+    public string GeneratePresignedDownloadUrl(string objectKey)
+    {
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _options.BucketName,
+            Key = objectKey,
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.AddSeconds(_options.PresignedUrlExpirySeconds),
+        };
+        var url = _s3.GetPreSignedURL(request);
+
+        if (_options.Endpoint.StartsWith("http://") && url.StartsWith("https://"))
+            url = "http://" + url["https://".Length..];
+
+        return url;
+    }
 }

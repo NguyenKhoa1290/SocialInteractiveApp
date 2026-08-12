@@ -25,5 +25,15 @@ public static class InternalEndpoints
 
             return Results.Ok(result);
         });
+
+        // Danh sach workspaceId cua 1 user - tu de xuat, dung boi Chat
+        // Service de dung "GET /conversations" (list mine) cho ca nhanh
+        // Group: Chat Service khong co ban sao workspace_members nen phai
+        // hoi truc tiep o day (F2, xem ConversationEndpoints.cs).
+        app.MapGet("/internal/users/{userId:long}/workspaces", async (long userId, WorkspaceDbContext db) =>
+        {
+            var ids = await db.WorkspaceMembers.Where(m => m.UserId == userId).Select(m => m.WorkspaceId).ToListAsync();
+            return Results.Ok(ids);
+        });
     }
 }

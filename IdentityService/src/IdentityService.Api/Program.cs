@@ -33,6 +33,7 @@ var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Kafka trong appsettings");
 builder.Services.AddSingleton(kafkaOptions);
 builder.Services.AddSingleton<KafkaProducerService>();
+builder.Services.AddSingleton(sp => new ErrorLogPublisher(kafkaOptions, sp.GetRequiredService<ILogger<ErrorLogPublisher>>(), "identity-service"));
 
 var guestCleanupOptions = builder.Configuration.GetSection("GuestCleanup").Get<GuestCleanupOptions>()
     ?? new GuestCleanupOptions();
@@ -82,6 +83,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// CORS cho Frontend (tu de xuat, thieu sot phat hien khi test dang nhap
+// Guest tu Frontend chay o origin khac - localhost:5173 vs localhost:5194).
+// Chi allow origin cu the (khong dung AllowAnyOrigin) - token nam trong
+// header Authorization tu goi bang JS, khong phai cookie, nen khong can
+// AllowCredentials.
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy => policy
+        .WithOrigins(corsOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -89,12 +105,30 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Kafka Error Log (tu de xuat, tai lieu roadmap muc 8.1) - publish moi
+// unhandled exception, KHONG nuot loi (van throw tiep de middleware xu ly
+// loi mac dinh cua ASP.NET Core tra ve 500 nhu binh thuong).
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        await context.RequestServices.GetRequiredService<ErrorLogPublisher>().PublishAsync(ex, context.Request.Path);
+        throw;
+    }
+});
+
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapUsersEndpoints();
 app.MapInternalEndpoints();
+app.MapFriendsEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

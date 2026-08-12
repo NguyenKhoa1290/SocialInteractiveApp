@@ -12,6 +12,7 @@ public class KafkaOptions
     public string BootstrapServers { get; set; } = "localhost:9092";
     public string ChatLogTopic { get; set; } = "chat.service-log";
     public string ConsumerGroupId { get; set; } = "spamtracking-service";
+    public string ErrorLogTopic { get; set; } = "system.error-log";
 }
 
 // Format PHAI khop voi ChatLogEvent ben ChatService

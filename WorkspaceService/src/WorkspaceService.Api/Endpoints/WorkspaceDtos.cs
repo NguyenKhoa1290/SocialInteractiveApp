@@ -18,4 +18,9 @@ public record WorkspaceResponse(
 
 public record WorkspaceMemberResponse(long UserId, string Nickname, string Role, DateTimeOffset JoinedAt);
 
+// Dung cho GET /workspaces (danh sach nhom cua toi) - khac WorkspaceResponse
+// o cho co them MyRole (vai tro cua NGUOI GOI trong nhom do, Frontend can de
+// hien badge/an nut theo quyen ma khong phai goi rieng GET /members).
+public record WorkspaceSummaryResponse(long Id, string Name, string? AvatarUrl, string MyRole, DateTimeOffset UpdatedAt);
+
 public record ErrorResponse(string Error, string Message);

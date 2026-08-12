@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using ChatService.Api.Data;
+using ChatService.Api.Hubs;
 using ChatService.Api.Models;
 using ChatService.Api.Services;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace ChatService.Api.Endpoints;
@@ -11,9 +13,36 @@ public static class ConversationEndpoints
     private const long VideoMaxBytes = 50L * 1024 * 1024;
     private const long VoiceMaxBytes = 25L * 1024 * 1024;
 
+    // Khung thoi gian cho phep tu sua/thu hoi tin nhan cua chinh minh (tu de
+    // xuat, tai lieu goc chua chot con so nay) - qua moc nay chi con Truong
+    // nhom xoa duoc (Group) hoac khong ai sua/thu hoi duoc nua (P2P).
+    private static readonly TimeSpan EditWindow = TimeSpan.FromMinutes(15);
+
     public static void MapConversationEndpoints(this WebApplication app)
     {
         var conv = app.MapGroup("/conversations").RequireAuthorization();
+
+        // Danh sach hoi thoai cua chinh nguoi goi (P2P + Group) - tu de xuat,
+        // thieu sot phat hien khi build man hinh Frontend F2 "Danh sach cuoc
+        // tro chuyen" (tai lieu dac ta frontend muc 4). P2P doc thang tu Chat
+        // DB (participant_a/b); Group phai hoi WorkSpace Service truoc de
+        // biet workspace nao cua minh (Chat Service khong co ban sao
+        // workspace_members).
+        conv.MapGet("", async (ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+
+            var myWorkspaceIds = await workspaceClient.GetMyWorkspaceIdsAsync(userId);
+
+            var conversations = await db.Conversations
+                .Where(c =>
+                    (c.Type == ConversationType.P2P && (c.ParticipantAId == userId || c.ParticipantBId == userId)) ||
+                    (c.Type == ConversationType.Group && c.WorkspaceId != null && myWorkspaceIds.Contains(c.WorkspaceId.Value)))
+                .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
+                .ToListAsync();
+
+            return Results.Ok(conversations.Select(c => ConversationSummaryResponse.FromEntity(c, userId)));
+        });
 
         // UC-25/26: Tao hoac lay conversation P2P - idempotent theo cap user
         conv.MapPost("/p2p", async (CreateP2PRequest req, ClaimsPrincipal principal, ChatDbContext db) =>
@@ -57,10 +86,13 @@ public static class ConversationEndpoints
         });
 
         // UC-25/27: Lay lich su tin nhan
-        // GHI CHU: chua cai dat logic route Redis (<10.000 tin & <10 ngay) / Postgres
-        // theo Search Chat Service (tai lieu roadmap muc 6.1) - hien luon doc thang
-        // Postgres, se toi uu sau khi co consumer "Write Chat" dong bo Redis.
-        conv.MapGet("/{conversationId:long}/messages", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, DateTimeOffset? before, int? limit) =>
+        // Route Redis (du lieu nong, <=10.000 tin/<=10 ngay moi conversation)
+        // / Postgres (con lai) theo dung tai lieu roadmap muc 6.1 (Search
+        // Chat Service) - Redis duoc dong bo bat dong bo qua
+        // WriteChatConsumerService (Kafka), CHI dung khi da co DU du lieu
+        // cho ca trang hien tai; con lai (cache nguoi/qua han/phan trang sau
+        // vao lich su cu) fallback toan bo ve Postgres de dam bao luon dung.
+        conv.MapGet("/{conversationId:long}/messages", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, ChatCacheService cache, DateTimeOffset? before, int? limit) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -70,13 +102,35 @@ public static class ConversationEndpoints
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
 
             var take = Math.Clamp(limit ?? 50, 1, 200);
-            var query = db.Messages.Where(m => m.ConversationId == conversationId);
-            if (before is not null)
-                query = query.Where(m => m.CreatedAt < before);
 
-            var messages = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync();
-            var fileIds = await db.Files.Where(f => f.ConversationId == conversationId && f.MessageId != null)
-                .ToDictionaryAsync(f => f.MessageId!.Value, f => f.Id);
+            List<MessageLite> items;
+            var cached = await cache.GetRecentAsync(conversationId, before, take);
+            if (cached.Count >= take)
+            {
+                items = [.. cached.Select(c => new MessageLite(
+                    c.Id, c.SenderId, Message.TypeFromString(c.Type), c.Content, c.IsDeleted,
+                    c.CreatedAt, c.IsEncrypted, c.ContentNonce, c.FileId, c.IsEdited, c.EditedAt))];
+            }
+            else
+            {
+                // MeetingId == null: chi lay tin cua luong chat CHINH. Tin
+                // nhan thuoc thao luan cua cuoc hop nam cung bang nhung la
+                // luong rieng (xem endpoint /meetings/{id}/messages ben
+                // duoi) - khong duoc lan vao day. Nhanh doc tu cache khong
+                // can loc vi tin thao luan CO Y khong bao gio duoc ghi vao
+                // cache (xem cho gui tin thao luan).
+                var query = db.Messages.Where(m => m.ConversationId == conversationId && m.MeetingId == null);
+                if (before is not null)
+                    query = query.Where(m => m.CreatedAt < before);
+
+                var messages = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync();
+                var fileIds = await db.Files.Where(f => f.ConversationId == conversationId && f.MessageId != null)
+                    .ToDictionaryAsync(f => f.MessageId!.Value, f => f.Id);
+
+                items = [.. messages.Select(m => new MessageLite(
+                    m.Id, m.SenderId, m.Type, m.Content, m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce,
+                    fileIds.TryGetValue(m.Id, out var fid) ? fid : null, m.IsEdited, m.EditedAt))];
+            }
 
             // E2EE Group: moi user chi duoc thay khoa phien DA MA HOA CHO
             // CHINH MINH, khong thay khoa cua nguoi khac (moi nguoi 1 ban ma
@@ -84,7 +138,7 @@ public static class ConversationEndpoints
             Dictionary<long, string>? ownRecipientKeys = null;
             if (conversation.Type == ConversationType.Group)
             {
-                var messageIds = messages.Where(m => m.IsEncrypted).Select(m => m.Id).ToList();
+                var messageIds = items.Where(m => m.IsEncrypted).Select(m => m.Id).ToList();
                 ownRecipientKeys = await db.MessageRecipientKeys
                     .Where(k => messageIds.Contains(k.MessageId) && k.RecipientUserId == userId)
                     .ToDictionaryAsync(k => k.MessageId, k => k.EncryptedKey);
@@ -100,7 +154,7 @@ public static class ConversationEndpoints
                 currentMembers = members?.ToDictionary(m => m.UserId);
             }
 
-            var result = messages.Select(m =>
+            var result = items.Select(m =>
             {
                 string? displayName = null;
                 if (conversation.Type == ConversationType.Group && m.SenderId is not null)
@@ -109,16 +163,18 @@ public static class ConversationEndpoints
                         ? info.Nickname
                         : "người trong nhóm";
                 }
-                var fileId = fileIds.GetValueOrDefault(m.Id);
                 var recipientKey = ownRecipientKeys?.GetValueOrDefault(m.Id);
-                return MessageResponse.FromEntity(m, displayName, fileId == 0 ? null : fileId, recipientKey);
+                return MessageResponse.FromLite(m, conversationId, displayName, recipientKey);
             });
 
             return Results.Ok(result);
         });
 
         // UC-25 (P2P) / UC-27 (Group): gui tin nhan
-        conv.MapPost("/{conversationId:long}/messages", async (long conversationId, CreateMessageRequest req, ClaimsPrincipal principal, ChatDbContext db, KafkaProducerService kafka, WorkspaceClient workspaceClient) =>
+        conv.MapPost("/{conversationId:long}/messages", async (
+            long conversationId, CreateMessageRequest req, ClaimsPrincipal principal, ChatDbContext db,
+            KafkaProducerService kafka, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub,
+            ChatMessageNotificationPublisher notifyPublisher) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -200,6 +256,19 @@ public static class ConversationEndpoints
                 ownRecipientKey = req.RecipientKeys!.FirstOrDefault(k => k.UserId == userId)?.EncryptedKey;
             }
 
+            // Blind-index search token (tu de xuat, xem MessageSearchToken.cs) -
+            // client tu bam tu khoa bang search-key rieng TRUOC khi ma hoa,
+            // server chi luu/so khop nguyen token, khong biet duoc tu goc.
+            if (type == MessageType.Text && req.SearchTokens is { Count: > 0 })
+            {
+                db.MessageSearchTokens.AddRange(req.SearchTokens.Select(t => new MessageSearchToken
+                {
+                    MessageId = message.Id,
+                    Token = t,
+                }));
+                await db.SaveChangesAsync();
+            }
+
             // Tin nhan Text da ma hoa client-side - Content la ciphertext,
             // KHONG con y nghia gi cho SpamTrackingService phan tich tu khoa/
             // trung lap nua (danh doi da chap nhan cua E2EE that, xem
@@ -207,14 +276,32 @@ public static class ConversationEndpoints
             // van giu publish de con tin hieu tan suat gui (rate limit).
             await kafka.PublishChatLogAsync(conversationId, message.Id, userId, req.Type, type == MessageType.Text ? null : req.Content);
 
-            return Results.Created($"/conversations/{conversationId}/messages/{message.Id}",
-                MessageResponse.FromEntity(message, fileId: file?.Id, recipientEncryptedKey: ownRecipientKey));
+            var response = MessageResponse.FromEntity(message, fileId: file?.Id, recipientEncryptedKey: ownRecipientKey);
+
+            // Realtime: broadcast cho ca group dang mo man hinh chat nay (tu
+            // de xuat - hoan thanh muc "WebSocket cho realtime tin nhan"
+            // con thieu trong tai lieu roadmap muc 6.4). Nguoi nhan tu client
+            // se khong thay recipientEncryptedKey cua chinh minh qua kenh nay
+            // (broadcast dung CHUNG 1 payload cho ca group) - client can goi
+            // lai GET messages hoac Chat Service can gui rieng qua kenh
+            // 1-nguoi neu muon E2EE Group nhan duoc khoa realtime; hien tai
+            // client chi nhan duoc "co tin nhan moi" va tu fetch lai qua REST
+            // de lay dung khoa cua minh.
+            await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageReceived", response with { RecipientEncryptedKey = null });
+
+            // RabbitMQ: thong bao tin nhan moi -> Identity Service (tu de
+            // xuat, tai lieu roadmap muc 6.4 - CHUA co consumer ben Identity,
+            // cung tinh trang voi cac queue "chuan bi truoc" khac trong du an
+            // nhu workspace.member-notifications).
+            await notifyPublisher.PublishAsync(conversationId, message.Id, userId, req.Type);
+
+            return Results.Created($"/conversations/{conversationId}/messages/{message.Id}", response);
         });
 
         // UC-28: xoa tin nhan (soft-delete). Group: chi Truong nhom. P2P: chi
         // nguoi gui tu xoa tin cua minh (gia dinh rieng, tai lieu goc chi quy
         // dinh ro cho Group).
-        conv.MapDelete("/{conversationId:long}/messages/{messageId:long}", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        conv.MapDelete("/{conversationId:long}/messages/{messageId:long}", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -237,7 +324,199 @@ public static class ConversationEndpoints
 
             message.IsDeleted = true;
             await db.SaveChangesAsync();
+
+            // Cap nhat truc tiep cache Redis (khong qua Kafka - day la update
+            // nho, khong can tach write path nhu luc tao tin nhan moi).
+            var fileId = await db.Files.Where(f => f.MessageId == message.Id).Select(f => (long?)f.Id).FirstOrDefaultAsync();
+            await cache.UpdateCachedMessageAsync(new CachedMessage(
+                message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
+                message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
+                message.IsEdited, message.EditedAt));
+
+            await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
             return Results.NoContent();
+        });
+
+        // Tu de xuat (mo rong UC-28) - "thu hoi" tin nhan cua CHINH MINH,
+        // khac voi xoa o tren (danh cho Truong nhom, khong gioi han thoi
+        // gian, ap dung cho MOI tin nhan trong Group). Recall: BAT KY sender
+        // nao (ca P2P lan Group) tu thu hoi tin CUA MINH, nhung chi trong
+        // EditWindow sau khi gui - qua moc do phai nho Truong nhom xoa ho
+        // (Group) hoac khong con cach nao thu hoi (P2P).
+        conv.MapPost("/{conversationId:long}/messages/{messageId:long}/recall", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NotFound();
+            if (!await IsMemberAsync(conversation, userId, workspaceClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
+
+            var message = await db.Messages.SingleOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId);
+            if (message is null || message.IsDeleted)
+                return Results.NotFound();
+
+            if (message.SenderId != userId)
+                return Results.Json(new ErrorResponse("forbidden", "Chi nguoi gui duoc thu hoi tin nhan nay"), statusCode: 403);
+
+            if (DateTimeOffset.UtcNow - message.CreatedAt > EditWindow)
+                return Results.Json(new ErrorResponse("edit_window_expired", $"Chi thu hoi duoc trong {EditWindow.TotalMinutes} phut sau khi gui"), statusCode: 422);
+
+            message.IsDeleted = true;
+            await db.SaveChangesAsync();
+
+            var fileId = await db.Files.Where(f => f.MessageId == message.Id).Select(f => (long?)f.Id).FirstOrDefaultAsync();
+            await cache.UpdateCachedMessageAsync(new CachedMessage(
+                message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
+                message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
+                message.IsEdited, message.EditedAt));
+
+            await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
+            return Results.NoContent();
+        });
+
+        // Tu de xuat - "sua" tin nhan Text da gui (chi sender, trong
+        // EditWindow). Client tu ma hoa lai noi dung (nonce moi, TAI SU DUNG
+        // session key cu neu la Group - khong can gui lai RecipientKeys).
+        conv.MapPatch("/{conversationId:long}/messages/{messageId:long}", async (long conversationId, long messageId, UpdateMessageRequest req, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NotFound();
+            if (!await IsMemberAsync(conversation, userId, workspaceClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
+
+            var message = await db.Messages.SingleOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId);
+            if (message is null || message.IsDeleted)
+                return Results.NotFound();
+
+            if (message.SenderId != userId)
+                return Results.Json(new ErrorResponse("forbidden", "Chi nguoi gui duoc sua tin nhan nay"), statusCode: 403);
+
+            if (message.Type != MessageType.Text)
+                return Results.Json(new ErrorResponse("not_editable", "Chi tin nhan Text moi sua duoc"), statusCode: 422);
+
+            if (DateTimeOffset.UtcNow - message.CreatedAt > EditWindow)
+                return Results.Json(new ErrorResponse("edit_window_expired", $"Chi sua duoc trong {EditWindow.TotalMinutes} phut sau khi gui"), statusCode: 422);
+
+            if (string.IsNullOrWhiteSpace(req.Content) || string.IsNullOrWhiteSpace(req.ContentNonce))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Tin nhan Text bat buoc phai ma hoa (content + contentNonce)"));
+
+            message.Content = req.Content;
+            message.ContentNonce = req.ContentNonce;
+            message.IsEdited = true;
+            message.EditedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+
+            var oldTokens = db.MessageSearchTokens.Where(t => t.MessageId == message.Id);
+            db.MessageSearchTokens.RemoveRange(oldTokens);
+            if (req.SearchTokens is { Count: > 0 })
+            {
+                db.MessageSearchTokens.AddRange(req.SearchTokens.Select(t => new MessageSearchToken
+                {
+                    MessageId = message.Id,
+                    Token = t,
+                }));
+            }
+            await db.SaveChangesAsync();
+
+            var fileId = await db.Files.Where(f => f.MessageId == message.Id).Select(f => (long?)f.Id).FirstOrDefaultAsync();
+            await cache.UpdateCachedMessageAsync(new CachedMessage(
+                message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
+                message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
+                message.IsEdited, message.EditedAt));
+
+            // RecipientEncryptedKey giu nguyen (khoa phien khong doi khi
+            // sua), lay lai tu MessageRecipientKeys cho rieng sender de tra
+            // ve dung hinh dang MessageResponse - broadcast van strip di
+            // (giong POST) vi moi nguoi trong Group co ban ma hoa khoa
+            // rieng khac nhau.
+            var response = MessageResponse.FromEntity(message, fileId: fileId);
+            await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageEdited", response);
+
+            return Results.Ok(response);
+        });
+
+        // Tu de xuat - tim kiem tin nhan trong 1 conversation (muc "chua co
+        // endpoint" da neu trong frontend-admin-page-dac-ta.md muc 5). Vi
+        // tin nhan Text luon E2EE (content la ciphertext), server KHONG the
+        // full-text search - dung blind-index: query param "tokens" la danh
+        // sach token DA BAM SAN boi client (cung search-key da dung luc gui
+        // tin), server chi so khop token == token (AND - tin nhan phai chua
+        // DU tat ca token duoc truyen vao). Cac filter con lai (senderId,
+        // type, from/to) hoat dong binh thuong tren metadata (khong ma
+        // hoa) - dung duoc doc lap voi tokens, ke ca voi tin non-Text.
+        conv.MapGet("/{conversationId:long}/messages/search", async (
+            long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient,
+            string? tokens, long? senderId, string? type, DateTimeOffset? from, DateTimeOffset? to, int? limit) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NotFound();
+            if (!await IsMemberAsync(conversation, userId, workspaceClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
+
+            var take = Math.Clamp(limit ?? 50, 1, 200);
+            var query = db.Messages.Where(m => m.ConversationId == conversationId && !m.IsDeleted);
+
+            if (senderId is not null)
+                query = query.Where(m => m.SenderId == senderId);
+            if (type is not null)
+                query = query.Where(m => m.Type == Message.TypeFromString(type));
+            if (from is not null)
+                query = query.Where(m => m.CreatedAt >= from);
+            if (to is not null)
+                query = query.Where(m => m.CreatedAt <= to);
+
+            var tokenList = string.IsNullOrWhiteSpace(tokens)
+                ? []
+                : tokens.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (tokenList.Length > 0)
+            {
+                query = query.Where(m => db.MessageSearchTokens
+                    .Where(t => t.MessageId == m.Id && tokenList.Contains(t.Token))
+                    .Select(t => t.Token)
+                    .Distinct()
+                    .Count() == tokenList.Length);
+            }
+
+            var messages = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync();
+            var fileIds = await db.Files.Where(f => f.ConversationId == conversationId && f.MessageId != null)
+                .ToDictionaryAsync(f => f.MessageId!.Value, f => f.Id);
+
+            Dictionary<long, string>? ownRecipientKeys = null;
+            if (conversation.Type == ConversationType.Group)
+            {
+                var messageIds = messages.Where(m => m.IsEncrypted).Select(m => m.Id).ToList();
+                ownRecipientKeys = await db.MessageRecipientKeys
+                    .Where(k => messageIds.Contains(k.MessageId) && k.RecipientUserId == userId)
+                    .ToDictionaryAsync(k => k.MessageId, k => k.EncryptedKey);
+            }
+
+            var result = messages.Select(m => MessageResponse.FromEntity(
+                m, fileId: fileIds.TryGetValue(m.Id, out var fid) ? fid : null,
+                recipientEncryptedKey: ownRecipientKeys?.GetValueOrDefault(m.Id)));
+
+            return Results.Ok(result);
+        });
+
+        // Danh sach dang bi mute - tu de xuat, thieu sot phat hien khi build
+        // Frontend F4: co POST/DELETE mute nhung khong co cach nao XEM lai
+        // ai dang bi mute.
+        conv.MapGet("/{conversationId:long}/mutes", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null || conversation.Type != ConversationType.Group)
+                return Results.NotFound();
+            if (!await IsMemberAsync(conversation, userId, workspaceClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc nhom nay"), statusCode: 403);
+
+            var muted = await db.MutedMembers.Where(m => m.ConversationId == conversationId).Select(m => m.UserId).ToListAsync();
+            return Results.Ok(muted);
         });
 
         // UC-28: mute / unmute - chi Truong nhom
@@ -299,32 +578,57 @@ public static class ConversationEndpoints
             return settings is null ? Results.NotFound() : Results.Ok(StorageInfoResponse.FromEntity(settings));
         });
 
-        conv.MapPost("/{conversationId:long}/storage/topup", async (long conversationId, TopupRequest req, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        // Nap them dung luong - DOI THIET KE theo yeu cau nguoi dung du an:
+        // Truong nhom KHONG con tu cong duoc nua, chi GUI YEU CAU (giong nap
+        // tien that can nguoi xac nhan da nhan tien) - Admin duyet moi thuc
+        // su cong dung luong, xem endpoint /internal/storage-topup-requests
+        // ben duoi (AdminService.Api goi vao).
+        conv.MapPost("/{conversationId:long}/storage/topup-requests", async (long conversationId, TopupRequest req, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
             if (conversation is null || conversation.Type != ConversationType.Group)
                 return Results.NotFound();
             if (!await IsLeaderAsync(conversation, userId, workspaceClient))
-                return Results.Json(new ErrorResponse("forbidden", "Chi Truong nhom duoc nap them dung luong"), statusCode: 403);
+                return Results.Json(new ErrorResponse("forbidden", "Chi Truong nhom duoc gui yeu cau nap them dung luong"), statusCode: 403);
 
             var settings = await db.GroupChatSettings.FindAsync(conversationId);
             if (settings is null)
                 return Results.NotFound();
 
-            // Quy doi tien -> bytes: BANG GIA CHUA duoc chot trong tai lieu goc
-            // (xem UC-29, ngoai pham vi spec API) - tam quy uoc 1 don vi tien =
-            // 1GB de co logic chay duoc, thay bang bang gia that sau.
-            const long bytesPerUnit = 1_073_741_824L;
-            settings.Plan = StoragePlan.Paid;
-            settings.StorageQuotaBytes += (long)(req.Amount * bytesPerUnit);
-            settings.IsLocked = false;
-            settings.StorageExpiresAt = null;
-            settings.LastWarningStage = null;
-            settings.UpdatedAt = DateTimeOffset.UtcNow;
+            var request = new StorageTopupRequest
+            {
+                ConversationId = conversationId,
+                RequestedBy = userId,
+                Amount = req.Amount,
+                Status = TopupRequestStatus.Pending,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.StorageTopupRequests.Add(request);
             await db.SaveChangesAsync();
 
-            return Results.Ok(StorageInfoResponse.FromEntity(settings));
+            return Results.Created($"/conversations/{conversationId}/storage/topup-requests/{request.Id}",
+                new TopupRequestResponse(request.Id, request.ConversationId, request.RequestedBy, request.Amount, "pending", request.CreatedAt));
+        });
+
+        conv.MapGet("/{conversationId:long}/storage/topup-requests", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null || conversation.Type != ConversationType.Group)
+                return Results.NotFound();
+            if (!await IsMemberAsync(conversation, userId, workspaceClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc nhom nay"), statusCode: 403);
+
+            var requests = await db.StorageTopupRequests
+                .Where(r => r.ConversationId == conversationId)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToListAsync();
+
+            return Results.Ok(requests.Select(r => new TopupRequestResponse(
+                r.Id, r.ConversationId, r.RequestedBy, r.Amount,
+                r.Status == TopupRequestStatus.Pending ? "pending" : r.Status == TopupRequestStatus.Approved ? "approved" : "rejected",
+                r.CreatedAt)));
         });
 
         conv.MapPost("/{conversationId:long}/storage/unlock", async (long conversationId, UnlockRequest req, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>

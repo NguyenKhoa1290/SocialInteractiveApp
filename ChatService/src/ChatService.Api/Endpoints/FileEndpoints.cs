@@ -11,13 +11,22 @@ public static class FileEndpoints
     public static void MapFileEndpoints(this WebApplication app)
     {
         // POST /files/upload-url
-        app.MapPost("/files/upload-url", async (UploadUrlRequest req, ClaimsPrincipal principal, ChatDbContext db, MinioStorageService storage, WorkspaceClient workspaceClient) =>
+        app.MapPost("/files/upload-url", async (UploadUrlRequest req, ClaimsPrincipal principal, ChatDbContext db, MinioStorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(req.ConversationId);
             if (conversation is null)
                 return Results.BadRequest(new ErrorResponse("invalid_conversation", "conversationId khong hop le"));
-            if (!await ConversationEndpoints.IsMemberAsync(conversation, userId, workspaceClient))
+
+            // Gui file trong luong THAO LUAN cua cuoc hop thi kiem tra theo
+            // nhanh rieng (khach vang lai khong thuoc workspace nhung van
+            // duoc gui file). File van gan vao conversation nhu binh thuong
+            // nen phan kiem tra han muc luu tru ben duoi KHONG doi gi - dung
+            // yeu cau "file cung tinh vao 2GB tong cua nhom".
+            var allowed = req.MeetingId is not null
+                ? await MeetingDiscussionEndpoints.CanAccessAsync(conversation, req.MeetingId.Value, userId, workspaceClient, mediaClient)
+                : await ConversationEndpoints.IsMemberAsync(conversation, userId, workspaceClient);
+            if (!allowed)
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
 
             var fileType = FileAttachment.TypeFromString(req.FileType);
@@ -65,6 +74,39 @@ public static class FileEndpoints
 
             var uploadUrl = storage.GeneratePresignedUploadUrl(file.ObjectKey);
             return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, 300));
+        }).RequireAuthorization();
+
+        // Tu de xuat - thieu sot phat hien khi build Frontend F2: co upload
+        // (PUT) nhung khong co cach nao lay URL de XEM lai file da gui.
+        // Kiem tra quyen qua ConversationId cua chinh file do (khong nhan
+        // conversationId tu client de tranh gia mao).
+        app.MapGet("/files/{fileId:long}/download-url", async (long fileId, ClaimsPrincipal principal, ChatDbContext db, MinioStorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var file = await db.Files.FindAsync(fileId);
+            if (file is null)
+                return Results.NotFound();
+
+            var conversation = await db.Conversations.FindAsync(file.ConversationId);
+            if (conversation is null)
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen chua file nay"), statusCode: 403);
+
+            // File dinh kem trong thao luan cua cuoc hop: khach vang lai
+            // khong thuoc workspace nhung phai xem duoc file nguoi khac gui
+            // trong dung thao luan do. Lay meetingId tu CHINH tin nhan chua
+            // file (khong nhan tu client - tranh gia mao).
+            var attachedMeetingId = file.MessageId is null
+                ? null
+                : await db.Messages.Where(m => m.Id == file.MessageId).Select(m => m.MeetingId).FirstOrDefaultAsync();
+
+            var allowed = attachedMeetingId is not null
+                ? await MeetingDiscussionEndpoints.CanAccessAsync(conversation, attachedMeetingId.Value, userId, workspaceClient, mediaClient)
+                : await ConversationEndpoints.IsMemberAsync(conversation, userId, workspaceClient);
+            if (!allowed)
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen chua file nay"), statusCode: 403);
+
+            var url = storage.GeneratePresignedDownloadUrl(file.ObjectKey);
+            return Results.Ok(new UploadUrlResponse(file.Id, url, 300));
         }).RequireAuthorization();
 
         var conv = app.MapGroup("/conversations").RequireAuthorization();

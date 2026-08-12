@@ -7,6 +7,7 @@ public class KafkaOptions
 {
     public string BootstrapServers { get; set; } = "localhost:9092";
     public string ChatLogTopic { get; set; } = "chat.service-log";
+    public string ErrorLogTopic { get; set; } = "system.error-log";
 }
 
 // Content duoc dua vao day du (khong chi metadata) vi day chinh la nguon du

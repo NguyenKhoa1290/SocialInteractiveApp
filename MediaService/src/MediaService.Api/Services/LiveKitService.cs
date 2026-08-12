@@ -47,6 +47,26 @@ public class LiveKitService
             EmptyTimeout = 300, // tu dong don phong ben LiveKit neu khong ai vao trong 5 phut sau khi tao
         });
 
+    // LiveKit TU XOA phong rong sau EmptyTimeout (5 phut, xem CreateRoom).
+    // Dung dieu do lam NGUON SU THAT cho cau hoi "cuoc hop con song khong",
+    // thay vi tin vao left_at trong DB: left_at chi duoc set khi nguoi dung
+    // bam "Roi phong" tu te, con dong tab/mat mang thi khong.
+    // Fail-OPEN: LiveKit tra loi/khong goi duoc thi coi nhu phong VAN CON -
+    // mot su co tam thoi cua LiveKit khong duoc phep di ket thuc cuoc hop
+    // that cua nguoi dung.
+    public async Task<bool> RoomExistsAsync(long meetingId)
+    {
+        try
+        {
+            var resp = await _roomService.ListRooms(new ListRoomsRequest { Names = { RoomName(meetingId) } });
+            return resp.Rooms.Count > 0;
+        }
+        catch (Exception)
+        {
+            return true;
+        }
+    }
+
     public Task DeleteRoomAsync(long meetingId) =>
         _roomService.DeleteRoom(new DeleteRoomRequest { Room = RoomName(meetingId) });
 

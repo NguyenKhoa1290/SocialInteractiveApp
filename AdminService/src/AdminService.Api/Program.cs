@@ -77,6 +77,7 @@ app.UseAuthorization();
 app.MapUsersEndpoints();
 app.MapComplaintsAdminEndpoints();
 app.MapInfrastructureEndpoints();
+app.MapStorageAdminEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

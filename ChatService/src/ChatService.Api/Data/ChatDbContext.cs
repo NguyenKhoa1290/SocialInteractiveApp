@@ -14,7 +14,10 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
     public DbSet<MutedMember> MutedMembers => Set<MutedMember>();
     public DbSet<GroupChatSettings> GroupChatSettings => Set<GroupChatSettings>();
     public DbSet<UserPublicKey> UserPublicKeys => Set<UserPublicKey>();
+    public DbSet<UserKeyVault> UserKeyVaults => Set<UserKeyVault>();
     public DbSet<MessageRecipientKey> MessageRecipientKeys => Set<MessageRecipientKey>();
+    public DbSet<MessageSearchToken> MessageSearchTokens => Set<MessageSearchToken>();
+    public DbSet<StorageTopupRequest> StorageTopupRequests => Set<StorageTopupRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +50,9 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(m => m.IsEncrypted).HasColumnName("is_encrypted");
             entity.Property(m => m.ContentNonce).HasColumnName("content_nonce");
             entity.Property(m => m.IsDeleted).HasColumnName("is_deleted");
+            entity.Property(m => m.IsEdited).HasColumnName("is_edited");
+            entity.Property(m => m.EditedAt).HasColumnName("edited_at");
+            entity.Property(m => m.MeetingId).HasColumnName("meeting_id");
             entity.Property(m => m.CreatedAt).HasColumnName("created_at");
 
             entity.HasOne(m => m.Conversation)
@@ -58,6 +64,20 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
                 .WithOne()
                 .HasForeignKey(k => k.MessageId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(m => m.SearchTokens)
+                .WithOne()
+                .HasForeignKey(k => k.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MessageSearchToken>(entity =>
+        {
+            entity.ToTable("message_search_tokens");
+            entity.HasKey(k => k.Id);
+            entity.Property(k => k.Id).HasColumnName("id");
+            entity.Property(k => k.MessageId).HasColumnName("message_id");
+            entity.Property(k => k.Token).HasColumnName("token");
         });
 
         modelBuilder.Entity<UserPublicKey>(entity =>
@@ -68,6 +88,17 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(k => k.PublicKey).HasColumnName("public_key");
             entity.Property(k => k.Algorithm).HasColumnName("algorithm");
             entity.Property(k => k.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<UserKeyVault>(entity =>
+        {
+            entity.ToTable("user_key_vaults");
+            entity.HasKey(v => v.UserId);
+            entity.Property(v => v.UserId).HasColumnName("user_id");
+            entity.Property(v => v.Salt).HasColumnName("salt");
+            entity.Property(v => v.Nonce).HasColumnName("nonce");
+            entity.Property(v => v.Ciphertext).HasColumnName("ciphertext");
+            entity.Property(v => v.UpdatedAt).HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<MessageRecipientKey>(entity =>
@@ -121,6 +152,22 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(g => g.StorageExpiresAt).HasColumnName("storage_expires_at");
             entity.Property(g => g.UpdatedAt).HasColumnName("updated_at");
             entity.Property(g => g.LastWarningStage).HasColumnName("last_warning_stage");
+        });
+
+        modelBuilder.Entity<StorageTopupRequest>(entity =>
+        {
+            entity.ToTable("storage_topup_requests");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasColumnName("id");
+            entity.Property(r => r.ConversationId).HasColumnName("conversation_id");
+            entity.Property(r => r.RequestedBy).HasColumnName("requested_by");
+            entity.Property(r => r.Amount).HasColumnName("amount");
+            entity.Property(r => r.Status)
+                .HasColumnName("status")
+                .HasConversion(v => StorageTopupRequest.StatusToString(v), v => StorageTopupRequest.StatusFromString(v));
+            entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+            entity.Property(r => r.ResolvedAt).HasColumnName("resolved_at");
+            entity.Property(r => r.ResolvedBy).HasColumnName("resolved_by");
         });
     }
 }

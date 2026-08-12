@@ -14,6 +14,22 @@ public record ConversationResponse(
         c.LastMessageAt, c.CreatedAt);
 }
 
+// GET /conversations (list mine, tu de xuat - thieu sot phat hien khi build
+// Frontend F2, xem ConversationEndpoints.cs). OtherUserId chi co gia tri voi
+// P2P (nguoi con lai, KHONG phai chinh nguoi goi); WorkspaceId chi co gia
+// tri voi Group - Frontend tu doi chieu voi danh sach ban be/workspace da co
+// san (tu F1/F1.5) de lay nickname/ten hien thi, Chat Service khong resolve
+// thay.
+public record ConversationSummaryResponse(
+    long Id, string Type, long? WorkspaceId, long? OtherUserId,
+    DateTimeOffset? LastMessageAt, DateTimeOffset CreatedAt)
+{
+    public static ConversationSummaryResponse FromEntity(Conversation c, long callerId) => new(
+        c.Id, Conversation.TypeToString(c.Type), c.WorkspaceId,
+        c.Type == ConversationType.P2P ? (c.ParticipantAId == callerId ? c.ParticipantBId : c.ParticipantAId) : null,
+        c.LastMessageAt, c.CreatedAt);
+}
+
 // E2EE: khoa phien ma hoa RIENG cho 1 thanh vien Group (fan-out) - client tu
 // tinh, server chi luu/relay nguyen van. P2P khong can truyen field nay (2
 // ben tu tinh shared secret qua ECDH tu khoa cong khai cua nhau).
@@ -22,19 +38,43 @@ public record RecipientKeyInput(long UserId, string EncryptedKey);
 // ContentNonce BAT BUOC khi Type == "text" (E2EE bat buoc cho tin nhan
 // Text, tu de xuat - xem KeysEndpoints.cs). Voi Group + Text, RecipientKeys
 // cung BAT BUOC (>= 1 phan tu, thuong la toan bo thanh vien tai thoi diem
-// gui).
-public record CreateMessageRequest(string Type, string? Content, long? FileId, string? ContentNonce, List<RecipientKeyInput>? RecipientKeys);
+// gui). SearchTokens: danh sach token da bam (HMAC voi search-key rieng cua
+// client, xem MessageSearchToken.cs) - tuy chon, chi co y nghia voi Text.
+public record CreateMessageRequest(string Type, string? Content, long? FileId, string? ContentNonce, List<RecipientKeyInput>? RecipientKeys, List<string>? SearchTokens);
+
+// PATCH /messages/{id}: sua noi dung tin nhan Text da gui (client tu ma hoa
+// lai, gui ciphertext + nonce moi; TAI SU DUNG cung session key da fan-out
+// truoc do cho Group - KHONG can gui lai RecipientKeys). SearchTokens moi se
+// THAY THE toan bo token cu cua tin nhan nay.
+public record UpdateMessageRequest(string Content, string ContentNonce, List<string>? SearchTokens);
 
 public record MessageResponse(
     long Id, long ConversationId, long? SenderId, string? SenderDisplayName, string Type, string? Content,
-    long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, string? RecipientEncryptedKey)
+    long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, string? RecipientEncryptedKey,
+    bool IsEdited, DateTimeOffset? EditedAt)
 {
     public static MessageResponse FromEntity(Message m, string? senderDisplayName = null, long? fileId = null, string? recipientEncryptedKey = null) => new(
         m.Id, m.ConversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, fileId,
-        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey);
+        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt);
+
+    public static MessageResponse FromLite(MessageLite m, long conversationId, string? senderDisplayName = null, string? recipientEncryptedKey = null) => new(
+        m.Id, conversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, m.FileId,
+        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt);
 }
 
-public record UploadUrlRequest(long ConversationId, string FileType, long SizeBytes);
+// Hinh dang trung gian dung chung cho ca 2 nguon du lieu (Redis cache hoac
+// Postgres) khi doc lich su tin nhan - xem ConversationEndpoints.cs GET
+// messages va ChatCacheService.cs.
+public record MessageLite(
+    long Id, long? SenderId, MessageType Type, string? Content, bool IsDeleted,
+    DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, long? FileId,
+    bool IsEdited, DateTimeOffset? EditedAt);
+
+// MeetingId (tu chon): co gia tri = file gui trong luong THAO LUAN cua cuoc
+// hop do. Dung de kiem tra quyen theo nhanh "dang o trong cuoc hop" cho
+// khach vang lai. File van thuoc conversation nhu binh thuong nen VAN tinh
+// vao han muc luu tru cua nhom.
+public record UploadUrlRequest(long ConversationId, string FileType, long SizeBytes, long? MeetingId = null);
 public record UploadUrlResponse(long FileId, string UploadUrl, int ExpiresInSeconds);
 
 public record FileMetaResponse(long Id, long ConversationId, long UploadedBy, string FileType, long SizeBytes, DateTimeOffset UploadedAt)
@@ -45,6 +85,8 @@ public record FileMetaResponse(long Id, long ConversationId, long UploadedBy, st
 
 public record MuteRequest(long UserId);
 
+public record MeetingDiscussionSummary(long MeetingId, int MessageCount, DateTimeOffset LastMessageAt);
+
 public record StorageInfoResponse(string Plan, long QuotaBytes, long UsedBytes, bool IsLocked, DateTimeOffset? ExpiresAt)
 {
     public static StorageInfoResponse FromEntity(GroupChatSettings s) => new(
@@ -53,6 +95,8 @@ public record StorageInfoResponse(string Plan, long QuotaBytes, long UsedBytes, 
 
 public record TopupRequest(decimal Amount);
 public record UnlockRequest(DateTimeOffset? StorageExpiresAt);
+
+public record TopupRequestResponse(long Id, long ConversationId, long RequestedBy, decimal Amount, string Status, DateTimeOffset CreatedAt);
 
 public record ComplaintMessageRequest(string Message);
 public record ComplaintMessageResponse(string SenderRole, string Message, DateTimeOffset CreatedAt, long? SenderId = null);

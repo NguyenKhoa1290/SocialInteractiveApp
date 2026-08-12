@@ -1,0 +1,163 @@
+.disc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disc-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 200px;
+  max-height: 55vh;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.disc-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.disc-row.mine {
+  justify-content: flex-end;
+}
+
+.disc-bubble {
+  max-width: 78%;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.disc-row.mine .disc-bubble {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.disc-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 2px;
+}
+
+.disc-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 3px;
+}
+
+.disc-deleted {
+  color: #9ca3af;
+}
+
+.disc-empty,
+.disc-note {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.disc-error {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.disc-compose {
+  display: flex;
+  gap: 8px;
+}
+
+.disc-compose input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.disc-compose button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.disc-compose button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.disc-attach {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.disc-attach label {
+  padding: 5px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.disc-attach label:hover {
+  background: #f3f4f6;
+}
+
+/* Ban rut gon dat trong phong hop (nen toi) - doi mau cho khop, khong
+   dung mau sang cua man hinh chat. */
+.disc-compact .disc-messages {
+  background: #16181d;
+  border-color: #2b2f36;
+  max-height: 42vh;
+}
+
+.disc-compact .disc-bubble {
+  background: #22262d;
+  border-color: #3a3f47;
+  color: #e9ecef;
+}
+
+.disc-compact .disc-row.mine .disc-bubble {
+  background: #1e3a5f;
+  border-color: #2c5282;
+}
+
+.disc-compact .disc-sender {
+  color: #9aa1ab;
+}
+
+.disc-compact .disc-compose input,
+.disc-compact .disc-attach label {
+  background: #22262d;
+  border-color: #3a3f47;
+  color: #e9ecef;
+}
+
+.disc-compact .disc-attach label:hover {
+  background: #2c313a;
+}
+
+.disc-compact .disc-empty,
+.disc-compact .disc-note {
+  color: #9aa1ab;
+}

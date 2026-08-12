@@ -67,6 +67,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// CORS cho Frontend - cung mau voi Identity/WorkSpace/Chat Service. Thieu
+// sot phat hien khi build Frontend F5: Media Service truoc do KHONG he co
+// CORS (chi duoc test bang script server-side nen khong lo ra), Frontend goi
+// tu http://localhost:5173 se bi trinh duyet chan o buoc preflight.
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy => policy
+        .WithOrigins(corsOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -74,6 +89,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -82,6 +98,7 @@ app.MapInvitesEndpoints();
 app.MapParticipantsEndpoints();
 app.MapMiniAppEndpoints();
 app.MapMiniAppSessionEndpoints();
+app.MapInternalEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

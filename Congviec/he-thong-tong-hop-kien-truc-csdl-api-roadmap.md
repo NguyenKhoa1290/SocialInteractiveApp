@@ -735,15 +735,69 @@ RabbitMQ đã deploy K8s). Đã build + test end-to-end toàn bộ mục dưới
 - [x] `POST /auth/oauth/{provider}` — verify token thật qua Google/Facebook API
 - [x] `POST /auth/guest`
 - [x] `POST /auth/logout` — blocklist JWT qua Redis
+- [x] `POST /auth/refresh` — **tự đề xuất, khắc phục thiếu sót phát hiện khi build Frontend F0**:
+      comment cũ ở `JwtTokenService.cs` nhắc "sliding expiration ... xem endpoint refresh" nhưng
+      endpoint đó chưa từng được viết ra — không có cách nào JWT tự gia hạn như tài liệu Frontend mục
+      1 mô tả. Yêu cầu token HIỆN TẠI còn hợp lệ (`RequireAuthorization`, không "hồi sinh" token đã
+      hết hạn — đúng tinh thần "chỉ gia hạn khi còn hoạt động"), cấp token mới cùng hạn mức, đồng thời
+      blocklist token cũ qua Redis (tái dùng `RedisAuthStore.BlocklistTokenAsync`, cùng cơ chế với
+      `/auth/logout`) để tránh 2 token cùng sống song song
 - [x] `POST /auth/forgot-password`
 - [x] `POST /auth/verify-otp`
 - [x] `POST /auth/reset-password`
 - [x] `POST /auth/register`
+- [x] Nickname duy nhất toàn hệ thống — **tự bổ sung** (không phân biệt hoa/thường,
+      `idx_users_nickname_lower`), áp dụng cho cả `/auth/register`, `/auth/guest`, `PATCH
+      /users/me/nickname` (409 `nickname_taken`). Lý do: tính năng bạn bè mới thêm tìm người theo
+      nickname — nếu trùng, kết quả tìm kiếm/kết bạn sẽ lẫn lộn giữa nhiều người khác nhau. Guest và
+      tài khoản đăng ký dùng CHUNG không gian nickname (Guest chiếm 1 nickname thì người khác không
+      dùng được tới khi Guest đó bị dọn sau 6 tháng không hoạt động). Verify thật qua curl: guest
+      trùng tên (kể cả khác hoa/thường) và register trùng tên với guest đã tồn tại đều trả đúng 409.
+- [x] CORS — **tự đề xuất, khắc phục lỗi thật phát hiện khi test đăng nhập Guest từ Frontend**:
+      Identity Service chưa cấu hình CORS ở đâu cả, nên request cross-origin từ Frontend dev
+      (`localhost:5173` → `localhost:5194`) bị trình duyệt tự chặn (không phải lỗi mạng, chỉ hiện
+      "blocked by CORS policy" trong Console) — verify thực tế bằng `curl` giả lập header `Origin`,
+      xác nhận thiếu `Access-Control-Allow-Origin` trước khi sửa, có đúng header sau khi thêm
+      `AddCors`/`UseCors`. Danh sách origin cho phép đọc từ `Cors:AllowedOrigins` trong appsettings
+      (mặc định `http://localhost:5173`), không dùng `AllowAnyOrigin` vì token nằm trong header
+      `Authorization`. **Các service khác (WorkSpace, Chat, Media, Admin) Frontend sẽ gọi trực tiếp ở
+      các phase sau (F1+) cũng sẽ cần cấu hình CORS tương tự — chưa làm, cần nhớ khi tới phase đó.**
 - [x] `GET /users/me`
 - [x] `PATCH /users/me/nickname`
 - [x] `GET /internal/users/{userId}`
 - [x] `GET /internal/users` (batch)
 - [x] `POST /internal/users/{userId}/unlock`
+- [x] `GET /users/search?q=` — tìm user theo nickname (`ILIKE`), phục vụ tính năng bạn bè mới thêm
+      (xem bảng `friendships` bên dưới)
+
+**Tính năng "bạn bè" — tự thiết kế hoàn toàn (không có trong tài liệu gốc)**
+
+Tài liệu gốc chỉ nhắc "bạn bè" ở Media Service (UC-32, mời tham gia cuộc họp) nhưng CHƯA TỪNG thiết
+kế bảng/API cho quan hệ này ở bất kỳ service nào (đã ghi nhận ở mục 7.4 lúc build Media Service —
+lúc đó tạm thay bằng kiểm tra tối thiểu "user có tồn tại"). Frontend F1.5 cần tính năng thật (tìm
+bạn/kết bạn/xoá bạn) nên thiết kế mới tại đây, đặt ở Identity Service (nơi quản lý danh tính user).
+
+Cơ chế: gửi lời mời + đối phương chấp nhận (giống Facebook/Zalo, KHÔNG kết bạn ngay lập tức — tránh
+spam kết bạn hàng loạt). Bảng `friendships` (1 dòng/cặp quan hệ, `UNIQUE INDEX` theo cặp không phân
+biệt thứ tự — cùng pattern với `idx_conversations_p2p_pair` bên Chat DB): `status` chỉ có
+`pending`/`accepted` — từ chối hoặc huỷ lời mời thì XOÁ thẳng dòng đó (không lưu `rejected` vĩnh
+viễn), cho phép gửi lại lời mời sau này.
+
+- [x] `POST /friends/requests` — gửi lời mời. Nếu đối phương ĐÃ gửi lời mời cho mình trước đó
+      (chiều ngược lại, `Pending`) thì tự động ghép đôi (`Accepted`) luôn thay vì bắt cả 2 phải vào
+      màn hình Accept
+- [x] `GET /friends/requests/incoming` — lời mời người khác gửi đến mình
+- [x] `GET /friends/requests/outgoing` — lời mời mình đã gửi (Frontend dùng để hiện trạng thái "Đã
+      gửi lời mời" thay vì nút Kết bạn khi tìm kiếm lại)
+- [x] `POST /friends/requests/{id}/accept`
+- [x] `DELETE /friends/requests/{id}` — dùng chung cho "từ chối lời mời đến" (người nhận) và "huỷ
+      lời mời đã gửi" (người gửi), phân biệt qua ai là người gọi
+- [x] `GET /friends` — danh sách bạn bè đã chấp nhận
+- [x] `DELETE /friends/{userId}` — huỷ kết bạn
+
+Verify thực tế qua `curl`: Alice tìm thấy Bob qua `/users/search`, gửi lời mời → Bob thấy trong
+`incoming` → Bob accept → cả 2 phía đều thấy nhau trong `/friends` → gửi lại lời mời lúc đã là bạn
+bè trả đúng `409 already_friends` → unfriend → danh sách rỗng lại. Đã dọn dữ liệu test sau khi xong.
 
 **Tích hợp**
 - [x] Publish `Login` / `Register History` lên Kafka — topic `identity.auth-history`
@@ -1848,6 +1902,12 @@ service (C#/.NET) chưa viết.*
 - [x] Trigger `trg_cascade_delete_workspace_on_leader_leave`
 
 **API**
+- [x] `GET /workspaces` — **tự đề xuất, thiếu sót phát hiện khi build Frontend F1** ("Danh sách nhóm
+      của tôi"): OpenAPI spec gốc chỉ có CRUD theo `{workspaceId}` cụ thể, không có endpoint liệt kê
+      theo user đang đăng nhập. Trả `WorkspaceSummaryResponse` kèm `myRole` (vai trò của người gọi
+      trong từng nhóm) để Frontend không cần gọi thêm `GET /members` chỉ để biết quyền hiển thị nút
+      nào
+- [x] CORS — cùng mẫu với Identity Service (mục 4), thiếu sót phát hiện cùng lúc
 - [x] `POST /workspaces`
 - [x] `GET /workspaces/{workspaceId}`
 - [x] `PATCH /workspaces/{workspaceId}`
@@ -1864,7 +1924,11 @@ service (C#/.NET) chưa viết.*
       (mới chỉ publish, chưa có bên nhận xử lý push notification thật)
 - [x] Gọi Chat Service để dọn dữ liệu chat khi xoá/giải tán workspace — verify cascade xoá đúng
       conversation + message liên quan
-- [ ] Trigger ngắt WebSocket phía Chat Service khi kick/rời nhóm — chưa làm (chưa có WebSocket)
+- [x] Trigger ngắt WebSocket phía Chat Service khi kick/rời nhóm — `ChatServiceClient.NotifyMemberRemovedAsync`
+      gọi `POST /internal/conversations/by-workspace/{workspaceId}/members/{userId}/disconnect` (Chat
+      Service, endpoint mới) ngay sau khi xoá thành viên (cả nhánh kick lẫn tự rời) — gỡ khỏi SignalR
+      group của đúng conversation đó (không đóng toàn bộ kết nối WebSocket của user, họ có thể vẫn ở
+      các conversation/workspace khác), kèm gửi event `KickedFromConversation` cho client dọn UI
 
 
 ---
@@ -2667,12 +2731,28 @@ cho cả P2P và Group, nhưng Phase 2 chỉ code nhánh P2P. Code service (C#/.
 - [x] Tạo bảng `muted_members`
 - [x] Tạo bảng `files`
 - [x] Trigger `sync_storage_used` (2 chiều insert/delete)
-- [ ] Cron job tự động xoá conversation P2P sau 6 tháng không hoạt động (chờ code Chat Service)
+- [x] Cron job tự động xoá conversation P2P sau 6 tháng không hoạt động — `P2PCleanupService`
+      (BackgroundService, quét mỗi 24h), điều kiện "không hoạt động" = `LastMessageAt` quá hạn HOẶC
+      (chưa từng có tin nhắn VÀ `CreatedAt` quá hạn, tránh xoá nhầm conversation vừa tạo) — xoá
+      cascade Messages/Files/MessageRecipientKeys qua FK có sẵn
 
 *Phase 2 chỉ code nhánh P2P (theo roadmap mục 2). Các mục dưới đây đánh dấu **(Group)** thuộc
 Phase 3, chưa làm.*
 
 **API**
+- [x] `GET /conversations` — **tự đề xuất, thiếu sót phát hiện khi build Frontend F2** ("Danh sách
+      cuộc trò chuyện"): OpenAPI gốc chỉ có thao tác theo `{conversationId}` cụ thể, không có endpoint
+      liệt kê theo user đang đăng nhập. P2P đọc thẳng từ Chat DB; Group phải gọi sang WorkSpace Service
+      (`GET /internal/users/{userId}/workspaces`, cũng tự thêm) trước để biết workspace nào của mình,
+      vì Chat Service không giữ bản sao `workspace_members`. Trả `otherUserId` (P2P) hoặc `workspaceId`
+      (Group) — Frontend tự đối chiếu với danh sách bạn bè/workspace đã tải sẵn để lấy tên hiển thị,
+      Chat Service không resolve nickname thay. Verify thật qua curl: tạo P2P → cả 2 phía đều thấy
+      đúng conversation trong danh sách của mình.
+- [x] `GET /files/{fileId}/download-url` — **tự đề xuất, thiếu sót nghiêm trọng phát hiện khi build
+      Frontend F2**: `MinioStorageService` trước đó chỉ có `GeneratePresignedUploadUrl` (PUT) — hoàn
+      toàn KHÔNG có cách nào lấy lại URL để xem/tải file đã gửi (ảnh/video/voice/file gửi xong sẽ
+      không hiển thị lại được). Thêm `GeneratePresignedDownloadUrl` (GET) + endpoint kiểm tra quyền
+      qua chính `ConversationId` của file (không nhận `conversationId` từ client để tránh giả mạo).
 - [x] `POST /conversations/p2p` — idempotent, verify tạo lại trả đúng conversation cũ
 - [x] `GET /conversations/{conversationId}` — chặn 403 nếu không phải participant
 - [x] `GET /conversations/{conversationId}/messages`
@@ -2680,6 +2760,17 @@ Phase 3, chưa làm.*
       video >50MB / voice >25MB (413, **chưa có nén tự động**, chỉ từ chối thẳng)
 - [x] `DELETE /conversations/{conversationId}/messages/{messageId}` — **giả định cho P2P:** chỉ
       người gửi tự xoá được (bản gốc quy định "chỉ Trưởng nhóm", chỉ áp dụng cho Group)
+- [x] `PATCH /conversations/{conversationId}/messages/{messageId}` — **tự đề xuất, không có trong
+      OpenAPI gốc** (mục "Sửa/thu hồi tin nhắn" bị bỏ sót giữa spec ban đầu và các UC sau này, phát
+      hiện lại khi rà soát `frontend-admin-page-dac-ta.md`). Sửa nội dung tin Text đã gửi: chỉ chính
+      người gửi, chỉ trong 15 phút kể từ lúc gửi (`EditWindow`, chưa chốt trong tài liệu gốc), client
+      tự mã hoá lại (nonce mới) và TÁI SỬ DỤNG session key cũ nếu là Group (không cần gửi lại
+      `RecipientKeys`). Đánh dấu `is_edited=true`, `edited_at`, broadcast `MessageEdited` qua SignalR.
+- [x] `POST /conversations/{conversationId}/messages/{messageId}/recall` — **tự đề xuất**, tách
+      riêng khỏi `DELETE` ở trên: `DELETE` dành cho Trưởng nhóm xoá bất kỳ tin nào trong Group (không
+      giới hạn thời gian); `recall` là BẤT KỲ người gửi nào (cả P2P lẫn Group) tự thu hồi tin CỦA
+      MÌNH, chỉ trong cùng khung 15 phút với sửa tin. Dùng chung cơ chế soft-delete (`is_deleted`),
+      broadcast `MessageDeleted`.
 - [x] `POST /files/upload-url` — presigned URL qua MinIO (S3-compatible) tại `192.168.50.10:9000`,
       verify PUT thật lên bucket `chat-media` thành công + đọc lại đúng nội dung. Sửa 1 lỗi thật:
       AWSSDK.S3 luôn sinh presigned URL với scheme `https://` bất kể `UseHttp` config, trong khi
@@ -2702,14 +2793,52 @@ Phase 3, chưa làm.*
 - [x] Publish `Chat Service Log` lên Kafka sau mỗi tin nhắn — topic `chat.service-log`, **đã bổ
       sung field `Content`** vào event (spec gốc không có) vì SpamTrackingService (mục 8) cần nội
       dung để phân tích trùng lặp/từ khoá
-- [ ] Consumer `Write Chat` đồng bộ Redis từ Kafka — chưa làm, hiện `GET messages` đọc thẳng
-      Postgres
-- [ ] Search Chat Service: route Redis (<10.000 tin & <10 ngày) / Postgres (còn lại) — chưa làm,
-      phụ thuộc mục trên
-- [ ] Publish thông báo tin nhắn mới qua RabbitMQ → Identity Services — chưa làm
+- [x] Consumer `Write Chat` đồng bộ Redis từ Kafka — `WriteChatConsumerService`, cùng service tự
+      publish + tự consume lại `chat.service-log` (group id riêng `chat-service-write-chat`, tách
+      biệt SpamTrackingService), đúng nguyên tắc "ghi Postgres trước, publish event để đồng bộ Redis
+      sau" đã nêu ở mục 1. Đọc lại từ Postgres (không dùng thẳng `Content` trong event, vì tin Text
+      mã hoá đã có `Content=null` trong Kafka event — xem mục 6.5) để có đủ dữ liệu cache. Cache dạng
+      Hash (`chat:msg:{id}`, mutable — cập nhật được lúc xoá mềm) + Sorted Set index
+      (`chat:msgidx:{id}`, sắp theo `CreatedAt`), tự dọn khi vượt 10.000 tin hoặc quá 10 ngày/conversation.
+      Verify thực tế: gửi tin nhắn → `KEYS chat:*` trên Redis thấy đúng key được tạo.
+- [x] Search Chat Service: route Redis (<10.000 tin & <10 ngày) / Postgres (còn lại) — `GET messages`
+      thử Redis trước; nếu đủ số lượng yêu cầu thì dùng thẳng (không chạm Postgres); nếu thiếu (cache
+      nguội/phân trang sâu vào lịch sử cũ) thì fallback TOÀN BỘ sang Postgres cho đúng request đó,
+      đảm bảo luôn đúng/đủ dữ liệu thay vì cố merge 2 nguồn. Verify thực tế: đọc lại tin vừa gửi trả
+      đúng nội dung từ Redis.
+- [x] `GET /conversations/{conversationId}/messages/search` — **tự đề xuất, không có trong OpenAPI
+      gốc** (mục "Tìm kiếm tin nhắn" cùng tình trạng bị bỏ sót với mục sửa/thu hồi ở trên). Vì tin
+      Text luôn E2EE (`Content` là ciphertext), server KHÔNG THỂ full-text search trực tiếp — dùng
+      **blind-index searchable encryption** (đúng cơ chế Facebook Messenger E2EE mặc định dùng): khi
+      gửi/sửa tin, client tự tách từ khoá từ nội dung GỐC (trước khi mã hoá), băm bằng
+      `HMAC(searchKey, từ)` với 1 search-key riêng (chỉ client giữ, KHÔNG BAO GIỜ gửi lên server —
+      giống private key), gửi kèm token đã băm (`SearchTokens`) lên bảng `message_search_tokens`.
+      Khi search, client tự băm lại từ khoá cần tìm bằng cùng search-key, gửi token qua query param
+      `tokens` (phẩy phân cách) — server chỉ so khớp token == token (AND — tin phải chứa ĐỦ mọi
+      token), không bao giờ biết được từ gốc là gì. Kèm filter metadata độc lập (`senderId`, `type`,
+      `from`/`to`) hoạt động cả với tin không phải Text. **Đánh đổi đã xác nhận với người dùng dự án:**
+      server biết được tần suất/mẫu xuất hiện token (ai gửi token giống nhau) dù không biết nghĩa —
+      đây là đánh đổi thật mà các app lớn (kể cả Facebook) chấp nhận, không có cách nào search được
+      mà kín tuyệt đối 100%.
+- [x] Publish thông báo tin nhắn mới qua RabbitMQ → Identity Services — queue
+      `identity.chat-message-notification` (`ChatMessageNotificationPublisher`), verify publish
+      thành công qua `rabbitmqctl list_queues`. **Identity Service CHƯA có consumer** cho queue này
+      (cùng tình trạng "chuẩn bị trước" với các queue khác trong dự án).
 - [x] Lưu tạm hội thoại khiếu nại trong Redis, TTL 10 tiếng — TTL tính từ tin đầu tiên (không
       refresh mỗi tin mới), đúng theo mô tả `ComplaintSummary.expiresAt` ở mục 4.2
-- [ ] WebSocket (Signal IR) cho realtime tin nhắn/presence — chưa làm, chỉ có REST API đồng bộ
+- [x] WebSocket cho realtime tin nhắn/presence — dùng **ASP.NET Core SignalR** (có sẵn trong shared
+      framework, không phải "Signal IR" như liệt kê ban đầu — đính chính chính tả) thay vì raw
+      WebSocket, tại `/hubs/chat`. JWT truyền qua query string `?access_token=` (trình duyệt không
+      gửi được `Authorization` header lúc WebSocket handshake — đúng hạn chế chuẩn của SignalR JS
+      client, không phải lỗi). Client tự gọi `JoinConversation(id)` khi mở màn hình chat (LAZY, không
+      tự join hết mọi conversation lúc connect — vì WorkSpace Service chưa có endpoint "liệt kê
+      workspace của chính mình" để biết trước cần join group nào); server verify quyền thành viên
+      (tái dùng `IsMemberAsync`) trước khi cho join, chặn user tự xưng `conversationId` bất kỳ để
+      nghe lén. Presence (online/offline) theo dõi trong bộ nhớ tiến trình (`PresenceTracker`, KHÔNG
+      qua Redis — chỉ đúng khi Chat Service chạy 1 replica, cần chuyển sang Redis pub/sub nếu sau
+      này scale ngang nhiều replica). Verify thực tế qua Docker: gửi tin nhắn qua REST → broadcast
+      `MessageReceived` tới đúng SignalR group của conversation; Redis cache + RabbitMQ queue đều
+      nhận đúng dữ liệu song song với broadcast.
 - [x] Internal endpoint `POST /internal/conversations/group` (không có trong OpenAPI spec gốc —
       tự thêm để WorkSpace Service gọi tạo group conversation ngay khi tạo workspace, idempotent)
 - [x] Internal endpoint `DELETE /internal/conversations/by-workspace/{workspaceId}` (không có
@@ -2804,6 +2933,435 @@ tự tính lại đúng shared secret từ khoá công khai lấy từ server �
 Lặp lại cho Group (workspace 2 thành viên) với cơ chế fan-out — xác nhận qua truy vấn DB trực tiếp:
 cột `content`/`encrypted_key` trong Postgres chỉ chứa ciphertext (chuỗi base64 ngẫu nhiên), không hề
 có plaintext ở bất kỳ đâu trong Chat DB.
+
+**Dẫn xuất search key cho tìm kiếm blind-index (`GET .../messages/search`, xem mục 6.4) — tự thiết
+kế, định hướng cho Frontend:**
+
+Search key **KHÔNG dùng thẳng private key cá nhân** của mỗi người (vì mỗi người có private key khác
+nhau → tự băm sẽ ra token khác nhau, không ai khớp được với ai). Thay vào đó, derive từ chính khoá
+**dùng chung** đã tính ra để mã hoá nội dung tin nhắn đó — khoá này về bản chất mọi người tham gia
+đều tự tính ra **giống hệt nhau** dù input (private key riêng) khác nhau, nhờ tính chất toán học của
+ECDH (Diffie-Hellman: `privA × pubB == privB × pubA`):
+- **P2P:** `searchKey = HKDF(sharedSecret_ECDH, "search-index")` — cùng shared secret đã dùng để mã
+  hoá/giải mã nội dung, 2 bên tự tính lại ra đúng cùng giá trị, không cần trao đổi gì thêm.
+- **Group:** `searchKey = HKDF(sessionKey, "search-index")` — cùng `sessionKey` ngẫu nhiên của
+  từng tin nhắn (mỗi thành viên tự giải gói `encrypted_key` fan-out của mình để lấy lại đúng
+  `sessionKey` gốc), nên mọi thành viên đều derive ra cùng 1 `searchKey` cho tin đó.
+
+Vì `sharedSecret`/`sessionKey` chỉ tính lại được từ private key cá nhân (được bảo vệ bởi PIN 6 số cục
+bộ), PIN vẫn giữ đúng vai trò gốc rễ bảo vệ toàn bộ chuỗi khoá — chỉ khác là search key không phải
+chính private key, mà là khoá **chung của hội thoại/tin nhắn**, để search khớp được giữa nhiều người
+mà vẫn không cần gửi bí mật nào lên server.
+
+**Frontend F3 (E2EE Text P2P) — hoàn thành, verify thật qua HTTP thật (không mock):**
+
+- [x] `POST /keys/vault`, `GET /keys/vault` (Chat Service) — **tự thiết kế thêm**, xác nhận với người
+      dùng dự án: lưu bản MÃ HOÁ (bằng khoá dẫn xuất từ PIN qua PBKDF2 100.000 vòng + salt ngẫu nhiên)
+      của private key lên server, để khôi phục được trên thiết bị mới chỉ bằng đúng 6 số PIN — giống
+      cơ chế backup key thật của Messenger/WhatsApp. Server không bao giờ thấy PIN hay private key gốc.
+      **Đánh đổi đã xác nhận:** PIN 6 số chỉ có 1 triệu khả năng — nếu ai đó lấy được bản ghi này có
+      thể brute-force offline; đây là đánh đổi thật mà Messenger/WhatsApp cũng chấp nhận, không có
+      PIN ngắn nào chống brute-force tuyệt đối.
+- [x] Thư viện crypto phía client: `@noble/curves` cho X25519 (Web Crypto API chưa hỗ trợ X25519 ổn
+      định ở mọi trình duyệt), AES-256-GCM/PBKDF2/HKDF dùng thẳng `crypto.subtle` (Web Crypto chuẩn)
+- [x] Màn hình thiết lập PIN lần đầu + nhập PIN khôi phục (`E2eeGate`, hiện ngay trong khung chat khi
+      cần thay vì route riêng) — sinh cặp khoá X25519 thật, đăng ký public key, mã hoá + upload vault
+- [x] Gửi/nhận tin nhắn Text P2P mã hoá thật trong `ChatRoomPage` — mã hoá bằng shared secret ECDH,
+      giải mã tự động khi tin về qua SignalR hoặc tải lại lịch sử
+- [x] Nút thu hồi tin nhắn Text (dùng endpoint `recall` đã có sẵn từ trước)
+
+**Verify thật (2 vòng):**
+1. Test thuần thuật toán (Node, không qua HTTP): sinh khoá X25519 thật cho Alice/Bob, xác nhận 2 bên
+   tự tính ra đúng cùng 1 shared secret qua ECDH, mã hoá/giải mã AES-GCM round-trip đúng, người thứ 3
+   (khoá khác) KHÔNG giải mã được (auth tag thất bại đúng như kỳ vọng), vault mã hoá/giải mã bằng PIN
+   đúng/sai đều xử lý đúng.
+2. Test tích hợp qua HTTP thật (services đang chạy thật, không mock): đăng ký public key thật lên
+   Chat Service, lấy lại đúng public key qua API, tạo P2P, gửi tin Text mã hoá qua `POST
+   /conversations/{id}/messages` — xác nhận trực tiếp **`content` trả về từ server là ciphertext,
+   không đọc được** — Bob tự giải mã ra đúng plaintext gốc. Lưu vault qua `POST /keys/vault`, tải lại
+   qua `GET /keys/vault`, khôi phục đúng private key gốc từ đúng PIN.
+
+**Cập nhật — Group Text E2EE (fan-out) đã hoàn thành:**
+- [x] `ChatRoomPage` nạp public key của TOÀN BỘ thành viên workspace (`GET
+      /internal/workspaces/{id}/members` → `GET /keys/batch`), thành viên nào chưa thiết lập E2EE bị
+      loại khỏi fan-out — hiện rõ số lượng "N thành viên chưa thiết lập E2EE" thay vì âm thầm bỏ qua
+- [x] Gửi: sinh session key ngẫu nhiên/tin nhắn, mã hoá nội dung bằng session key, gói (wrap) session
+      key riêng cho từng thành viên bằng khoá dẫn xuất ECDH giữa người gửi và thành viên đó (đúng
+      pattern Signal/WhatsApp) — **người gửi cũng tự gói cho chính mình** để đọc lại được sau khi tải
+      lại lịch sử
+- [x] Nhận: mỗi người tự gỡ gói bằng khoá riêng của mình, không ai thấy được bản gói của người khác
+      (verify qua `recipientEncryptedKey` server trả về đúng — chỉ đúng 1 bản dành riêng cho người gọi)
+
+**Verify thật qua HTTP thật (workspace/user thật, không mock):** tạo workspace → thêm thành viên →
+xác nhận Chat Service tự tạo group conversation → 2 người đăng ký public key thật → Trưởng nhóm gửi
+tin Text mã hoá fan-out cho cả 2 → thành viên còn lại tự giải mã đúng plaintext gốc bằng khoá riêng →
+Trưởng nhóm tự đọc lại đúng tin của chính mình (mô phỏng sau khi tải lại lịch sử). Đã dọn dữ liệu
+test, xác nhận workspace/nhóm thật của người dùng dự án không bị ảnh hưởng.
+
+**Sửa lỗi phát sinh sau khi người dùng test thật trên trình duyệt:**
+- **Race condition khiến tin nhóm vừa gửi hiện "(không giải mã được)"** — nguyên nhân: khi tự gửi tin
+  Group, có 2 nguồn ghi cạnh tranh vào cùng ô nhớ giải mã — (1) cache đúng tự có sẵn lúc mã hoá, (2)
+  bản echo qua SignalR của chính tin đó (luôn thiếu `recipientEncryptedKey` vì broadcast dùng chung 1
+  payload cho cả nhóm) cố giải mã và thất bại. Không có thứ tự đảm bảo giữa 2 luồng async này, đôi
+  lúc bản lỗi ghi đè bản đúng. Sửa: nhận diện đúng "đây là echo của chính mình" → bỏ hẳn, không cho
+  ghi gì cả; đồng thời hiệu ứng giải mã không bao giờ tự ý gán lỗi cho tin Group đang thiếu khoá nữa.
+- **Private key mất sau F5, phải nhập lại PIN mỗi lần** — thiết kế ban đầu chỉ giữ private key trong
+  bộ nhớ (RAM), tự đề xuất theo tinh thần "an toàn tối đa". Người dùng dự án phản hồi muốn trải
+  nghiệm giống Facebook/Messenger web (không hỏi lại PIN liên tục) — đổi sang lưu private key **đã
+  giải mã** ở `localStorage`, sống đến khi JWT hết hạn (tự gia hạn cùng nhịp với
+  `POST /auth/refresh`, xoá khi đăng xuất hoặc refresh thất bại thật sự). **Đánh đổi bảo mật đã đổi
+  theo yêu cầu người dùng:** ai truy cập được `localStorage` trên máy đó (vd XSS, dùng chung máy) đọc
+  được private key mà không cần PIN — đây là đánh đổi thật, cùng cách các web client E2EE thật (
+  Messenger/WhatsApp Web) vẫn làm để tránh hỏi lại mật khẩu liên tục, không phải lỗi thiết kế.
+
+**F3 hoàn thành nốt — Tìm kiếm & Sửa tin nhắn:**
+
+- [x] **Sửa lỗi thiết kế search Group tự phát hiện**: bản đầu dẫn xuất searchKey từ session key NGẪU
+  NHIÊN của từng tin nhắn — mỗi tin một khoá khác nhau nên token không bao giờ khớp giữa các tin,
+  khiến search vô dụng hoàn toàn. Sửa: searchKey phải là khoá ỔN ĐỊNH xuyên suốt hội thoại — dùng lại
+  chính shared secret ECDH giữa người gửi và TỪNG người nhận (giống `wrapKey` đã có). Vì mỗi cặp
+  (người gửi, người nhận) ra 1 khoá khác nhau, phải tính RIÊNG 1 bộ token cho từng người nhận rồi gộp
+  chung gửi lên server — lúc search, mỗi người tự nhiên chỉ khớp đúng bộ token dành cho riêng mình.
+  Verify qua Node: 2 tin khác nội dung, cùng chứa từ "hello" → cùng khớp 1 query token; người thứ 3
+  không liên quan tự tính bằng khoá khác → không khớp.
+- [x] Sửa tin nhắn (edit) — P2P re-encrypt bằng shared secret (deterministic, tính lại y hệt lần đầu);
+  Group tái sử dụng ĐÚNG session key cũ bằng cách tự gỡ lại từ bản đã "gói" cho chính mình lúc gửi
+  (`recoverGroupSessionKey`), khớp đúng yêu cầu backend "không cần gửi lại RecipientKeys"
+- [x] UI tìm kiếm trong `ChatRoomPage` — P2P tính 1 bộ token; Group phải thử LẦN LƯỢT với từng thành
+  viên có thể là người gửi (tính token bằng shared secret với từng người), gộp + khử trùng kết quả
+
+**Verify thật qua HTTP thật (workspace/user thật, không mock)** — 1 script chạy tuần tự 7 bước: gửi
+tin kèm token thật → tìm kiếm ra đúng tin → sửa tin, người khác đọc lại đúng nội dung mới → mute
+thành viên (gửi tin bị chặn 403) → gỡ mute → Trưởng nhóm xoá tin không giới hạn thời gian → xem/nạp
+dung lượng → gửi khiếu nại. Tất cả pass, đã dọn dữ liệu test.
+
+**Backend — 2 gap mới phát hiện & vá trong lúc build:**
+- [x] `GET /conversations/{id}/mutes` — thiếu sót: có POST/DELETE mute nhưng không có cách nào XEM
+  lại đang mute những ai
+- [x] Middleware bug: search `tokens` truyền qua query string chứa ký tự base64 (`+`, `/`, `=`) —
+  nếu Frontend tự nối chuỗi URL thủ công KHÔNG encode đúng, ký tự `+` sẽ bị hiểu nhầm thành dấu cách,
+  làm token sai lệch. `chatApi.ts` dùng `axios` params (tự động encode đúng) nên không dính lỗi này,
+  nhưng đây là điểm cần lưu ý nếu sau này có client nào tự dựng URL thủ công.
+
+**F4 hoàn thành — Quản trị nhóm chat & Khiếu nại:**
+- [x] Mute/gỡ mute thành viên (chỉ Trưởng nhóm) — panel quản trị trong `ChatRoomPage`
+- [x] Trưởng nhóm xoá tin nhắn bất kỳ, không giới hạn thời gian (khác nút "Thu hồi" tự thu hồi có
+  giới hạn 15 phút, chỉ áp dụng cho chính người gửi)
+- [x] Màn hình dung lượng lưu trữ nhóm (xem/nạp/mở khoá) + banner cảnh báo khi khoá hoặc sắp hết hạn
+- [x] Màn hình Khiếu nại (`/complaints`, route độc lập ngoài `AppShell`/dock — không điều hướng sang
+  tính năng chat bình thường, đúng yêu cầu "hoạt động kể cả khi tài khoản bị khoá")
+
+**Thiết kế lại nạp dung lượng — theo phản hồi người dùng dự án**: bản đầu (`POST
+.../storage/topup`) cho Trưởng nhóm tự cộng dung lượng ngay lập tức, không qua ai duyệt — người dùng
+dự án chỉ ra đây là việc của Admin ("Trưởng nhóm nhắn tin Admin rồi Admin bấm cộng"), khớp đúng tài
+liệu gốc mục 2.4 ("nạp tiền" — hành động tài chính cần xác nhận, không phải tự động). Thiết kế lại
+theo mô hình yêu cầu/duyệt:
+
+- [x] Bảng `storage_topup_requests` (Chat DB) — Admin Service không có CSDL riêng (lớp điều phối),
+  nên bảng này vẫn nằm ở Chat DB, Admin Service chỉ gọi nội bộ qua HTTP
+- [x] `POST/GET /conversations/{id}/storage/topup-requests` (Chat Service, public) — Trưởng nhóm gửi
+  yêu cầu, mọi thành viên xem được trạng thái (`pending`/`approved`/`rejected`)
+- [x] `GET/POST /internal/storage-topup-requests*` (Chat Service, nội bộ) — Admin Service gọi để
+  liệt kê yêu cầu đang chờ / duyệt / từ chối; duyệt mới thực sự cộng quota (tái dùng đúng logic tính
+  bytes cũ), từ chối không đổi gì
+- [x] `GET/POST /admin/storage-requests*` (Admin Service, `AdminOnly` — JWT bắt buộc claim
+  `role=admin`) — proxy sang Chat Service, cùng pattern với `ComplaintsAdminEndpoints.cs` đã có
+- [x] Frontend: nút "Nạp thêm 1GB" (áp dụng ngay) đổi thành "Yêu cầu nạp thêm 1GB (chờ Admin duyệt)",
+  hiện danh sách yêu cầu + trạng thái. **Chưa có màn hình Admin duyệt** — theo lựa chọn của người
+  dùng dự án, F6 (Admin Page) sẽ làm màn hình duyệt thật sau; hiện tại Admin duyệt qua gọi API trực
+  tiếp.
+
+**Verify thật qua HTTP thật** (script 6 bước): Trưởng nhóm gửi yêu cầu → quota CHƯA đổi → user thường
+gọi API Admin bị chặn 403 → tạo tài khoản, promote thành admin, **gọi lại `POST /auth/refresh`** (xác
+nhận endpoint tự thêm ở F0 hoạt động đúng: JWT cũ không có claim `role=admin` vì stateless, phải làm
+mới token sau khi promote mới có claim) → Admin thấy đúng yêu cầu đang chờ → duyệt → quota tăng đúng
+2GB → duyệt lại lần 2 (đã xử lý) trả đúng 404. Đã dọn dữ liệu test.
+
+**F5 hoàn thành — Họp trực tuyến (LiveKit) & Mini App IPTV:**
+
+Backend Media Service đã xong từ Phase 5/6 nhưng **chỉ từng được test bằng script server-side**, nên
+khi ghép Frontend thật mới lộ ra 6 lỗ hổng — tất cả đều là "không có API nào làm được việc mà giao
+diện bắt buộc phải làm", không phải lỗi logic:
+
+- [x] **Media Service thiếu CORS hoàn toàn** (không có cả `AddCors` lẫn `UseCors`) — cùng loại lỗi
+  đã gặp ở Chat Service, nhưng ở đây nặng hơn vì thiếu cả hai vế. Script test gọi từ Node nên không
+  bao giờ lộ ra; trình duyệt gọi từ `http://localhost:5173` sẽ bị chặn ngay ở bước preflight.
+- [x] `GET /meetings/active?conversationId=` — **thiếu sót nghiêm trọng nhất**: khi Trưởng nhóm mở
+  họp `mode=in_chat`, Chat Service chỉ nhận được 1 tin nhắn hệ thống dạng CHỮ ("X đã mở cuộc họp"),
+  **không kèm meetingId**. Cả nhóm nhìn thấy dòng chữ đó mà không có cách nào biết vào cuộc họp nào —
+  tính năng "họp trong nhóm chat" trên thực tế là bất khả thi từ phía client. Endpoint mới cho phòng
+  chat tự hỏi "nhóm tôi có cuộc họp nào đang mở không".
+- [x] `POST /meetings/{id}/join` — luồng invite có sẵn (`InvitesEndpoints.cs`) sinh ra để mời NGƯỜI
+  NGOÀI: link invite thì **luôn phải chờ host duyệt**. Không ai đi tạo link mời rồi tự duyệt cho từng
+  thành viên trong chính nhóm của mình. Endpoint mới cho thành viên nhóm vào thẳng (xác minh tư cách
+  thành viên qua Chat Service, fail-closed nếu không hỏi được). Host luôn vào lại được phòng của chính
+  mình — cần thiết vì token LiveKit chỉ được phát 1 lần lúc tạo/duyệt, tải lại trang là mất.
+- [x] `GET /internal/conversations/{id}/members/{userId}` (**Chat Service**) — Media Service không có
+  bản sao `workspace_members` nên không tự kiểm tra được tư cách thành viên. Trả kèm `isLeader` để
+  khỏi phải gọi thêm WorkSpace Service.
+- [x] `GET /meetings/{id}/participants` — đã có API kick/cấp quyền **theo userId** nhưng không có API
+  nào liệt kê ai đang ở trong phòng để bấm. Trả kèm nickname thật (resolve qua Identity Service) và
+  danh sách quyền đã cấp.
+- [x] `POST /meetings/{id}/leave` — trước đó **chỉ có kick mới set `left_at`**; người tự đóng tab sẽ
+  vĩnh viễn được đếm là "đang ở trong phòng", khiến trigger `trg_close_meeting_if_empty` không bao giờ
+  chạy và số người hiển thị sai mãi mãi.
+- [x] `GET /miniapps/iptv/channel-lists/{listId}/groups` — có POST tạo nhóm kênh/kênh nhưng **không có
+  GET nào đọc lại được**: kênh tạo xong không hiển thị lại được ở bất kỳ đâu, Mini App IPTV không thể
+  có giao diện. Trả nguyên cây (groups + channels lồng nhau) trong 1 request.
+
+Frontend:
+- [x] `MeetingRoomPage` (`/meetings/:id`) — **WebRTC thật qua `livekit-client` v2**, không phải mô
+  phỏng: lưới video theo số người, bật/tắt mic/cam, trình chiếu màn hình, rời phòng, host kết thúc cho
+  tất cả. Dùng `livekit-client` thuần (không dùng `@livekit/components-react`) để không kéo thêm một
+  hệ thống UI riêng vào dự án — đổi lại phải tự ép render lại ô video mỗi khi LiveKit bắn sự kiện
+  track/participant (LiveKit không phát sự kiện React nào).
+- [x] Bảng điều khiển của host ngay trong phòng: phòng chờ (duyệt/từ chối), mời ra, cấp/thu quyền
+  `share_screen` + `mini_app`, tạo link mời 24 giờ.
+- [x] `JoinMeetingPage` (`/meetings/join/:token`) — xem trước (chủ phòng/số người/có cần duyệt không)
+  → vào phòng → nếu phải chờ thì **poll** cho tới khi host duyệt rồi tự vào. Poll là bắt buộc: Media
+  Service chưa có tầng WebSocket, token LiveKit nằm trong Redis và **chỉ đọc được đúng 1 lần**.
+- [x] `ChatRoomPage`: nút "Gọi video" (mở họp gắn với hội thoại) + banner "Đang có cuộc họp — Tham
+  gia" cho cả P2P lẫn Group, poll 10 giây/lần.
+- [x] Mini App IPTV: `IptvManagePage` (`/app/iptv`, quản lý danh sách/nhóm/kênh riêng của mỗi người)
+  và `IptvPanel` (chọn kênh xem ngay trong phòng họp, chỉ hiện với host hoặc người được cấp quyền
+  `mini_app`).
+
+**Giới hạn đã biết, ghi rõ để không hiểu nhầm là đã xong:**
+- **Mini App chưa đồng bộ được cả phòng**: đúng như ghi chú sẵn có trong `MiniAppSessionEndpoints.cs`,
+  `POST /mini-app/start` chỉ kiểm tra quyền rồi trả 200 — không có tầng WebSocket nên các client khác
+  trong phòng không được báo. Mỗi người tự chọn kênh riêng; muốn "cùng xem 1 kênh" hiện phải tự thoả
+  thuận qua chat. Đây là giới hạn của backend đã có, không phải thiếu sót của Frontend.
+- **Luồng `.m3u8` (HLS) chưa phát được trên Chrome/Firefox** — thẻ `<video>` chỉ phát sẵn MP4/WebM
+  (và HLS trên Safari). Cần thêm `hls.js` khi có nguồn phát thật để kiểm chứng; chưa đưa vào để không
+  kéo thêm phụ thuộc cho một thứ chưa test được.
+- **Rời phòng khi đóng tab** dùng `fetch` + `keepalive:true` chứ **không** dùng `navigator.sendBeacon`
+  — beacon không gắn được header `Authorization` nên sẽ bị 401.
+
+**Verify thật qua HTTP thật (script 13 bước, 43 phép kiểm tra, tất cả PASS):** preflight CORS từ đúng
+origin Frontend → tạo 3 tài khoản + workspace + thêm thành viên thật → chưa họp thì `/meetings/active`
+trả 204, người ngoài nhóm bị chặn 403 → Trưởng nhóm mở họp → thành viên **tự tìm thấy** cuộc họp →
+vào thẳng không cần invite, **giải mã JWT LiveKit nhận được** để xác nhận đúng `room=meeting-{id}` và
+đúng `identity` (không tin suông là "có token"), người ngoài nhóm bị 403 → liệt kê người trong phòng
+(đúng nickname thật, đúng role) → cấp quyền `mini_app` rồi kiểm chứng lại qua `/participants` → tạo và
+**đọc lại** danh sách kênh IPTV, người khác không đọc được của mình (404) → lấy stream URL (người
+ngoài phòng 403) → rời phòng, kiểm tra danh sách giảm đúng, gọi lại lần 2 vẫn 204 (idempotent) → host
+tải lại trang vẫn xin được token mới → **trọn vẹn luồng link mời**: tạo link → xem trước → người ngoài
+vào phòng chờ → host thấy → duyệt → người đó poll nhận được token → **poll lần 2 xác nhận token đã bị
+tiêu thụ** (`participant` + token `null`) → không phải host thì không kết thúc được (403) → host kết
+thúc → `/meetings/active` lại trả 204. Đã dọn sạch dữ liệu test ở cả 4 CSDL (Identity/WorkSpace/Chat/
+Media/MiniApp), xác nhận workspace "eberg" và tài khoản thật của người dùng dự án còn nguyên.
+
+**Lỗi cấu hình LiveKit phát hiện khi người dùng dự án bấm mở phòng họp thật trên trình duyệt:** phòng
+kết nối được signaling nhưng luôn `NegotiationError: negotiation timed out`. Đọc log LiveKit thấy rõ
+nguyên nhân: `use_external_ip: true` khiến LiveKit hỏi STUN để tìm IP công cộng rồi **quảng bá chính
+IP công cộng của nhà mạng (116.96.45.39) làm địa chỉ nhận media**. Trình duyệt ở ngay cùng máy gửi gói
+UDP ra Internet tới IP đó và không bao giờ quay về được (NAT hairpin thất bại) — log ICE ghi
+`requestsSent: 8, responsesReceived: 0`, `state: "failed"`. Signaling qua cổng 7880 vẫn OK nên nhìn bề
+ngoài tưởng đã kết nối.
+
+- [x] Sửa `Tainguyen/infra/livekit-values.yaml`: `use_external_ip: false` + thêm `node_ip: "127.0.0.1"`
+  (bắt buộc đi kèm — nếu không LiveKit quảng bá IP pod `10.244.x.x` mà Windows host không route tới
+  được). Dùng được vì kind đã map sẵn `7881/tcp` + `7882/udp` ra host. Đã `helm upgrade` + khởi động
+  lại, xác nhận log đổi thành `nodeIP: 127.0.0.1`.
+- **Lưu ý khi test 2 máy khác nhau trong cùng LAN:** phải đổi `node_ip` thành IP LAN của máy chạy
+  LiveKit (vd `192.168.1.x`); `127.0.0.1` chỉ dùng được khi mọi client ở trên cùng 1 máy.
+- **Đã kiểm chứng sửa xong bằng log server thật:** trước khi sửa
+  `"state": "failed", requestsSent: 8, responsesReceived: 0`; sau khi sửa
+  `"[local][selected:1] udp4 host 127.0.0.1:53398"` + `"connectionType": "udp"` và các lần rời phòng
+  đều là `reason: "CLIENT_REQUEST_LEAVE"` (thoát bình thường) — tức WebRTC đã bắt tay thành công.
+- **Vướng khi nâng cấp:** pod LiveKit dùng `hostPort` cho `rtc-tcp`/`rtc-udp`, mà cụm chỉ có 1 node —
+  nên `rollout restart` sẽ treo vĩnh viễn ở `Pending` ("didn't have free ports for the requested pod
+  ports") vì pod mới chờ pod cũ nhả cổng còn pod cũ chờ pod mới sẵn sàng. Phải **xoá tay pod cũ** để
+  pod mới vào chỗ.
+
+**Nâng LiveKit server 1.9.0 → 1.13.5:** client `livekit-client` 2.21 gọi đường dẫn signaling **mới**
+`/rtc/v1`, server 1.9.0 chưa có nên trả 404 (`"v1 RTC path not found. Consider upgrading your LiveKit
+server version"`), client phải lùi về `/rtc` — vẫn chạy được nhưng mỗi lần kết nối tốn thừa một
+request thất bại và một dòng lỗi đỏ trong console.
+
+- [x] **Chart Helm lag hơn image**: bản chart mới nhất trên `helm.livekit.io` vẫn là `1.9.0`
+  (appVersion v1.9.0), trong khi image trên Docker Hub đã tới `v1.13.5`. Không nâng được bằng cách
+  đổi chart version — phải **ghi đè `image.tag`** trong `livekit-values.yaml`.
+- [x] `kind load docker-image` **thất bại** với image đa nền tảng (`ctr: content digest ... not found`)
+  — bỏ qua, để node tự pull thẳng từ Docker Hub.
+- **Verify thật qua HTTP thật:** Media Service tạo phòng trên bản 1.13.5 trả 201 (xác nhận Server API
+  còn tương thích với SDK `Livekit.Server.Sdk.Dotnet` đang dùng) → host lấy được token → gọi
+  `/rtc/v1/validate` trả **400 `join_request is required`** thay vì **404 `not found`** (400 = endpoint
+  ĐÃ TỒN TẠI, chỉ thiếu tham số mà client thật luôn gửi kèm) → đường dẫn cũ `/rtc/validate` vẫn trả 200
+  (tương thích ngược). Service vẫn giữ đúng NodePort 30880/30881/30882 và các cổng host 7880/7881/7882.
+  Đã dọn dữ liệu test.
+
+**Lỗi nghiêm trọng nhất của F5 — "tải lại trang một cái là chết cả cuộc họp"** (tự gây ra, tự phát
+hiện qua ảnh chụp màn hình của người dùng dự án: phòng hiện *"Người tham gia (0)"* và
+*"Không tạo được link mời"* trong khi họ đang ngồi trong phòng). Truy CSDL thấy ngay:
+
+```
+meeting 7:      status=ended,  ended_at=03:22:59.260222
+participant 49: joined 03:22:47, left_at=03:22:59.259659   <- cùng thời điểm
+```
+
+Nguyên nhân: Frontend đăng ký handler `pagehide` gọi `POST /meetings/{id}/leave` để "dọn `left_at` khi
+đóng tab". Nhưng `pagehide` chạy cả khi **TẢI LẠI TRANG** (F5, Vite tự reload sau khi sửa code, điều
+hướng). Chuỗi đổ vỡ: F5 → `/leave` → `left_at` được set → trigger `trg_close_meeting_if_empty` thấy
+phòng rỗng → **kết thúc luôn cuộc họp**. Người dùng quay lại thì phòng đã `ended`, nên
+`GET /participants` trả 0 người và `POST /invites` trả 404. Nó còn gây thêm lỗi camera: bản trang cũ
+chưa kịp nhả camera thì bản mới đã đòi → `NotReadableError` dù **không có ứng dụng nào khác dùng
+camera** (Chrome hiển thị đúng triệu chứng này: Camera *"Recently used"*, Microphone *"Using now"*).
+
+- [x] **Gỡ bỏ hoàn toàn handler `pagehide`** — tải lại trang KHÔNG PHẢI là rời phòng. Chỉ còn ghi nhận
+  rời phòng khi người dùng **bấm nút** rời / bị kick / host kết thúc.
+- [x] Bù lại chỗ hổng "đóng tab thẳng thì không ai set `left_at`" bằng cơ chế đúng thay vì đoán:
+  `LiveKitService.RoomExistsAsync()` + tự chữa lành trong `GET /meetings/active` — LiveKit tự dọn
+  phòng rỗng sau `EmptyTimeout` (5 phút), nên "phòng bên LiveKit không còn" là tín hiệu đáng tin cậy
+  rằng cuộc họp đã tan; lúc đó mới đánh dấu `ended` + set `left_at` cho những người còn sót.
+  **Fail-open**: LiveKit lỗi/không gọi được thì coi như phòng vẫn còn — một sự cố tạm thời của LiveKit
+  không được phép đi kết thúc cuộc họp thật của người dùng.
+- [x] Thử lại 1 lần sau 700ms khi bật camera/mic thất bại — xử lý đúng khoảng tranh chấp thiết bị lúc
+  trang cũ chưa nhả mà trang mới đã đòi.
+- [x] Frontend nhận biết `status === "ended"` → hiện màn hình *"Cuộc họp này đã kết thúc"*. Trước đây
+  không kiểm tra: màn hình đứng yên, hiện 0 người, mọi thao tác 404 mà không nói lý do.
+
+**Verify thật qua HTTP thật (9/9 PASS)** đúng kịch bản gây lỗi: mở họp → vào phòng (1 người) →
+**mô phỏng F5** → xin lại token OK → cuộc hop **vẫn `active`** → vẫn đếm đúng 1 người (không phải 0) →
+**vẫn tạo được link mời** (đúng thứ trước đây báo *"Không tạo được link mời"*) → thành viên khác vẫn
+thấy cuộc họp đang mở → cuối cùng bấm "Rời phòng" thật thì cuộc họp **vẫn kết thúc đúng như thiết kế**
+(không phá mất hành vi đúng khi sửa bug). Đã dọn dữ liệu test, xác nhận workspace "eberg" và tài khoản
+thật còn nguyên.
+
+**Nguyên nhân THẬT của "camera luôn báo bị chiếm dù không ứng dụng nào bật"** — người dùng dự án phản
+bác đúng lời giải thích ban đầu ("đóng Zoom/Teams đi"), và log lần sau chỉ thẳng thủ phạm:
+
+```
+connection state changed: disconnected -> connecting     <- HAI LAN
+disconnect from room  /  Abort connection attempt due to user initiated disconnect
+DataChannel error on lossy: User-Initiated Abort ... sctpCauseCode: 12
+publisher data channel 'RELIABLE' closed unexpectedly
+client leave request received (action=0)                 <- LiveKit DUOI phien cu ra
+```
+
+`<StrictMode>` (bật trong `main.tsx`) **gọi effect 2 lần** ở chế độ dev. Effect kết nối phòng trước
+đây tạo 1 `Room` mỗi lần và chạy song song, gây hai hậu quả:
+1. Cả 2 `Room` dùng **cùng identity** (= userId) nên LiveKit coi bản mới là phiên trùng và **đuổi bản
+   cũ ra** — chính là chuỗi `client leave request` + data channel đóng đột ngột (`sctpCauseCode: 12`).
+2. Cả 2 cùng đòi camera → bản thứ hai **luôn** nhận `NotReadableError: Could not start video source`
+   dù máy không có ứng dụng nào khác dùng camera.
+
+- [x] Sửa: **tuần tự hoá** mọi thao tác kết nối/ngắt qua một promise dùng chung (`connectionChain`) —
+  việc ngắt phòng cũ luôn chạy xong TRƯỚC khi việc kết nối phòng mới bắt đầu, nên chỉ có đúng 1 `Room`
+  sống tại một thời điểm và camera được nhả hoàn toàn trước khi đòi lại. Lần chạy bị StrictMode huỷ
+  được đánh dấu `cancelled` trước khi tới lượt nên **bỏ qua hẳn** — không tạo `Room`, không đụng camera.
+- [x] Việc ngắt phòng trong cleanup cũng phải xếp hàng: gọi trực tiếp thì nó chạy trong lúc `connect()`
+  của chính lần đó còn dở (`Room` chưa kịp gán vào biến), khiến phòng cũ không bao giờ được đóng tử tế
+  và vẫn giữ camera.
+- [x] Sửa lại nội dung cảnh báo — bản cũ khẳng định chắc nịch là "do ứng dụng khác chiếm dụng", chính
+  là lời giải thích sai đã làm người dùng đi tìm nhầm hướng.
+
+**3 lỗi Frontend lộ ra sau khi luồng media chạy được** (trước đó bị lỗi ICE che mất):
+- [x] `enableCameraAndMicrophone()` **thất bại nguyên khối** — camera đang bị ứng dụng khác chiếm
+  (`NotReadableError: Could not start video source`) làm mất LUÔN cả micro dù micro hoàn toàn rảnh.
+  Sửa: bật mic và cam **riêng biệt**, cái nào hỏng chỉ mất cái đó.
+- [x] Các nút bật/tắt mic/cam/trình chiếu **không bắt lỗi** → lỗi rơi tự do thành unhandled rejection:
+  người dùng bấm nút và **không thấy gì xảy ra**, không biết tại sao. Sửa: bọc try/catch, phân biệt
+  `NotAllowedError` (bị chặn quyền → hướng dẫn bấm biểu tượng khoá trên thanh địa chỉ) với
+  `NotReadableError` (thiết bị bị chiếm dụng → hướng dẫn đóng ứng dụng kia).
+- [x] Thêm trạng thái `notice` (vàng) tách khỏi `error` (đỏ) — hỏng camera thì phòng **vẫn dùng được**,
+  không được hiển thị như lỗi chí mạng làm người dùng tưởng phải thoát ra.
+
+**Người lạ vào họp bằng link — theo yêu cầu người dùng dự án** ("người lạ vào link chỉ bảo họ điền
+biệt danh thôi, nếu người đó đăng nhập sẵn thì vào luôn, nó tiện với người lạ"). Trước đó
+`/meetings/join/:token` bị bọc `ProtectedRoute` nên **người chưa có tài khoản không vào được** — link
+mời gần như vô dụng với đúng đối tượng nó sinh ra để phục vụ.
+
+- [x] Bỏ `ProtectedRoute` khỏi route `/meetings/join/:token`. Trang tự phân nhánh: **đã đăng nhập** →
+  hiện "Bạn đang đăng nhập là X" + bấm vào thẳng, không hỏi lại gì; **chưa đăng nhập** → chỉ hỏi
+  **đúng một** ô tên hiển thị.
+- [x] Tái dùng `POST /auth/guest` (UC-04, Identity Service đã có sẵn từ F0) để cấp JWT cho khách —
+  không dựng cơ chế danh tính mới, không bắt đăng ký email/mật khẩu.
+- [x] **Vá thêm một lỗ hổng phát hiện khi làm phần này:** khách được duyệt xong mà **F5 lại trang là
+  kẹt cứng** — token duyệt nằm trong Redis và chỉ đọc được ĐÚNG 1 LẦN, còn `POST /meetings/{id}/join`
+  thì trả 403 vì khách không phải thành viên hội thoại. Sửa: ai **đã là người trong phòng**
+  (`left_at IS NULL`) thì luôn được cấp lại token — họ đã được nhận vào rồi, tải lại trang không phải
+  là mất quyền.
+
+**Verify thật qua HTTP thật (12/12 PASS)**, mô phỏng đúng người lạ hoàn toàn: xem trước link **không
+cần đăng nhập** (200) → cố vào phòng khi chưa có danh tính bị chặn đúng (401) → chỉ với 1 biệt danh là
+có phiên Guest (`userType=guest`, không email/mật khẩu) → vào phòng chờ → **host thấy đúng cái tên
+khách tự đặt** → duyệt → khách nhận token → **F5 vẫn xin được token mới** (chỗ trước kia kẹt cứng) →
+một người lạ KHÁC chưa được duyệt vẫn bị chặn 403 (không mở toang cửa) → khách hiện đúng trong danh
+sách người trong phòng. Đã dọn dữ liệu test.
+
+**Thảo luận trong cuộc họp — theo yêu cầu người dùng dự án, KHÔNG có trong tài liệu gốc.** Mục 7.1
+liệt kê đầy đủ tính năng Media Service (mở họp / mời / phân quyền / dọn dẹp / chia sẻ định danh /
+Mini App / hạ tầng) và **không hề có chat trong cuộc họp**; Media DB cũng không có bảng nào lưu tin
+nhắn, UC-31→UC-37 không có use case nào về việc này. Đây là phần mở rộng tự thêm, tham chiếu cách
+Microsoft Teams làm (người ẩn danh chat được trong lúc họp, mất quyền khi rời).
+
+**Ba quyết định thiết kế chính:**
+
+- [x] **Nằm trong chính bảng `messages` của hội thoại nhóm**, phân biệt bằng cột mới `meeting_id`
+  (NULL = luồng chat chính), thay vì tạo một conversation riêng. Lý do quyết định: file đính kèm **tự
+  động** tính vào hạn mức lưu trữ của nhóm — trigger DB cộng `storage_used_bytes` theo
+  `conversation_id` — đúng yêu cầu "file cũng tính vào 2GB tổng" mà không phải viết thêm một dòng
+  logic kế toán nào.
+- [x] **Không mã hoá** (`is_encrypted = false`). Khách vãng lai vào họp bằng link **không có cặp khoá
+  X25519 nào** nên không thể dùng E2EE của chat nhóm. Đánh đổi đã biết và được chấp nhận — Teams cũng
+  không mã hoá đầu cuối chat trong họp.
+- [x] **Quyền truy cập hai nhánh**: thành viên nhóm vào được bất kể cuộc họp còn hay đã kết thúc (theo
+  lựa chọn "giữ lại, vẫn nhắn tiếp được"); khách vãng lai chỉ khi **đang thực sự ở trong cuộc họp VÀ
+  cuộc họp còn diễn ra** — rời phòng/hết họp là mất quyền, giống Teams. Với thành viên nhóm **không**
+  gọi Media Service (đỡ một vòng gọi mạng mỗi request, và không để sự cố của Media Service làm chết
+  luôn thảo luận của thành viên thật); an toàn vì mọi truy vấn đều ràng buộc `conversation_id`.
+
+**API mới:**
+- [x] `GET /internal/meetings/{id}/membership/{userId}` (**Media Service**) — Chat Service hỏi "người
+  này có đang ở trong cuộc họp đó không". Trả kèm `conversationId` để đối chiếu cuộc họp có đúng thuộc
+  hội thoại đang mở hay không, và `status` để phân biệt còn/đã kết thúc.
+- [x] `GET/POST /conversations/{cid}/meetings/{mid}/messages` (**Chat Service**) — đọc/gửi trong thảo
+  luận. Text ở đây **không** đòi `contentNonce`/`recipientKeys` như luồng chat chính.
+- [x] `GET /conversations/{cid}/meetings` — liệt kê các cuộc họp đã có thảo luận, để phòng chat hiện
+  link xem lại. Lấy từ chính Chat DB chứ không hỏi Media Service: cái màn hình cần là "những thảo luận
+  **có nội dung** để xem", không phải "mọi cuộc họp từng mở".
+- [x] `POST /files/upload-url` nhận thêm `meetingId` (tuỳ chọn) — khách gửi được file trong thảo luận;
+  `GET /files/{id}/download-url` lấy `meetingId` từ **chính tin nhắn chứa file** (không nhận từ client,
+  tránh giả mạo).
+- [x] SignalR: group **riêng** `meeting-{id}` (không dùng chung group của conversation) — khách nghe
+  được thảo luận nhưng **tuyệt đối không** nghe lén được luồng chat chính của nhóm.
+- [x] `GET /conversations/{id}/messages` nay lọc `meeting_id IS NULL`; tin thảo luận **cố ý không** ghi
+  vào cache Redis (cache đánh chỉ mục theo conversation, tin thảo luận chui vào sẽ lẫn sang chat chính).
+- [x] Chat Service có thêm `IdentityClient` — tên người gửi trong thảo luận phải hỏi Identity Service
+  vì khách vãng lai không thuộc workspace nào, lấy theo cách cũ sẽ ra "người trong nhóm" cho mọi khách.
+
+**Frontend:**
+- [x] **Thẻ cuộc họp** trong phòng chat (thay banner chữ đơn thuần trước đây): "Cuộc họp đang diễn ra"
+  + nút **Gia nhập** + nút **Xem thảo luận**. Kèm mục "Thảo luận của các cuộc họp trước" khi không có
+  cuộc họp nào đang mở.
+- [x] `MeetingDiscussion` dùng chung cho 2 chỗ: trang thảo luận riêng (`/app/chat/:id/meetings/:mid`)
+  và panel ngay trong phòng họp (nút "💬 Thảo luận"). Gửi được chữ, ảnh, video, ghi âm, tệp.
+  **Không cần nhập PIN** vì luồng này không mã hoá.
+
+**Lỗi thật gặp trong lúc làm:** EF Core không dịch được `GroupBy(...).Select(...)` khi gọi thẳng
+constructor của record (`The LINQ expression ... could not be translated`, trả 500). Sửa: chiếu sang
+kiểu ẩn danh trước rồi map sang record trong bộ nhớ.
+
+**Verify thật qua HTTP thật (19 + 5 = 24 phép kiểm tra, tất cả PASS):** thành viên gửi tin không mã hoá
+và đọc lại đúng nội dung gốc → khách **chưa** vào họp bị chặn 403 → khách vào bằng link, được duyệt →
+đọc/gửi được, **tên khách hiện đúng** (không phải "người trong nhóm") → khách **không** đọc được luồng
+chat chính (403) → người ngoài nhóm và ngoài họp bị chặn → **tin thảo luận không lẫn vào luồng chat
+chính** → khách upload file: **dung lượng nhóm tăng đúng đúng số byte** (0 → 12345), thành viên tải
+được file đó, người ngoài thì 403 → hết họp: thành viên **vẫn nhắn tiếp được**, khách **mất quyền** →
+liệt kê đúng số cuộc hop có thảo luận, đếm đúng số tin, sắp xếp mới nhất trước, người ngoài nhóm không
+liệt kê được. Đã dọn sạch dữ liệu test ở cả 4 CSDL.
+
+**Ghi chú thêm về lỗi CORS giả:** khi Identity Service ném exception chưa bắt (vd sai mật khẩu CSDL →
+`28P01`), response 500 **không đi qua middleware CORS** nên không có header `Access-Control-Allow-Origin`
+— trình duyệt báo thành "blocked by CORS policy" thay vì hiện lỗi 500 thật. Đã kiểm chứng sau khi sửa:
+preflight trả 204 và cả response 401 (sai mật khẩu thật) đều kèm đúng header CORS. **Khi thấy lỗi CORS
+bất ngờ ở một endpoint vốn vẫn chạy, phải xem log server trước — rất có thể là lỗi 500 đội lốt.**
+
+**Ghi chú:** trong lúc test có phát hiện `POST /workspaces/{id}/members` **không kiểm tra `userId` có
+tồn tại thật hay không** (gửi thiếu trường thì thêm nhầm thành viên `userId=0` mà vẫn trả 201). Đây là
+lỗ hổng có thật của WorkSpace Service nhưng nằm ngoài phạm vi F5 — đã dọn dữ liệu rác, ghi lại ở đây
+để vá sau.
 
 ---
 
@@ -3972,7 +4530,15 @@ Admin Service (Phase 4).
       làm ở Phase 1)
 - [x] Kafka: topic `Chat Log` — tên thật: `chat.service-log` (đã làm ở Phase 2, bổ sung field
       `Content` ở Phase 3 để phục vụ phân tích spam)
-- [ ] Kafka: topic `Error Log` (mức hệ thống tổng thể — chưa có consumer, chưa làm)
+- [x] Kafka: topic `Error Log` — tên thật: `system.error-log`. Chỉ làm phần **producer** (đúng tinh
+      thần "chưa có consumer cụ thể" của tài liệu gốc — chuẩn bị dữ liệu sẵn cho công cụ ops/ELK sau
+      này, không tự bịa 1 consumer không được yêu cầu). `ErrorLogPublisher` + middleware bắt
+      unhandled exception (publish rồi `throw` tiếp, không nuốt lỗi, không đổi hành vi trả lỗi mặc
+      định của ASP.NET Core) — **CHỈ áp dụng cho 3 service đã có sẵn Kafka client** (Identity, Chat,
+      SpamTrackingService); KHÔNG áp dụng cho WorkSpace/Admin/Media vì 3 service này chưa tích hợp
+      Kafka, thêm mới chỉ cho tính năng log lỗi phụ này không tương xứng chi phí/lợi ích — ghi chú rõ
+      đây là **phủ sóng một phần**, không phải toàn bộ 6 service như đúng nghĩa "mức hệ thống tổng
+      thể" ban đầu.
 - [x] RabbitMQ: hàng đợi cho từng cặp publisher → consumer đã liệt kê ở mục 8.1 — cả 3 cặp
       (SpamTracking→Identity khoá/xoá, WorkSpace→Identity thông báo rời nhóm) đã publish, chỉ
       riêng "thông báo rời nhóm" bên Identity CHƯA có consumer (mới publish, chưa xử lý)

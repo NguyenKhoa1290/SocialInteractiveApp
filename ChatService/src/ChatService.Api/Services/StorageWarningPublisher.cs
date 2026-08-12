@@ -11,6 +11,7 @@ public class RabbitMqOptions
     public string Username { get; set; } = "guest";
     public string Password { get; set; } = "guest";
     public string StorageWarningQueue { get; set; } = "identity.storage-warning";
+    public string NewMessageQueue { get; set; } = "identity.chat-message-notification";
 }
 
 public record StorageWarningMessage(long WorkspaceId, long ConversationId, string Stage, DateTimeOffset? ExpiresAt);

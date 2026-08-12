@@ -1,0 +1,71 @@
+.shell {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.shell-brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.shell-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.shell-logout-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--social-bg);
+  color: var(--text-h);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.shell-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+  padding-bottom: 88px;
+}
+
+.bottom-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--code-bg);
+  z-index: 40;
+}
+
+.bottom-dock-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.bottom-dock-tab.active {
+  color: var(--accent);
+  font-weight: 700;
+}

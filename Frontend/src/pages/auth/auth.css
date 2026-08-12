@@ -1,0 +1,101 @@
+/* Dung chung CSS variables da dinh nghia san o index.css (--bg/--text/--text-h/
+   --border/--code-bg/--accent/--social-bg/--shadow, co san bien the dark mode
+   qua @media prefers-color-scheme) - KHONG hardcode hex mau rieng, tranh bug
+   dark mode: h1 dung var(--text-h) (gan trang o dark mode) tren card hardcode
+   nen trang se thanh chu trang tren nen trang, khong doc duoc. */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.auth-card {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: var(--shadow);
+  box-sizing: border-box;
+}
+
+.auth-card h1 {
+  font-size: 22px;
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--sans);
+}
+
+.auth-btn-primary {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-btn-secondary {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--social-bg);
+  color: var(--text-h);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.auth-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-error {
+  color: #e0526a;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.auth-divider {
+  margin: 16px 0;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.auth-footer {
+  margin-top: 20px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text);
+}
+
+.auth-footer a {
+  color: var(--accent);
+}

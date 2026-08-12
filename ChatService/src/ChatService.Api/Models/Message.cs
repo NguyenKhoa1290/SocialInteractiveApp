@@ -27,10 +27,25 @@ public class Message
     public string? ContentNonce { get; set; }
 
     public bool IsDeleted { get; set; }
+
+    // "Sua tin nhan" (tu de xuat) - chi sender, chi Type == Text (E2EE), chi
+    // trong khung thoi gian gioi han sau khi gui (xem EditWindow o
+    // ConversationEndpoints.cs). Khac "thu hoi" (dung chung is_deleted voi
+    // xoa cua Truong nhom, nhung co dieu kien rieng - xem endpoint recall).
+    public bool IsEdited { get; set; }
+    public DateTimeOffset? EditedAt { get; set; }
+
+    // Luong THAO LUAN rieng cua 1 cuoc hop (Media Service). NULL = tin nhan
+    // cua luong chat CHINH. Xem ghi chu day du trong chat-db-init.sql.
+    // Tin nhan co MeetingId LUON IsEncrypted=false (khach vang lai khong co
+    // cap khoa E2EE).
+    public long? MeetingId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public Conversation? Conversation { get; set; }
     public List<MessageRecipientKey> RecipientKeys { get; set; } = [];
+    public List<MessageSearchToken> SearchTokens { get; set; } = [];
 
     public static string TypeToString(MessageType t) => t switch
     {

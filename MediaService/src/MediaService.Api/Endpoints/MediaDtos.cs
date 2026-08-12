@@ -6,10 +6,10 @@ public record ErrorResponse(string Error, string Message);
 
 public record CreateMeetingRequest(string Mode, long? ConversationId);
 
-public record MeetingResponse(long Id, long HostId, string Status, int MaxParticipants, DateTimeOffset CreatedAt)
+public record MeetingResponse(long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
-        m.Id, m.HostId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt);
+        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt);
 }
 
 // Mo rong so voi schema "Meeting" trong OpenAPI spec goc - CAN mo rong vi
@@ -19,12 +19,12 @@ public record MeetingResponse(long Id, long HostId, string Status, int MaxPartic
 // chi co y nghia cho CHINH nguoi dang goi, khong phai thuoc tinh chung cua
 // cuoc hop.
 public record MeetingWithCallerStatusResponse(
-    long Id, long HostId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     string CallerStatus, string? LivekitToken, string? LivekitUrl)
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
-        m.Id, m.HostId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
         callerStatus, livekitToken, livekitUrl);
 }
 
@@ -44,6 +44,11 @@ public record JoinResultResponse(string Status, string? LivekitToken, string? Li
 
 public record WaitingParticipantResponse(long UserId, string Nickname, DateTimeOffset RequestedAt);
 
+// Thieu sot phat hien khi build Frontend F5: co API kick/cap quyen theo
+// userId nhung KHONG co cach nao liet ke ai dang o trong phong de bam.
+public record MeetingParticipantResponse(
+    long UserId, string Nickname, string Role, DateTimeOffset JoinedAt, string[] Permissions);
+
 public record GrantPermissionRequest(string PermissionType);
 
 public record CreateChannelListRequest(string Name);
@@ -54,6 +59,9 @@ public record IptvChannelListResponse(long Id, string Name, DateTimeOffset Creat
 }
 
 public record CreateChannelGroupRequest(string GroupName);
+
+public record IptvChannelResponse(long Id, string ChannelName, string StreamUrl, string? AudioTrack);
+public record IptvChannelGroupResponse(long Id, string GroupName, IptvChannelResponse[] Channels);
 
 public record CreateChannelRequest(string ChannelName, string StreamUrl, string? AudioTrack);
 

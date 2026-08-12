@@ -12,6 +12,28 @@ public static class WorkspaceEndpoints
     {
         var ws = app.MapGroup("/workspaces").RequireAuthorization();
 
+        // Danh sach nhom cua chinh nguoi goi - tu de xuat, thieu sot phat hien
+        // khi build man hinh Frontend F1 "Danh sach nhom cua toi" (tai lieu
+        // dac ta frontend muc 4): trong OpenAPI spec goc chi co
+        // POST/GET(theo id)/PATCH/DELETE /workspaces, khong co endpoint nao
+        // liet ke theo user dang dang nhap.
+        ws.MapGet("", async (ClaimsPrincipal principal, WorkspaceDbContext db) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var rows = await db.WorkspaceMembers
+                .Where(m => m.UserId == userId)
+                .Include(m => m.Workspace)
+                .ToListAsync();
+
+            var result = rows
+                .OrderByDescending(m => m.Workspace!.UpdatedAt)
+                .Select(m => new WorkspaceSummaryResponse(
+                    m.Workspace!.Id, m.Workspace.Name, m.Workspace.AvatarUrl,
+                    WorkspaceMember.RoleToString(m.Role), m.Workspace.UpdatedAt));
+
+            return Results.Ok(result);
+        });
+
         // UC-17: Tao nhom moi - nguoi goi tu dong thanh Truong nhom
         ws.MapPost("", async (CreateWorkspaceRequest req, ClaimsPrincipal principal, WorkspaceDbContext db, ChatServiceClient chatClient) =>
         {
@@ -179,6 +201,7 @@ public static class WorkspaceEndpoints
                 db.WorkspaceMembers.Remove(target);
                 await db.SaveChangesAsync();
                 await notifier.PublishAsync("member_kicked", workspaceId, userId);
+                await chatClient.NotifyMemberRemovedAsync(workspaceId, userId);
                 return Results.NoContent();
             }
 
@@ -196,6 +219,7 @@ public static class WorkspaceEndpoints
             db.WorkspaceMembers.Remove(target);
             await db.SaveChangesAsync();
             await notifier.PublishAsync("member_left", workspaceId, userId);
+            await chatClient.NotifyMemberRemovedAsync(workspaceId, userId);
             return Results.NoContent();
         });
 

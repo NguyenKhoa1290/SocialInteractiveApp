@@ -35,9 +35,34 @@ public static class UsersEndpoints
             if (user is null)
                 return Results.NotFound();
 
+            var nicknameTaken = await db.Users.AnyAsync(u => u.Id != userId && u.Nickname.ToLower() == req.Nickname.ToLower());
+            if (nicknameTaken)
+                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
+
             user.Nickname = req.Nickname;
             await db.SaveChangesAsync();
             return Results.Ok(UserResponse.FromEntity(user));
+        });
+
+        // Tim nguoi dung theo nickname (tu de xuat, phuc vu man hinh "Tim
+        // ban" o Frontend - tinh nang ban be khong co trong tai lieu goc,
+        // xem FriendsEndpoints.cs). Chi tim user Active, loai chinh minh.
+        users.MapGet("/search", async (string q, ClaimsPrincipal principal, IdentityDbContext db) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null)
+                return Results.Unauthorized();
+
+            if (string.IsNullOrWhiteSpace(q))
+                return Results.Ok(Array.Empty<UserResponse>());
+
+            var results = await db.Users
+                .Where(u => u.Id != userId && u.Status == Models.UserStatus.Active && EF.Functions.ILike(u.Nickname, $"%{q}%"))
+                .OrderBy(u => u.Nickname)
+                .Take(20)
+                .ToListAsync();
+
+            return Results.Ok(results.Select(UserResponse.FromEntity));
         });
     }
 

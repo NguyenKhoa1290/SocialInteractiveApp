@@ -29,6 +29,13 @@ public static class AuthEndpoints
             if (exists)
                 return Results.Conflict(new ErrorResponse("email_taken", "Email da duoc dang ky"));
 
+            // Nickname phai duy nhat toan he thong (tu bo sung, xem
+            // identity-db-init.sql idx_users_nickname_lower) - can cho tim
+            // kiem ban be theo nickname khong bi lan giua nhieu nguoi.
+            var nicknameTaken = await db.Users.AnyAsync(u => u.Nickname.ToLower() == req.Nickname.ToLower());
+            if (nicknameTaken)
+                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
+
             var user = new User
             {
                 UserType = UserType.Registered,
@@ -72,6 +79,10 @@ public static class AuthEndpoints
         {
             if (string.IsNullOrWhiteSpace(req.Nickname) || req.Nickname.Length > 50)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Nickname bat buoc, toi da 50 ky tu"));
+
+            var nicknameTaken = await db.Users.AnyAsync(u => u.Nickname.ToLower() == req.Nickname.ToLower());
+            if (nicknameTaken)
+                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
 
             var user = new User
             {
@@ -207,6 +218,47 @@ public static class AuthEndpoints
                     await store.BlocklistTokenAsync(jti, ttl);
             }
             return Results.NoContent();
+        }).RequireAuthorization();
+
+        // Sliding expiration (tu de xuat, khac phuc thieu sot: comment cu o
+        // JwtTokenService.cs nhac toi "endpoint refresh" nhung chua tung
+        // duoc viet) - client goi endpoint nay TRUOC khi token het han (vi
+        // du o 80% thoi gian song) de duoc cap token moi cung han muc,
+        // mien la con hoat dong. Bat buoc token HIEN TAI van con hop le
+        // (RequireAuthorization) - khong the "hoi sinh" token da het han,
+        // dung dung nguyen tac "chi gia han khi con hoat dong".
+        auth.MapPost("/refresh", async (ClaimsPrincipal principal, IdentityDbContext db, JwtTokenService jwt, RedisAuthStore store) =>
+        {
+            var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (sub is null || !long.TryParse(sub, out var userId))
+                return Results.Unauthorized();
+
+            var user = await db.Users.FindAsync(userId);
+            if (user is null)
+                return Results.Unauthorized();
+
+            if (user.Status == UserStatus.Locked)
+                return Results.Json(
+                    new { error = "account_locked", message = "Tai khoan dang bi khoa vi vi pham chinh sach chong spam" },
+                    statusCode: 403);
+
+            // Chan token cu ngay sau khi cap token moi - tranh 2 token cung
+            // song song hop le (giam thieu rui ro neu token cu bi lo).
+            var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
+            var expClaim = principal.FindFirstValue(JwtRegisteredClaimNames.Exp);
+            if (jti is not null && expClaim is not null && long.TryParse(expClaim, out var expUnix))
+            {
+                var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix);
+                var ttl = expiresAt - DateTimeOffset.UtcNow;
+                if (ttl > TimeSpan.Zero)
+                    await store.BlocklistTokenAsync(jti, ttl);
+            }
+
+            user.LastActiveAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+
+            var token = jwt.IssueToken(user);
+            return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         }).RequireAuthorization();
     }
 }

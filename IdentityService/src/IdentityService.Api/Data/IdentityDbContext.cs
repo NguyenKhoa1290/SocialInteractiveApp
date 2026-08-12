@@ -10,6 +10,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<OAuthLink> OAuthLinks => Set<OAuthLink>();
+    public DbSet<Friendship> Friendships => Set<Friendship>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +55,22 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
                 .WithMany(u => u.OAuthLinks)
                 .HasForeignKey(o => o.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Friendship>(entity =>
+        {
+            entity.ToTable("friendships");
+            entity.HasKey(f => f.Id);
+            entity.Property(f => f.Id).HasColumnName("id");
+            entity.Property(f => f.RequesterId).HasColumnName("requester_id");
+            entity.Property(f => f.AddresseeId).HasColumnName("addressee_id");
+            entity.Property(f => f.Status)
+                .HasColumnName("status")
+                .HasConversion(
+                    v => v == FriendshipStatus.Pending ? "pending" : "accepted",
+                    v => v == "pending" ? FriendshipStatus.Pending : FriendshipStatus.Accepted);
+            entity.Property(f => f.CreatedAt).HasColumnName("created_at");
+            entity.Property(f => f.RespondedAt).HasColumnName("responded_at");
         });
     }
 }

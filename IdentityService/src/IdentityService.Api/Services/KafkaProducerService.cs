@@ -7,6 +7,7 @@ public class KafkaOptions
 {
     public string BootstrapServers { get; set; } = "localhost:9092";
     public string AuthHistoryTopic { get; set; } = "identity.auth-history";
+    public string ErrorLogTopic { get; set; } = "system.error-log";
 }
 
 public record AuthHistoryEvent(string EventType, long UserId, string? Email, string UserType, DateTimeOffset OccurredAt);

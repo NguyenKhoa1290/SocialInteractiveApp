@@ -1,0 +1,353 @@
+.meet-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #16181d;
+  color: #e9ecef;
+}
+
+.meet-center {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+}
+
+.meet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #2b2f36;
+  font-weight: 600;
+}
+
+.meet-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.meet-header button,
+.meet-controls button,
+.meet-side button,
+.meet-join-card button,
+.meet-inline-form button {
+  padding: 6px 12px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #22262d;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.meet-header button:hover,
+.meet-controls button:hover,
+.meet-side button:hover {
+  background: #2c313a;
+}
+
+.meet-controls button:disabled,
+.meet-inline-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.meet-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 12px;
+}
+
+.meet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  flex: 1;
+  align-content: start;
+}
+
+.meet-tile {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #0f1115;
+  border: 1px solid #2b2f36;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.meet-tile-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meet-tile-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 42px;
+  font-weight: 700;
+  color: #6b7280;
+  background: #1b1e24;
+}
+
+.meet-tile-label {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+}
+
+.meet-tile-muted {
+  font-size: 12px;
+}
+
+.meet-side {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  background: #1b1e24;
+  border: 1px solid #2b2f36;
+  border-radius: 8px;
+}
+
+.meet-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meet-side h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.meet-side select,
+.meet-inline-form input,
+.meet-invite-link {
+  padding: 6px 8px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #22262d;
+  color: #e9ecef;
+  font-size: 14px;
+}
+
+.meet-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meet-people li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #22262d;
+  font-size: 14px;
+}
+
+.meet-people-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meet-people-actions button {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.meet-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid #2b2f36;
+}
+
+.meet-danger {
+  border-color: #7f2b2b !important;
+  background: #3a1c1c !important;
+}
+
+.meet-danger:hover {
+  background: #4a2222 !important;
+}
+
+.meet-off {
+  border-color: #7a5a1f !important;
+  background: #3a2f16 !important;
+}
+
+.meet-error {
+  margin: 8px 16px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #3a1c1c;
+  border: 1px solid #7f2b2b;
+  font-size: 14px;
+}
+
+/* Canh bao khong chi mang (vd camera bi chiem dung) - phong van dung duoc,
+   nen dung mau vang thay vi do nhu .meet-error. */
+.meet-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 16px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #3a2f16;
+  border: 1px solid #7a5a1f;
+  font-size: 14px;
+}
+
+.meet-notice-close {
+  padding: 3px 10px;
+  border: 1px solid #7a5a1f;
+  border-radius: 6px;
+  background: #4a3d1d;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.meet-empty,
+.meet-note {
+  font-size: 13px;
+  color: #9aa1ab;
+  margin: 0;
+}
+
+.meet-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.meet-join-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid #2b2f36;
+  border-radius: 10px;
+  background: #1b1e24;
+  min-width: 300px;
+}
+
+.meet-join-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.meet-invite-link {
+  width: 100%;
+}
+
+/* Form nhap ten cho nguoi la vao bang link moi (chua dang nhap). */
+.meet-join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.meet-join-form input {
+  padding: 8px 10px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #22262d;
+  color: #e9ecef;
+  font-size: 15px;
+}
+
+.meet-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.meet-iptv-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid #2b2f36;
+}
+
+.meet-iptv-player {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meet-iptv-video {
+  width: 100%;
+  border-radius: 6px;
+  background: #000;
+}
+
+/* IptvManagePage nam trong AppShell (nen sang) - khong dung mau toi cua
+   phong hop, chi muon lai cac lop form/danh sach. */
+.shell-main .meet-people li,
+.shell-main .meet-inline-form input,
+.shell-main select {
+  background: #fff;
+  color: #1f2937;
+  border: 1px solid #d1d5db;
+}
+
+.shell-main .meet-inline-form button {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.shell-main .meet-iptv-group {
+  border-top-color: #e5e7eb;
+}
+
+.shell-main .meet-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+@media (max-width: 820px) {
+  .meet-body {
+    flex-direction: column;
+  }
+
+  .meet-side {
+    width: auto;
+  }
+}

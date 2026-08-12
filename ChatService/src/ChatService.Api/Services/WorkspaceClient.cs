@@ -36,4 +36,25 @@ public class WorkspaceClient(HttpClient httpClient, WorkspaceClientOptions optio
         var members = await GetMembersAsync(workspaceId);
         return members?.SingleOrDefault(m => m.UserId == userId);
     }
+
+    // Dung boi GET /conversations (list mine, F2) de biet nhanh Group nao
+    // thuoc ve user dang goi - Chat Service khong co ban sao workspace_members.
+    public async Task<List<long>> GetMyWorkspaceIdsAsync(long userId)
+    {
+        try
+        {
+            var resp = await httpClient.GetAsync($"{options.BaseUrl}/internal/users/{userId}/workspaces");
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Khong lay duoc danh sach workspace cua user {UserId}, status {Status}", userId, resp.StatusCode);
+                return [];
+            }
+            return await resp.Content.ReadFromJsonAsync<List<long>>() ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Loi goi WorkSpace Service de lay danh sach workspace cua user {UserId}", userId);
+            return [];
+        }
+    }
 }

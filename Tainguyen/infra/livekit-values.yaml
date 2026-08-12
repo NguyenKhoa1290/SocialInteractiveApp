@@ -1,5 +1,14 @@
 replicaCount: 1
 
+# Chart livekit-server 1.9.0 (ban chart moi nhat hien co) ghim san image
+# v1.9.0, nhung image tren Docker Hub da di truoc toi v1.13.x. Phai ghi de
+# tag thu cong. Ly do nang: client `livekit-client` 2.21 goi duong dan
+# signaling MOI `/rtc/v1`, server 1.9.0 chua co nen tra 404, client phai lui
+# ve duong dan cu `/rtc` - van chay duoc nhung moi lan ket noi ton thua 1
+# request that bai va 1 dong loi do trong console.
+image:
+  tag: v1.13.5
+
 # Cluster rieng cho LiveKit (kind-livekit-cluster), tao bang `kind` CLI
 # (khong phai Docker Desktop K8s) vi kind CLI ho tro extraPortMappings ->
 # publish thang port ra Windows host, con Docker Desktop K8s thi khong.
@@ -13,7 +22,19 @@ livekit:
   rtc:
     tcp_port: 7881
     udp_port: 7882
-    use_external_ip: true
+    # PHAI la false o moi truong dev tren 1 may. Voi use_external_ip: true,
+    # LiveKit hoi STUN de tim IP cong cong roi quang ba CHINH IP DO
+    # (vd 116.96.45.39) lam dia chi nhan media. Trinh duyet o cung may gui
+    # goi UDP ra Internet toi IP do va khong bao gio quay ve duoc (NAT
+    # hairpin that bai) -> signaling (cong 7880) van OK nhung ICE luon
+    # "failed" va bao "negotiation timed out". Loi that da gap khi test F5.
+    use_external_ip: false
+    # Bat buoc di kem use_external_ip: false - neu khong LiveKit se quang ba
+    # IP pod (10.244.x.x) ma Windows host khong route toi duoc. 127.0.0.1
+    # dung duoc vi kind da map san 7881/tcp + 7882/udp ra host.
+    # ==> Khi test 2 MAY KHAC NHAU trong cung LAN, doi thanh IP LAN cua may
+    # chay LiveKit (vd 192.168.1.x); 127.0.0.1 chi dung cho 1 may.
+    node_ip: "127.0.0.1"
     # STUN cua Google - free, khong gioi han (theo yeu cau) - dung thay vi
     # tu dung them STUN server rieng. TURN local (o duoi) van giu de xu ly
     # cac client sau NAT doi xung/firewall chat khong the dung STUN don thuan.

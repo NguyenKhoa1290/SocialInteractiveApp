@@ -39,4 +39,37 @@ public class ChatServiceClient(HttpClient httpClient, ChatServiceClientOptions o
         var resp = await httpClient.PostAsJsonAsync($"{options.BaseUrl}/internal/complaints/{userId}/reply", new { message });
         return resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<ComplaintMessage>() : null;
     }
+
+    // Yeu cau nap dung luong - tu thiet ke theo yeu cau nguoi dung du an:
+    // Truong nhom gui yeu cau (Chat Service, API public), Admin duyet/tu
+    // choi qua day (Chat Service, "cua sau" noi bo).
+    public async Task<List<TopupRequestInfo>> ListPendingTopupRequestsAsync()
+    {
+        try
+        {
+            var resp = await httpClient.GetAsync($"{options.BaseUrl}/internal/storage-topup-requests?status=pending");
+            if (!resp.IsSuccessStatusCode)
+                return [];
+            return await resp.Content.ReadFromJsonAsync<List<TopupRequestInfo>>() ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Loi goi Chat Service de liet ke yeu cau nap dung luong");
+            return [];
+        }
+    }
+
+    public async Task<bool> ApproveTopupRequestAsync(long requestId, long adminUserId)
+    {
+        var resp = await httpClient.PostAsync($"{options.BaseUrl}/internal/storage-topup-requests/{requestId}/approve?adminUserId={adminUserId}", null);
+        return resp.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> RejectTopupRequestAsync(long requestId, long adminUserId)
+    {
+        var resp = await httpClient.PostAsync($"{options.BaseUrl}/internal/storage-topup-requests/{requestId}/reject?adminUserId={adminUserId}", null);
+        return resp.IsSuccessStatusCode;
+    }
 }
+
+public record TopupRequestInfo(long Id, long ConversationId, long RequestedBy, decimal Amount, string Status, DateTimeOffset CreatedAt);

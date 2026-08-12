@@ -34,6 +34,30 @@ public static class MiniAppEndpoints
             return Results.Created($"/miniapps/iptv/channel-lists/{list.Id}", IptvChannelListResponse.FromEntity(list));
         });
 
+        // Thieu sot phat hien khi build Frontend F5: co POST tao group/channel
+        // nhung KHONG co GET nao doc lai duoc - danh sach kenh tao xong thi
+        // khong hien thi lai duoc o bat ky dau, Mini App IPTV khong the co
+        // giao dien. Tra ve nguyen cay (groups + channels long nhau) trong 1
+        // request vi so luong kenh cua 1 danh sach ca nhan luon nho.
+        group.MapGet("/channel-lists/{listId:long}/groups", async (
+            long listId, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+        {
+            var userId = principal.GetUserId()!.Value;
+            var list = await db.IptvChannelLists.FindAsync(listId);
+            if (list is null || list.UserId != userId)
+                return Results.NotFound();
+
+            var groups = await db.IptvChannelGroups.Where(g => g.ListId == listId).ToListAsync();
+            var groupIds = groups.Select(g => g.Id).ToList();
+            var channels = await db.IptvChannels.Where(c => groupIds.Contains(c.GroupId)).ToListAsync();
+
+            return Results.Ok(groups.Select(g => new IptvChannelGroupResponse(
+                g.Id,
+                g.GroupName,
+                [.. channels.Where(c => c.GroupId == g.Id)
+                    .Select(c => new IptvChannelResponse(c.Id, c.ChannelName, c.StreamUrl, c.AudioTrack))])));
+        });
+
         group.MapPost("/channel-lists/{listId:long}/groups", async (
             long listId, CreateChannelGroupRequest req, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
         {

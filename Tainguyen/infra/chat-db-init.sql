@@ -50,11 +50,53 @@ CREATE TABLE messages (
   is_encrypted     BOOLEAN NOT NULL DEFAULT false,
   content_nonce    VARCHAR(64),
   is_deleted       BOOLEAN NOT NULL DEFAULT false,
+  -- Them ngoai schema goc - "sua tin nhan" (PATCH), chi cho phep chinh
+  -- sender, trong 1 khung thoi gian gioi han sau khi gui (xem EditWindow o
+  -- ConversationEndpoints.cs). Rieng biet voi "thu hoi" (recall) - ca 2 deu
+  -- dung is_deleted=false, chi khac edited_at co gia tri hay khong.
+  is_edited        BOOLEAN NOT NULL DEFAULT false,
+  edited_at        TIMESTAMPTZ,
+  -- Them ngoai schema goc - luong THAO LUAN rieng cua tung cuoc hop
+  -- (Media Service, meetings.id - logical FK, khac CSDL nen khong rang buoc
+  -- duoc bang FK that). NULL = tin nhan cua luong chat CHINH cua nhom.
+  -- Co gia tri = tin nhan thuoc thao luan cua cuoc hop do.
+  --
+  -- CO Y de chung bang messages thay vi tach conversation rieng: file dinh
+  -- kem se tu dong tinh vao han muc luu tru cua CHINH nhom do (trigger cong
+  -- storage_used_bytes theo conversation_id), dung yeu cau "file cung tinh
+  -- vao 2GB tong" ma khong phai viet them logic ke toan nao.
+  --
+  -- Tin nhan thao luan LUON is_encrypted=false: khach vang lai vao hop bang
+  -- link khong co cap khoa E2EE nao, nen luong nay khong the ma hoa dau cuoi
+  -- nhu chat nhom. Danh doi da biet va chap nhan.
+  meeting_id       BIGINT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX idx_messages_meeting ON messages(meeting_id, created_at DESC)
+  WHERE meeting_id IS NOT NULL;
+
 CREATE INDEX idx_messages_conversation_time
   ON messages(conversation_id, created_at);
+
+-- Tim kiem tin nhan (tu de xuat, tai lieu roadmap muc 6.1 co nhac "Search
+-- Chat Service" nhung chua co endpoint cu the). Vi tin nhan Text luon E2EE
+-- (content la ciphertext), server KHONG the full-text search truc tiep -
+-- dung ky thuat "blind index / searchable encryption": client tu tach tu
+-- khoa tu noi dung GOC (truoc khi ma hoa), bam bang HMAC voi 1 search-key
+-- rieng (chi client giu, KHONG BAO GIO gui len server) roi gui token da bam
+-- kem tin nhan. Server chi luu/so khop token bam, khong bao gio biet duoc
+-- tu goc la gi - giu dung nguyen tac E2EE (server khong thay noi dung),
+-- van cho phep search vi client tu bam lai tu khoa can tim bang cung
+-- search-key khi goi API search.
+CREATE TABLE message_search_tokens (
+  id           BIGSERIAL PRIMARY KEY,
+  message_id   BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  token        VARCHAR(64) NOT NULL
+);
+
+CREATE INDEX idx_message_search_tokens_lookup
+  ON message_search_tokens(token, message_id);
 
 -- E2EE: danh ba khoa cong khai, moi user 1 khoa (X25519). Khoa rieng tu
 -- KHONG BAO GIO gui len server - client tu sinh/luu/bao ve bang PIN cuc bo.
@@ -71,6 +113,24 @@ CREATE TABLE user_public_keys (
 -- Voi P2P KHONG dung bang nay - nguoi gui/nhan tu tinh duoc shared secret
 -- qua ECDH (X25519) tu khoa cong khai cua nhau, khong can "phan phoi" gi
 -- them.
+-- Khoi phuc private key tren thiet bi moi bang PIN 6 so - tu thiet ke,
+-- xac nhan voi nguoi dung du an (chap nhan danh doi: PIN 6 so chi co 1
+-- trieu kha nang, neu ai do lay duoc dong nay co the brute-force offline -
+-- CUNG danh doi ma Messenger/WhatsApp chap nhan, khong co PIN ngan nao
+-- chong brute-force tuyet doi). Server KHONG BAO GIO thay PIN hay private
+-- key goc - ciphertext duoc client tu ma hoa bang khoa dan xuat tu PIN
+-- (PBKDF2 + salt luu kem) truoc khi gui len, chi giai ma duoc lai bang
+-- dung PIN do tren bat ky thiet bi nao.
+-- Khong co FK toi users - Chat DB la database rieng, khong chung voi
+-- Identity DB (dung pattern giong het user_public_keys o tren).
+CREATE TABLE user_key_vaults (
+  user_id      BIGINT PRIMARY KEY,
+  salt         VARCHAR(64) NOT NULL,
+  nonce        VARCHAR(64) NOT NULL,
+  ciphertext   TEXT NOT NULL,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE message_recipient_keys (
   id                  BIGSERIAL PRIMARY KEY,
   message_id          BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -94,6 +154,26 @@ CREATE TABLE group_chat_settings (
   -- canh bao xoa file o moc nao (3d/2d/1d/10h), tranh gui trung lap.
   last_warning_stage    VARCHAR(20)
 );
+
+-- Yeu cau nap them dung luong - tu thiet ke lai theo yeu cau nguoi dung du
+-- an: ban dau Truong nhom tu bam nap la cong luon (khong qua duyet), sau
+-- doi thanh Truong nhom GUI YEU CAU, Admin duyet moi thuc su cong dung
+-- luong (giong nap tien that can nguoi xac nhan da nhan tien). Admin Service
+-- khong co CSDL rieng (la lop dieu phoi) nen bang nay van nam o Chat DB,
+-- Admin Service chi goi noi bo qua HTTP (xem AdminService.Api/Services/ChatServiceClient.cs).
+CREATE TABLE storage_topup_requests (
+  id                  BIGSERIAL PRIMARY KEY,
+  conversation_id     BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  requested_by        BIGINT NOT NULL,
+  amount              NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  status              VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at         TIMESTAMPTZ,
+  resolved_by         BIGINT
+);
+
+CREATE INDEX idx_storage_topup_requests_pending
+  ON storage_topup_requests(status) WHERE status = 'pending';
 
 CREATE TABLE muted_members (
   id               BIGSERIAL PRIMARY KEY,

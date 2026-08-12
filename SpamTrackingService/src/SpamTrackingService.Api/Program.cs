@@ -36,6 +36,7 @@ var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Kafka trong appsettings");
 builder.Services.AddSingleton(kafkaOptions);
 builder.Services.AddHostedService<ChatLogConsumerService>();
+builder.Services.AddSingleton(sp => new ErrorLogPublisher(kafkaOptions, sp.GetRequiredService<ILogger<ErrorLogPublisher>>(), "spamtracking-service"));
 
 builder.Services.AddAuthorization();
 
@@ -45,6 +46,20 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// Kafka Error Log (tu de xuat, tai lieu roadmap muc 8.1)
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        await context.RequestServices.GetRequiredService<ErrorLogPublisher>().PublishAsync(ex, context.Request.Path);
+        throw;
+    }
+});
 
 app.MapViolationEndpoints();
 

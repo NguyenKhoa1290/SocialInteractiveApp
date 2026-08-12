@@ -7,7 +7,12 @@
       "Bash(docker version *)",
       "Bash(echo \"File: e:\\\\\\\\Chat_APP\\\\\\\\ChatService\\\\\\\\src\\\\\\\\ChatService.Api\\\\\\\\appsettings.json\")",
       "Read(//tmp/**)",
-      "Bash(docker run *)"
+      "Bash(docker run *)",
+      "Bash(dotnet build *)",
+      "Bash(node test-e2ee-f3.mjs)",
+      "Bash(curl -s -o /dev/null -w \"Identity: %{http_code}\\\\n\" --max-time 3 http://localhost:5194/health)",
+      "Bash(curl -s -o /dev/null -w \"WorkSpace: %{http_code}\\\\n\" --max-time 3 http://localhost:5153/health)",
+      "Bash(curl -s -o /dev/null -w \"Chat: %{http_code}\\\\n\" --max-time 3 http://localhost:5261/health)"
     ]
   }
 }

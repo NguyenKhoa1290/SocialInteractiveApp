@@ -26,6 +26,25 @@ public class ChatServiceClient(HttpClient httpClient, ChatServiceClientOptions o
         }
     }
 
+    // Ngat ket noi WebSocket realtime cua 1 thanh vien khoi group conversation
+    // tuong ung - goi ngay sau khi kick/roi nhom (UC-22/UC-23). Tu de xuat,
+    // hoan thanh muc "Trigger ngat WebSocket khi kick/roi nhom" con thieu o
+    // tai lieu roadmap muc 6.4.
+    public async Task NotifyMemberRemovedAsync(long workspaceId, long userId)
+    {
+        try
+        {
+            var resp = await httpClient.PostAsync(
+                $"{options.BaseUrl}/internal/conversations/by-workspace/{workspaceId}/members/{userId}/disconnect", null);
+            if (!resp.IsSuccessStatusCode)
+                logger.LogWarning("Chat Service tra ve {Status} khi ngat ket noi realtime user {UserId} khoi workspace {WorkspaceId}", resp.StatusCode, userId, workspaceId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Khong goi duoc Chat Service de ngat ket noi realtime user {UserId} khoi workspace {WorkspaceId}", userId, workspaceId);
+        }
+    }
+
     public async Task NotifyWorkspaceDeletedAsync(long workspaceId)
     {
         try
