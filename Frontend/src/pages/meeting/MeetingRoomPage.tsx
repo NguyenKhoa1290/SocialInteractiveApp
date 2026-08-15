@@ -1,13 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Room, RoomEvent, createLocalScreenTracks, type Participant, type RemoteParticipant } from "livekit-client";
+import {
+  Room,
+  RoomEvent,
+  Track,
+  createLocalScreenTracks,
+  type Participant,
+  type RemoteParticipant,
+  type RemoteTrackPublication,
+} from "livekit-client";
 import { meetingApi } from "../../api/mediaApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
 import { IptvPanel } from "./IptvPanel";
 import { MeetingDiscussion } from "./MeetingDiscussion";
-import type { MeetingParticipant, MeetingWithCallerStatus, WaitingParticipant } from "../../types/media";
+import type {
+  MeetingParticipant,
+  MeetingWithCallerStatus,
+  PresentationState,
+  RoomMetadata,
+  WaitingParticipant,
+} from "../../types/media";
+
+function parsePresentation(metadata: string | undefined): PresentationState | null {
+  if (!metadata) return null;
+  try {
+    return (JSON.parse(metadata) as RoomMetadata).presentation ?? null;
+  } catch {
+    return null;
+  }
+}
 import "./meeting.css";
 
 // Nhip poll phong cho / danh sach nguoi trong phong. Media Service chua co
@@ -64,6 +87,21 @@ export function MeetingRoomPage() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [sharing, setSharing] = useState(false);
+  // Ai dang trinh bay - doc tu metadata cua phong LiveKit. KHONG poll REST:
+  // LiveKit tu ban RoomMetadataChanged cho ca phong, va nguoi vao muon doc
+  // duoc ngay tu room.metadata luc ket noi.
+  const [presentation, setPresentation] = useState<PresentationState | null>(null);
+  // CUC BO cho rieng nguoi dung nay - khong gui len server, khong ai khac
+  // bi anh huong. Ghim ai thi nguoi do len khung trung tam o MAN HINH CUA
+  // TOI thoi.
+  const [pinnedUserId, setPinnedUserId] = useState<number | null>(null);
+  // Nguoi dung tu chon xem dang luoi du dang co nguoi trinh chieu - focus
+  // mode la TU DONG chu khong bat buoc.
+  const [gridOverride, setGridOverride] = useState(false);
+  // UC-34 1d/1e - deu la thao tac CLIENT-SIDE theo dung dac ta, moi nguoi tu
+  // chinh cho rieng minh, khong ai khac bi anh huong va khong luu len server.
+  const [volumes, setVolumes] = useState<Record<number, number>>({});
+  const [hiddenVideos, setHiddenVideos] = useState<Set<number>>(new Set());
 
   const isHost = meeting !== null && currentUserId === meeting.hostId;
   const myPermissions = participants.find((p) => p.userId === currentUserId)?.permissions ?? [];
@@ -128,6 +166,9 @@ export function MeetingRoomPage() {
           .on(RoomEvent.TrackUnmuted, bump)
           .on(RoomEvent.LocalTrackPublished, bump)
           .on(RoomEvent.LocalTrackUnpublished, bump)
+          .on(RoomEvent.RoomMetadataChanged, (metadata) => {
+            setPresentation(parsePresentation(metadata));
+          })
           .on(RoomEvent.Disconnected, () => {
             if (!cancelled) setStatus("left");
           });
@@ -182,6 +223,9 @@ export function MeetingRoomPage() {
         roomRef.current = r;
         setRoom(r);
         setRemotes([...r.remoteParticipants.values()]);
+        // Nguoi vao MUON: doc ngay trang thai trinh bay dang co san trong
+        // metadata, khong phai cho su kien tiep theo moi biet.
+        setPresentation(parsePresentation(r.metadata));
         setStatus("connected");
       } catch (err) {
         if (!cancelled) {
@@ -304,10 +348,27 @@ export function MeetingRoomPage() {
       } catch {
         // dung trinh chieu that bai thi coi nhu da dung o phia UI
       }
+      // Nha suat trinh bay de nguoi khac dung duoc.
+      try {
+        await meetingApi.stopPresentation(meetingId);
+      } catch {
+        // khong nha duoc thi host van go duoc ho
+      }
       setSharing(false);
       setVersion((v) => v + 1);
       return;
     }
+
+    // GIANH SUAT TRINH BAY TRUOC khi bat chia se: chi mot nguoi duoc trinh
+    // bay mot luc (giong Teams). Neu nguoi khac dang trinh bay -> 409, khong
+    // de len nguoi ta.
+    try {
+      await meetingApi.startPresentation(meetingId, "screen");
+    } catch (err) {
+      setNotice(extractApiError(err, "Không bắt đầu trình chiếu được"));
+      return;
+    }
+
     try {
       // Tu lay track truoc roi moi publish de bat duoc truong hop nguoi dung
       // bam Huy o hop chon man hinh cua trinh duyet (khong phai loi).
@@ -316,7 +377,24 @@ export function MeetingRoomPage() {
       setSharing(true);
       setVersion((v) => v + 1);
     } catch {
-      // nguoi dung huy chon man hinh - bo qua
+      // Nguoi dung huy o hop chon man hinh -> phai TRA LAI suat vua gianh,
+      // neu khong ca phong se ket o focus mode voi mot man hinh trong.
+      await meetingApi.stopPresentation(meetingId).catch(() => {});
+    }
+  }
+
+  // Dung trinh bay - nguoi dang trinh bay tu dung, hoac Chu phong go ket khi
+  // nguoi kia mat mang ma khong kip tat.
+  async function handleStopPresentation() {
+    try {
+      if (sharing) {
+        await roomRef.current?.localParticipant.setScreenShareEnabled(false).catch(() => {});
+        setSharing(false);
+      }
+      await meetingApi.stopPresentation(meetingId);
+      setPresentation(null);
+    } catch (err) {
+      setNotice(extractApiError(err, "Không dừng trình bày được"));
     }
   }
 
@@ -378,6 +456,9 @@ export function MeetingRoomPage() {
     }
   }
 
+  // Chi con 2 quyen co duong dung that. `focus_mode` van con trong schema
+  // nhung khong endpoint nao kiem tra nua - ghim la thao tac cuc bo cua
+  // tung nguoi, khong can cap phep.
   async function handleTogglePermission(p: MeetingParticipant, perm: "share_screen" | "mini_app") {
     try {
       if (p.permissions.includes(perm)) await meetingApi.revokePermission(meetingId, p.userId, perm);
@@ -422,6 +503,89 @@ export function MeetingRoomPage() {
     return participants.find((x) => x.userId === id)?.nickname ?? (p.name || p.identity);
   };
 
+  const nameOfUserId = (userId: number) =>
+    participants.find((x) => x.userId === userId)?.nickname ?? (userId === currentUserId ? (nickname ?? "Bạn") : `#${userId}`);
+
+  // Nguoi dang trinh bay man hinh (de dua track cua ho len khung trung tam).
+  // identity ben LiveKit = userId dang chuoi, xem LiveKitService.cs.
+  const findParticipant = (userId: number | null | undefined): Participant | undefined => {
+    if (userId == null) return undefined;
+    if (userId === currentUserId) return room?.localParticipant;
+    return remotes.find((p) => Number(p.identity) === userId);
+  };
+
+  // Ai len khung trung tam, theo thu tu uu tien:
+  //   1. Nguoi TOI tu ghim (lua chon rieng cua toi, thang moi thu khac)
+  //   2. Nguoi dang chia se man hinh (focus mode tu dong)
+  // Ghim va viec thoat che do tap trung deu la trang thai CUC BO cua tung
+  // nguoi - khong gui len server, khong anh huong ai khac.
+  const pinnedParticipant = findParticipant(pinnedUserId);
+  const autoFocusParticipant =
+    presentation?.kind === "screen" && !gridOverride ? findParticipant(presentation.userId) : undefined;
+
+  const stageParticipant = pinnedParticipant ?? autoFocusParticipant;
+  const showAppStage = presentation?.kind === "mini_app" && !gridOverride && pinnedUserId === null;
+  const inFocusLayout = Boolean(stageParticipant) || showAppStage;
+
+  // Moi LUOT TRINH BAY MOI thi tra lai che do tu dong. Viec bam "Xem dang
+  // luoi" chi ap dung cho luot dang dien ra, khong phai tat focus mode vinh
+  // vien: neu khong, thoat mot lan la nhung lan sau nguoi khac trinh chieu
+  // minh cung khong duoc dua vao khung trinh bay nua.
+  const presentationKey = presentation
+    ? `${presentation.userId}:${presentation.kind}:${presentation.startedAt}`
+    : null;
+  useEffect(() => {
+    setGridOverride(false);
+  }, [presentationKey]);
+
+  // UC-34 1d: chinh am luong CUA NGUOI KHAC o phia minh. LiveKit ap thang
+  // vao track audio dang phat cua nguoi do, khong dung <audio volume> nen
+  // van dung khi track duoc gan/thao lai.
+  function handleVolume(userId: number, volume: number) {
+    setVolumes((prev) => ({ ...prev, [userId]: volume }));
+    const p = remotes.find((x) => Number(x.identity) === userId);
+    p?.setVolume(volume);
+  }
+
+  // Ap lai am luong da chinh moi khi danh sach nguoi trong phong doi. Can
+  // thiet vi khi mot nguoi thoat roi vao lai, LiveKit tao doi tuong
+  // RemoteParticipant MOI -> am luong ve mac dinh 1, trong khi thanh truot
+  // cua minh van hien muc cu (nhin 50% ma nghe 100%).
+  useEffect(() => {
+    for (const p of remotes) {
+      const v = volumes[Number(p.identity)];
+      if (v !== undefined) p.setVolume(v);
+    }
+  }, [remotes, volumes]);
+
+  // UC-34 1e: tat hien thi camera nguoi khac de TIET KIEM BANG THONG.
+  // Dung setSubscribed(false) chu khong an bang CSS: an CSS thi trinh duyet
+  // VAN tai video ve, dung mat muc dich cua tinh nang. Huy dang ky la
+  // LiveKit ngung gui luon luong do toi may nay.
+  function toggleHideVideo(userId: number) {
+    const p = remotes.find((x) => Number(x.identity) === userId);
+    const pub = p?.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
+    const nowHidden = !hiddenVideos.has(userId);
+
+    pub?.setSubscribed(!nowHidden);
+    setHiddenVideos((prev) => {
+      const next = new Set(prev);
+      if (nowHidden) next.add(userId);
+      else next.delete(userId);
+      return next;
+    });
+    setVersion((v) => v + 1);
+  }
+
+  // Tu bo ghim khi nguoi bi ghim roi phong - neu khong, khung trung tam ket
+  // o mot o trong mai cho toi khi nguoi dung tu bam bo.
+  useEffect(() => {
+    if (pinnedUserId === null) return;
+    if (pinnedUserId === currentUserId) return; // chinh minh thi luon con day
+    const stillHere = remotes.some((p) => Number(p.identity) === pinnedUserId);
+    if (!stillHere) setPinnedUserId(null);
+  }, [remotes, pinnedUserId, currentUserId]);
+
   return (
     <div className="meet-page">
       <header className="meet-header">
@@ -451,18 +615,79 @@ export function MeetingRoomPage() {
         </div>
       ) : (
         <div className="meet-body">
-          <div className="meet-grid">
-            {room && (
-              <ParticipantTile
-                participant={room.localParticipant}
-                isLocal
-                version={version}
-                label={nickname ?? "Bạn"}
-              />
+          <div className="meet-stage-wrap">
+            {/* FOCUS MODE: co nguoi dang trinh bay -> khung trinh bay chiem
+                trung tam, moi nguoi thu nho thanh dai ben duoi. Khong ai
+                trinh bay -> luoi deu nhu binh thuong. */}
+            {(presentation || pinnedUserId !== null) && (
+              <div className="meet-focus-bar">
+                <span>
+                  {presentation ? (
+                    <>
+                      🔴 <strong>{presentation.nickname}</strong>{" "}
+                      {presentation.kind === "screen" ? "đang trình chiếu màn hình" : "đang mở Mini App"}
+                    </>
+                  ) : (
+                    <>
+                      📌 Bạn đang ghim <strong>{nameOfUserId(pinnedUserId!)}</strong>{" "}
+                      <em className="meet-note">(chỉ hiển thị ở màn hình của bạn)</em>
+                    </>
+                  )}
+                </span>
+                <span className="meet-people-actions">
+                  {pinnedUserId !== null && <button onClick={() => setPinnedUserId(null)}>Bỏ ghim</button>}
+                  {presentation && (
+                    <button onClick={() => setGridOverride((v) => !v)}>
+                      {gridOverride ? "Xem khung trình bày" : "Xem dạng lưới"}
+                    </button>
+                  )}
+                  {presentation && (presentation.userId === currentUserId || isHost) && (
+                    <button className="meet-danger" onClick={handleStopPresentation}>
+                      Dừng trình bày
+                    </button>
+                  )}
+                </span>
+              </div>
             )}
-            {remotes.map((p) => (
-              <ParticipantTile key={p.sid} participant={p} isLocal={false} version={version} label={nameOf(p)} />
-            ))}
+
+            {stageParticipant && (
+              <div className="meet-stage">
+                <ParticipantTile
+                  participant={stageParticipant}
+                  isLocal={stageParticipant === room?.localParticipant}
+                  version={version}
+                  label={pinnedParticipant ? nameOfUserId(pinnedUserId!) : (presentation?.nickname ?? "")}
+                  stage
+                />
+              </div>
+            )}
+
+            {showAppStage && (
+              <div className="meet-stage meet-stage-app">
+                <IptvPanel meetingId={meetingId} onClose={() => {}} stage />
+              </div>
+            )}
+
+            <div className={`meet-grid${inFocusLayout ? " meet-grid-strip" : ""}`}>
+              {room && (
+                <ParticipantTile
+                  participant={room.localParticipant}
+                  isLocal
+                  version={version}
+                  label={nickname ?? "Bạn"}
+                />
+              )}
+              {remotes.map((p) => (
+                <ParticipantTile
+                  key={p.sid}
+                  participant={p}
+                  isLocal={false}
+                  version={version}
+                  label={nameOf(p)}
+                  videoHidden={hiddenVideos.has(Number(p.identity))}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Thao luan chi co khi cuoc hop gan voi 1 hoi thoai - cuoc hop
@@ -498,19 +723,46 @@ export function MeetingRoomPage() {
                       {p.nickname}
                       {p.role === "host" && " · Chủ phòng"}
                     </span>
-                    {isHost && p.userId !== currentUserId && (
-                      <span className="meet-people-actions">
-                        <button onClick={() => handleTogglePermission(p, "share_screen")}>
-                          {p.permissions.includes("share_screen") ? "Thu quyền chia sẻ" : "Cho chia sẻ"}
-                        </button>
-                        <button onClick={() => handleTogglePermission(p, "mini_app")}>
-                          {p.permissions.includes("mini_app") ? "Thu quyền Mini App" : "Cho Mini App"}
-                        </button>
-                        <button className="meet-danger" onClick={() => handleKick(p.userId)}>
-                          Mời ra
-                        </button>
-                      </span>
+                    {/* UC-34 1d - am luong cua nguoi nay, chi o phia minh */}
+                    {p.userId !== currentUserId && (
+                      <label className="meet-volume">
+                        🔊
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={volumes[p.userId] ?? 1}
+                          onChange={(e) => handleVolume(p.userId, Number(e.target.value))}
+                        />
+                      </label>
                     )}
+                    <span className="meet-people-actions">
+                      {/* Ghim = lua chon xem RIENG cua toi, khong gui len
+                          server, khong ai khac bi anh huong -> khong can
+                          quyen gi ca, ai cung ghim duoc. */}
+                      <button onClick={() => setPinnedUserId(pinnedUserId === p.userId ? null : p.userId)}>
+                        {pinnedUserId === p.userId ? "Bỏ ghim" : "Ghim vào giữa"}
+                      </button>
+                      {p.userId !== currentUserId && (
+                        <button onClick={() => toggleHideVideo(p.userId)}>
+                          {hiddenVideos.has(p.userId) ? "Hiện camera" : "Tắt camera (đỡ mạng)"}
+                        </button>
+                      )}
+                      {isHost && p.userId !== currentUserId && (
+                        <>
+                          <button onClick={() => handleTogglePermission(p, "share_screen")}>
+                            {p.permissions.includes("share_screen") ? "Thu quyền chia sẻ" : "Cho chia sẻ"}
+                          </button>
+                          <button onClick={() => handleTogglePermission(p, "mini_app")}>
+                            {p.permissions.includes("mini_app") ? "Thu quyền Mini App" : "Cho Mini App"}
+                          </button>
+                          <button className="meet-danger" onClick={() => handleKick(p.userId)}>
+                            Mời ra
+                          </button>
+                        </>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>

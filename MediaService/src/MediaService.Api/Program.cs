@@ -99,6 +99,7 @@ app.MapParticipantsEndpoints();
 app.MapMiniAppEndpoints();
 app.MapMiniAppSessionEndpoints();
 app.MapInternalEndpoints();
+app.MapPresentationEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

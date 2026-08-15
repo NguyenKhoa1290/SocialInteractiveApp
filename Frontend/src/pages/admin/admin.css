@@ -1,0 +1,455 @@
+/* Khu Admin dung lai bien mau chung o index.css nen tu dong dung ca sang
+   lan toi, khong dinh nghia mau cung o day. */
+
+.adm-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.adm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.adm-brand {
+  font-family: var(--heading);
+  font-weight: 700;
+  color: var(--text-h);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.adm-brand-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.adm-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.adm-user {
+  color: var(--text-h);
+}
+
+.adm-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.adm-tab {
+  padding: 10px 14px;
+  font-size: 15px;
+  text-decoration: none;
+  color: var(--text);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.adm-tab:hover {
+  color: var(--text-h);
+}
+
+.adm-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.adm-main {
+  flex: 1;
+  padding: 20px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.adm-title {
+  font-size: 24px;
+  margin: 0 0 16px;
+  color: var(--text-h);
+}
+
+.adm-subtitle {
+  font-size: 17px;
+  margin: 24px 0 8px;
+  color: var(--text-h);
+}
+
+/* --- thong bao --- */
+
+.adm-error,
+.adm-notice,
+.adm-empty,
+.adm-hint {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+.adm-error {
+  color: #b3261e;
+  background: rgba(179, 38, 30, 0.1);
+}
+
+.adm-notice {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.adm-empty {
+  background: var(--code-bg);
+  color: var(--text);
+}
+
+.adm-hint {
+  background: var(--social-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.adm-muted {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.adm-mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+/* --- dieu khien --- */
+
+.adm-btn {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 7px 13px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.adm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.adm-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.adm-btn-danger {
+  border-color: rgba(179, 38, 30, 0.5);
+  color: #b3261e;
+}
+
+.adm-btn-ghost:hover:not(:disabled) {
+  background: var(--code-bg);
+}
+
+.adm-link-plain {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.adm-link-plain:hover {
+  color: var(--accent);
+}
+
+.adm-input {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.adm-input-narrow {
+  width: 80px;
+}
+
+.adm-textarea {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text-h);
+  resize: vertical;
+  width: 100%;
+}
+
+.adm-searchbar,
+.adm-toolbar,
+.adm-scale-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.adm-searchbar .adm-input {
+  flex: 1;
+  min-width: 220px;
+}
+
+/* --- bang --- */
+
+/* Bang rong hon man hinh thi cuon TRONG khung nay, khong day ca trang
+   truot ngang. */
+.adm-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.adm-table th,
+.adm-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.adm-table th {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--code-bg);
+  white-space: nowrap;
+}
+
+.adm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.adm-table tbody tr.selected {
+  background: var(--accent-bg);
+}
+
+.adm-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.adm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+/* --- nhan trang thai --- */
+
+.adm-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+
+.adm-badge-active {
+  background: rgba(34, 139, 84, 0.12);
+  color: #228b54;
+}
+
+.adm-badge-locked {
+  background: rgba(179, 38, 30, 0.12);
+  color: #b3261e;
+}
+
+.adm-badge-admin {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* --- panel chi tiet --- */
+
+.adm-panel {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--code-bg);
+}
+
+.adm-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.adm-panel-head h2 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--text-h);
+}
+
+.adm-kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 12px 0 0;
+  font-size: 14px;
+}
+
+.adm-kv dt {
+  color: var(--text);
+}
+
+.adm-kv dd {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.adm-violations {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.adm-violations li {
+  display: flex;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.adm-panel-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* --- hoi thoai khieu nai --- */
+
+.adm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.adm-msg {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  max-width: 80%;
+}
+
+.adm-msg.admin {
+  align-self: flex-end;
+  background: var(--accent-bg);
+}
+
+.adm-msg-meta {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.adm-msg-body {
+  font-size: 14px;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.adm-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* --- tai nguyen --- */
+
+.adm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.adm-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--code-bg);
+}
+
+.adm-card-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-h);
+  word-break: break-all;
+}
+
+.adm-card-metrics {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.adm-meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  min-width: 90px;
+}
+
+.adm-meter-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.adm-meter-fill.mem {
+  background: #228b54;
+}
+
+.adm-meter-label {
+  font-size: 13px;
+  color: var(--text);
+}

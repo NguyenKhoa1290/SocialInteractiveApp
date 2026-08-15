@@ -33,20 +33,27 @@ spec:
               value: "broker,controller"
             - name: KAFKA_LISTENERS
               value: "PLAINTEXT://:9092,CONTROLLER://:9093"
-            # 172.18.0.7 = IP cua container node messaging-cluster-control-plane
-            # tren docker network "kind" - dung de pod o cluster KHAC (docker-desktop,
-            # kind-livekit-cluster) ket noi vao duoc, vi day la 3 cluster tach biet
-            # khong chung K8s DNS noi bo. Neu container node bi tao lai (kind delete +
-            # create), IP nay co the doi - kiem tra lai bang:
-            #   docker network inspect kind
+            # QUAN TRONG - co che quang ba cua Kafka: client ket noi vao dia chi
+            # bootstrap, nhan ve dia chi QUANG BA nay, roi MO KET NOI MOI toi do.
+            # Nghia la dia chi quang ba phai dung voi MOI client, khong chi voi
+            # client dau tien.
             #
-            # QUAN TRONG: dung NodePort (30909), KHONG dung cong noi bo (9092).
-            # Client (ke ca client chay ben trong chinh pod nay) nhan dia chi quang
-            # ba nay roi MO KET NOI MOI toi dia chi do - neu quang ba cong 9092 thi
-            # ket noi se that bai vi 9092 khong duoc bind ra ngoai container (chi co
-            # NodePort 30909 duoc kube-proxy forward vao pod:9092).
+            # Dung "host.docker.internal:9092" vi day la dia chi DUY NHAT ma ca ba
+            # phia deu toi duoc:
+            #   - container tren docker network "kind"  -> Docker Desktop tu cap
+            #   - tien trinh chay thang tren Windows     -> co trong hosts file
+            #   - pod o cluster khac (docker-desktop, livekit)
+            # 9092 la hostPort da map san toi NodePort 30909 (kind-messaging-cluster.yaml).
+            #
+            # KHONG dung IP kieu 172.18.0.x cua container node: kind cap lai IP moi
+            # khi delete+create cluster, va thu tu khoi dong doi thi IP doi theo -
+            # da tung tro sai node that (172.18.0.2 = desktop-control-plane chu khong
+            # phai messaging-cluster-control-plane), lam client trong container khong
+            # produce duoc du bootstrap van thanh cong.
+            # KHONG dung "127.0.0.1:19092" (dia chi cua kubectl port-forward): trong
+            # container 127.0.0.1 la chinh container do.
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://172.18.0.2:30909"
+              value: "PLAINTEXT://host.docker.internal:9092"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP

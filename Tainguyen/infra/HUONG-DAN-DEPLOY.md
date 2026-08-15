@@ -8,13 +8,13 @@ Tham chiếu kiến trúc gốc: `Congviec/he-thong-tong-hop-kien-truc-csdl-api-
 
 ## Mục lục
 
-0. [Tổng quan kiến trúc & 2 môi trường](#0-tổng-quan-kiến-trúc--2-môi-trường)
+0. [Tổng quan kiến trúc & 2 môi trường](#0-tổng-quan-kiến-trúc--2-môi-trường) · [0.1 Docker Compose](#01-chạy-tầng-ứng-dụng-bằng-docker-compose-đường-chính-khi-dev)
 1. [Máy dev — Hạ tầng nền (Docker Desktop + kind, 3 cluster)](#1-máy-dev--hạ-tầng-nền)
 2. [Máy dev — Cơ sở dữ liệu từng service](#2-máy-dev--cơ-sở-dữ-liệu-từng-service)
 3. [Máy dev — MinIO & mạng LAN](#3-máy-dev--minio--mạng-lan)
 4. [Đóng gói & đẩy image lên GHCR](#4-đóng-gói--đẩy-image-lên-ghcr)
 5. [Deploy lên server nhà (k3s thật)](#5-deploy-lên-server-nhà-k3s-thật)
-6. [LiveKit trên VPS riêng](#6-livekit-trên-vps-riêng)
+6. [LiveKit — chạy trên cloud](#6-livekit--chạy-trên-cloud)
 7. [Tự động mở rộng (burst) sang AWS khi quá tải](#7-tự-động-mở-rộng-burst-sang-aws-khi-quá-tải)
 8. [Cạm bẫy đã gặp — tổng hợp](#8-cạm-bẫy-đã-gặp--tổng-hợp)
 9. [Checklist tổng hợp](#9-checklist-tổng-hợp)
@@ -28,10 +28,61 @@ Tham chiếu kiến trúc gốc: `Congviec/he-thong-tong-hop-kien-truc-csdl-api-
 được 1 cluster K8s qua toggle "Enable Kubernetes", nên dùng thêm `kind` CLI tạo cluster độc lập cho
 LiveKit và cho nhóm hạ tầng nhắn tin (Redis/Kafka/RabbitMQ).
 
-**Môi trường thật (server nhà + VPS/AWS khi cần):** **1 cluster k3s duy nhất** trên server nhà,
-LiveKit đặt ở VPS riêng có IP public thật (vì server nhà bị NAT), và có thể mở rộng thêm node AWS
-tạm thời khi quá tải (Service hoặc LiveKit). Không cần tách nhiều cluster như máy dev — đó chỉ là
-workaround riêng của Docker Desktop.
+**Môi trường thật (server nhà):** **1 cluster k3s duy nhất** trên server nhà; LiveKit dùng
+**LiveKit Cloud managed** (mục 6.0 — đã chốt, không tự dựng vì server nhà bị CGNAT). Không cần tách
+nhiều cluster như máy dev — đó chỉ là workaround riêng của Docker Desktop.
+
+### 0.1 Chạy tầng ứng dụng bằng Docker Compose (đường chính khi dev)
+
+Cả 6 service + frontend chạy trong Docker qua `docker-compose.yml` ở thư mục gốc. **Hạ tầng
+không nằm trong compose** — Postgres/Redis/Kafka/RabbitMQ/LiveKit vẫn ở các cluster K8s, MinIO ở
+máy LAN riêng. Compose chỉ chạy tầng ứng dụng.
+
+```bash
+docker compose up -d --build      # bật tất cả (lần đầu)
+docker compose ps                 # xem sống/chết + healthcheck
+docker compose logs -f chat       # xem log 1 service
+docker compose up -d --build chat # build lại 1 service sau khi sửa code
+docker compose down               # tắt tất cả
+```
+
+| Service | Cổng ra host | Service | Cổng ra host |
+|---|---|---|---|
+| identity | 5194 | media | 5300 |
+| workspace | 5153 | admin | 5230 |
+| chat | 5261 | spamtracking | 5160 |
+| frontend (Vite) | 5173 | | |
+
+**`host.docker.internal` ở khắp nơi:** hạ tầng publish cổng ra Windows host, mà trong container
+`localhost` là chính container đó. Đây là đường duy nhất container gọi ngược ra host.
+
+**Ba chỗ CỐ Ý không dùng `host.docker.internal`** — vì giá trị đó đi tới trình duyệt chứ không phải
+tới backend:
+
+| Cấu hình | Giá trị | Lý do |
+|---|---|---|
+| `LiveKit__ClientUrl` | `ws://localhost:7880` | trả về trong `livekitUrl` cho trình duyệt tự kết nối |
+| `LiveKit__ServerUrl` | `http://host.docker.internal:7880` | Media Service gọi Server API từ trong container |
+| `Storage__Providers__home__Endpoint` | `http://192.168.50.10:9000` | URL presign trả cho trình duyệt; backend không bao giờ nối tới MinIO |
+
+Đổi nhầm `ClientUrl` thành `host.docker.internal` là phòng họp không vào được, mà log backend
+hoàn toàn sạch — rất khó truy.
+
+**Service gọi nhau bằng tên container + cổng nội bộ 8080** (`http://identity:8080`), không vòng ra
+host. Không đặt `depends_on` giữa chúng vì workspace↔chat phụ thuộc vòng — các service tự retry.
+
+**Admin Service và kubeconfig:** Admin cần đọc K8s cho `/admin/system/resources`, nhưng kubeconfig
+của Docker Desktop trỏ `https://127.0.0.1:<cổng ngẫu nhiên>` — cổng đổi mỗi lần Docker Desktop khởi
+động lại, và `127.0.0.1` trong container là chính container. Job `kubeconfig-init` chạy trước Admin
+mỗi lần `up`, chép kubeconfig và đổi địa chỉ thành `host.docker.internal` + bật
+`insecure-skip-tls-verify` (cert API server không ký cho tên đó). **Volume phải gắn vào đúng
+`/home/appuser/.kube`** — biến `KUBECONFIG` không ăn, vì
+`KubernetesClientConfiguration.BuildConfigFromConfigFile()` không tham số đọc thẳng
+`$HOME/.kube/config`.
+
+**Sửa code thì phải build lại image** (`docker compose up -d --build <service>`) — chậm hơn
+`dotnet run` trên máy. Khi cần gắn debugger hoặc lặp nhanh 1 service, `dev-start.ps1 -Only <key>`
+vẫn dùng được, chỉ cần `docker compose stop <service>` trước để nhả cổng.
 
 | | Môi trường dev | Môi trường thật |
 |---|---|---|
@@ -352,7 +403,81 @@ MINIO_CONSOLE=192.168.50.10:9001
 
 **Bug đã gặp — presigned URL luôn trả `https://` dù server chỉ nghe HTTP:** `AWSSDK.S3` (dùng
 trong Chat Service) luôn generate `https://` bất kể `AmazonS3Config.UseHttp = true` — phải tự thay
-chuỗi `https://` → `http://` sau khi generate (xem `MinioStorageService.cs`).
+chuỗi `https://` → `http://` sau khi generate (xem `StorageService.cs`).
+
+### 3.1. Nhiều kho lưu trữ — file nhỏ ở nhà, file lớn lên cloud
+
+Băng thông upload của đường truyền nhà là tài nguyên khan hiếm nhất, và **presigned URL không cứu
+được nó**: presign chỉ chuyển phần xác thực sang API, còn bytes vẫn đi ra từ MinIO nhà mỗi lần có
+người tải về. Cách duy nhất để tiết kiệm băng thông cho một file là bản thân file đó nằm trên cloud.
+
+Chat Service chọn kho theo **dung lượng**, cấu hình ở section `Storage` (không còn section `Minio`):
+
+```jsonc
+"Storage": {
+  "HomeMaxBytes": 20971520,          // 20MB: <= thì "home", lớn hơn thì "cloud"
+  "PresignedUrlExpirySeconds": 300,
+  "Providers": {
+    "home":  { "Endpoint": "http://192.168.50.10:9000", "AccessKey": "...", "SecretKey": "...",
+               "BucketName": "chat-media", "ForcePathStyle": true },
+    "cloud": { "Endpoint": "", "AccessKey": "", "SecretKey": "",
+               "BucketName": "chat-media-large", "ForcePathStyle": true, "Region": "auto" }
+  }
+}
+```
+
+MinIO, Cloudflare R2 và AWS S3 đều nói cùng giao thức S3 nên dùng chung `AWSSDK.S3`, chỉ khác
+endpoint + credentials. `Region` để trống thì SDK ký bằng `us-east-1` (MinIO không quan tâm); **R2
+dùng `auto`**.
+
+**Nên chọn R2 cho tầng cloud, không phải S3:** R2 tính **egress $0**, còn S3 khoảng $0.09/GB đi ra.
+Với app chat phục vụ file cho người dùng, egress mới là khoản tiền thật chứ không phải dung lượng lưu.
+
+Ba điểm về hành vi, đã verify bằng test:
+
+- **`storage_provider` quyết định một lần lúc upload rồi ghi vào bảng `files`.** Lúc tải về đọc lại
+  cột đó, **không** tính lại theo ngưỡng — nhờ vậy đổi `HomeMaxBytes` sau này không làm hỏng file cũ
+  (file 30MB đã nằm ở home vẫn tải về từ home).
+- **Chưa cấu hình `cloud` thì file lớn vẫn lưu ở `home`** kèm cảnh báo trong log
+  (`... vuot nguong ... nhung kho 'cloud' chua cau hinh - tam luu o 'home'`). Từ chối upload sẽ làm
+  hỏng một tính năng đang chạy chỉ vì một ô cấu hình chưa điền.
+- **File trỏ tới kho không còn cấu hình thì trả `503 storage_unavailable`**, không âm thầm presign
+  sang kho khác — làm vậy sẽ trả URL tới object không tồn tại và người dùng nhận 404 khó hiểu.
+
+Hạn mức 2GB/nhóm **không đổi**: trigger `sync_storage_used()` cộng theo `size_bytes` bất kể file nằm
+ở kho nào.
+
+Thêm cột cho DB đã có dữ liệu:
+```sql
+ALTER TABLE files ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(20) NOT NULL DEFAULT 'home';
+```
+
+**`cloud` không gắn với nhà cung cấp nào** — nó chỉ là cái tên. Trỏ sang một **server MinIO thứ hai**
+(máy khác trong LAN, hoặc MinIO trên VPS) cũng chạy y hệt, chỉ cần **xoá `Region: "auto"`** vì `auto`
+là quy ước riêng của R2; để trống thì SDK ký bằng `us-east-1` mặc định, MinIO chấp nhận.
+Muốn dời **toàn bộ** sang máy MinIO khác thì đổi endpoint của `home` — file cũ vẫn ghi
+`storage_provider = 'home'` nên tự trỏ theo endpoint mới, miễn `mc mirror` dữ liệu sang trước.
+
+Chọn giữa MinIO-trên-VPS và R2: VPS thường bó băng thông trong giá (vài TB/tháng) rồi bóp tốc độ
+hoặc tính thêm khi vượt; R2 egress $0 không trần. File lớn là video nhiều người xem lại → R2 an toàn
+hơn về chi phí; đã có sẵn VPS và lưu lượng vừa phải → MinIO trên đó rẻ hơn.
+
+**Hai điều phải xử lý trước khi deploy:**
+
+1. **Mixed content.** Frontend chạy `https://` (qua tunnel) mà presigned URL là `http://` thì trình
+   duyệt **chặn thẳng**. Áp cho cả MinIO nhà hiện tại, không riêng kho thứ hai — hiện chưa lộ vì dev
+   đang ở `http://localhost:5173`. Lên tunnel thì mọi kho đều phải có TLS.
+2. **CORS trên bucket cloud.** Trình duyệt PUT thẳng lên đó nên bucket phải cho phép origin của
+   frontend (MinIO mặc định đã cho phép `*`, R2 phải cấu hình).
+
+**Giới hạn hiện tại: đúng hai bậc.** `ResolveProviderForUpload` chỉ chọn giữa `home` và `cloud`.
+Phần tải về đọc theo tên ghi trong DB nên provider tên gì cũng chạy, nhưng muốn ba bậc (nhà → MinIO
+VPS → R2) thì phải sửa hàm đó.
+
+**Không cần backend nhìn thấy kho lưu trữ.** Presign là phép tính HMAC thuần offline — Chat Service
+không bao giờ kết nối tới MinIO/R2 (đã verify: endpoint R2 giả với key bịa vẫn sinh URL hợp lệ,
+không có gói tin nào đi ra). Kho chỉ cần **trình duyệt người dùng** với tới được. Mặt trái: cấu hình
+sai endpoint **không** báo lỗi lúc khởi động — API vẫn trả URL đẹp, tới lúc client PUT mới hỏng.
 
 **Nếu sau này cần expose Ingress/LiveKit ra LAN** (không chỉ `localhost`): đặt IP tĩnh, mở Windows
 Firewall, và quan trọng nhất với LiveKit — quyết định STUN tự dò IP (`use_external_ip: true`, hợp
@@ -663,11 +788,64 @@ S3 bucket. Chi phí gần như chỉ tính dung lượng lưu trữ, không cầ
 
 ---
 
-## 6. LiveKit trên VPS riêng
+## 6. LiveKit — chạy trên cloud
 
 LiveKit **không** chạy trên server nhà — server nhà bị NAT (không IP public thật), trong khi LiveKit
-(WebRTC/TURN) cần IP public thật để client ngoài mạng kết nối media ổn định. VPS giá rẻ có sẵn IP
-public là cách đơn giản nhất, tránh vật lộn port-forward/NAT hairpin/CGNAT.
+(WebRTC/TURN) cần IP public thật để client ngoài mạng kết nối media ổn định.
+
+### 6.0 Quyết định: dùng LiveKit Cloud (managed), không tự dựng
+
+**Đã chốt.** Mọi thứ còn lại (6 service + 5 DB + Redis/Kafka/RabbitMQ + MinIO) chạy ở server nhà và
+tunnel ra; riêng LiveKit dùng dịch vụ managed của LiveKit.
+
+Lý do — không phải "cloud tiện hơn" mà là tự dựng **không chạy được ở nhà**:
+
+| Rào cản | Vì sao chặn cứng |
+|---|---|
+| **CGNAT** | Phần lớn Internet gia đình VN không có IP public riêng → không port-forward được dải UDP 50000-60000. Không phải khó, là không thể |
+| **TURN qua 443** | Người dùng sau firewall công ty chỉ ra được 443 → cần domain thật + cert Let's Encrypt (xem `livekit-values-vps.yaml`) |
+| **Băng thông upload** | SFU phát lại mọi luồng: phòng 5 người 720p ≈ 30 Mbps upload từ server. Mạng nhà gánh 1-2 phòng là hết |
+
+**Mô hình tính tiền của LiveKit Cloud đúng thứ dự án cần**: theo participant-minute + băng thông,
+idle = 0đ, có free tier. Hạn mức cụ thể xem trang pricing lúc đăng ký (họ đổi theo thời gian).
+
+**Đổi sang Cloud không cần sửa dòng code nào** — chỉ 4 giá trị cấu hình của Media Service:
+```
+LiveKit__ServerUrl = https://<project>.livekit.cloud
+LiveKit__ClientUrl = wss://<project>.livekit.cloud
+LiveKit__ApiKey / LiveKit__ApiSecret
+```
+Vì `LiveKitService` đọc URL/key từ options, `RoomServiceClient` của SDK .NET gọi Cloud bằng đúng API
+như self-hosted, và **Frontend không hardcode URL** — nó nhận `livekitUrl` trong response mỗi lần
+join (`MediaDtos.cs`, `JoinResultResponse`). Khớp đúng đặc tả: *"client kết nối trực tiếp tới LiveKit
+Service cho luồng audio/video — không đi qua Media Service backend, Media Service chỉ cấp token"*,
+nên media ở cloud còn API/DB ở nhà là kiến trúc hợp lệ, không phải chắp vá.
+
+**Đã cân nhắc và loại — tự dựng scale-to-zero trên AWS:**
+
+| Dịch vụ | Vì sao không |
+|---|---|
+| Lambda | Không nhận UDP vào, tối đa 15 phút, không giữ kết nối lâu |
+| App Runner | Chỉ HTTP, không có UDP |
+| ECS Fargate | Về lý thuyết được (task = 0 khi rảnh) nhưng: cold start 60-90s ngay tại lúc bấm "mở phòng"; IP đổi mỗi lần bật nên phải cập nhật Route53 mỗi lần, hoặc dùng NLB — mà NLB tốn tiền cả khi rảnh, mất luôn ý nghĩa scale-to-zero |
+
+Tức là bỏ công xây trên AWS để có bản kém hơn thứ Cloud cho sẵn. Chỉ nên xét lại nếu có credit AWS
+chưa tiêu. Kiến trúc app **không cản** hướng này (endpoint động đã hỗ trợ sẵn) — vướng ở vận hành.
+
+**Cạm bẫy cần nhớ khi tới lúc dùng webhook:** hiện Media Service dựa vào `ListRooms` polling
+(`LiveKitService.RoomExistsAsync`), chạy tốt với Cloud. Nếu sau này dùng LiveKit webhook
+(`room_finished`...), Cloud phải gọi **ngược** về server nhà → lại cần public URL/tunnel cho riêng
+đường đó.
+
+Dự án không dùng Egress/recording nên không phát sinh khoản tốn tiền nhất của LiveKit Cloud.
+
+---
+
+### Phương án dự phòng — LiveKit trên VPS riêng
+
+Phần 6.1-6.5 dưới đây **không còn là đường chính**, giữ lại phòng khi cần tự chủ hoàn toàn (ví dụ
+yêu cầu dữ liệu không ra khỏi hạ tầng của mình). VPS giá rẻ có sẵn IP public là cách đơn giản nhất
+để tự dựng, tránh vật lộn port-forward/NAT hairpin/CGNAT.
 
 ### 6.1 Chọn VPS
 
@@ -876,6 +1054,17 @@ phòng job đo tải bị treo.)*
 
 ### 7.2 Phần B — LiveKit burst
 
+> **Lỗi thời sau quyết định mục 6.0.** Đã chốt dùng LiveKit Cloud, mà Cloud **tự lo phần mở rộng** —
+> không cần Node 2 trên AWS, không cần Redis dùng chung. Phần dưới chỉ còn giá trị nếu quay lại
+> phương án tự dựng VPS.
+>
+> Nếu sau này muốn **hybrid** (phòng thường ở hạ tầng mình, dồn lên Cloud khi quá tải), có một ràng
+> buộc cứng phải biết trước: **một phòng chỉ sống trên MỘT deployment LiveKit** — không chia đôi một
+> cuộc họp giữa hai nơi. Định tuyến phải quyết **lúc tạo phòng**, cho cả cuộc họp, chứ không theo
+> từng người. Cần thêm: cột `livekit_endpoint` trong bảng `meetings` (`media-db-init.sql` hiện chưa
+> có) và đổi `LiveKitService` từ singleton một-cấu-hình thành factory chọn endpoint theo meeting.
+> Khoảng một buổi làm — chưa cần làm sớm, vì thêm sớm là phải bảo trì một nhánh code chưa ai dùng.
+
 LiveKit hỗ trợ **clustering nhiều node sẵn có** — không cần Tailscale/k3s. Nhiều LiveKit node (IP
 public riêng) cùng trỏ **1 Redis dùng chung** để đồng bộ trạng thái phòng/người tham gia; LiveKit tự
 phân phối phòng mới sang node còn chỗ.
@@ -955,6 +1144,29 @@ triển khai — tài liệu này chỉ mô tả yêu cầu, chưa implement.
 
 ## 8. Cạm bẫy đã gặp — tổng hợp
 
+0. **Địa chỉ quảng bá của Kafka phải đúng với MỌI client, không chỉ client đầu tiên.** Kafka hoạt
+   động hai bước: client nối vào địa chỉ bootstrap, nhận về `KAFKA_ADVERTISED_LISTENERS`, rồi **mở
+   kết nối mới** tới địa chỉ đó. Nên bootstrap thành công **không** có nghĩa là produce sẽ chạy —
+   nó hỏng âm thầm ở bước hai. Đã dính hai biến thể:
+   - `172.18.0.2:30909` (IP container node) — kind cấp lại IP khi delete+create cluster và theo thứ
+     tự khởi động, nên nó trôi sang node khác (`desktop-control-plane`) mà file `kafka.yaml` không
+     hề đổi. Cấu hình đang chạy còn trôi khỏi file trên đĩa: broker thật quảng bá
+     `127.0.0.1:19092` trong khi file ghi `172.18.0.2:30909`.
+   - `127.0.0.1:19092` (địa chỉ `kubectl port-forward`) — chạy được từ máy thật nhưng trong
+     container `127.0.0.1` là chính container đó.
+
+   Cách sửa: quảng bá **`host.docker.internal:9092`** — địa chỉ duy nhất mà container, tiến trình
+   trên Windows và pod ở cluster khác đều tới được, đi thẳng qua hostPort 9092 đã map sẵn tới
+   NodePort 30909. **Bỏ hẳn được `kubectl port-forward`** — thứ đã chết âm thầm nhiều lần và làm
+   treo đăng ký/đăng nhập trong khi `/health` vẫn trả 200.
+
+   Lưu ý khi rollout lại Kafka: broker **không có volume bền**, restart là mất sạch topic. Tạo lại:
+   ```bash
+   kubectl --context kind-messaging-cluster exec -n kafka deploy/kafka -- \
+     /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+     --create --topic identity.auth-history --partitions 1 --replication-factor 1
+   # lặp lại cho chat.service-log và system.error-log
+   ```
 1. **Bitnami Helm charts** (`bitnami/minio` và nhiều chart khác) từ 28/8/2025 chỉ còn image công
    khai hạn chế — nhiều tag báo `404 not found`. Kiểm tra trước xem image còn public không, hoặc
    tìm chart chính thức thay thế (MinIO có chart tại `https://charts.min.io/`, image
@@ -1008,6 +1220,8 @@ triển khai — tài liệu này chỉ mô tả yêu cầu, chưa implement.
 - [ ] `kind-messaging-cluster` + Redis/Kafka/RabbitMQ deploy, verify `PONG`/list topic/management UI 200, verify cross-cluster
 - [ ] Cả 6 DB deploy trên `docker-desktop` (mục 2.2), verify schema + constraint từng cái
 - [ ] MinIO chạy trên máy LAN riêng, biến môi trường `MINIO_ENDPOINT` đúng
+- [ ] Chat Service dùng section `Storage` (không còn `Minio`), provider `home` cấu hình đủ
+- [ ] Bảng `files` có cột `storage_provider` (`DEFAULT 'home'`)
 
 **Đóng gói & deploy (mục 4-5)**
 - [ ] PAT tạo xong, `docker login ghcr.io` thành công
@@ -1020,7 +1234,18 @@ triển khai — tài liệu này chỉ mô tả yêu cầu, chưa implement.
 - [ ] Cả 6 Deployment + Service apply thành công, `kubectl get pods -A` toàn bộ `Running`
 - [ ] Ingress rule cho từng service public cần thiết, test 1 luồng nghiệp vụ thật qua Ingress (không qua `kubectl exec`/`port-forward`)
 
-**LiveKit VPS (mục 6)**
+**LiveKit Cloud (mục 6.0 — đường chính)**
+- [ ] Tạo project trên LiveKit Cloud, lấy `wss://<project>.livekit.cloud` + API key/secret
+- [ ] Media Service đặt 4 giá trị `LiveKit__ServerUrl/ClientUrl/ApiKey/ApiSecret`, KHÔNG sửa code
+- [ ] Test WebRTC thật từ 2 client ở 2 mạng khác nhau (một máy dùng 4G, không cùng LAN)
+- [ ] Xác nhận không bật Egress/recording (khoản tốn tiền nhất)
+
+**Kho lưu trữ khi lên tunnel (mục 3.1)**
+- [ ] Mọi MinIO/R2 đều có TLS — presigned URL `http://` sẽ bị chặn khi frontend chạy `https://`
+- [ ] Bucket cloud cấu hình CORS cho origin của frontend
+- [ ] Nếu điền provider `cloud`: test upload file > `HomeMaxBytes` và tải lại được thật
+
+**LiveKit VPS (mục 6.1-6.5 — chỉ khi quay lại phương án tự dựng)**
 - [ ] VPS có IP public, firewall mở đủ port, LiveKit deploy, `curl http://<IP-VPS>:7880/` → `OK`
 - [ ] Media Service trỏ đúng LiveKit VPS, test WebRTC thật từ 2 mạng khác nhau
 

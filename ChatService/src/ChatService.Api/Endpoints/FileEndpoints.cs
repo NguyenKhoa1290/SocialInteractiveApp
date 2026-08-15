@@ -11,7 +11,7 @@ public static class FileEndpoints
     public static void MapFileEndpoints(this WebApplication app)
     {
         // POST /files/upload-url
-        app.MapPost("/files/upload-url", async (UploadUrlRequest req, ClaimsPrincipal principal, ChatDbContext db, MinioStorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
+        app.MapPost("/files/upload-url", async (UploadUrlRequest req, ClaimsPrincipal principal, ChatDbContext db, StorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(req.ConversationId);
@@ -50,6 +50,12 @@ public static class FileEndpoints
                 }
             }
 
+            // Chon kho luu tru theo dung luong TRUOC khi insert, roi ghi thang
+            // vao hang - luc tai ve chi doc lai cot nay, khong tinh lai theo
+            // nguong. Nho vay doi nguong sau nay khong lam hong file cu (file
+            // 30MB da nam o cloud van tai ve tu cloud du nguong co tang len).
+            var provider = storage.ResolveProviderForUpload(req.SizeBytes);
+
             var file = new FileAttachment
             {
                 ConversationId = req.ConversationId,
@@ -58,6 +64,7 @@ public static class FileEndpoints
                 FileType = fileType,
                 SizeBytes = req.SizeBytes,
                 UploadedAt = DateTimeOffset.UtcNow,
+                StorageProvider = provider,
             };
             db.Files.Add(file);
             await db.SaveChangesAsync(); // trigger DB tu cong storage_used_bytes neu la group
@@ -72,15 +79,15 @@ public static class FileEndpoints
                 await db.SaveChangesAsync();
             }
 
-            var uploadUrl = storage.GeneratePresignedUploadUrl(file.ObjectKey);
-            return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, 300));
+            var uploadUrl = storage.GeneratePresignedUploadUrl(file.StorageProvider, file.ObjectKey);
+            return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, storage.PresignedUrlExpirySeconds));
         }).RequireAuthorization();
 
         // Tu de xuat - thieu sot phat hien khi build Frontend F2: co upload
         // (PUT) nhung khong co cach nao lay URL de XEM lai file da gui.
         // Kiem tra quyen qua ConversationId cua chinh file do (khong nhan
         // conversationId tu client de tranh gia mao).
-        app.MapGet("/files/{fileId:long}/download-url", async (long fileId, ClaimsPrincipal principal, ChatDbContext db, MinioStorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
+        app.MapGet("/files/{fileId:long}/download-url", async (long fileId, ClaimsPrincipal principal, ChatDbContext db, StorageService storage, WorkspaceClient workspaceClient, MediaServiceClient mediaClient) =>
         {
             var userId = GetUserId(principal)!.Value;
             var file = await db.Files.FindAsync(fileId);
@@ -105,8 +112,22 @@ public static class FileEndpoints
             if (!allowed)
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen chua file nay"), statusCode: 403);
 
-            var url = storage.GeneratePresignedDownloadUrl(file.ObjectKey);
-            return Results.Ok(new UploadUrlResponse(file.Id, url, 300));
+            // Presign vao DUNG kho da ghi trong hang. Neu kho do khong con
+            // cau hinh thi bao 503 that ro - khong duoc am tham chuyen sang
+            // kho khac, vi nhu vay se tra ve URL tro toi object khong ton tai
+            // va nguoi dung nhan 404 tu MinIO ma khong hieu vi sao.
+            string url;
+            try
+            {
+                url = storage.GeneratePresignedDownloadUrl(file.StorageProvider, file.ObjectKey);
+            }
+            catch (StorageProviderUnavailableException ex)
+            {
+                return Results.Json(
+                    new ErrorResponse("storage_unavailable", $"Kho luu tru '{ex.Provider}' chua duoc cau hinh"),
+                    statusCode: 503);
+            }
+            return Results.Ok(new UploadUrlResponse(file.Id, url, storage.PresignedUrlExpirySeconds));
         }).RequireAuthorization();
 
         var conv = app.MapGroup("/conversations").RequireAuthorization();

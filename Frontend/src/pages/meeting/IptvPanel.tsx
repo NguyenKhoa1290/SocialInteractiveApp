@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { iptvApi } from "../../api/mediaApi";
+import { iptvApi, meetingApi } from "../../api/mediaApi";
+import { IptvPlayer } from "./IptvPlayer";
 import { extractApiError } from "../../lib/apiError";
 import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
 
@@ -9,25 +10,44 @@ import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
 // qua LiveKit. Vi Media Service chua co tang WebSocket, viec "ca phong cung
 // xem 1 kenh" hien phai tu thoa thuan qua chat/loi noi, khong tu dong bo
 // duoc (da ghi ro trong MiniAppSessionEndpoints.cs).
-export function IptvPanel({ meetingId, onClose }: { meetingId: number; onClose: () => void }) {
+export function IptvPanel({
+  meetingId,
+  onClose,
+  stage = false,
+}: {
+  meetingId: number;
+  onClose: () => void;
+  // stage = dang o khung trung tam cua focus mode (khong phai panel ben canh)
+  stage?: boolean;
+}) {
   const [lists, setLists] = useState<IptvChannelList[]>([]);
   const [selectedList, setSelectedList] = useState<number | null>(null);
   const [groups, setGroups] = useState<IptvChannelGroup[]>([]);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [playingName, setPlayingName] = useState<string | null>(null);
+  // Track am thanh "uu tien" do nguoi tao kenh nhap - chi la goi y, trinh
+  // phat se doi chieu voi danh sach track THAT trong luong.
+  const [playingAudioTrack, setPlayingAudioTrack] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    iptvApi
-      .startMiniApp(meetingId)
+    // Chi ban dieu khien (panel ben canh) moi GIANH suat trinh bay - ban o
+    // khung trung tam la KET QUA cua viec da gianh duoc, goi lai se thanh
+    // vong lap. Gianh suat lam ca phong vao focus mode va chan nguoi khac
+    // trinh bay cung luc (giong Teams).
+    const claim = stage
+      ? Promise.resolve()
+      : meetingApi.startPresentation(meetingId, "mini_app", { appId: "iptv" }).then(() => undefined);
+
+    claim
+      .then(() => iptvApi.startMiniApp(meetingId))
       .then(() => iptvApi.listChannelLists())
       .then((res) => {
         setLists(res.data);
         if (res.data.length > 0) setSelectedList(res.data[0].id);
       })
       .catch((err) => setError(extractApiError(err, "Không mở được Mini App IPTV")));
-  }, [meetingId]);
+  }, [meetingId, stage]);
 
   useEffect(() => {
     if (selectedList === null) return;
@@ -43,16 +63,17 @@ export function IptvPanel({ meetingId, onClose }: { meetingId: number; onClose: 
       const res = await iptvApi.getStreamUrl(meetingId, channelId);
       setStreamUrl(res.data.streamUrl);
       setPlayingName(name);
+      setPlayingAudioTrack(res.data.audioTrack);
     } catch (err) {
       setError(extractApiError(err, "Không lấy được luồng phát"));
     }
   }
 
   return (
-    <aside className="meet-side">
+    <aside className={stage ? "meet-app-stage" : "meet-side"}>
       <div className="meet-side-head">
         <h3>Mini App · IPTV</h3>
-        <button onClick={onClose}>Đóng</button>
+        {!stage && <button onClick={onClose}>Đóng</button>}
       </div>
 
       {error && <p className="meet-error">{error}</p>}
@@ -88,11 +109,9 @@ export function IptvPanel({ meetingId, onClose }: { meetingId: number; onClose: 
       {streamUrl && (
         <div className="meet-iptv-player">
           <p className="meet-note">Đang phát: {playingName}</p>
-          {/* Chi phat duoc dinh dang trinh duyet ho tro san (MP4/WebM, hoac
-              HLS tren Safari). Luong .m3u8 tren Chrome/Firefox can them thu
-              vien hls.js - chua dua vao de khong keo them phu thuoc khi chua
-              co nguon phat that de kiem chung. */}
-          <video ref={videoRef} src={streamUrl} controls autoPlay className="meet-iptv-video" />
+          {/* Phat qua hls.js (xem IptvPlayer.tsx) - the <video> thuan chi
+              phat duoc .m3u8 tren Safari, Chrome/Firefox thi khong phat gi. */}
+          <IptvPlayer src={streamUrl} preferredAudioTrack={playingAudioTrack} />
           <a href={streamUrl} target="_blank" rel="noreferrer" className="meet-note">
             Mở luồng ở tab mới
           </a>

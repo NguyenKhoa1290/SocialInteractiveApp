@@ -11,11 +11,21 @@ export function ParticipantTile({
   isLocal,
   version,
   label,
+  stage = false,
+  videoHidden = false,
 }: {
   participant: Participant;
   isLocal: boolean;
   version: number;
   label: string;
+  // UC-34 1e - dang tat hien thi camera cua nguoi nay (client-side, de tiet
+  // kiem bang thong). Xem MeetingRoomPage.toggleHideVideo: cho tat that su
+  // bang setSubscribed(false), khong chi an bang CSS.
+  videoHidden?: boolean;
+  // stage = o trung tam khi dang focus mode: khung to, va uu tien hien
+  // NGUYEN khung hinh (object-fit: contain) thay vi cat vien nhu o video
+  // khuon mat - noi dung trinh chieu bi cat la mat chu.
+  stage?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -49,13 +59,19 @@ export function ParticipantTile({
     };
   }, [micPub?.track, version, isLocal]);
 
-  const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted;
+  const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted && !videoHidden;
   const micMuted = !micPub?.track || micPub.isMuted;
 
   return (
-    <div className="meet-tile">
+    <div className={stage ? "meet-tile meet-tile-stage" : "meet-tile"}>
       {hasVideo ? (
-        <video ref={videoRef} autoPlay playsInline muted={isLocal} className="meet-tile-video" />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocal}
+          className={stage ? "meet-tile-video meet-tile-video-contain" : "meet-tile-video"}
+        />
       ) : (
         <div className="meet-tile-placeholder">{label.slice(0, 1).toUpperCase()}</div>
       )}

@@ -19,7 +19,13 @@ import { MeetingRoomPage } from "./pages/meeting/MeetingRoomPage";
 import { JoinMeetingPage } from "./pages/meeting/JoinMeetingPage";
 import { IptvManagePage } from "./pages/meeting/IptvManagePage";
 import { MeetingDiscussionPage } from "./pages/meeting/MeetingDiscussionPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminViolationsPage } from "./pages/admin/AdminViolationsPage";
+import { AdminComplaintsPage } from "./pages/admin/AdminComplaintsPage";
+import { AdminStoragePage } from "./pages/admin/AdminStoragePage";
+import { AdminSystemPage } from "./pages/admin/AdminSystemPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AdminRoute } from "./components/AdminRoute";
 import { useAuthStore } from "./store/authStore";
 import { useKeyStore } from "./store/keyStore";
 import { scheduleTokenRefresh } from "./lib/tokenScheduler";
@@ -159,6 +165,53 @@ export default function App() {
             <ProtectedRoute>
               <WorkspaceSettingsPage />
             </ProtectedRoute>
+          }
+        />
+        {/* Khu quan tri - AdminRoute doi claim role=admin trong access token.
+            Day chi la lop an giao dien; AdminService van tu tra 403 cho moi
+            endpoint /admin/*. */}
+        <Route
+          path="/admin"
+          element={<Navigate to="/admin/users" replace />}
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsersPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/violations"
+          element={
+            <AdminRoute>
+              <AdminViolationsPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/complaints"
+          element={
+            <AdminRoute>
+              <AdminComplaintsPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/storage"
+          element={
+            <AdminRoute>
+              <AdminStoragePage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/system"
+          element={
+            <AdminRoute>
+              <AdminSystemPage />
+            </AdminRoute>
           }
         />
         <Route path="/" element={<Navigate to="/login" replace />} />

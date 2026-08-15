@@ -183,12 +183,19 @@
 - [ ] Giao diện phòng họp (video grid + thanh điều khiển)
 - [ ] Mini App IPTV (thêm kênh, chọn kênh, player)
 
-**Admin Page**
-- [ ] Danh sách người dùng + tìm kiếm
-- [ ] Danh sách vi phạm spam
-- [ ] Xử lý khiếu nại
-- [ ] Dashboard tài nguyên hệ thống
-- [ ] Yêu cầu scale service / dựng thêm LiveKit
+**Admin Page** — route `/admin/*`, vào bằng link "Quản trị" ở header (chỉ hiện với tài khoản có
+claim `role=admin`)
+- [x] Danh sách người dùng + tìm kiếm (phân trang, chi tiết, gỡ khoá, xoá vĩnh viễn)
+- [x] Danh sách vi phạm spam
+- [x] Xử lý khiếu nại (hội thoại + gửi phản hồi)
+- [x] Duyệt yêu cầu nạp dung lượng nhóm *(nợ từ F4, không có trong danh sách gốc)*
+- [x] Dashboard tài nguyên hệ thống (CPU/RAM theo pod/node)
+- [x] Yêu cầu scale service
+- [~] **Yêu cầu dựng thêm LiveKit — CỐ Ý KHÔNG LÀM.** Sau khi chốt dùng LiveKit Cloud managed
+      (`infra/HUONG-DAN-DEPLOY.md` mục 6.0), Cloud tự lo phần mở rộng nên nút này không còn việc để
+      làm. Endpoint `POST /admin/system/livekit/expand` vốn cũng chỉ ghi 1 dòng log rồi trả 202 —
+      dựng nút cho nó là tạo ra một nút giả vờ có tác dụng. Endpoint vẫn còn, muốn hiện lại thì
+      thêm vào `AdminSystemPage.tsx`.
 
 ---
 

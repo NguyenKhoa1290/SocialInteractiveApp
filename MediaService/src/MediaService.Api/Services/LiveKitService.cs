@@ -67,6 +67,33 @@ public class LiveKitService
         }
     }
 
+    // Trang thai "ai dang trinh bay" duoc luu vao METADATA CUA PHONG ben
+    // LiveKit, khong phai bang rieng trong Media DB. Ly do:
+    //  - LiveKit TU broadcast RoomMetadataChanged cho moi nguoi dang trong
+    //    phong, khong can Media Service co tang WebSocket rieng (van chua co).
+    //  - Nguoi vao MUON doc duoc ngay tu `room.metadata` luc ket noi, khong
+    //    can goi them API nao - khong bao gio bi lo mat trang thai.
+    //  - Phong tan la metadata mat theo, khong de lai rac.
+    public async Task<string?> GetRoomMetadataAsync(long meetingId)
+    {
+        try
+        {
+            var resp = await _roomService.ListRooms(new ListRoomsRequest { Names = { RoomName(meetingId) } });
+            return resp.Rooms.Count > 0 ? resp.Rooms[0].Metadata : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public Task SetRoomMetadataAsync(long meetingId, string metadata) =>
+        _roomService.UpdateRoomMetadata(new UpdateRoomMetadataRequest
+        {
+            Room = RoomName(meetingId),
+            Metadata = metadata,
+        });
+
     public Task DeleteRoomAsync(long meetingId) =>
         _roomService.DeleteRoom(new DeleteRoomRequest { Room = RoomName(meetingId) });
 

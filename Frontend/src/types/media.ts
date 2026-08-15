@@ -50,6 +50,23 @@ export interface MeetingParticipant {
 
 export type PermissionType = "share_screen" | "mini_app" | "focus_mode";
 
+// Trang thai "ai dang trinh bay" - doc tu metadata cua phong LiveKit
+// (RoomMetadataChanged), khong phai tu REST. Chi MOT nguoi tai mot thoi diem.
+// CHI nhung thu thuc su dung chung ca phong (man hinh dang chia se, mini app
+// dang mo). Viec "ghim ai vao giua" KHONG nam o day - do la lua chon xem
+// rieng cua tung nguoi, xu ly hoan toan o Frontend.
+export interface PresentationState {
+  userId: number;
+  nickname: string;
+  kind: "screen" | "mini_app";
+  appId: string | null;
+  startedAt: string;
+}
+
+export interface RoomMetadata {
+  presentation?: PresentationState | null;
+}
+
 export interface MeetingInvite {
   id: number;
   type: "link" | "direct";

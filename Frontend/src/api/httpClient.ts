@@ -1,5 +1,5 @@
 import axios from "axios";
-import { IDENTITY_API_URL, WORKSPACE_API_URL, CHAT_API_URL, MEDIA_API_URL } from "../config";
+import { IDENTITY_API_URL, WORKSPACE_API_URL, CHAT_API_URL, MEDIA_API_URL, ADMIN_API_URL } from "../config";
 import { useAuthStore } from "../store/authStore";
 
 // Dung chung cho moi service backend (Identity, WorkSpace, Chat...) - tu
@@ -32,3 +32,4 @@ export const identityHttp = createAuthedHttp(IDENTITY_API_URL);
 export const workspaceHttp = createAuthedHttp(WORKSPACE_API_URL);
 export const chatHttp = createAuthedHttp(CHAT_API_URL);
 export const mediaHttp = createAuthedHttp(MEDIA_API_URL);
+export const adminHttp = createAuthedHttp(ADMIN_API_URL);

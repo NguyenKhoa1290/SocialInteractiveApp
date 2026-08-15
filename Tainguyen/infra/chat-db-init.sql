@@ -193,6 +193,11 @@ CREATE TABLE files (
   file_type        VARCHAR(20) NOT NULL
                      CHECK (file_type IN ('image','video','voice','file')),
   size_bytes       BIGINT NOT NULL,
+  -- Kho luu tru chua file: 'home' = MinIO may nha, 'cloud' = R2/S3.
+  -- Chon theo dung luong luc upload (Storage:HomeMaxBytes) roi giu nguyen -
+  -- file khong tu di chuyen, nen day la nguon su that duy nhat khi tai ve.
+  -- DEFAULT 'home' de moi hang cu van dung sau khi them cot.
+  storage_provider VARCHAR(20) NOT NULL DEFAULT 'home',
   uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

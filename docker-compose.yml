@@ -1,0 +1,186 @@
+# Chay toan bo 6 service + frontend trong Docker.
+#
+#   docker compose up -d --build      # bat tat ca (lan dau, co build)
+#   docker compose up -d              # bat lai, khong build
+#   docker compose ps                 # xem cai gi song/chet (thay dev-status.ps1)
+#   docker compose logs -f chat       # xem log 1 service
+#   docker compose up -d --build chat # build lai 1 service sau khi sua code
+#   docker compose down               # tat tat ca
+#
+# HA TANG (Postgres/Redis/Kafka/RabbitMQ/LiveKit/MinIO) KHONG nam trong file
+# nay - chung chay san trong cac cluster K8s (docker-desktop, kind-*) va
+# MinIO tren may LAN rieng. Compose chi chay tang ung dung.
+#
+# Vi sao "host.docker.internal" o khap noi: ha tang publish cong ra Windows
+# host, ma trong container "localhost" la chinh container do. Dia chi nay la
+# duong duy nhat container goi nguoc ra host duoc.
+
+name: chat-app
+
+x-service: &service
+  restart: unless-stopped
+  networks: [app]
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
+    interval: 10s
+    timeout: 3s
+    retries: 12
+    start_period: 25s
+
+# Cac gia tri dung chung. Mat khau trung voi appsettings.json da commit -
+# day la moi truong dev noi bo.
+x-redis: &redis "host.docker.internal:6379,password=154f8287a3654e90665f4e6a58399e0f"
+x-kafka: &kafka "host.docker.internal:9092"
+x-jwt: &jwt "C:/Program Files/Git/zzLL7FpBzfbY34fNU6H1vQUIRqocBVF9P1ETxgKtJIb+W8sYO/ARu4TtCTc8+GC"
+
+services:
+  identity:
+    <<: *service
+    build: ./IdentityService/src/IdentityService.Api
+    ports: ["5194:8080"]
+    environment:
+      ConnectionStrings__IdentityDb: "Host=host.docker.internal;Port=5432;Database=identity;Username=identity_admin;Password=f8f12714edad39133b1a2f619500a0dc"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+
+  workspace:
+    <<: *service
+    build: ./WorkspaceService/src/WorkspaceService.Api
+    ports: ["5153:8080"]
+    environment:
+      ConnectionStrings__WorkspaceDb: "Host=host.docker.internal;Port=5433;Database=workspace;Username=workspace_admin;Password=9142ecf6969c0f66826be3d51270ff3e"
+      ConnectionStrings__Redis: *redis
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+      # Goi lan nhau bang TEN SERVICE cua compose + cong noi bo 8080, khong
+      # qua host - ngan hon va khong phu thuoc cong publish ra ngoai.
+      IdentityClient__BaseUrl: http://identity:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+
+  chat:
+    <<: *service
+    build: ./ChatService/src/ChatService.Api
+    ports: ["5261:8080"]
+    environment:
+      ConnectionStrings__ChatDb: "Host=host.docker.internal;Port=5434;Database=chat;Username=chat_admin;Password=6486380b7831f81bc082871538a2c771"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+      WorkspaceClient__BaseUrl: http://workspace:8080
+      MediaServiceClient__BaseUrl: http://media:8080
+      IdentityClient__BaseUrl: http://identity:8080
+      # KHONG doi sang host.docker.internal: URL presign nay tra thang cho
+      # TRINH DUYET, nen phai la dia chi trinh duyet toi duoc. Chat Service
+      # khong bao gio ket noi toi MinIO (presign la phep tinh offline).
+      Storage__Providers__home__Endpoint: http://192.168.50.10:9000
+
+  spamtracking:
+    <<: *service
+    build: ./SpamTrackingService/src/SpamTrackingService.Api
+    ports: ["5160:8080"]
+    environment:
+      ConnectionStrings__SpamTrackingDb: "Host=host.docker.internal;Port=5435;Database=spamtracking;Username=spamtracking_admin;Password=5e8b2da3ae764b4bc0d09d9d0c22e92d"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+      IdentityClient__BaseUrl: http://identity:8080
+
+  media:
+    <<: *service
+    build: ./MediaService/src/MediaService.Api
+    ports: ["5300:8080"]
+    environment:
+      ConnectionStrings__MediaDb: "Host=host.docker.internal;Port=5436;Database=media;Username=media_admin;Password=f82b6df20ed68a55b97361360c1a0f8d"
+      ConnectionStrings__MiniAppDb: "Host=host.docker.internal;Port=5437;Database=miniapp;Username=miniapp_admin;Password=a377345d7812f08609dae5d97e8d4de2"
+      ConnectionStrings__Redis: *redis
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+      IdentityClient__BaseUrl: http://identity:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+      # ServerUrl: Media Service goi Server API -> dia chi tu trong container.
+      # ClientUrl: tra ve cho TRINH DUYET tu ket noi -> dia chi tu may that.
+      # Hai cai nay KHAC NHAU, doi nham la phong hop khong vao duoc.
+      LiveKit__ServerUrl: http://host.docker.internal:7880
+      LiveKit__ClientUrl: ws://localhost:7880
+
+  admin:
+    <<: *service
+    build: ./AdminService/src/AdminService.Api
+    ports: ["5230:8080"]
+    depends_on:
+      kubeconfig-init:
+        condition: service_completed_successfully
+    volumes:
+      # Gan vao DUNG duong dan mac dinh cua client K8s. Bien moi truong
+      # KUBECONFIG khong an: KubernetesClientConfiguration.BuildConfigFromConfigFile()
+      # (khong tham so) doc thang $HOME/.kube/config, bo qua KUBECONFIG -
+      # da xac nhan bang loi that "kubeconfig file not found at
+      # /home/appuser/.kube/config". appuser la user trong Dockerfile (uid 1000).
+      - kubeconfig:/home/appuser/.kube:ro
+    environment:
+      RabbitMq__HostName: host.docker.internal
+      Jwt__SigningKey: *jwt
+      IdentityClient__BaseUrl: http://identity:8080
+      SpamTrackingClient__BaseUrl: http://spamtracking:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+      # Chay trong Docker chu khong trong K8s -> phai doc kubeconfig, khong
+      # dung duoc InClusterConfig. File duoc kubeconfig-init sinh ra.
+      K8s__UseInCluster: "false"
+
+  # Kubeconfig cua Docker Desktop tro toi https://127.0.0.1:<cong-ngau-nhien>,
+  # ma cong do DOI moi lan Docker Desktop khoi dong lai, va 127.0.0.1 trong
+  # container la chinh container. Job nay chay truoc admin moi lan `up`, chep
+  # lai kubeconfig va sua dia chi -> tu bat kip cong moi, khong phai sua tay.
+  # Bo certificate-authority-data va bat insecure-skip-tls-verify vi cert cua
+  # API server khong ky cho ten "host.docker.internal" (chi cho localhost/IP).
+  kubeconfig-init:
+    image: alpine:3.20
+    networks: [app]
+    volumes:
+      - ~/.kube:/src:ro
+      - kubeconfig:/kube
+    command:
+      - sh
+      - -c
+      - |
+        if [ -f /src/config ]; then
+          sed -e 's|https://127.0.0.1:|https://host.docker.internal:|g' \
+              -e '/certificate-authority-data:/d' \
+              -e 's|^\( *\)server: \(.*\)$$|\1server: \2\n\1insecure-skip-tls-verify: true|' \
+              /src/config > /kube/config
+          echo "kubeconfig san sang cho container"
+        else
+          echo "KHONG thay ~/.kube/config - /admin/system/resources se loi, phan con lai van chay"
+          : > /kube/config
+        fi
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    networks: [app]
+    ports: ["5173:5173"]
+    volumes:
+      - ./Frontend:/app
+      # Volume rieng cho node_modules: bind mount tu Windows sang Linux
+      # container lam npm cham va de hong symlink.
+      - frontend_node_modules:/app/node_modules
+    environment:
+      # Bind mount tu Windows khong ban su kien inotify -> Vite khong tu
+      # reload neu khong bat polling.
+      CHOKIDAR_USEPOLLING: "true"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    restart: unless-stopped
+
+networks:
+  app:
+    driver: bridge
+
+volumes:
+  kubeconfig:
+  frontend_node_modules:

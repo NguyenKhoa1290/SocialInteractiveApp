@@ -21,6 +21,11 @@ public class FileAttachment
     public long SizeBytes { get; set; }
     public DateTimeOffset UploadedAt { get; set; }
 
+    // Kho luu tru chua file nay ("home" = MinIO may nha, "cloud" = R2/S3).
+    // Quyet dinh mot lan luc upload theo dung luong roi giu nguyen mai mai -
+    // file da nam o dau thi o do, khong tu di chuyen. Xem StorageService.
+    public string StorageProvider { get; set; } = Services.StorageService.Home;
+
     public static string TypeToString(FileType t) => t switch
     {
         FileType.Image => "image",

@@ -37,10 +37,10 @@ var writeChatConsumerOptions = builder.Configuration.GetSection("WriteChatConsum
 builder.Services.AddSingleton(writeChatConsumerOptions);
 builder.Services.AddHostedService<WriteChatConsumerService>();
 
-var minioOptions = builder.Configuration.GetSection("Minio").Get<MinioOptions>()
-    ?? throw new InvalidOperationException("Thieu cau hinh Minio trong appsettings");
-builder.Services.AddSingleton(minioOptions);
-builder.Services.AddSingleton<MinioStorageService>();
+var storageOptions = builder.Configuration.GetSection("Storage").Get<StorageOptions>()
+    ?? throw new InvalidOperationException("Thieu cau hinh Storage trong appsettings");
+builder.Services.AddSingleton(storageOptions);
+builder.Services.AddSingleton<StorageService>();
 
 var workspaceClientOptions = builder.Configuration.GetSection("WorkspaceClient").Get<WorkspaceClientOptions>()
     ?? new WorkspaceClientOptions();

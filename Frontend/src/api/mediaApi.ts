@@ -9,13 +9,17 @@ import type {
   MeetingPreview,
   MeetingWithCallerStatus,
   PermissionType,
+  PresentationState,
   WaitingParticipant,
 } from "../types/media";
 
 export const meetingApi = {
   // mode=in_chat gan cuoc hop voi 1 hoi thoai (ca nhom vao thang duoc);
-  // mode=direct la cuoc hop doc lap, chi vao duoc bang link moi.
-  create: (mode: "in_chat" | "direct", conversationId?: number) =>
+  // mode=standalone la cuoc hop doc lap, chi vao duoc bang link moi.
+  // Ten gia tri phai dung theo enum trong media-service-api.yaml
+  // (`enum: [in_chat, standalone]`) - truoc day Frontend gui "direct", chay
+  // dung nhung lech hop dong API.
+  create: (mode: "in_chat" | "standalone", conversationId?: number) =>
     mediaHttp.post<Meeting>("/meetings", { mode, conversationId: conversationId ?? null }),
 
   // 204 (data rong) khi hoi thoai khong co cuoc hop nao dang mo.
@@ -54,6 +58,17 @@ export const meetingApi = {
 
   revokePermission: (meetingId: number, userId: number, permissionType: PermissionType) =>
     mediaHttp.delete<void>(`/meetings/${meetingId}/participants/${userId}/permissions`, { params: { permissionType } }),
+
+  // Gianh "suat trinh bay" - chi mot nguoi tai mot thoi diem, nguoi sau bi
+  // 409 chu khong de len nguoi truoc. Goi TRUOC khi thuc su bat chia se man
+  // hinh / mo mini app.
+  startPresentation: (meetingId: number, kind: "screen" | "mini_app", opts?: { appId?: string }) =>
+    mediaHttp.post<PresentationState>(`/meetings/${meetingId}/presentation`, {
+      kind,
+      appId: opts?.appId ?? null,
+    }),
+
+  stopPresentation: (meetingId: number) => mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`),
 
   createInvite: (meetingId: number, type: "link" | "direct", invitedUserId?: number) =>
     mediaHttp.post<MeetingInvite>(`/meetings/${meetingId}/invites`, { type, invitedUserId: invitedUserId ?? null }),

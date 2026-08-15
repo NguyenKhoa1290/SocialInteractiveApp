@@ -33,7 +33,7 @@ Hệ thống theo kiến trúc **microservices**, mỗi service sở hữu 1 dat
 - **SpamTrackingService** — phát hiện & xử lý spam tự động
 - **Search Chat Service** — tìm kiếm lịch sử chat (Redis cho dữ liệu nóng, Postgres cho dữ liệu lạnh)
 
-**Hạ tầng nền:** Apache Kafka (event log: Register, Chat Log, Error Log) · RabbitMQ (task-queue cho notification/side-effect) · Redis (cache chung, đồng bộ từ Postgres qua Kafka) · MinIO (object storage) · LiveKit + TURN (WebRTC, giới hạn 100 người/room) · K8s (Admin Service dùng Service Account read-only để giám sát).
+**Hạ tầng nền:** Apache Kafka (event log: Register, Chat Log, Error Log) · RabbitMQ (task-queue cho notification/side-effect) · Redis (cache chung, đồng bộ từ Postgres qua Kafka) · MinIO (object storage — file > 20MB đẩy sang kho cloud, xem `storage_provider`) · LiveKit + TURN (WebRTC, giới hạn 100 người/room — **chạy trên LiveKit Cloud managed**, không tự dựng: server nhà bị CGNAT nên không port-forward được dải UDP; xem `HUONG-DAN-DEPLOY.md` mục 6.0) · K8s (Admin Service dùng Service Account read-only để giám sát).
 
 **Nguyên tắc xuyên suốt:**
 - Mỗi service 1 DB riêng → khoá ngoại giữa các service khác DB chỉ là **liên kết logic** (FK\*), không được DB ràng buộc, tầng ứng dụng tự đảm bảo.
@@ -2012,14 +2012,16 @@ service (C#/.NET) chưa viết.*
 | conversation_id | BIGINT | NOT NULL, FK → conversations(id) ON DELETE CASCADE | Dùng để tính tổng dung lượng theo nhóm |
 | message_id | BIGINT | NULL, FK → messages(id) ON DELETE CASCADE | Tin nhắn đính kèm file này |
 | uploaded_by | BIGINT | NOT NULL | Logical FK |
-| object_key | VARCHAR(500) | NOT NULL | Đường dẫn object trong MinIO |
+| object_key | VARCHAR(500) | NOT NULL | Đường dẫn object trong kho lưu trữ |
 | file_type | VARCHAR(20) | NOT NULL, CHECK IN ('image','video','voice','file') | |
 | size_bytes | BIGINT | NOT NULL | Dùng cộng/trừ storage_used_bytes qua trigger |
+| storage_provider | VARCHAR(20) | NOT NULL, DEFAULT 'home' | Kho chứa file: `home` = MinIO máy nhà, `cloud` = R2/S3/MinIO thứ hai. Chốt **một lần lúc upload** theo `size_bytes` vs `Storage:HomeMaxBytes` (mặc định 20MB) rồi giữ nguyên |
 | uploaded_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
 **Ghi chú / Điểm mở:**
 - Hiển thị "người trong nhóm" khi 1 thành viên bị xoá khỏi group (UC-22) được **TÍNH ĐỘNG** lúc truy vấn (join sender_id với workspace_members), KHÔNG lưu cứng vào bảng messages — rẻ hơn nhiều so với update hàng loạt message rows.
 - Edge case chưa xác nhận: nếu người bị xoá được thêm lại vào nhóm, theo cách tính động ở trên thì TOÀN BỘ tin nhắn cũ của họ sẽ tự động hiện lại tên thật. Nếu muốn ẩn danh giữ nguyên vĩnh viễn, cần đổi sang lưu cứng (snapshot).
+- **Vì sao `storage_provider` lưu cứng chứ không tính lại theo ngưỡng lúc tải về:** file đã upload thì không tự di chuyển, nên chỉ cột này mới nói đúng nó đang nằm ở đâu — nhờ vậy đổi `HomeMaxBytes` sau này không làm hỏng file cũ. Hạn mức 2GB/nhóm không đổi: trigger `sync_storage_used()` cộng theo `size_bytes` bất kể file ở kho nào. Chi tiết + cạm bẫy (mixed content, CORS, presign là phép tính offline nên cấu hình sai endpoint không báo lỗi lúc khởi động) xem `Tainguyen/infra/HUONG-DAN-DEPLOY.md` mục 3.1.
 - Giả định 1 workspace = đúng 1 group conversation. Nếu sau này muốn hỗ trợ nhiều channel trong 1 workspace, cần bỏ ràng buộc UNIQUE(workspace_id) và có thêm khái niệm "channel" riêng.
 - `storage_used_bytes` có nguy cơ lệch nếu tăng/giảm không atomic — đã thêm 2 trigger đồng bộ tự động (xem DDL).
 
@@ -2749,7 +2751,7 @@ Phase 3, chưa làm.*
       Chat Service không resolve nickname thay. Verify thật qua curl: tạo P2P → cả 2 phía đều thấy
       đúng conversation trong danh sách của mình.
 - [x] `GET /files/{fileId}/download-url` — **tự đề xuất, thiếu sót nghiêm trọng phát hiện khi build
-      Frontend F2**: `MinioStorageService` trước đó chỉ có `GeneratePresignedUploadUrl` (PUT) — hoàn
+      Frontend F2**: `StorageService` (trước là `MinioStorageService`) trước đó chỉ có `GeneratePresignedUploadUrl` (PUT) — hoàn
       toàn KHÔNG có cách nào lấy lại URL để xem/tải file đã gửi (ảnh/video/voice/file gửi xong sẽ
       không hiển thị lại được). Thêm `GeneratePresignedDownloadUrl` (GET) + endpoint kiểm tra quyền
       qua chính `ConversationId` của file (không nhận `conversationId` từ client để tránh giả mạo).
@@ -2774,7 +2776,16 @@ Phase 3, chưa làm.*
 - [x] `POST /files/upload-url` — presigned URL qua MinIO (S3-compatible) tại `192.168.50.10:9000`,
       verify PUT thật lên bucket `chat-media` thành công + đọc lại đúng nội dung. Sửa 1 lỗi thật:
       AWSSDK.S3 luôn sinh presigned URL với scheme `https://` bất kể `UseHttp` config, trong khi
-      MinIO của dự án chỉ nghe HTTP thường — phải ép lại scheme thủ công (xem `MinioStorageService.cs`)
+      MinIO của dự án chỉ nghe HTTP thường — phải ép lại scheme thủ công (xem `StorageService.cs`)
+- [x] **Định tuyến kho lưu trữ theo dung lượng** — `MinioStorageService` (1 kho cố định) đổi thành
+      `StorageService` (nhiều kho). File ≤ `Storage:HomeMaxBytes` (20MB) → `home`, lớn hơn → `cloud`;
+      kết quả ghi vào cột `storage_provider`, lúc tải về đọc lại theo cột chứ không tính lại theo
+      ngưỡng. Verify 10/10: dưới ngưỡng, đúng biên 20MB, trên ngưỡng khi cloud chưa/đã cấu hình,
+      tải file ghi `home` lẫn `cloud`, file cũ có trước khi thêm cột, và 503 `storage_unavailable`
+      khi kho đã ghi trong DB không còn cấu hình. Hai quyết định: chưa có cloud thì file lớn vẫn lưu
+      `home` kèm cảnh báo log (từ chối upload là làm hỏng tính năng đang chạy vì một ô cấu hình chưa
+      điền); kho không còn cấu hình thì báo 503 rõ chứ không âm thầm presign sang kho khác (sẽ trả
+      URL tới object không tồn tại → 404 khó hiểu)
 - [x] `GET /conversations/{conversationId}/files`
 - [x] `DELETE /conversations/{conversationId}/files/{fileId}` — giả định tương tự: người upload
       tự xoá được (Group thì phải là Trưởng nhóm)
@@ -3352,6 +3363,108 @@ chính** → khách upload file: **dung lượng nhóm tăng đúng đúng số 
 liệt kê đúng số cuộc hop có thảo luận, đếm đúng số tin, sắp xếp mới nhất trước, người ngoài nhóm không
 liệt kê được. Đã dọn sạch dữ liệu test ở cả 4 CSDL.
 
+**Focus mode — khung trình bày ở trung tâm, chỉ một người trình bày một lúc.** Phần này **có trong
+đặc tả gốc** nhưng trước đó chưa làm giao diện: sơ đồ `Tainguyen/Drawing2.pdf` ghi Mini App "mở dưới
+dạng mini web nhúng trong khuôn cuộc họp, hiển thị ở **focus view**" và liệt kê "bật/tắt focus mode"
+là một tính năng **cấp phép riêng lẻ**; schema `meeting_permissions.permission_type` cũng đã có sẵn
+giá trị `'focus_mode'` bên cạnh `'share_screen'`/`'mini_app'`.
+
+- [x] **Trạng thái "ai đang trình bày" lưu trong METADATA CỦA PHÒNG bên LiveKit**, không phải bảng
+  riêng trong Media DB. Ba lý do: (a) LiveKit **tự** broadcast `RoomMetadataChanged` cho cả phòng nên
+  Media Service không cần tầng WebSocket riêng (vốn vẫn chưa có); (b) người vào **muộn** đọc được ngay
+  từ `room.metadata` lúc kết nối, không bao giờ lỡ mất trạng thái; (c) phòng tan thì metadata mất
+  theo, không để lại rác.
+- [x] `GET/POST/DELETE /meetings/{id}/presentation` — giành/nhả suất trình bày. **Chỉ một người tại
+  một thời điểm**: người sau nhận **409** kèm tên người đang trình bày, không đè lên người trước
+  (đúng cách Teams làm). Người đang trình bày bấm lại thì được coi là đổi nội dung, không tự chặn mình.
+- [x] Quyền **riêng lẻ theo từng loại**: `kind=screen` đòi `share_screen`, `kind=mini_app` đòi
+  `mini_app` — quyền này **không** dùng thay cho quyền kia. Host luôn trình bày được.
+- [x] Dừng trình bày: chính người đó, **hoặc Chủ phòng** (để gỡ kẹt khi người trình bày mất mạng mà
+  không kịp tắt).
+- [x] Frontend: bố cục đổi hẳn khi có người trình bày — khung trình bày chiếm **trung tâm**, lưới
+  người tham gia co lại thành **dải ngang** bên dưới; thanh báo "🔴 X đang trình chiếu màn hình / đang
+  mở Mini App" kèm nút Dừng. Nội dung trình chiếu dùng `object-fit: contain` (không cắt viền như video
+  khuôn mặt — cắt nội dung trình chiếu là mất chữ).
+- [x] Nút "Trình chiếu" nay **giành suất TRƯỚC** rồi mới bật chia sẻ màn hình. Nếu người dùng bấm Huỷ ở
+  hộp chọn màn hình của trình duyệt thì **trả lại suất vừa giành** — nếu không, cả phòng sẽ kẹt ở focus
+  mode với một màn hình trống.
+
+**Ghim người vào giữa — LÀM SAI RỒI SỬA LẠI theo phản hồi người dùng dự án.** Bản đầu tôi dựng ghim
+thành **lệnh áp cho cả phòng** (kiểu Spotlight của Teams): lưu trạng thái ở server, kiểm tra quyền
+`focus_mode`, ai ghim thì màn hình mọi người đều đổi theo. Người dùng dự án bác lại: *"ghim này chỉ
+hoạt động ở front end mỗi người thôi chứ, cái focus mode chỉ là tự động chứ không bắt buộc"*.
+
+Phản hồi này đúng và làm thiết kế gọn hơn hẳn. Nguyên tắc rút ra: **chỉ những thứ THỰC SỰ dùng chung
+mới cần trạng thái ở server.** Màn hình đang chia sẻ và mini app đang mở là dùng chung thật (ai cũng
+xem cùng một nguồn) — còn "tôi muốn nhìn ai to hơn" thuần tuý là sở thích xem của từng người, đưa lên
+server là vừa thừa vừa tước quyền tự chọn của người khác.
+
+- [x] **Gỡ bỏ** `kind=focus` khỏi API — trạng thái trình bày ở server nay chỉ còn `screen`/`mini_app`.
+- [x] Ghim chuyển thành **trạng thái cục bộ của Frontend** (`pinnedUserId`), không gửi lên server,
+  không ảnh hưởng ai. Hệ quả: **không cần quyền gì cả**, ai cũng ghim được trên màn hình của mình.
+- [x] Focus mode **tự động** bật khi có người trình chiếu, nhưng **không bắt buộc**: thêm nút
+  "Xem dạng lưới" để tự thoát, và ghim của chính mình luôn **thắng** focus mode tự động.
+- [x] Việc thoát focus mode chỉ áp dụng cho **lượt trình bày đang diễn ra**, không phải tắt vĩnh viễn:
+  mỗi lượt trình bày mới (người khác bắt đầu, hoặc đổi loại) sẽ trả lại chế độ tự động. Nếu không,
+  thoát một lần là những lần sau người khác trình chiếu cũng không được đưa vào khung trình bày nữa —
+  vừa khó hiểu vừa làm mất luôn ý nghĩa của "tự động".
+- [x] **Tự bỏ ghim khi người bị ghim rời phòng** — nếu không, khung trung tâm kẹt ở một ô trống mãi.
+
+**Hệ quả cần ghi nhận thẳng thắn:** quyền `focus_mode` trong `meeting_permissions` giờ **không còn
+đường dùng** — vì hành vi mà nó định bảo vệ đã được xác định lại là thao tác cục bộ, không cần cấp
+phép. Cột vẫn giữ nguyên trong schema (không xoá dữ liệu đã có), nhưng không endpoint nào kiểm tra nó
+nữa. Đây là chỗ đặc tả gốc và thiết kế thực tế lệch nhau, ghi lại để không ai tưởng là bỏ sót.
+
+**Verify sau khi sửa (5/5 PASS):** chia sẻ màn hình vẫn chạy → payload **không còn** trường ghim →
+vẫn chỉ một người trình bày một lúc (409) → `kind=focus` **đã bị gỡ, trả 400** → mini app vẫn chạy.
+*(Lần chạy đầu báo FAIL ở bước 409 vì test quên cấp quyền `share_screen` trước nên bị chặn ở tầng
+quyền — lỗi của test, không phải sản phẩm; đã sửa test và chạy lại.)*
+
+**Verify thật qua HTTP thật (18/18 PASS):** chưa ai trình bày → 204 → thành viên chưa được cấp quyền bị
+chặn 403 → host bật được ngay (không cần tự cấp quyền cho mình) → **cấp quyền `share_screen` cho thành
+viên rồi, họ vẫn KHÔNG đè lên được (409)** kèm đúng tên người đang trình bày → người khác trong phòng
+đọc được trạng thái (nên vào muộn vẫn thấy focus mode) → người ngoài phòng 403 → người khác không tự ý
+dừng được của người ta (403) → chính chủ dừng → suất được nhả, người kia giành được → **host gỡ kẹt
+được cho người khác** → Mini App theo đúng cơ chế đó với quyền `mini_app` riêng, **quyền `share_screen`
+không dùng thay được** → `kind` sai trả 400. Đã dọn dữ liệu test.
+
+**Rà soát lại toàn bộ UC-31→UC-37 sau khi làm xong F5 — vá nốt 5 gap.** Đối chiếu
+`Tainguyen/usecase-media-service.docx` và `media-service-api.yaml` với code: **mọi endpoint trong
+OpenAPI gốc đều đã có**, nhưng còn 5 chỗ lệch trong luồng use case:
+
+- [x] **UC-34 bước 1d — điều chỉnh âm lượng của người khác** (đặc tả ghi rõ "xử lý phía client").
+  Dùng `RemoteParticipant.setVolume()` của LiveKit chứ không đặt `<audio volume>`: cách sau sẽ mất tác
+  dụng mỗi khi track được gắn/tháo lại.
+- [x] **UC-34 bước 1e — tắt hiển thị camera người khác** ("client-side, tiết kiệm băng thông"). Dùng
+  `RemoteTrackPublication.setSubscribed(false)` chứ **không** ẩn bằng CSS: ẩn CSS thì trình duyệt VẪN
+  tải video về, mất đúng mục đích tiết kiệm băng thông của tính năng. Huỷ đăng ký là LiveKit ngừng gửi
+  luồng đó tới máy này.
+- [x] **UC-31 bước 4 — publish sự kiện TẠO PHÒNG qua RabbitMQ.** Trước đó chỉ publish khi *mời trực
+  tiếp* (UC-32), còn việc *mở cuộc họp* không phát sự kiện nào. Thêm hàng đợi **riêng**
+  `media.meeting-created` (không dùng chung `media.meeting-invite`) vì đối tượng nhận khác hẳn: mời
+  trực tiếp là gửi cho đúng 1 người đã chọn, còn tạo phòng là sự kiện cần báo cho cả nhóm. Media
+  Service không có bản sao `workspace_members` nên chỉ gửi kèm `ConversationId`, để consumer tự tra
+  danh sách người nhận. **Vẫn chưa có consumer bên Identity** — cùng tình trạng với mọi queue khác.
+- [x] **UC-37 bước 5 + lỗ hổng lớn hơn: thẻ `<video>` thuần KHÔNG phát được `.m3u8` trên
+  Chrome/Firefox** (chỉ Safari phát được HLS sẵn). Nghĩa là Mini App IPTV trước đây **thực tế chưa xem
+  được kênh nào**, dù toàn bộ API đã chạy đúng — đây mới là gap lớn nhất của UC-37 chứ không phải bước
+  5. Thêm `hls.js` + tách `IptvPlayer.tsx`: phát được ở mọi trình duyệt, đọc danh sách audio track
+  **thật từ luồng** (`hls.audioTracks`) để chọn, kèm thanh âm lượng riêng. Cột `audio_track` trong DB
+  chuyển vai trò thành "track ưu tiên mặc định" — chỉ là gợi ý do người tạo kênh nhập, trình phát đối
+  chiếu với track thật trong luồng, không khớp thì giữ mặc định của luồng.
+- [x] **Sai tên giá trị `mode`**: spec định nghĩa `enum: [in_chat, standalone]` nhưng Frontend gửi
+  `"direct"`. Chạy đúng (backend chỉ so `== "in_chat"`) nhưng lệch hợp đồng API — đã sửa.
+
+**Verify thật:** `mode=standalone` tạo được cuộc hop với `conversationId=null`, `mode=in_chat` vẫn gắn
+đúng hội thoại → đọc thẳng RabbitMQ thấy **đúng 2 message** trong `media.meeting-created` với payload
+đúng như thiết kế (`{"MeetingId":23,"HostId":119,"ConversationId":null,...}` cho cuộc họp độc lập và
+`ConversationId:27` cho cuộc họp trong nhóm). Đã dọn dữ liệu test và làm rỗng hàng đợi.
+
+**Còn lại, KHÔNG phải gap mà là quyết định đã ghi nhận:** UC-32 kiểm tra bạn bè (hệ thống không có
+tính năng bạn bè ở bất kỳ service nào), UC-32 floating notification (chưa có consumer), UC-35 quyền
+`focus_mode` (đã xác định lại ghim là cá nhân hoá, không cần cấp phép), UC-37 4a lệch vài giây giữa
+các client (đánh đổi đã chấp nhận trong chính đặc tả).
+
 **Ghi chú thêm về lỗi CORS giả:** khi Identity Service ném exception chưa bắt (vd sai mật khẩu CSDL →
 `28P01`), response 500 **không đi qua middleware CORS** nên không có header `Access-Control-Allow-Origin`
 — trình duyệt báo thành "blocked by CORS policy" thay vì hiện lỗi 500 thật. Đã kiểm chứng sau khi sửa:
@@ -3362,6 +3475,45 @@ bất ngờ ở một endpoint vốn vẫn chạy, phải xem log server trướ
 tồn tại thật hay không** (gửi thiếu trường thì thêm nhầm thành viên `userId=0` mà vẫn trả 201). Đây là
 lỗ hổng có thật của WorkSpace Service nhưng nằm ngoài phạm vi F5 — đã dọn dữ liệu rác, ghi lại ở đây
 để vá sau.
+
+---
+
+**Frontend F6 (Admin Page) — hoàn thành, verify thật qua HTTP thật:**
+
+Route `/admin/*`, 5 màn hình dùng chung vỏ `AdminShell` (KHÔNG dùng `AppShell` — dock dưới của
+`AppShell` là điều hướng của người dùng thường, trộn vào chỉ làm rối):
+
+- [x] `/admin/users` — danh sách + tìm kiếm + phân trang; panel chi tiết kèm danh sách vi phạm,
+      nút gỡ khoá và xoá vĩnh viễn (có `confirm`)
+- [x] `/admin/violations` — vi phạm spam, phân trang
+- [x] `/admin/complaints` — danh sách + hội thoại + gửi phản hồi, hiện rõ "còn N giờ" theo TTL Redis
+- [x] `/admin/storage` — duyệt/từ chối yêu cầu nạp dung lượng *(nợ từ F4)*
+- [x] `/admin/system` — CPU/RAM theo pod/node (tự làm mới 15s) + form scale service
+
+**Quyền:** `AdminRoute` đọc claim `role` **từ chính access token** chứ không từ `authStore.user`
+(`AuthUser` không có trường `isAdmin`), qua `decodeJwtIsAdmin` trong `lib/jwt.ts`. Đây chỉ là lớp ẩn
+giao diện — AdminService vẫn tự trả 403 cho mọi `/admin/*`, đã verify bằng token thiếu claim → 403.
+
+**Một lỗi thật của backend lộ ra khi ghép Frontend:**
+- [x] `POST /admin/system/services/{name}/scale` trả **500 với body RỖNG** khi deployment không tồn
+      tại — chỉ bắt mỗi `HttpOperationException` với status `Forbidden`, còn `NotFound` rơi thẳng
+      xuống unhandled. Chọn nhầm tên deployment là thao tác sai bình thường của Admin (nhất là khi
+      service đang chạy bằng Docker Compose chứ không trong K8s), mà màn hình chỉ hiện được câu lỗi
+      chung chung. Đã thêm nhánh `NotFound` → 404 `deployment_not_found` kèm tên deployment, và
+      nhánh còn lại → 502 `k8s_error`. Verify: 404 có thông báo đúng, `replicas=0` vẫn 400.
+
+**CỐ Ý KHÔNG LÀM — nút "Yêu cầu dựng thêm LiveKit":** sau khi chốt dùng LiveKit Cloud managed
+(`HUONG-DAN-DEPLOY.md` mục 6.0) thì Cloud tự lo mở rộng. Endpoint `POST /admin/system/livekit/expand`
+vốn cũng chỉ ghi 1 dòng log rồi trả 202 — dựng nút cho nó là tạo ra một nút giả vờ có tác dụng.
+Endpoint vẫn giữ nguyên, muốn hiện lại chỉ cần thêm vào `AdminSystemPage.tsx`.
+
+**Ghi chú về dashboard tài nguyên:** Metrics Server chỉ trả **lượng đang dùng**, không trả giới hạn,
+nên không tính được phần trăm hạn mức thật. Thanh đo vẽ theo tương quan với pod ngốn nhất trong danh
+sách và có ghi chú rõ điều đó — trung thực hơn là bịa ra một mức trần.
+
+**Đã cấp quyền admin cho tài khoản `khoabeoloidom@gmail.com` (id 49)** qua
+`POST /internal/users/49/promote-admin` — trước đó DB không có tài khoản admin nào nên không ai vào
+được trang này.
 
 ---
 

@@ -39,6 +39,22 @@ public static class InfrastructureEndpoints
                     new ErrorResponse("forbidden", "Service Account chua co quyen ghi (patch deployments/scale)"),
                     statusCode: 403);
             }
+            // Chon nham ten deployment la loi thao tac binh thuong cua Admin
+            // (vd service dang chay bang Docker Compose chu khong trong K8s).
+            // Truoc day roi thang xuong 500 voi body RONG - man hinh Admin
+            // chi hien duoc cau bao loi chung chung, khong noi duoc sai o dau.
+            catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return Results.Json(
+                    new ErrorResponse("deployment_not_found", $"Khong tim thay deployment '{serviceName}' trong namespace 'default'"),
+                    statusCode: 404);
+            }
+            catch (HttpOperationException ex)
+            {
+                return Results.Json(
+                    new ErrorResponse("k8s_error", $"K8s API tra ve {(int)ex.Response.StatusCode}"),
+                    statusCode: 502);
+            }
         });
 
         // UC-16: quy trinh dung thuc te co the CHUA tu dong hoa hoan toan
