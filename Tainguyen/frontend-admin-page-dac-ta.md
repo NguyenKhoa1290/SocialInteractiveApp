@@ -182,6 +182,11 @@
 - [ ] Màn hình chờ duyệt vào phòng
 - [ ] Giao diện phòng họp (video grid + thanh điều khiển)
 - [ ] Mini App IPTV (thêm kênh, chọn kênh, player)
+- [x] **Đổi nguồn camera / micro / loa ngay trong cuộc họp** — *không có trong đặc tả gốc*. Đã tìm cả
+      `Drawing2.pdf` (trích 22.345 ký tự, có cả nhãn trong sơ đồ) lẫn `usecase-media-service.docx`:
+      không chỗ nào nhắc tới chọn thiết bị phần cứng. Câu *"chọn kênh âm thanh riêng nếu có"* trong
+      UC-37 là **audio track của luồng IPTV**, đã làm ở `IptvPlayer.tsx` — việc khác. Bổ sung vì
+      laptop cắm webcam rời hay cắm tai nghe giữa buổi là chuyện thường ngày.
 
 **Admin Page** — route `/admin/*`, vào bằng link "Quản trị" ở header (chỉ hiện với tài khoản có
 claim `role=admin`)

@@ -9,6 +9,10 @@ public class K8sOptions
     // trong K8s; khi test/dev tren may local dung kubeconfig mac dinh.
     public bool UseInCluster { get; set; } = true;
     public string? MetricsNamespace { get; set; } = null; // null = tat ca namespace
+
+    // Namespace chua cac Deployment cua he thong - dich cua lenh scale.
+    // Tren k3s la "chat-app"; de mac dinh "default" cho moi truong cu.
+    public string Namespace { get; set; } = "default";
 }
 
 public record PodResource(string Name, string CpuUsage, string MemoryUsage);
@@ -101,8 +105,13 @@ public class K8sResourceService
     // UC-15: can RBAC Role RIENG cho patch tren deployments/scale, tach khoi
     // Role read-only o tren. Neu Service Account chua co quyen, K8s API tra
     // ve 403 - duoc bat lai va anh xa sang HTTP 403 o Endpoints.
-    public async Task ScaleDeploymentAsync(string deploymentName, int replicas, string namespaceName = "default")
+    // Namespace lay tu cau hinh chu KHONG hardcode "default": cac service
+    // duoc deploy vao namespace rieng (chat-app tren k3s) de ap duoc
+    // ResourceQuota. De mac dinh "default" thi nut scale bao khong tim
+    // thay deployment du no dang chay ngay canh do.
+    public async Task ScaleDeploymentAsync(string deploymentName, int replicas, string? namespaceName = null)
     {
+        namespaceName ??= _options.Namespace;
         var patch = new k8s.Models.V1Patch(
             new { spec = new { replicas } },
             k8s.Models.V1Patch.PatchType.MergePatch);

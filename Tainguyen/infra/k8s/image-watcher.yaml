@@ -1,0 +1,118 @@
+# Tu cap nhat khi GitHub Actions day image moi len GHCR.
+#
+# VI SAO PHAI KEO chu khong DAY: server nha nam sau CGNAT, runner cua GitHub
+# khong mo duoc ket noi vao. Nen thay vi Actions goi vao cum, cum tu goi ra
+# GHCR kiem tra - huong nay chi can ket noi di RA, dung thu duy nhat CGNAT
+# cho phep.
+#
+# Cach lam: moi 2 phut, hoi GHCR digest cua the :latest, so voi digest da
+# ghi trong ConfigMap. Khac nhau thi rollout restart va ghi lai digest moi.
+# So DIGEST chu khong so the: the :latest luon la ":latest", nhin vao no
+# khong biet co gi doi.
+#
+# Ap dung:  kubectl apply -f image-watcher.yaml
+# Tat tam:  kubectl patch cronjob image-watcher -n chat-app -p '{"spec":{"suspend":true}}'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-watcher
+  namespace: chat-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: image-watcher
+  namespace: chat-app
+rules:
+  # Chi dung trong namespace chat-app, va chi dung quyen that su can:
+  # doc/sua ConfigMap luu digest, va restart deployment.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: image-watcher
+  namespace: chat-app
+subjects:
+  - kind: ServiceAccount
+    name: image-watcher
+    namespace: chat-app
+roleRef:
+  kind: Role
+  name: image-watcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-digests
+  namespace: chat-app
+data: {}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: image-watcher
+  namespace: chat-app
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: image-watcher
+          restartPolicy: Never
+          containers:
+            - name: watcher
+              image: alpine/k8s:1.31.0
+              resources:
+                requests: {memory: 32Mi, cpu: 10m}
+                limits: {memory: 128Mi}
+              env:
+                - name: OWNER
+                  value: "nguyenkhoa1290" # GHCR bat buoc chu thuong
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -u
+                  for d in identity workspace chat spamtracking media admin frontend; do
+                    REPO="$OWNER/chat-app-$d"
+
+                    # Package cong khai van phai xin token (token an danh) -
+                    # GHCR khong nhan request khong co Authorization.
+                    TOKEN=$(curl -sf "https://ghcr.io/token?scope=repository:$REPO:pull" | jq -r '.token // empty')
+                    [ -z "$TOKEN" ] && { echo "$d: khong lay duoc token, bo qua"; continue; }
+
+                    # HEAD de lay digest ma khong tai ca manifest. Phai khai
+                    # bao du ca hai kieu Accept: image build bang buildx la
+                    # OCI index, build bang cach khac co the la manifest v2.
+                    DIGEST=$(curl -sfI \
+                      -H "Authorization: Bearer $TOKEN" \
+                      -H "Accept: application/vnd.oci.image.index.v1+json" \
+                      -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+                      -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+                      "https://ghcr.io/v2/$REPO/manifests/latest" \
+                      | tr -d '\r' | awk 'tolower($1)=="docker-content-digest:"{print $2}')
+                    [ -z "$DIGEST" ] && { echo "$d: chua co image tren GHCR"; continue; }
+
+                    LAST=$(kubectl get cm image-digests -n chat-app -o "jsonpath={.data.$d}" 2>/dev/null || true)
+                    if [ "$DIGEST" = "$LAST" ]; then
+                      continue
+                    fi
+
+                    echo "$d: co ban moi -> $DIGEST"
+                    kubectl rollout restart "deploy/$d" -n chat-app
+                    kubectl patch cm image-digests -n chat-app --type merge \
+                      -p "{\"data\":{\"$d\":\"$DIGEST\"}}"
+                  done
+                  echo "kiem tra xong"

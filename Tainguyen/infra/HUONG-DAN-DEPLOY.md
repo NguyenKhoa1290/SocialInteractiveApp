@@ -411,12 +411,17 @@ Băng thông upload của đường truyền nhà là tài nguyên khan hiếm n
 được nó**: presign chỉ chuyển phần xác thực sang API, còn bytes vẫn đi ra từ MinIO nhà mỗi lần có
 người tải về. Cách duy nhất để tiết kiệm băng thông cho một file là bản thân file đó nằm trên cloud.
 
-Chat Service chọn kho theo **dung lượng**, cấu hình ở section `Storage` (không còn section `Minio`):
+**Cách giải quyết hiện tại là BÓP TỐC ĐỘ, không phải chặn kích thước.** File lớn vẫn gửi được — chặn
+duy nhất là hạn mức của nhóm — nhưng MinIO chỉ được dùng ~4 MB/s nên không cướp hết đường truyền của
+các service khác. `HomeMaxBytes = 0` nghĩa là không giới hạn kích thước; đặt > 0 nếu sau này muốn đẩy
+file lớn sang `cloud`.
 
 ```jsonc
 "Storage": {
-  "HomeMaxBytes": 20971520,          // 20MB: <= thì "home", lớn hơn thì "cloud"
-  "PresignedUrlExpirySeconds": 300,
+  "HomeMaxBytes": 0,                 // 0 = khong gioi han, moi file ve "home"
+  "MinPresignExpirySeconds": 300,
+  "MaxPresignExpirySeconds": 21600,
+  "AssumedThroughputBytesPerSec": 524288,
   "Providers": {
     "home":  { "Endpoint": "http://192.168.50.10:9000", "AccessKey": "...", "SecretKey": "...",
                "BucketName": "chat-media", "ForcePathStyle": true },
@@ -432,6 +437,45 @@ dùng `auto`**.
 
 **Nên chọn R2 cho tầng cloud, không phải S3:** R2 tính **egress $0**, còn S3 khoảng $0.09/GB đi ra.
 Với app chat phục vụ file cho người dùng, egress mới là khoản tiền thật chứ không phải dung lượng lưu.
+
+#### Cổng bóp tốc độ trước MinIO
+
+Trình duyệt PUT/GET **thẳng vào MinIO** bằng presigned URL, không qua Chat Service — nên bóp băng
+thông trong service .NET là vô nghĩa. Chỗ chặn duy nhất là trước MinIO: service `minio-gateway`
+trong `docker-compose.yml` (nginx), cấu hình ở `minio-gateway.conf`.
+
+**Hai cạm bẫy đã dính thật khi dựng, cả hai đều im lặng:**
+
+| Sai | Triệu chứng | Đúng |
+|---|---|---|
+| `proxy_set_header Host $host` | **403 SignatureDoesNotMatch** cho mọi request | `$http_host` — `$host` **cắt mất cổng** (`localhost:9000` → `localhost`), mà SigV4 ký Host nguyên văn cả cổng |
+| `proxy_buffering off` | `limit_rate` **bị bỏ qua hoàn toàn** — đo được 26 MB/s thay vì 4 | Bỏ dòng đó (mặc định `on`). Rate limit cần nginx giữ dữ liệu lại mới hoãn được |
+
+Cái thứ nhất tôi khoanh vùng bằng cách gửi **cùng một URL** thẳng tới MinIO với `--resolve` mà vẫn
+giữ `Host: localhost:9000` → 200; qua nginx → 403. Chữ ký đúng, nginx làm hỏng.
+
+`proxy_request_buffering off` thì **giữ nguyên** — nó là chiều LÊN, khác `proxy_buffering` (chiều
+VỀ). Bật chiều lên nghĩa là nginx nuốt cả file 1GB xuống đĩa trước khi đẩy đi.
+
+**Chỉ chiều TẢI VỀ bị nginx bóp** — và đó đúng là chiều đáng lo, vì người khác tải file về chính là
+tiêu băng thông *upload* của đường truyền nhà. Chiều đẩy lên nginx không có directive nào giới hạn;
+muốn chặn thì dùng `minio-throttle.sh` (`tc` + IFB) trên máy chạy MinIO.
+
+**Hạn presigned URL phải co giãn theo kích thước.** Đây là hỏng hóc do *chính* việc bóp tốc độ gây
+ra: hạn cũ cố định 300s an toàn khi file tối đa 20MB, nhưng ở 4 MB/s thì file 1GB cần hàng chục phút
+— URL hết hạn giữa chừng. Nay hạn = `size / AssumedThroughputBytesPerSec`, kẹp giữa Min và Max.
+`AssumedThroughput` (512 KB/s) đặt **thấp hơn** mức bóp thật có chủ đích, vì băng thông còn chia cho
+nhiều người tải cùng lúc.
+
+Đo thật trên file 50MB:
+
+| | Kết quả |
+|---|---|
+| Tải về qua gateway | **4,21 MB/s** trong 12,4s ✓ |
+| Đẩy lên qua gateway | 27 MB/s (đúng — nginx không bóp chiều lên) |
+| File 800KB tải về | 22 MB/s (dưới `limit_rate_after 1m` nên miễn bóp) |
+| Hạn URL: 5MB / 200MB / 1GB | 300s / 400s / 2048s |
+| File 4GB (quá hạn mức 3GB) | `507 storage_quota_exceeded` |
 
 Ba điểm về hành vi, đã verify bằng test:
 
@@ -484,6 +528,58 @@ Firewall, và quan trọng nhất với LiveKit — quyết định STUN tự d�
 khi truy cập từ Internet) hay gán thẳng `node_ip` bằng IP LAN (`use_external_ip: false`, hợp khi
 chỉ dùng nội bộ LAN — STUN trả IP public Internet khiến client cùng LAN không kết nối được media do
 NAT hairpin thường không hoạt động trên router gia đình).
+
+---
+
+## 3.2. CI/CD qua GitHub Actions
+
+**Ràng buộc quyết định kiến trúc:** server nhà sau CGNAT, runner của GitHub **không mở được kết nối
+vào**. Nên không dùng được kiểu "Actions SSH vào server rồi deploy". Phải đảo chiều thành mô hình
+**KÉO** — cụm k3s tự gọi ra registry.
+
+| File | Chạy khi nào | Việc |
+|---|---|---|
+| `.github/workflows/ci.yml` | mỗi push/PR | 6 service `dotnet build` + frontend `oxlint`/`tsc`/`vite build` |
+| `.github/workflows/release.yml` | push vào `main` | build 7 image, đẩy GHCR, gắn thẻ SHA + `latest` |
+| `Tainguyen/infra/k8s/image-watcher.yaml` | CronJob mỗi 2 phút trong k3s | so **digest** `:latest` với ConfigMap, khác thì `rollout restart` |
+
+So **digest** chứ không so thẻ: `:latest` lúc nào cũng là `:latest`, nhìn vào không biết có gì đổi.
+
+Release workflow **không cần khai báo secret nào** — `GITHUB_TOKEN` sẵn quyền `packages: write`.
+
+Chuyển nguồn image bằng một biến trong `gen-manifests.py`:
+```python
+IMAGE_REGISTRY = ""                        # build cuc bo bang nerdctl (mac dinh)
+IMAGE_REGISTRY = "ghcr.io/nguyenkhoa1290"  # keo tu GHCR, imagePullPolicy tu thanh Always
+```
+
+### Lỗi chặn đường: 5/6 service KHÔNG có `appsettings.json` trong git
+
+`.gitignore` chặn `appsettings.json`, nhưng chỉ Identity trót commit trước khi có luật đó nên vẫn
+được theo dõi. Năm service còn lại chỉ có file `.example`.
+
+Hệ quả: **image build từ GitHub Actions sẽ thiếu hoàn toàn cấu hình** cho 5 service đó — Chat chết
+ngay lúc khởi động vì `StorageService` không thấy kho `home`. Image build tại máy thì chạy bình
+thường vì nó gói kèm file trên đĩa. Đây là lỗi chỉ lộ ra lúc deploy, không lộ lúc build.
+
+**Sửa gốc — tách bí mật khỏi cấu hình:**
+
+| | Trước | Sau |
+|---|---|---|
+| `appsettings.json` ×6 | chứa bí mật → không commit được | giữ cấu trúc + giá trị không nhạy cảm, **13 khoá bí mật để trống** → commit được |
+| `docker-compose.yml` | nhúng sẵn 8 mật khẩu | đọc `${VAR}` từ `.env` |
+| `gen-manifests.py` | nhúng sẵn mật khẩu DB | đọc `secrets.env`, sinh Secret `app-secrets` |
+| Bí mật thật | rải rác | `secrets.env` + `.env` (cả hai đã gitignore) |
+
+Service nạp bí mật bằng `envFrom: secretRef: app-secrets`, không còn nằm trong env của Deployment —
+nhờ vậy `all.yaml` sinh ra cũng không lộ khi lỡ commit (dù đã gitignore luôn cho chắc).
+
+**Verify:** build lại cả 6 service với `appsettings.json` đã bỏ trống, rồi chạy luồng thật *đăng ký →
+tạo nhóm → xin URL upload*. Presign trả về URL ký bằng `minioadmin` lấy **từ Secret**. Nếu `envFrom`
+hỏng thì Chat đã chết lúc khởi động chứ không tới được bước này.
+
+**Còn nợ:** bí mật cũ vẫn nằm trong **lịch sử git** của repo công khai — Gmail App Password và JWT
+SigningKey. Việc tách này chỉ chặn rò rỉ *từ nay*; thứ đã public phải **thu hồi và cấp lại**.
 
 ---
 
@@ -664,7 +760,107 @@ production/home-lab, hành xử đúng chuẩn K8s.
 Desktop chỉ cho 1 cluster. Trên k3s thật dùng đúng cách K8s thiết kế: 1 cluster, nhiều namespace, cô
 lập bằng `ResourceQuota`/`LimitRange`, cô lập theo node (nếu thêm node) bằng `nodeSelector`/`taints`.
 
-### 5.1 Cài WSL2 + Ubuntu
+### 5.0 Đã triển khai thật — máy Ubuntu, KHÔNG qua WSL2
+
+Server nhà là **máy Ubuntu 22.04 thật** (laptop, 8 nhân, 7,2 GB RAM, 197 GB trống), truy cập qua
+cloudflared tunnel cổng 2222. Nên **toàn bộ mục 5.1 bên dưới không áp dụng** — WSL2 chỉ cần khi server
+là máy Windows. Giữ lại phòng khi đổi máy.
+
+**Quy trình đã chạy thật:**
+
+```bash
+# 1. Docker (de build image; k3s dung containerd rieng)
+curl -fsSL https://get.docker.com | sh && usermod -aG docker nguyenkhoa
+
+# 2. k3s
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
+
+# 3. Build image roi NAP sang containerd cua k3s
+docker build -t chat-app-identity ./IdentityService/src/IdentityService.Api
+docker save chat-app-identity:latest | sudo k3s ctr images import -   # lap cho 7 image
+
+# 4. ConfigMap script init + Secret LiveKit
+kubectl create configmap identity-db-init -n chat-data --from-file=init.sql=Tainguyen/infra/identity-db-init.sql
+kubectl create secret generic livekit-credentials -n chat-app --from-literal=LiveKit__ApiKey=...
+
+# 5. Ap manifest
+kubectl apply -f Tainguyen/infra/k8s/all.yaml
+```
+
+**Manifest sinh bằng script, không gõ tay:** `Tainguyen/infra/k8s/gen-manifests.py` → `all.yaml`
+(62 tài nguyên). 6 Postgres chỉ khác tên/mật khẩu, 6 service .NET chỉ khác biến môi trường — gõ tay
+kiểu gì cũng có một chỗ sai chính tả mà không ai phát hiện.
+
+**Hai namespace** để áp được ResourceQuota 60/30/10 (mục 5.4): `chat-data` (6 DB + Redis + Kafka +
+RabbitMQ + MinIO) và `chat-app` (6 service + frontend).
+
+#### Đã GỠ HẲN Docker khỏi server — chỉ còn containerd của k3s
+
+Sau khi k3s chạy ổn, Docker chỉ còn gánh hai việc: chạy Portainer, và build image. Thay cả hai rồi gỡ:
+
+| Việc | Trước | Sau |
+|---|---|---|
+| Chạy Portainer | container Docker | **Deployment trong k3s** (namespace `portainer`), quản lý cụm trực tiếp — không cần agent nữa |
+| Build image | `docker build` rồi `docker save \| k3s ctr images import -` | **`nerdctl build` thẳng vào containerd của k3s** — bỏ hẳn bước import |
+
+```bash
+# Cai (ban "full" gom san buildkit)
+curl -sfL -o nerdctl.tgz https://github.com/containerd/nerdctl/releases/download/vX.Y.Z/nerdctl-full-X.Y.Z-linux-amd64.tar.gz
+sudo tar Cxzf /usr/local nerdctl.tgz && sudo systemctl enable --now buildkit
+
+# Build - PHAI tro dung socket va namespace cua k3s
+sudo nerdctl --address /run/k3s/containerd/containerd.sock --namespace k8s.io   build -t chat-app-chat:latest ./ChatService/src/ChatService.Api
+sudo k3s kubectl rollout restart deploy chat -n chat-app
+```
+
+**Bắt buộc có `--address` và `--namespace k8s.io`.** Thiếu thì nerdctl build vào containerd khác
+(namespace `default`) và k3s **không nhìn thấy image** — pod sẽ `ErrImageNeverPull` dù `nerdctl images`
+liệt kê ra bình thường.
+
+**Hai chỗ vấp khi gỡ:**
+
+- **`apt autoremove` dọn mất `pigz`.** buildkit gọi `/usr/bin/unpigz` để giải nén layer, thiếu là
+  build chết với `failed to get stream processor ... no such file or directory`. Cài lại: `apt install pigz`.
+- **Portainer trong k3s mặc định xin cả cổng 9000**, mà `minio-gateway` đang giữ cổng đó → xung đột
+  hệt vụ Traefik/80. Patch Service chỉ giữ 9443.
+
+Kết quả sau khi gỡ: 9/9 endpoint trả 200, 0 pod lỗi, RAM **2795 MB** (giảm từ 3114), đĩa thêm 3 GB.
+
+#### Bốn lỗi đã dính khi chuyển sang k3s
+
+| Lỗi | Triệu chứng | Nguyên nhân |
+|---|---|---|
+| **ResourceQuota thiếu 68Mi** | `deployment/minio` báo *created* nhưng **không có pod nào** | Tổng limit tầng data = 4164Mi, quota đặt 4Gi = 4096Mi. Pod bị từ chối tạo (`ReplicaFailure/FailedCreate`) — deployment vẫn báo tạo thành công nên rất dễ tưởng đã chạy. Nâng lên 4608Mi |
+| **Traefik giữ cổng 80** | frontend trả **404** | k3s cài sẵn Traefik, svclb của nó đã bind hostPort 80 → `frontend-lb` kẹt `EXTERNAL-IP <pending>` vĩnh viễn. Sửa: cho frontend đi qua **Ingress** thay vì tranh cổng |
+| **Probe RabbitMQ timeout** | pod mãi không `Ready` | `timeoutSeconds` mặc định là **1s**, mà `rabbitmq-diagnostics ping` cần vài giây. Đặt 15s |
+| **Lệch namespace** | nút scale báo không tìm thấy deployment | `ScaleDeploymentAsync` hardcode `"default"`, còn ServiceAccount trong `adminservice-rbac.yaml` cũng ở `default`. Thêm `K8sOptions.Namespace` đọc từ cấu hình, RBAC chuyển sang `chat-app` |
+
+#### Giữ đúng số cổng bằng ServiceLB
+
+k3s có ServiceLB (klipper): Service `type: LoadBalancer` **bind thẳng cổng đó trên node**, không bị
+giới hạn dải NodePort 30000-32767. Nhờ vậy giữ nguyên 5194/5153/5261/5230/5300/5160/9000 — **bắt
+buộc**, vì bundle frontend đã nhúng sẵn `http://<host>:5194` từ lúc build (Vite nhúng biến `VITE_*`
+lúc build, không đọc lúc chạy).
+
+#### Kết quả kiểm thử trên k3s — 8/8
+
+| | |
+|---|---|
+| 6 service `/health` | 200 |
+| Frontend qua Traefik | 200 |
+| MinIO qua cổng bóp tốc độ | 200 |
+| Đăng ký / đăng nhập | 201 (1,93s) / 200 |
+| Media → LiveKit Cloud | 201 |
+| CORS | đúng header |
+| **`GET /admin/system/resources`** | **200 — đọc 32 pod + 1 node, CPU/RAM thật** |
+| **`POST .../services/chat/scale`** | **202, deployment lên 2 bản thật** |
+
+Hai dòng cuối là thứ bản Docker Compose **không** làm được — cũng là lý do chính để dùng k3s.
+
+Tài nguyên sau khi chạy đủ 18 pod: **3114 MB / 7382 MB**, đĩa còn 186 GB. Đã xoá tàn dư bản Compose
+(10 volume + 7 image, thu hồi 1,66 GB).
+
+### 5.1 Cài WSL2 + Ubuntu *(chỉ khi server là máy Windows)*
 
 ```powershell
 # PowerShell voi quyen Administrator
@@ -838,6 +1034,34 @@ chưa tiêu. Kiến trúc app **không cản** hướng này (endpoint động �
 đường đó.
 
 Dự án không dùng Egress/recording nên không phát sinh khoản tốn tiền nhất của LiveKit Cloud.
+
+**ĐÃ ĐẤU NỐI XONG (verify thật).** Project `chatapp-jam7t3bu`. Cấu hình đọc từ file `.env` ở thư mục
+gốc chứ **không** sửa thẳng `docker-compose.yml` — file compose được git theo dõi, nhét secret vào đó
+là commit lên repo. `.gitignore` có dòng `/.env` (dấu `/` ở đầu để không đụng `Frontend/.env` vốn
+không chứa secret). Mẫu ở `.env.example`; **không tạo `.env` thì mọi thứ vẫn chạy với LiveKit nội bộ**
+nhờ giá trị mặc định `${VAR:-...}` trong compose.
+
+```ini
+LIVEKIT_SERVER_URL=https://<project>.livekit.cloud   # backend goi Server API
+LIVEKIT_CLIENT_URL=wss://<project>.livekit.cloud     # tra ve cho trinh duyet
+LIVEKIT_API_KEY=API...
+LIVEKIT_API_SECRET=...
+```
+
+Đổi xong chỉ cần `docker compose up -d media` — **không build lại image, không sửa dòng code nào**,
+đúng như dự đoán ở đầu mục này.
+
+Kết quả kiểm thử:
+
+| Bước | Kết quả |
+|---|---|
+| `POST /meetings` (gọi `CreateRoom` sang Cloud) | 201 |
+| `POST /meetings/{id}/join` | `livekitUrl = wss://chatapp-jam7t3bu.livekit.cloud`, token `iss` = đúng API key, room `meeting-27` |
+| Hỏi thẳng Cloud bằng `livekit-cli room list` | thấy `meeting-27`, RoomID `RM_wAm9B8wSTwz6` |
+| `POST /meetings/{id}/end` (gọi `DeleteRoom`) | 204, phòng biến mất khỏi Cloud |
+
+**Lưu ý khi kiểm chứng:** `room list` của Cloud có **độ trễ đồng bộ vài giây** — ngay sau `DeleteRoom`
+phòng vẫn còn trong danh sách. Đừng vội kết luận xoá hỏng; đợi vài giây rồi liệt kê lại.
 
 ---
 

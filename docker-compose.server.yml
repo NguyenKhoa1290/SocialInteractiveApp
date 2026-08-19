@@ -1,0 +1,322 @@
+# Trien khai TOAN BO he thong len mot may duy nhat (server nha Ubuntu).
+#
+#   docker compose -f docker-compose.server.yml up -d --build
+#   docker compose -f docker-compose.server.yml ps
+#   docker compose -f docker-compose.server.yml logs -f chat
+#
+# KHAC docker-compose.yml (may dev Windows): file nay chua CA HA TANG
+# (Postgres/Redis/Kafka/RabbitMQ/MinIO) chu khong muon tu cac cum K8s. Ca he
+# thong nam gon trong mot stack, khong phu thuoc Docker Desktop hay kind.
+#
+# LiveKit KHONG co o day - da chuyen han sang LiveKit Cloud (may nha bi CGNAT,
+# xem HUONG-DAN-DEPLOY.md muc 6.0). Dien key vao .env.
+#
+# Bien PUBLIC_HOST: dia chi ma TRINH DUYET dung de goi vao server. Phai la IP
+# LAN hoac ten mien that, KHONG duoc de localhost - voi may khac trong mang
+# thi "localhost" la chinh may cua ho.
+
+name: chat-app
+
+x-service: &service
+  restart: unless-stopped
+  networks: [app]
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 40s
+
+x-redis: &redis "redis:6379,password=154f8287a3654e90665f4e6a58399e0f"
+x-kafka: &kafka "kafka:9092"
+x-jwt: &jwt "C:/Program Files/Git/zzLL7FpBzfbY34fNU6H1vQUIRqocBVF9P1ETxgKtJIb+W8sYO/ARu4TtCTc8+GC"
+x-cors: &cors "http://${PUBLIC_HOST:-192.168.101.18}"
+
+# Moi service mot DB rieng, dung mo hinh cua ban thiet ke. Script init chay
+# MOT LAN duy nhat luc volume con rong (co che cua image postgres).
+x-pg: &pg
+  image: postgres:16-alpine
+  restart: unless-stopped
+  networks: [app]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+
+services:
+  identity-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity_admin
+      POSTGRES_PASSWORD: f8f12714edad39133b1a2f619500a0dc
+    volumes:
+      - identity_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/identity-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  workspace-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: workspace
+      POSTGRES_USER: workspace_admin
+      POSTGRES_PASSWORD: 9142ecf6969c0f66826be3d51270ff3e
+    volumes:
+      - workspace_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/workspace-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  chat-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: chat
+      POSTGRES_USER: chat_admin
+      POSTGRES_PASSWORD: 6486380b7831f81bc082871538a2c771
+    volumes:
+      - chat_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/chat-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  spamtracking-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: spamtracking
+      POSTGRES_USER: spamtracking_admin
+      POSTGRES_PASSWORD: 5e8b2da3ae764b4bc0d09d9d0c22e92d
+    volumes:
+      - spamtracking_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/spamtracking-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  media-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: media
+      POSTGRES_USER: media_admin
+      POSTGRES_PASSWORD: f82b6df20ed68a55b97361360c1a0f8d
+    volumes:
+      - media_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/media-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  miniapp-db:
+    <<: *pg
+    environment:
+      POSTGRES_DB: miniapp
+      POSTGRES_USER: miniapp_admin
+      POSTGRES_PASSWORD: a377345d7812f08609dae5d97e8d4de2
+    volumes:
+      - miniapp_pg:/var/lib/postgresql/data
+      - ./Tainguyen/infra/miniapp-db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [app]
+    command: ["redis-server", "--requirepass", "154f8287a3654e90665f4e6a58399e0f", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    networks: [app]
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: f39ee249b0f90060ff57dcb466aa5369
+    ports: ["15672:15672"]
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.8.0
+    restart: unless-stopped
+    networks: [app]
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      # Trong mot mang compose thi TEN SERVICE la dia chi dung voi MOI client
+      # - het canh IP container troi nhu ben kind (xem cam bay muc 8.0 cua
+      # HUONG-DAN-DEPLOY.md).
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    networks: [app]
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9001:9001"]
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # Tao bucket mot lan roi thoat.
+  minio-init:
+    image: minio/mc:latest
+    networks: [app]
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: ["sh", "-c", "mc alias set m http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing m/chat-media && echo bucket-san-sang"]
+
+  # Cong bop toc do dat TRUOC MinIO - xem Tainguyen/infra/minio-gateway.conf.
+  minio-gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    networks: [app]
+    ports: ["9000:9000"]
+    volumes:
+      - ./Tainguyen/infra/minio-gateway.conf:/etc/nginx/nginx.conf.tpl:ro
+    command: ["sh", "-c", "sed s/MINIO_UPSTREAM/minio:9000/ /etc/nginx/nginx.conf.tpl > /etc/nginx/nginx.conf && exec nginx -g \"daemon off;\""]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  identity:
+    <<: *service
+    build: ./IdentityService/src/IdentityService.Api
+    ports: ["5194:8080"]
+    depends_on:
+      identity-db: {condition: service_healthy}
+    environment:
+      ConnectionStrings__IdentityDb: "Host=identity-db;Port=5432;Database=identity;Username=identity_admin;Password=f8f12714edad39133b1a2f619500a0dc"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      Cors__AllowedOrigins__0: *cors
+
+  workspace:
+    <<: *service
+    build: ./WorkspaceService/src/WorkspaceService.Api
+    ports: ["5153:8080"]
+    depends_on:
+      workspace-db: {condition: service_healthy}
+    environment:
+      ConnectionStrings__WorkspaceDb: "Host=workspace-db;Port=5432;Database=workspace;Username=workspace_admin;Password=9142ecf6969c0f66826be3d51270ff3e"
+      ConnectionStrings__Redis: *redis
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      Cors__AllowedOrigins__0: *cors
+      IdentityClient__BaseUrl: http://identity:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+
+  chat:
+    <<: *service
+    build: ./ChatService/src/ChatService.Api
+    ports: ["5261:8080"]
+    depends_on:
+      chat-db: {condition: service_healthy}
+    environment:
+      ConnectionStrings__ChatDb: "Host=chat-db;Port=5432;Database=chat;Username=chat_admin;Password=6486380b7831f81bc082871538a2c771"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      Cors__AllowedOrigins__0: *cors
+      WorkspaceClient__BaseUrl: http://workspace:8080
+      MediaServiceClient__BaseUrl: http://media:8080
+      IdentityClient__BaseUrl: http://identity:8080
+      # URL presign di THANG toi trinh duyet nen phai la dia chi cong khai,
+      # khong phai ten container.
+      Storage__Providers__home__Endpoint: "http://${PUBLIC_HOST:-192.168.101.18}:9000"
+
+  spamtracking:
+    <<: *service
+    build: ./SpamTrackingService/src/SpamTrackingService.Api
+    ports: ["5160:8080"]
+    depends_on:
+      spamtracking-db: {condition: service_healthy}
+    environment:
+      ConnectionStrings__SpamTrackingDb: "Host=spamtracking-db;Port=5432;Database=spamtracking;Username=spamtracking_admin;Password=5e8b2da3ae764b4bc0d09d9d0c22e92d"
+      ConnectionStrings__Redis: *redis
+      Kafka__BootstrapServers: *kafka
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      IdentityClient__BaseUrl: http://identity:8080
+
+  media:
+    <<: *service
+    build: ./MediaService/src/MediaService.Api
+    ports: ["5300:8080"]
+    depends_on:
+      media-db: {condition: service_healthy}
+      miniapp-db: {condition: service_healthy}
+    environment:
+      ConnectionStrings__MediaDb: "Host=media-db;Port=5432;Database=media;Username=media_admin;Password=f82b6df20ed68a55b97361360c1a0f8d"
+      ConnectionStrings__MiniAppDb: "Host=miniapp-db;Port=5432;Database=miniapp;Username=miniapp_admin;Password=a377345d7812f08609dae5d97e8d4de2"
+      ConnectionStrings__Redis: *redis
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      Cors__AllowedOrigins__0: *cors
+      IdentityClient__BaseUrl: http://identity:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+      LiveKit__ServerUrl: ${LIVEKIT_SERVER_URL:?can .env voi key LiveKit Cloud}
+      LiveKit__ClientUrl: ${LIVEKIT_CLIENT_URL:?can .env voi key LiveKit Cloud}
+      LiveKit__ApiKey: ${LIVEKIT_API_KEY:?can .env voi key LiveKit Cloud}
+      LiveKit__ApiSecret: ${LIVEKIT_API_SECRET:?can .env voi key LiveKit Cloud}
+
+  admin:
+    <<: *service
+    build: ./AdminService/src/AdminService.Api
+    ports: ["5230:8080"]
+    environment:
+      RabbitMq__HostName: rabbitmq
+      Jwt__SigningKey: *jwt
+      Cors__AllowedOrigins__0: *cors
+      IdentityClient__BaseUrl: http://identity:8080
+      SpamTrackingClient__BaseUrl: http://spamtracking:8080
+      ChatServiceClient__BaseUrl: http://chat:8080
+      # Khong chay trong K8s va khong co kubeconfig o server nay ->
+      # /admin/system/resources se bao loi. Cac man hinh Admin con lai chay
+      # binh thuong.
+      K8s__UseInCluster: "false"
+
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        VITE_IDENTITY_API_URL: "http://${PUBLIC_HOST:-192.168.101.18}:5194"
+        VITE_WORKSPACE_API_URL: "http://${PUBLIC_HOST:-192.168.101.18}:5153"
+        VITE_CHAT_API_URL: "http://${PUBLIC_HOST:-192.168.101.18}:5261"
+        VITE_MEDIA_API_URL: "http://${PUBLIC_HOST:-192.168.101.18}:5300"
+        VITE_ADMIN_API_URL: "http://${PUBLIC_HOST:-192.168.101.18}:5230"
+    restart: unless-stopped
+    networks: [app]
+    ports: ["80:80"]
+
+networks:
+  app:
+    driver: bridge
+
+volumes:
+  identity_pg:
+  workspace_pg:
+  chat_pg:
+  spamtracking_pg:
+  media_pg:
+  miniapp_pg:
+  redis_data:
+  rabbitmq_data:
+  kafka_data:
+  minio_data:

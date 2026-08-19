@@ -64,6 +64,21 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("role", "admin"));
 });
 
+// Thieu sot phat hien khi deploy: Admin Service la service DUY NHAT trong 6
+// service khong cau hinh CORS, trong khi trang Quan tri (Frontend F6) goi
+// thang tu trinh duyet. Test truoc do deu bang curl nen khong lo ra - curl
+// khong ap dung same-origin policy.
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy => policy
+        .WithOrigins(corsOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -71,6 +86,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 

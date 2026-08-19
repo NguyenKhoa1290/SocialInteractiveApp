@@ -79,8 +79,8 @@ public static class FileEndpoints
                 await db.SaveChangesAsync();
             }
 
-            var uploadUrl = storage.GeneratePresignedUploadUrl(file.StorageProvider, file.ObjectKey);
-            return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, storage.PresignedUrlExpirySeconds));
+            var uploadUrl = storage.GeneratePresignedUploadUrl(file.StorageProvider, file.ObjectKey, file.SizeBytes);
+            return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, storage.PresignExpiryFor(file.SizeBytes)));
         }).RequireAuthorization();
 
         // Tu de xuat - thieu sot phat hien khi build Frontend F2: co upload
@@ -119,7 +119,7 @@ public static class FileEndpoints
             string url;
             try
             {
-                url = storage.GeneratePresignedDownloadUrl(file.StorageProvider, file.ObjectKey);
+                url = storage.GeneratePresignedDownloadUrl(file.StorageProvider, file.ObjectKey, file.SizeBytes);
             }
             catch (StorageProviderUnavailableException ex)
             {
@@ -127,7 +127,7 @@ public static class FileEndpoints
                     new ErrorResponse("storage_unavailable", $"Kho luu tru '{ex.Provider}' chua duoc cau hinh"),
                     statusCode: 503);
             }
-            return Results.Ok(new UploadUrlResponse(file.Id, url, storage.PresignedUrlExpirySeconds));
+            return Results.Ok(new UploadUrlResponse(file.Id, url, storage.PresignExpiryFor(file.SizeBytes)));
         }).RequireAuthorization();
 
         var conv = app.MapGroup("/conversations").RequireAuthorization();

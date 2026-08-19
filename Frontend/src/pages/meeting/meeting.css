@@ -144,18 +144,133 @@
   color: #e9ecef;
 }
 
-/* Khi dang focus mode: luoi nguoi tham gia co lai thanh dai ngang. */
-.meet-grid-strip {
-  flex: 0 0 auto;
-  display: flex;
-  overflow-x: auto;
-  gap: 8px;
-  padding-bottom: 4px;
+/* Chon camera/micro/loa ngay trong cuoc hop. */
+.meet-devices {
+  position: relative;
+  display: inline-block;
 }
 
-.meet-grid-strip .meet-tile {
-  flex: 0 0 160px;
+.meet-devices-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: #1a1d23;
+  border: 1px solid #2b2f36;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 20;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.meet-device-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #9aa2ad;
+}
+
+.meet-device-row select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #2b2f36;
+  background: #0f1115;
+  color: #e9ecef;
+  font: inherit;
+  font-size: 13px;
+}
+
+/* FOCUS MODE: khung lon ben trai, cot o nho ben phai (giong Teams). */
+.meet-stage-row {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.meet-stage-row .meet-stage {
+  flex: 1;
+  min-width: 0;
+}
+
+.meet-side-tiles {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.meet-grid-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.meet-grid-side .meet-tile {
+  flex: 0 0 auto;
   aspect-ratio: 4 / 3;
+}
+
+/* Dieu khien phan trang. Chi hien khi co nhieu hon 1 trang. */
+.meet-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: #9aa2ad;
+}
+
+.meet-pager button {
+  min-width: 32px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #2b2f36;
+  background: #1a1d23;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.meet-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Man hinh hep: cot ben phai tut xuong duoi thanh dai ngang, vi 220px an
+   mat qua nhieu be ngang cua khung trinh bay. */
+@media (max-width: 768px) {
+  .meet-stage-row {
+    flex-direction: column;
+  }
+
+  .meet-side-tiles {
+    flex: 0 0 auto;
+  }
+
+  .meet-grid-side {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .meet-grid-side .meet-tile {
+    flex: 0 0 150px;
+  }
 }
 
 .meet-tile {

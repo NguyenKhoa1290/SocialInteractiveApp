@@ -3502,6 +3502,18 @@ giao diện — AdminService vẫn tự trả 403 cho mọi `/admin/*`, đã ver
       chung chung. Đã thêm nhánh `NotFound` → 404 `deployment_not_found` kèm tên deployment, và
       nhánh còn lại → 502 `k8s_error`. Verify: 404 có thông báo đúng, `replicas=0` vẫn 400.
 
+**Lỗi thật phát hiện lúc chuẩn bị deploy: Admin Service KHÔNG có CORS.**
+
+Đây là service **duy nhất trong 6 service** không cấu hình CORS, trong khi trang Quản trị gọi thẳng
+từ trình duyệt. Toàn bộ kiểm thử F6 trước đó dùng `curl` — mà `curl` không áp dụng same-origin
+policy, nên lỗi không hề lộ ra: 13/13 test đều xanh trong khi trang thật sẽ chết ngay ở request đầu.
+Bài học: **API xanh hết bằng curl vẫn chưa chứng minh được trang web dùng được.**
+
+Đã thêm `AddCors` + `UseCors("Frontend")` đọc từ `Cors:AllowedOrigins` đúng theo mẫu của 4 service
+kia, và thêm section `Cors` vào `appsettings.json`. Verify: preflight `OPTIONS /admin/users` với
+`Origin: http://localhost:5173` → **204 + `Access-Control-Allow-Origin`** (trước đó không có header
+nào).
+
 **CỐ Ý KHÔNG LÀM — nút "Yêu cầu dựng thêm LiveKit":** sau khi chốt dùng LiveKit Cloud managed
 (`HUONG-DAN-DEPLOY.md` mục 6.0) thì Cloud tự lo mở rộng. Endpoint `POST /admin/system/livekit/expand`
 vốn cũng chỉ ghi 1 dòng log rồi trả 202 — dựng nút cho nó là tạo ra một nút giả vờ có tác dụng.
@@ -3514,6 +3526,62 @@ sách và có ghi chú rõ điều đó — trung thực hơn là bịa ra một
 **Đã cấp quyền admin cho tài khoản `khoabeoloidom@gmail.com` (id 49)** qua
 `POST /internal/users/49/promote-admin` — trước đó DB không có tài khoản admin nào nên không ai vào
 được trang này.
+
+---
+
+**Phân trang lưới phòng họp — bắt buộc để phòng đông chạy được:**
+
+Trước đó phòng họp render **toàn bộ** người tham gia. Ở 100 người (giới hạn trong đặc tả) mỗi máy
+phải giải mã ~99 luồng video cùng lúc — trình duyệt đứng trước khi kịp lo chi phí. `adaptiveStream`
+đã bật sẵn hạ được *bitrate* mỗi luồng khi ô nhỏ, nhưng **không giảm được số luồng**.
+
+- [x] Phân trang: 9 ô/trang (desktop) · 4 (màn hẹp); focus mode 6 · 2. Theo dõi `matchMedia`
+      `(max-width: 768px)` để đổi theo màn hình thật chứ không đoán.
+- [x] **Focus mode đổi bố cục theo Teams**: khung lớn bên trái, cột ô nhỏ có phân trang bên phải
+      (`meet-stage-row` + `meet-side-tiles`). Màn hẹp thì cột tụt xuống dưới thành dải ngang. Thay
+      cho `meet-grid-strip` (dải ngang dưới đáy) trước đây.
+- [x] **Chỉ subscribe ô đang hiển thị** — đây mới là phần tiết kiệm thật. Ba nguồn quyết định gộp
+      lại: đang ở khung lớn → luôn giữ; ở trang hiện tại → giữ; bị người dùng tự ẩn → bỏ (thắng mọi
+      thứ trên). Chỉ đụng `Track.Source.Camera`, **không** đụng audio (vẫn phải nghe được mọi người)
+      và không đụng luồng chia sẻ màn hình.
+- [x] `toggleHideVideo` bỏ phần tự gọi `setSubscribed`, chỉ đổi state — từ khi có phân trang thì có
+      HAI nguồn cùng điều khiển một thứ, dễ lệch (vd bỏ ẩn một người đang ở trang khác sẽ subscribe
+      lại luồng không ai nhìn). Nay effect điều phối là nguồn duy nhất.
+
+**Lỗi thật lint bắt được, có sẵn từ trước:** ba nhánh `return` sớm (`status === "error" | "left" |
+"ended"`) nằm **trước** một loạt `useEffect`, nên khi rời phòng hoặc cuộc họp kết thúc thì số hook
+giảm giữa hai lần render → React ném *"Rendered fewer hooks than expected"*. 3 hook cũ đã dính sẵn
+(reset `gridOverride`, áp lại âm lượng, tự bỏ ghim), 3 hook mới thêm vào làm nặng thêm. Sửa bằng
+cách **dời ba nhánh thoát sớm xuống cuối**, sau toàn bộ hook — không phải nhồi hook lên trên.
+`npm run lint` từ **6 lỗi → 0**.
+
+---
+
+**Đổi nguồn camera / micro / loa trong cuộc họp (`DevicePicker.tsx`) — ngoài đặc tả:**
+
+Đã kiểm tra `Drawing2.pdf` và `usecase-media-service.docx`: **không** tài liệu nào yêu cầu chọn thiết
+bị phần cứng. Danh sách tính năng phòng họp trong sơ đồ chỉ có bật/tắt cam, bật/tắt mic, chia sẻ màn
+hình, mini app, chỉnh âm lượng người khác, tắt hiển thị camera người khác, duyệt/đuổi/kết thúc. Câu
+*"chọn kênh âm thanh riêng nếu có"* thuộc UC-37 là audio track của luồng IPTV, đã làm từ F5.
+
+Chọn **trong cuộc họp**, không làm màn hình kiểm tra thiết bị trước khi vào. Đổi lại được một thứ
+quan trọng: đã ở trong phòng nghĩa là quyền camera/mic **đã được cấp**, nên `enumerateDevices` trả về
+tên thật (`"HD Webcam C920"`) thay vì chuỗi rỗng như khi chưa có quyền — đúng cái bẫy lớn nhất của
+màn hình pre-join.
+
+- [x] Dùng `RoomEvent.MediaDevicesChanged` của LiveKit thay vì tự nghe
+      `navigator.mediaDevices.ondevicechange` — SDK đã bọc sẵn. Cắm tai nghe giữa buổi là danh sách
+      tự cập nhật.
+- [x] `RoomEvent.ActiveDeviceChanged` để bắt trường hợp **không do mình bấm**: rút thiết bị đang dùng
+      thì trình duyệt tự nhảy về mặc định, ô chọn phải đổi theo chứ không được hiện tên thiết bị đã rút.
+- [x] Ẩn hẳn mục chọn loa khi trình duyệt không hỗ trợ — dò `"setSinkId" in HTMLMediaElement.prototype`
+      chứ không đoán theo user agent. Firefox/Safari không có. Để một ô chọn bấm vào không có tác dụng
+      còn tệ hơn là không có.
+- [x] Nhớ lựa chọn qua `localStorage`, nhưng **chỉ áp lại khi thiết bị đó còn cắm** — mang laptop đi
+      chỗ khác mà vẫn cố gán lại webcam ở nhà thì vô nghĩa.
+- [x] Bắt `NotReadableError` / `NotAllowedError` khi đổi (camera đang bị ứng dụng khác giữ) và
+      `refresh()` về đúng thiết bị đang thực sự chạy — cùng bài học với `toggleDevice` ở F5: không bắt
+      thì lỗi thành unhandled rejection, người dùng chọn xong không thấy gì xảy ra.
 
 ---
 
@@ -4694,6 +4762,33 @@ Admin Service (Phase 4).
 - [x] RabbitMQ: hàng đợi cho từng cặp publisher → consumer đã liệt kê ở mục 8.1 — cả 3 cặp
       (SpamTracking→Identity khoá/xoá, WorkSpace→Identity thông báo rời nhóm) đã publish, chỉ
       riêng "thông báo rời nhóm" bên Identity CHƯA có consumer (mới publish, chưa xử lý)
+**Sửa lỗi: mất RabbitMQ làm SẬP CẢ Identity Service** (phát hiện khi Docker khởi động lại):
+
+`AccountLockedConsumerService.ExecuteAsync` gọi thẳng `CreateConnectionAsync`. Khi cả cụm cùng bật,
+RabbitMQ (trong `kind-messaging-cluster`) lên sau container service → lỗi thoát ra ngoài → .NET mặc
+định `BackgroundServiceExceptionBehavior.StopHost` → **dừng cả host**. Triệu chứng thật đã gặp:
+container vào crash loop `exit 139`, toàn bộ luồng đăng nhập chết theo một thành phần chỉ phục vụ
+việc khoá tài khoản vì spam.
+
+- [x] Vòng thử lại có backoff 5→10→20→40→60s bọc quanh toàn bộ phần kết nối + consume. Mất RabbitMQ
+      giờ chỉ làm chậm việc khoá tài khoản, **không** làm sập đăng nhập.
+- [x] `AutomaticRecoveryEnabled = true` + `NetworkRecoveryInterval` cho trường hợp broker rớt **giữa
+      chừng** — khác với lúc khởi động (vòng thử lại lo). Thiếu nó thì RabbitMQ restart một cái là
+      consumer im lặng vĩnh viễn mà không hề báo lỗi.
+- [x] Các lambda consumer bắt **biến cục bộ** `channel` thay vì field `_channel`: sau một lần nối
+      lại, field đã trỏ sang channel mới trong khi consumer cũ còn sống → ack nhầm channel.
+- [x] `StopAsync` dùng `CleanupAsync` (nuốt lỗi) thay vì `CloseAsync` trực tiếp — kết nối đang hỏng
+      là đúng trường hợp hay gặp nhất lúc tắt service, `CloseAsync` ném lỗi ngay trong đường tắt.
+
+**Verify thật bằng đúng kịch bản đã gây sập:** `kubectl scale deploy/rabbitmq --replicas=0` → restart
+Identity → container **Up (healthy)**, `POST /auth/register` 201 và `/auth/login` 200 (trước đây chết
+theo). Log backoff chạy đúng 20s → 40s. Bật RabbitMQ lại → **02:45:40 consumer tự nối lại**, không
+cần restart Identity.
+
+**Phạm vi:** chỉ Identity có lỗ này. Các publisher RabbitMQ ở Chat/Media/WorkSpace/Admin/SpamTracking
+nối **lười** (trong method, không phải constructor) nên broker chết chỉ làm request publish lỗi,
+không giết host.
+
 - [x] Xác nhận KHÔNG dùng RabbitMQ cho `Delete Account Expired` — đúng, `GuestCleanupService` xử
       lý bằng cron job nội bộ Identity Service (đã làm ở Phase 1)
 

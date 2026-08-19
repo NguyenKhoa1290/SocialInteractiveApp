@@ -13,6 +13,7 @@ import { meetingApi } from "../../api/mediaApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
+import { DevicePicker } from "./DevicePicker";
 import { IptvPanel } from "./IptvPanel";
 import { MeetingDiscussion } from "./MeetingDiscussion";
 import type {
@@ -102,6 +103,21 @@ export function MeetingRoomPage() {
   // chinh cho rieng minh, khong ai khac bi anh huong va khong luu len server.
   const [volumes, setVolumes] = useState<Record<number, number>>({});
   const [hiddenVideos, setHiddenVideos] = useState<Set<number>>(new Set());
+
+  // Phan trang luoi. Ly do khong phai tham my ma la BAT BUOC ky thuat: phong
+  // 100 nguoi ma render het thi moi may phai giai ma ~99 luong video cung
+  // luc - trinh duyet dung truoc khi kip lo tien. Chi o nao DANG HIEN moi
+  // duoc subscribe; phan con lai huy dang ky nen LiveKit khong gui toi day.
+  const [page, setPage] = useState(0);
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const isHost = meeting !== null && currentUserId === meeting.hostId;
   const myPermissions = participants.find((p) => p.userId === currentUserId)?.permissions ?? [];
@@ -470,34 +486,11 @@ export function MeetingRoomPage() {
   }
 
   // --- Render ------------------------------------------------------------
-  if (status === "error") {
-    return (
-      <div className="meet-page meet-center">
-        <p className="meet-error">{error}</p>
-        <button onClick={() => navigate(-1)}>Quay lại</button>
-      </div>
-    );
-  }
-
-  if (status === "left") {
-    return (
-      <div className="meet-page meet-center">
-        <p>Bạn đã rời cuộc họp.</p>
-        <button onClick={() => navigate(-1)}>Quay lại</button>
-      </div>
-    );
-  }
-
-  if (status === "ended") {
-    return (
-      <div className="meet-page meet-center">
-        <p>Cuộc họp này đã kết thúc.</p>
-        <p className="meet-note">Quay lại phòng chat và bấm “Gọi video” để mở cuộc họp mới.</p>
-        <button onClick={() => navigate(-1)}>Quay lại</button>
-      </div>
-    );
-  }
-
+  // LUU Y: cac nhanh thoat som (loi / da roi / da ket thuc) nam o CUOI, ngay
+  // truoc return chinh - KHONG dat o day. Truoc day chung dung o day, nen
+  // moi useEffect ben duoi deu bi bo qua khi status doi sang "left"/"ended":
+  // React thay so hook giam giua hai lan render va nem loi "Rendered fewer
+  // hooks than expected". Moi hook phai chay o MOI duong render.
   const nameOf = (p: Participant) => {
     const id = Number(p.identity);
     return participants.find((x) => x.userId === id)?.nickname ?? (p.name || p.identity);
@@ -562,16 +555,15 @@ export function MeetingRoomPage() {
   // Dung setSubscribed(false) chu khong an bang CSS: an CSS thi trinh duyet
   // VAN tai video ve, dung mat muc dich cua tinh nang. Huy dang ky la
   // LiveKit ngung gui luon luong do toi may nay.
+  // CHI doi state; viec huy/dang ky lai do effect dieu phoi subscribe ben
+  // duoi lam. Truoc day ham nay tu goi setSubscribed, nhung tu khi co phan
+  // trang thi co HAI nguon cung dieu khien mot thu - de lech nhau (vd bo an
+  // mot nguoi dang o trang khac se subscribe lai luong khong ai nhin).
   function toggleHideVideo(userId: number) {
-    const p = remotes.find((x) => Number(x.identity) === userId);
-    const pub = p?.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
-    const nowHidden = !hiddenVideos.has(userId);
-
-    pub?.setSubscribed(!nowHidden);
     setHiddenVideos((prev) => {
       const next = new Set(prev);
-      if (nowHidden) next.add(userId);
-      else next.delete(userId);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
       return next;
     });
     setVersion((v) => v + 1);
@@ -585,6 +577,117 @@ export function MeetingRoomPage() {
     const stillHere = remotes.some((p) => Number(p.identity) === pinnedUserId);
     if (!stillHere) setPinnedUserId(null);
   }, [remotes, pinnedUserId, currentUserId]);
+
+  // --- Phan trang luoi ----------------------------------------------------
+
+  type Tile = { key: string; participant: Participant; isLocal: boolean; userId: number };
+
+  const allTiles: Tile[] = [];
+  if (room)
+    allTiles.push({ key: "local", participant: room.localParticipant, isLocal: true, userId: currentUserId ?? -1 });
+  for (const p of remotes)
+    allTiles.push({ key: p.sid, participant: p, isLocal: false, userId: Number(p.identity) });
+
+  // Nguoi dang o khung lon thi khong lap lai o cot ben canh.
+  const gridTiles = stageParticipant ? allTiles.filter((t) => t.participant !== stageParticipant) : allTiles;
+
+  // Focus mode: cot ben phai hep nen it o hon. Man hinh hep: it hon nua.
+  const perPage = inFocusLayout ? (isNarrow ? 2 : 6) : isNarrow ? 4 : 9;
+  const totalPages = Math.max(1, Math.ceil(gridTiles.length / perPage));
+  const safePage = Math.min(page, totalPages - 1);
+  const visibleTiles = gridTiles.slice(safePage * perPage, safePage * perPage + perPage);
+
+  // Doi giua luoi va focus mode thi so o moi trang doi theo, chi so trang cu
+  // khong con y nghia - ve trang dau cho de hieu.
+  useEffect(() => {
+    setPage(0);
+  }, [inFocusLayout]);
+
+  // Nguoi roi phong co the lam trang hien tai bien mat.
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
+  }, [page, totalPages]);
+
+  const visibleKey = visibleTiles
+    .filter((t) => !t.isLocal)
+    .map((t) => t.userId)
+    .join(",");
+
+  // Day moi la phan tiet kiem that: o nao khong hien thi thi HUY DANG KY
+  // camera cua nguoi do, LiveKit ngung gui luong toi may nay. An bang CSS
+  // thi video van tai ve, dung mat muc dich.
+  //
+  // Ba nguon quyet dinh, ket hop lai:
+  //   - dang o khung lon  -> luon giu
+  //   - dang o trang hien tai -> giu
+  //   - bi nguoi dung tu an (hiddenVideos) -> BO, thang moi thu tren
+  // Chi dung toi Track.Source.Camera; KHONG dung toi audio (van phai nghe
+  // duoc moi nguoi) va khong dung toi luong chia se man hinh.
+  useEffect(() => {
+    if (!room) return;
+    const visible = new Set(visibleKey ? visibleKey.split(",").map(Number) : []);
+
+    for (const p of remotes) {
+      const uid = Number(p.identity);
+      const want = (p === stageParticipant || visible.has(uid)) && !hiddenVideos.has(uid);
+      const pub = p.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
+      if (pub && pub.isSubscribed !== want) pub.setSubscribed(want);
+    }
+  }, [room, remotes, visibleKey, hiddenVideos, stageParticipant]);
+
+  const renderTile = (t: Tile) => (
+    <ParticipantTile
+      key={t.key}
+      participant={t.participant}
+      isLocal={t.isLocal}
+      version={version}
+      label={t.isLocal ? (nickname ?? "Bạn") : nameOf(t.participant)}
+      videoHidden={!t.isLocal && hiddenVideos.has(t.userId)}
+    />
+  );
+
+  const pager = totalPages > 1 && (
+    <div className="meet-pager">
+      <button disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+        ‹
+      </button>
+      <span>
+        {safePage + 1}/{totalPages} · {gridTiles.length} người
+      </span>
+      <button disabled={safePage >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+        ›
+      </button>
+    </div>
+  );
+
+  // Thoat som - dat SAU toan bo hook o tren (xem ghi chu o muc Render).
+  if (status === "error") {
+    return (
+      <div className="meet-page meet-center">
+        <p className="meet-error">{error}</p>
+        <button onClick={() => navigate(-1)}>Quay lại</button>
+      </div>
+    );
+  }
+
+  if (status === "left") {
+    return (
+      <div className="meet-page meet-center">
+        <p>Bạn đã rời cuộc họp.</p>
+        <button onClick={() => navigate(-1)}>Quay lại</button>
+      </div>
+    );
+  }
+
+  if (status === "ended") {
+    return (
+      <div className="meet-page meet-center">
+        <p>Cuộc họp này đã kết thúc.</p>
+        <p className="meet-note">Quay lại phòng chat và bấm “Gọi video” để mở cuộc họp mới.</p>
+        <button onClick={() => navigate(-1)}>Quay lại</button>
+      </div>
+    );
+  }
 
   return (
     <div className="meet-page">
@@ -650,44 +753,42 @@ export function MeetingRoomPage() {
               </div>
             )}
 
-            {stageParticipant && (
-              <div className="meet-stage">
-                <ParticipantTile
-                  participant={stageParticipant}
-                  isLocal={stageParticipant === room?.localParticipant}
-                  version={version}
-                  label={pinnedParticipant ? nameOfUserId(pinnedUserId!) : (presentation?.nickname ?? "")}
-                  stage
-                />
-              </div>
-            )}
+            {/* FOCUS MODE: khung lon ben trai, cot o nho co phan trang ben
+                phai (giong Teams). Man hinh hep thi cot nay tu xuong duoi
+                thanh mot dai ngang - xem meeting.css. */}
+            {inFocusLayout ? (
+              <div className="meet-stage-row">
+                {stageParticipant && (
+                  <div className="meet-stage">
+                    <ParticipantTile
+                      participant={stageParticipant}
+                      isLocal={stageParticipant === room?.localParticipant}
+                      version={version}
+                      label={pinnedParticipant ? nameOfUserId(pinnedUserId!) : (presentation?.nickname ?? "")}
+                      stage
+                    />
+                  </div>
+                )}
 
-            {showAppStage && (
-              <div className="meet-stage meet-stage-app">
-                <IptvPanel meetingId={meetingId} onClose={() => {}} stage />
-              </div>
-            )}
+                {showAppStage && (
+                  <div className="meet-stage meet-stage-app">
+                    <IptvPanel meetingId={meetingId} onClose={() => {}} stage />
+                  </div>
+                )}
 
-            <div className={`meet-grid${inFocusLayout ? " meet-grid-strip" : ""}`}>
-              {room && (
-                <ParticipantTile
-                  participant={room.localParticipant}
-                  isLocal
-                  version={version}
-                  label={nickname ?? "Bạn"}
-                />
-              )}
-              {remotes.map((p) => (
-                <ParticipantTile
-                  key={p.sid}
-                  participant={p}
-                  isLocal={false}
-                  version={version}
-                  label={nameOf(p)}
-                  videoHidden={hiddenVideos.has(Number(p.identity))}
-                />
-              ))}
-            </div>
+                {gridTiles.length > 0 && (
+                  <div className="meet-side-tiles">
+                    <div className="meet-grid meet-grid-side">{visibleTiles.map(renderTile)}</div>
+                    {pager}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="meet-grid">{visibleTiles.map(renderTile)}</div>
+                {pager}
+              </>
+            )}
           </div>
 
           {/* Thao luan chi co khi cuoc hop gan voi 1 hoi thoai - cuoc hop
@@ -806,6 +907,7 @@ export function MeetingRoomPage() {
         <button onClick={toggleCam} className={camOn ? "" : "meet-off"}>
           {camOn ? "Tắt cam" : "Bật cam"}
         </button>
+        {room && <DevicePicker room={room} />}
         {canShareScreen && (
           <button onClick={toggleShare} className={sharing ? "meet-off" : ""}>
             {sharing ? "Dừng trình chiếu" : "Trình chiếu"}

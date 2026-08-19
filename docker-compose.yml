@@ -29,11 +29,19 @@ x-service: &service
     retries: 12
     start_period: 25s
 
-# Cac gia tri dung chung. Mat khau trung voi appsettings.json da commit -
-# day la moi truong dev noi bo.
-x-redis: &redis "host.docker.internal:6379,password=154f8287a3654e90665f4e6a58399e0f"
+# Bi mat KHONG con nam trong file nay (file nay duoc commit len GitHub cong
+# khai). Gia tri that doc tu .env o thu muc goc - file do bi .gitignore chan.
+# Chua co .env thi compose canh bao bien rong va service se chet luc khoi dong.
+# Chep mau:  cp .env.example .env
+x-redis: &redis "host.docker.internal:6379,password=${REDIS_PASSWORD}"
 x-kafka: &kafka "host.docker.internal:9092"
-x-jwt: &jwt "C:/Program Files/Git/zzLL7FpBzfbY34fNU6H1vQUIRqocBVF9P1ETxgKtJIb+W8sYO/ARu4TtCTc8+GC"
+x-jwt: &jwt "${JWT_SIGNING_KEY}"
+# Ba gia tri nay truoc nam trong appsettings.json cua tung service. Da bo
+# trong o do de commit duoc, nen bay gio PHAI cap qua env - thieu la
+# service chet luc khoi dong.
+x-rabbit-pw: &rabbitpw "${RABBITMQ_PASSWORD}"
+x-minio-ak: &minioak "${MINIO_ACCESS_KEY}"
+x-minio-sk: &miniosk "${MINIO_SECRET_KEY}"
 
 services:
   identity:
@@ -41,21 +49,23 @@ services:
     build: ./IdentityService/src/IdentityService.Api
     ports: ["5194:8080"]
     environment:
-      ConnectionStrings__IdentityDb: "Host=host.docker.internal;Port=5432;Database=identity;Username=identity_admin;Password=f8f12714edad39133b1a2f619500a0dc"
+      ConnectionStrings__IdentityDb: "Host=host.docker.internal;Port=5432;Database=identity;Username=identity_admin;Password=${IDENTITY_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
       Kafka__BootstrapServers: *kafka
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
 
   workspace:
     <<: *service
     build: ./WorkspaceService/src/WorkspaceService.Api
     ports: ["5153:8080"]
     environment:
-      ConnectionStrings__WorkspaceDb: "Host=host.docker.internal;Port=5433;Database=workspace;Username=workspace_admin;Password=9142ecf6969c0f66826be3d51270ff3e"
+      ConnectionStrings__WorkspaceDb: "Host=host.docker.internal;Port=5433;Database=workspace;Username=workspace_admin;Password=${WORKSPACE_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       # Goi lan nhau bang TEN SERVICE cua compose + cong noi bo 8080, khong
       # qua host - ngan hon va khong phu thuoc cong publish ra ngoai.
       IdentityClient__BaseUrl: http://identity:8080
@@ -66,29 +76,36 @@ services:
     build: ./ChatService/src/ChatService.Api
     ports: ["5261:8080"]
     environment:
-      ConnectionStrings__ChatDb: "Host=host.docker.internal;Port=5434;Database=chat;Username=chat_admin;Password=6486380b7831f81bc082871538a2c771"
+      ConnectionStrings__ChatDb: "Host=host.docker.internal;Port=5434;Database=chat;Username=chat_admin;Password=${CHAT_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
       Kafka__BootstrapServers: *kafka
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       WorkspaceClient__BaseUrl: http://workspace:8080
       MediaServiceClient__BaseUrl: http://media:8080
       IdentityClient__BaseUrl: http://identity:8080
       # KHONG doi sang host.docker.internal: URL presign nay tra thang cho
       # TRINH DUYET, nen phai la dia chi trinh duyet toi duoc. Chat Service
       # khong bao gio ket noi toi MinIO (presign la phep tinh offline).
-      Storage__Providers__home__Endpoint: http://192.168.50.10:9000
+      #
+      # Tro vao minio-gateway (cong 9000 tren may that) chu KHONG vao MinIO
+      # truc tiep - di thang thi khong qua lop bop toc do.
+      Storage__Providers__home__Endpoint: http://localhost:9000
+      Storage__Providers__home__AccessKey: *minioak
+      Storage__Providers__home__SecretKey: *miniosk
 
   spamtracking:
     <<: *service
     build: ./SpamTrackingService/src/SpamTrackingService.Api
     ports: ["5160:8080"]
     environment:
-      ConnectionStrings__SpamTrackingDb: "Host=host.docker.internal;Port=5435;Database=spamtracking;Username=spamtracking_admin;Password=5e8b2da3ae764b4bc0d09d9d0c22e92d"
+      ConnectionStrings__SpamTrackingDb: "Host=host.docker.internal;Port=5435;Database=spamtracking;Username=spamtracking_admin;Password=${SPAMTRACKING_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
       Kafka__BootstrapServers: *kafka
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       IdentityClient__BaseUrl: http://identity:8080
 
   media:
@@ -96,18 +113,26 @@ services:
     build: ./MediaService/src/MediaService.Api
     ports: ["5300:8080"]
     environment:
-      ConnectionStrings__MediaDb: "Host=host.docker.internal;Port=5436;Database=media;Username=media_admin;Password=f82b6df20ed68a55b97361360c1a0f8d"
-      ConnectionStrings__MiniAppDb: "Host=host.docker.internal;Port=5437;Database=miniapp;Username=miniapp_admin;Password=a377345d7812f08609dae5d97e8d4de2"
+      ConnectionStrings__MediaDb: "Host=host.docker.internal;Port=5436;Database=media;Username=media_admin;Password=${MEDIA_DB_PASSWORD}"
+      ConnectionStrings__MiniAppDb: "Host=host.docker.internal;Port=5437;Database=miniapp;Username=miniapp_admin;Password=${MINIAPP_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       IdentityClient__BaseUrl: http://identity:8080
       ChatServiceClient__BaseUrl: http://chat:8080
       # ServerUrl: Media Service goi Server API -> dia chi tu trong container.
       # ClientUrl: tra ve cho TRINH DUYET tu ket noi -> dia chi tu may that.
       # Hai cai nay KHAC NHAU, doi nham la phong hop khong vao duoc.
-      LiveKit__ServerUrl: http://host.docker.internal:7880
-      LiveKit__ClientUrl: ws://localhost:7880
+      #
+      # Mac dinh la LiveKit chay noi bo (kind-livekit-cluster). Muon dung
+      # LiveKit Cloud thi tao file .env o thu muc goc va dien 4 gia tri -
+      # KHONG sua thang vao day, vi file nay duoc git theo doi, secret se bi
+      # commit len repo. Xem .env.example.
+      LiveKit__ServerUrl: ${LIVEKIT_SERVER_URL:-http://host.docker.internal:7880}
+      LiveKit__ClientUrl: ${LIVEKIT_CLIENT_URL:-ws://localhost:7880}
+      LiveKit__ApiKey: ${LIVEKIT_API_KEY:-devkey_1e01d3e9a13a}
+      LiveKit__ApiSecret: ${LIVEKIT_API_SECRET:-cdbb2977cd95310f859cd9eeedc9d4233ec2959ce1300f44}
 
   admin:
     <<: *service
@@ -126,6 +151,7 @@ services:
     environment:
       RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       IdentityClient__BaseUrl: http://identity:8080
       SpamTrackingClient__BaseUrl: http://spamtracking:8080
       ChatServiceClient__BaseUrl: http://chat:8080
@@ -159,6 +185,37 @@ services:
           echo "KHONG thay ~/.kube/config - /admin/system/resources se loi, phan con lai van chay"
           : > /kube/config
         fi
+
+  # Cong vao MinIO co bop toc do (4 MB/s moi ket noi). Trinh duyet noi
+  # chuyen voi cong nay chu khong voi MinIO truc tiep - xem
+  # Tainguyen/infra/minio-gateway.conf.
+  # MINIO_UPSTREAM tro toi MinIO that; doi bien nay khi MinIO doi cho.
+  minio-gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    networks: [app]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports: ["9000:9000"]
+    environment:
+      MINIO_UPSTREAM: "192.168.50.10:9000"
+    volumes:
+      - ./Tainguyen/infra/minio-gateway.conf:/etc/nginx/nginx.conf.tpl:ro
+    command:
+      - sh
+      - -c
+      - |
+        sed "s|MINIO_UPSTREAM|$$MINIO_UPSTREAM|" /etc/nginx/nginx.conf.tpl > /etc/nginx/nginx.conf
+        exec nginx -g 'daemon off;'
+    healthcheck:
+      # 127.0.0.1 chu KHONG phai "localhost": busybox wget phan giai
+      # localhost ra ::1 (IPv6) truoc, ma nginx chi nghe IPv4 -> healthcheck
+      # bao "connection refused" trong khi gateway van chay hoan toan binh thuong.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   frontend:
     image: node:22-alpine

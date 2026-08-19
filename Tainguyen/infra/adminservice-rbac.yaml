@@ -10,7 +10,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: admin-service
-  namespace: default
+  namespace: chat-app
 ---
 # ClusterRole read-only: get/list tren pods, nodes, metrics.k8s.io (Metrics
 # Server) - dung cho GET /admin/system/resources.
@@ -33,7 +33,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: admin-service
-    namespace: default
+    namespace: chat-app
 roleRef:
   kind: ClusterRole
   name: admin-service-readonly
@@ -58,7 +58,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: admin-service
-    namespace: default
+    namespace: chat-app
 roleRef:
   kind: ClusterRole
   name: admin-service-scale

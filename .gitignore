@@ -5,12 +5,22 @@ obj/
 *.suo
 run.log
 
-# appsettings.json dang chua Gmail App Password hardcode (theo yeu cau tien
-# loi dev) - KHONG commit. appsettings.Development.json cung co the chua
-# secret tuong tu trong tuong lai nen ignore luon.
-appsettings.json
+# appsettings.json GIO COMMIT DUOC: bi mat da tach het sang secrets.env/.env,
+# file nay chi con cau truc + gia tri khong nhay cam (ten topic, issuer,
+# ten bucket, timeout...). PHAI commit thi image build tren GitHub Actions
+# moi co cau hinh - truoc day 5/6 service bi chan o day nen image dung tu CI
+# se thieu cau hinh va chet luc khoi dong.
+#
+# Rieng appsettings.Development.json van chan: file do de dung cho ghi de
+# cuc bo, khong ai bao dam no sach.
 appsettings.*.json
+!appsettings.json
 !appsettings.json.example
+
+# ===== Bien moi truong cho docker compose =====
+# Chua API key/secret that cua LiveKit Cloud. Dau "/" o dau = CHI file .env
+# o thu muc goc, khong dung toi Frontend/.env (file do khong co secret).
+/.env
 
 # ===== Credentials sinh ra luc deploy ha tang (Tainguyen/infra) =====
 Tainguyen/infra/.*.txt
@@ -21,3 +31,12 @@ Tainguyen/infra/*-credentials.txt
 .vscode/
 *.swp
 .DS_Store
+
+# ===== Bi mat tach khoi appsettings.json =====
+# appsettings.json gio chi con cau truc + gia tri khong nhay cam nen commit
+# duoc; gia tri that nam o day va KHONG BAO GIO duoc commit.
+/secrets.env
+
+# Manifest k8s sinh ra tu gen-manifests.py - co chua Secret da giai ma.
+# Sinh lai bang: python3 Tainguyen/infra/k8s/gen-manifests.py > all.yaml
+Tainguyen/infra/k8s/all.yaml

@@ -24,25 +24,52 @@ param(
 
 $root = $PSScriptRoot
 
-# LUU Y: mat khau duoi day trung voi appsettings.json da commit trong repo
-# (rieng Identity lay tu Tainguyen/infra/.identity-db-credentials.txt vi
-# appsettings cua no de trong). Day la moi truong dev noi bo.
+# Bi mat KHONG nam trong file nay (file nay duoc commit len GitHub cong khai).
+# Doc tu .env o thu muc goc - file do bi .gitignore chan.
+# Chua co .env thi chep mau:  cp .env.example .env
+$envFile = Join-Path $root ".env"
+if (-not (Test-Path $envFile)) {
+    Write-Host "Thieu file .env - chep tu .env.example roi dien gia tri." -ForegroundColor Red
+    exit 1
+}
+$cfg = @{}
+foreach ($line in Get-Content $envFile) {
+    $t = $line.Trim()
+    if ($t -and -not $t.StartsWith("#") -and $t.Contains("=")) {
+        $i = $t.IndexOf("=")
+        $cfg[$t.Substring(0, $i).Trim()] = $t.Substring($i + 1).Trim()
+    }
+}
+function Need($key) {
+    if (-not $cfg.ContainsKey($key) -or -not $cfg[$key]) {
+        Write-Host "Thieu khoa '$key' trong .env" -ForegroundColor Red
+        exit 1
+    }
+    return $cfg[$key]
+}
 #
 # TAT CA deu dung 127.0.0.1 chu KHONG dung "localhost": localhost phan giai
 # ra ::1 (IPv6) truoc, ma cac port-forward/kind chi lang nghe IPv4 -> ket noi
 # treo cho toi khi timeout. Day la loi da gap that nhieu lan.
-$redis = "127.0.0.1:6379,password=154f8287a3654e90665f4e6a58399e0f"
-$jwtKey = "C:/Program Files/Git/zzLL7FpBzfbY34fNU6H1vQUIRqocBVF9P1ETxgKtJIb+W8sYO/ARu4TtCTc8+GC"
+$redis = "127.0.0.1:6379,password=$(Need 'REDIS_PASSWORD')"
+$jwtKey   = Need 'JWT_SIGNING_KEY'
+$rabbitPw = Need 'RABBITMQ_PASSWORD'
+$minioAk  = Need 'MINIO_ACCESS_KEY'
+$minioSk  = Need 'MINIO_SECRET_KEY'
+# Kafka quang ba 'host.docker.internal:9092' - dia chi ca may that lan
+# container deu toi duoc. KHONG con dung port-forward 19092.
+$kafka    = "host.docker.internal:9092"
 
 $services = @(
     @{
         Key = "identity"; Name = "Identity"; Port = 5194
         Path = "IdentityService\src\IdentityService.Api"
         Env  = @{
-            "ConnectionStrings__IdentityDb" = "Host=127.0.0.1;Port=5432;Database=identity;Username=identity_admin;Password=f8f12714edad39133b1a2f619500a0dc"
+            "ConnectionStrings__IdentityDb" = "Host=127.0.0.1;Port=5432;Database=identity;Username=identity_admin;Password=$(Need 'IDENTITY_DB_PASSWORD')"
             "ConnectionStrings__Redis"      = $redis
-            "Kafka__BootstrapServers"       = "host.docker.internal:9092"
+            "Kafka__BootstrapServers"       = $kafka
             "RabbitMq__HostName"            = "127.0.0.1"
+            "RabbitMq__Password"            = $rabbitPw
             "Jwt__SigningKey"               = $jwtKey
         }
     },
@@ -50,9 +77,11 @@ $services = @(
         Key = "workspace"; Name = "WorkSpace"; Port = 5153
         Path = "WorkspaceService\src\WorkspaceService.Api"
         Env  = @{
-            "ConnectionStrings__WorkspaceDb" = "Host=127.0.0.1;Port=5433;Database=workspace;Username=workspace_admin;Password=9142ecf6969c0f66826be3d51270ff3e"
+            "ConnectionStrings__WorkspaceDb" = "Host=127.0.0.1;Port=5433;Database=workspace;Username=workspace_admin;Password=$(Need 'WORKSPACE_DB_PASSWORD')"
             "ConnectionStrings__Redis"       = $redis
             "RabbitMq__HostName"             = "127.0.0.1"
+            "RabbitMq__Password"             = $rabbitPw
+            "Jwt__SigningKey"                = $jwtKey
             "IdentityClient__BaseUrl"        = "http://127.0.0.1:5194"
             "ChatServiceClient__BaseUrl"     = "http://127.0.0.1:5261"
         }
@@ -61,13 +90,50 @@ $services = @(
         Key = "chat"; Name = "Chat"; Port = 5261
         Path = "ChatService\src\ChatService.Api"
         Env  = @{
-            "ConnectionStrings__ChatDb"    = "Host=127.0.0.1;Port=5434;Database=chat;Username=chat_admin;Password=6486380b7831f81bc082871538a2c771"
+            "ConnectionStrings__ChatDb"    = "Host=127.0.0.1;Port=5434;Database=chat;Username=chat_admin;Password=$(Need 'CHAT_DB_PASSWORD')"
             "ConnectionStrings__Redis"     = $redis
-            "Kafka__BootstrapServers"      = "127.0.0.1:19092"
+            "Kafka__BootstrapServers"      = $kafka
             "RabbitMq__HostName"           = "127.0.0.1"
+            "RabbitMq__Password"           = $rabbitPw
+            "Jwt__SigningKey"              = $jwtKey
             "WorkspaceClient__BaseUrl"     = "http://127.0.0.1:5153"
             "MediaServiceClient__BaseUrl"  = "http://127.0.0.1:5300"
             "IdentityClient__BaseUrl"      = "http://127.0.0.1:5194"
+            # Ba khoa nay truoc nam trong appsettings.json - da bo trong o do
+            # de commit duoc, nen phai cap tu day.
+            "Storage__Providers__home__AccessKey" = $minioAk
+            "Storage__Providers__home__SecretKey" = $minioSk
+        }
+    },
+    @{
+        Key = "spamtracking"; Name = "SpamTracking"; Port = 5160
+        Path = "SpamTrackingService\src\SpamTrackingService.Api"
+        Env  = @{
+            "ConnectionStrings__SpamTrackingDb" = "Host=127.0.0.1;Port=5435;Database=spamtracking;Username=spamtracking_admin;Password=$(Need 'SPAMTRACKING_DB_PASSWORD')"
+            "ConnectionStrings__Redis"          = $redis
+            "Kafka__BootstrapServers"           = $kafka
+            "RabbitMq__HostName"                = "127.0.0.1"
+            "RabbitMq__Password"                = $rabbitPw
+            "Jwt__SigningKey"                   = $jwtKey
+            "IdentityClient__BaseUrl"           = "http://127.0.0.1:5194"
+        }
+    },
+    @{
+        Key = "media"; Name = "Media"; Port = 5300
+        Path = "MediaService\src\MediaService.Api"
+        Env  = @{
+            "ConnectionStrings__MediaDb"   = "Host=127.0.0.1;Port=5436;Database=media;Username=media_admin;Password=$(Need 'MEDIA_DB_PASSWORD')"
+            "ConnectionStrings__MiniAppDb" = "Host=127.0.0.1;Port=5437;Database=miniapp;Username=miniapp_admin;Password=$(Need 'MINIAPP_DB_PASSWORD')"
+            "ConnectionStrings__Redis"     = $redis
+            "RabbitMq__HostName"           = "127.0.0.1"
+            "RabbitMq__Password"           = $rabbitPw
+            "Jwt__SigningKey"              = $jwtKey
+            "IdentityClient__BaseUrl"      = "http://127.0.0.1:5194"
+            "ChatServiceClient__BaseUrl"   = "http://127.0.0.1:5261"
+            "LiveKit__ServerUrl"           = $(if ($cfg['LIVEKIT_SERVER_URL']) { $cfg['LIVEKIT_SERVER_URL'] } else { "http://127.0.0.1:7880" })
+            "LiveKit__ClientUrl"           = $(if ($cfg['LIVEKIT_CLIENT_URL']) { $cfg['LIVEKIT_CLIENT_URL'] } else { "ws://127.0.0.1:7880" })
+            "LiveKit__ApiKey"              = $(if ($cfg['LIVEKIT_API_KEY']) { $cfg['LIVEKIT_API_KEY'] } else { "" })
+            "LiveKit__ApiSecret"           = $(if ($cfg['LIVEKIT_API_SECRET']) { $cfg['LIVEKIT_API_SECRET'] } else { "" })
         }
     },
     @{
@@ -75,23 +141,11 @@ $services = @(
         Path = "AdminService\src\AdminService.Api"
         Env  = @{
             "RabbitMq__HostName"           = "127.0.0.1"
+            "RabbitMq__Password"           = $rabbitPw
+            "Jwt__SigningKey"              = $jwtKey
             "IdentityClient__BaseUrl"      = "http://127.0.0.1:5194"
-            "SpamTrackingClient__BaseUrl"  = "http://127.0.0.1:5240"
+            "SpamTrackingClient__BaseUrl"  = "http://127.0.0.1:5160"
             "ChatServiceClient__BaseUrl"   = "http://127.0.0.1:5261"
-        }
-    },
-    @{
-        Key = "media"; Name = "Media"; Port = 5300
-        Path = "MediaService\src\MediaService.Api"
-        Env  = @{
-            "ConnectionStrings__MediaDb"   = "Host=127.0.0.1;Port=5436;Database=media;Username=media_admin;Password=f82b6df20ed68a55b97361360c1a0f8d"
-            "ConnectionStrings__MiniAppDb" = "Host=127.0.0.1;Port=5437;Database=miniapp;Username=miniapp_admin;Password=a377345d7812f08609dae5d97e8d4de2"
-            "ConnectionStrings__Redis"     = $redis
-            "RabbitMq__HostName"           = "127.0.0.1"
-            "IdentityClient__BaseUrl"      = "http://127.0.0.1:5194"
-            "ChatServiceClient__BaseUrl"   = "http://127.0.0.1:5261"
-            "LiveKit__ServerUrl"           = "http://127.0.0.1:7880"
-            "LiveKit__ClientUrl"           = "ws://127.0.0.1:7880"
         }
     }
 )

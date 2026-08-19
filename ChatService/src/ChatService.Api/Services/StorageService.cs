@@ -28,14 +28,30 @@ public class StorageProviderOptions
 
 public class StorageOptions
 {
-    // File <= nguong nay luu o "home", lon hon thi day len "cloud".
-    // Ly do phan nguong theo DUNG LUONG chu khong theo loai file: bang thong
-    // upload cua duong truyen nha la thu khan hiem nhat, va presigned URL
-    // KHONG cuu duoc no - presign chi chuyen phan xac thuc sang API, con
-    // bytes van di ra tu MinIO nha moi lan co nguoi tai ve.
-    public long HomeMaxBytes { get; set; } = 20L * 1024 * 1024;
+    // 0 (hoac am) = KHONG gioi han kich thuoc: moi file deu luu o "home",
+    // chan duy nhat la han muc luu tru cua nhom. Dat > 0 neu muon day file
+    // lon hon nguong sang "cloud".
+    //
+    // Truoc day mac dinh 20MB de tiet kiem bang thong duong truyen nha.
+    // Cach giai quyet moi la BOP TOC DO ngay tai MinIO (xem
+    // Tainguyen/infra/minio-gateway.conf) thay vi chan kich thuoc - file lon
+    // van gui duoc, chi la truyen cham hon va khong cuop het duong truyen
+    // cua cac service khac.
+    public long HomeMaxBytes { get; set; } = 0;
 
-    public int PresignedUrlExpirySeconds { get; set; } = 300;
+    // Han cua presigned URL phai CO GIAN THEO KICH THUOC FILE. Truoc day co
+    // dinh 300s, an toan khi file toi da 20MB; nhung khi da cho phep file
+    // lon va bop bang thong xuong 3-5 MB/s thi mot file 1GB can hang chuc
+    // phut - URL het han giua chung, upload hong ma nguoi dung khong hieu
+    // vi sao. Day la hong hoc do CHINH viec bop toc do gay ra.
+    public int MinPresignExpirySeconds { get; set; } = 300;
+    public int MaxPresignExpirySeconds { get; set; } = 6 * 3600;
+
+    // Toc do coi nhu TE NHAT ma mot ket noi dat duoc, chi dung de tinh han
+    // presign. Dat THAP hon muc bop that (4 MB/s) co y: bang thong con chia
+    // cho nhieu nguoi tai cung luc, tinh sat qua thi URL het han truoc khi
+    // truyen xong.
+    public long AssumedThroughputBytesPerSec { get; set; } = 512 * 1024;
 
     public Dictionary<string, StorageProviderOptions> Providers { get; set; } = new();
 }
@@ -81,18 +97,29 @@ public class StorageService
             throw new InvalidOperationException("Thieu cau hinh kho luu tru 'home' trong Storage:Providers");
     }
 
-    public int PresignedUrlExpirySeconds => _options.PresignedUrlExpirySeconds;
-
     public long HomeMaxBytes => _options.HomeMaxBytes;
 
     public bool HasCloud => _clients.ContainsKey(Cloud);
+
+    // Han presign du de truyen het file o toc do te nhat da gia dinh, kep
+    // giua Min va Max. File cang lon URL cang song lau - do la co y, khong
+    // phai lo hong: URL van chi mo duoc DUNG mot object key.
+    public int PresignExpiryFor(long sizeBytes)
+    {
+        if (sizeBytes <= 0) return _options.MinPresignExpirySeconds;
+
+        var perSec = Math.Max(1, _options.AssumedThroughputBytesPerSec);
+        var needed = (long)Math.Ceiling((double)sizeBytes / perSec);
+        return (int)Math.Clamp(needed, _options.MinPresignExpirySeconds, _options.MaxPresignExpirySeconds);
+    }
 
     // Quyet dinh file nay nam o dau. Phai goi TRUOC khi insert hang vao bang
     // files de ghi ket qua vao cot storage_provider: mot khi da upload thi
     // file khong tu di chuyen, cot do la nguon su that duy nhat cho luc tai ve.
     public string ResolveProviderForUpload(long sizeBytes)
     {
-        if (sizeBytes <= _options.HomeMaxBytes)
+        // HomeMaxBytes <= 0 nghia la khong gioi han - moi file ve "home".
+        if (_options.HomeMaxBytes <= 0 || sizeBytes <= _options.HomeMaxBytes)
             return Home;
 
         if (_clients.ContainsKey(Cloud))
@@ -107,16 +134,16 @@ public class StorageService
         return Home;
     }
 
-    public string GeneratePresignedUploadUrl(string provider, string objectKey) =>
-        Presign(provider, objectKey, HttpVerb.PUT);
+    public string GeneratePresignedUploadUrl(string provider, string objectKey, long sizeBytes) =>
+        Presign(provider, objectKey, HttpVerb.PUT, PresignExpiryFor(sizeBytes));
 
     // Tu de xuat - thieu sot phat hien khi build Frontend F2: chi co presign
     // PUT (upload), khong co cach nao lay lai URL de XEM/TAI file da gui.
     // Xem GET /files/{fileId}/download-url o FileEndpoints.cs.
-    public string GeneratePresignedDownloadUrl(string provider, string objectKey) =>
-        Presign(provider, objectKey, HttpVerb.GET);
+    public string GeneratePresignedDownloadUrl(string provider, string objectKey, long sizeBytes) =>
+        Presign(provider, objectKey, HttpVerb.GET, PresignExpiryFor(sizeBytes));
 
-    private string Presign(string provider, string objectKey, HttpVerb verb)
+    private string Presign(string provider, string objectKey, HttpVerb verb, int expirySeconds)
     {
         if (!_clients.TryGetValue(provider, out var entry))
             throw new StorageProviderUnavailableException(provider);
@@ -126,7 +153,7 @@ public class StorageService
             BucketName = entry.Opts.BucketName,
             Key = objectKey,
             Verb = verb,
-            Expires = DateTime.UtcNow.AddSeconds(_options.PresignedUrlExpirySeconds),
+            Expires = DateTime.UtcNow.AddSeconds(expirySeconds),
         });
 
         // AWSSDK.S3 luon sinh scheme "https://" trong URL presign bat ke

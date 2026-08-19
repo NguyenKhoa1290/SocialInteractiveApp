@@ -1,0 +1,76 @@
+# Kiem tra moi lan push/PR. Chay tren runner cua GitHub, KHONG dung toi may
+# nha - nen van chay duoc khi server Ubuntu tat.
+#
+# Bat duoc dung nhung loi da that su gap trong du an:
+#   - oxlint bat hook React goi sau `return` som (6 loi, 3 cai co san tu truoc)
+#   - tsc bat sai kieu khi doi shape DTO giua backend va frontend
+#   - dotnet build bat loi bien dich sau khi doi chu ky ham
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Push lien tiep thi huy lan chay cu, khong xep hang cho het
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # mot service hong khong che mat loi cua service khac
+      matrix:
+        include:
+          - { service: Identity,     path: IdentityService/src/IdentityService.Api }
+          - { service: WorkSpace,    path: WorkspaceService/src/WorkspaceService.Api }
+          - { service: Chat,         path: ChatService/src/ChatService.Api }
+          - { service: SpamTracking, path: SpamTrackingService/src/SpamTrackingService.Api }
+          - { service: Media,        path: MediaService/src/MediaService.Api }
+          - { service: Admin,        path: AdminService/src/AdminService.Api }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        working-directory: ${{ matrix.path }}
+        run: dotnet restore
+
+      - name: Build
+        working-directory: ${{ matrix.path }}
+        # Khong dung -warnaserror: du an dang co canh bao NU1903 (lo hong da
+        # biet cua Microsoft.OpenApi) chua xu ly duoc, bat len la chan het CI.
+        run: dotnet build -c Release --no-restore
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Kiem tra kieu
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Build
+        run: npm run build
