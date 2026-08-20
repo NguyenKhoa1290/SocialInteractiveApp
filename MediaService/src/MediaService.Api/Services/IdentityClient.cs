@@ -31,6 +31,27 @@ public class IdentityClient(HttpClient httpClient, IdentityClientOptions options
         }
     }
 
+    // UC-32: chi duoc moi truc tiep nguoi da la ban be. Bang friendships nam
+    // ben Identity Service nen phai hoi sang do.
+    // Tra false khi khong hoi duoc (fail-closed) - tha tu choi mot loi moi
+    // hop le con hon cho moi nguoi la vao phong.
+    public async Task<bool> AreFriendsAsync(long userId, long otherUserId)
+    {
+        try
+        {
+            var resp = await httpClient.GetAsync($"{options.BaseUrl}/internal/users/{userId}/friends/{otherUserId}");
+            if (!resp.IsSuccessStatusCode)
+                return false;
+            var result = await resp.Content.ReadFromJsonAsync<FriendshipCheck>();
+            return result?.AreFriends ?? false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Loi hoi Identity Service ve quan he ban be {UserId}/{OtherUserId}", userId, otherUserId);
+            return false;
+        }
+    }
+
     public async Task<UserAdminDetail?> ResolveUserDetailAsync(long userId)
     {
         try
@@ -68,3 +89,5 @@ public class IdentityClient(HttpClient httpClient, IdentityClientOptions options
         }
     }
 }
+
+public record FriendshipCheck(bool AreFriends);

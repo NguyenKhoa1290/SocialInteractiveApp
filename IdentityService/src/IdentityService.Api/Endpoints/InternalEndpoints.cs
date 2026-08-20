@@ -29,6 +29,8 @@ public record AdminUserInfo(
 
 public record PaginatedAdminUsers(List<AdminUserInfo> Items, int Total, int Page, int PageSize);
 
+public record FriendshipCheck(bool AreFriends);
+
 // KHONG di qua API Gateway public - dung boi WorkSpace/Chat/Media Service de
 // resolve thong tin user (lien ket logic cross-DB), va Admin Service de go khoa.
 public static class InternalEndpoints
@@ -70,6 +72,22 @@ public static class InternalEndpoints
 
         // Chi tiet 1 user (day du hon UserPublicInfo) - dung boi Admin Service
         // (GET /admin/users/{userId}).
+        // UC-32 yeu cau chi duoc moi BAN BE vao cuoc hop. Media Service khong
+        // co ban sao bang friendships (moi service mot CSDL rieng) nen phai
+        // hoi sang day. Truoc kia rang buoc nay bi bo qua vi luc viet Media
+        // Service he thong chua co tinh nang ban be - gio da co (xem
+        // FriendsEndpoints.cs) nen cai lai cho dung dac ta.
+        internalGroup.MapGet("/{userId:long}/friends/{otherUserId:long}", async (long userId, long otherUserId, IdentityDbContext db) =>
+        {
+            // Cap luon duoc luu theo thu tu id tang dan, nhung van so ca hai
+            // chieu cho chac - du lieu cu co the khong theo quy uoc do.
+            var areFriends = await db.Friendships.AnyAsync(f =>
+                f.Status == FriendshipStatus.Accepted &&
+                ((f.RequesterId == userId && f.AddresseeId == otherUserId) ||
+                 (f.RequesterId == otherUserId && f.AddresseeId == userId)));
+            return Results.Ok(new FriendshipCheck(areFriends));
+        });
+
         internalGroup.MapGet("/{userId:long}/admin-detail", async (long userId, IdentityDbContext db) =>
         {
             var user = await db.Users.FindAsync(userId);

@@ -4,7 +4,7 @@ import { chatApi } from "../../api/chatApi";
 import type { StorageInfo, TopupRequestInfo } from "../../api/chatApi";
 import { keysApi } from "../../api/keysApi";
 import { workspaceApi } from "../../api/workspaceApi";
-import { joinConversation, leaveConversation, onMessageDeleted, onMessageReceived } from "../../lib/chatHub";
+import { joinConversation, leaveConversation, onMessageDeleted, onMessageEdited, onMessageReceived } from "../../lib/chatHub";
 import { useAuthStore } from "../../store/authStore";
 import { useKeyStore } from "../../store/keyStore";
 import { E2eeGate } from "../../components/E2eeGate";
@@ -81,6 +81,13 @@ export function ChatRoomPage() {
     conversationTypeRef.current = conversation?.type ?? null;
   }, [conversation]);
 
+  // Cung ly do closure nhu tren: handler onMessageEdited can biet tin nhan
+  // dang co trong danh sach co kem khoa rieng cua minh khong.
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Do cuoc hop dang mo cua hoi thoai nay. Tin nhan he thong ma Media
   // Service tao ("X da mo cuoc hop") chi la CHU, khong kem meetingId, nen
   // phai hoi rieng. Poll vi Media Service chua co tang WebSocket rieng va
@@ -149,6 +156,7 @@ export function ChatRoomPage() {
   useEffect(() => {
     let unsubReceived: (() => void) | undefined;
     let unsubDeleted: (() => void) | undefined;
+    let unsubEdited: (() => void) | undefined;
     let cancelled = false;
 
     async function setup() {
@@ -198,6 +206,47 @@ export function ChatRoomPage() {
         unsubDeleted = await onMessageDeleted((messageId) => {
           setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m)));
         });
+        unsubEdited = await onMessageEdited((msg) => {
+          if (msg.conversationId !== conversationId) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msg.id
+                ? {
+                    ...msg,
+                    // Ban broadcast CO CHU Y bo trong recipientEncryptedKey
+                    // (1 payload dung chung cho ca nhom - giong nhanh
+                    // MessageReceived o tren). Sua tin KHONG doi khoa phien,
+                    // nen khoa cu dang giu trong state van giai ma duoc ban
+                    // moi -> giu lai thay vi phai goi lai server.
+                    recipientEncryptedKey: msg.recipientEncryptedKey ?? m.recipientEncryptedKey,
+                  }
+                : m,
+            ),
+          );
+          // Xoa ban ro cu di thi effect giai ma moi chiu chay lai cho tin
+          // nay (dieu kien cua no la "id chua co trong decrypted").
+          //
+          // Chi xoa khi CHAC CHAN co du lieu de giai ma lai. Tin Group ma
+          // minh khong co khoa rieng (vao nhom sau khi tin duoc gui) dang
+          // hien dong "khong co khoa de giai ma" - xoa di thi no ket vinh
+          // vien o "Dang giai ma..." vi effect se bo qua chinh tin do.
+          //
+          // Phai doc khoa tu STATE CUC BO chu KHONG phai tu msg: ban
+          // broadcast cua Group luon bi server luoc recipientEncryptedKey
+          // (mot payload chung cho ca nhom), nen xet theo msg thi moi tin
+          // nhom deu bi coi la "khong giai ma duoc".
+          const known = messagesRef.current.find((m) => m.id === msg.id);
+          const canDecrypt =
+            conversationTypeRef.current === "p2p" ||
+            !!(msg.recipientEncryptedKey ?? known?.recipientEncryptedKey);
+          if (!canDecrypt) return;
+          setDecrypted((prev) => {
+            if (!(msg.id in prev)) return prev;
+            const next = { ...prev };
+            delete next[msg.id];
+            return next;
+          });
+        });
       } catch (err) {
         if (!cancelled) setError(extractApiError(err, "Không tải được cuộc trò chuyện"));
       }
@@ -209,6 +258,7 @@ export function ChatRoomPage() {
       leaveConversation(conversationId);
       unsubReceived?.();
       unsubDeleted?.();
+      unsubEdited?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);

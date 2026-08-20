@@ -50,6 +50,18 @@ export async function onMessageDeleted(handler: (messageId: number) => void) {
   return () => conn.off("MessageDeleted", handler);
 }
 
+// Chat Service van broadcast "MessageEdited" sau moi lan sua (xem
+// ConversationEndpoints.cs, nhanh MapPatch) nhung truoc day KHONG AI o phia
+// client nghe ca - nguoi sua thay noi dung moi ngay (tu cap nhat state cuc
+// bo), con nhung nguoi khac trong phong van doc ban cu cho toi khi tai lai
+// trang. Voi tin da ma hoa thi cang te: ho giu ciphertext cu trong khi
+// server da co ban moi.
+export async function onMessageEdited(handler: (msg: Message) => void) {
+  const conn = await getChatConnection();
+  conn.on("MessageEdited", handler);
+  return () => conn.off("MessageEdited", handler);
+}
+
 // Thao luan cua cuoc hop dung group RIENG (khong phai group cua
 // conversation) - khach vang lai nghe duoc thao luan nhung khong duoc nghe
 // len luong chat chinh cua nhom. Xem ChatHub.MeetingGroupName.

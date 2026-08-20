@@ -48,7 +48,15 @@ public class ChatLogConsumerService(
             AutoOffsetReset = AutoOffsetReset.Earliest,
         };
 
-        using var consumer = new ConsumerBuilder<Null, string>(config).Build();
+        // SetErrorHandler: khong co no thi moi truc trac o tang duoi (Kafka
+        // chua len, topic khong ton tai, mat ket noi) deu IM LANG - Consume()
+        // chi don gian khong tra ve gi, nhin tu ngoai giong het "dang chay
+        // binh thuong ma khong co tin nhan nao". Da tung mat thoi gian vi lo
+        // nay: SpamTracking treo o trang thai do ma khong mot dong log nao.
+        using var consumer = new ConsumerBuilder<Null, string>(config)
+            .SetErrorHandler((_, e) => logger.LogWarning(
+                "Kafka consumer bao loi: {Reason} (ma {Code}, fatal={Fatal})", e.Reason, e.Code, e.IsFatal))
+            .Build();
         consumer.Subscribe(kafkaOptions.ChatLogTopic);
         logger.LogInformation("ChatLogConsumerService dang lang nghe topic '{Topic}'", kafkaOptions.ChatLogTopic);
 

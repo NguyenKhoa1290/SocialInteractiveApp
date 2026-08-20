@@ -326,6 +326,50 @@ spec:
 """)
 
 
+# Ba hang doi thong bao duoi day CHUA co consumer: Chat/WorkSpace publish
+# vao, khong ai lay ra. Khong dat han thi chung phinh mai cho toi khi
+# RabbitMQ het bo nho va chan luon ca hai hang doi DANG hoat dong
+# (identity.account-locked, identity.delete-account-spam). TTL 24 gio la
+# quyet dinh da chot: tin nao khong duoc xu ly trong 1 ngay thi cung khong
+# con y nghia de day notification nua.
+#
+# Regex neo hai dau (^...$) CO CHU Y: "identity.*" se quet trung ca hai hang
+# doi that su co consumer, lam mat viec khoa tai khoan spam.
+#
+# Dung HTTP management API chu khong phai rabbitmqctl: rabbitmqctl chi chay
+# duoc TREN chinh node do (can Erlang cookie), con API thi goi qua Service
+# binh thuong.
+emit(f"""
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rabbitmq-init
+  namespace: {NS_DATA}
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: policy
+          image: curlimages/curl:8.10.1
+          resources:
+            requests: {{memory: 16Mi, cpu: 10m}}
+            limits: {{memory: 64Mi}}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until curl -sf -u admin:'{RABBIT_PW}' http://rabbitmq:15672/api/overview > /dev/null; do
+                echo "cho RabbitMQ san sang..."; sleep 5
+              done
+              PAT='^(identity[.]storage-warning|identity[.]chat-message-notification|workspace[.]member-notifications)$$'
+              BODY="{{\\"pattern\\":\\"$$PAT\\",\\"definition\\":{{\\"message-ttl\\":86400000}},\\"apply-to\\":\\"queues\\",\\"priority\\":1}}"
+              curl -sf -u admin:'{RABBIT_PW}' -H 'Content-Type: application/json' -X PUT http://rabbitmq:15672/api/policies/%2F/notification-ttl -d "$$BODY"
+              echo
+              curl -sf -u admin:'{RABBIT_PW}' http://rabbitmq:15672/api/policies
+              echo
+""")
+
 # ----------------------------------------------------------------- Kafka
 # Dia chi quang ba = FQDN cua Service. Client nhan dia chi nay roi MO KET
 # NOI MOI toi do, nen no phai dung voi moi pod trong cluster - xem cam bay
@@ -571,8 +615,11 @@ stringData:
 
 COMMON = [
     ("ConnectionStrings__Redis", REDIS_CONN),
-    ("RabbitMq__HostName", data_host("rabbitmq")),
 ]
+# Media KHONG co trong danh sach nay: no da bo han RabbitMQ (hai hang doi
+# media.* truoc day khong ai consume - xem MediaService Program.cs). Dat
+# bien nay cho no chi tao mot khoa cau hinh khong ai doc.
+RABBIT = [("RabbitMq__HostName", data_host("rabbitmq"))]
 # Hai nguon goc: qua Internet (ten mien, https) va trong LAN (IP, http).
 # Thieu cai thu hai la mo bang IP se bi chan CORS.
 CORS_ORIGINS = [
@@ -583,17 +630,17 @@ CORS_ORIGINS = [
 SERVICES = [
     ("identity", 5194, [
         ("ConnectionStrings__IdentityDb", f"Host={data_host('identity-db')};Port=5432;Database=identity;Username=identity_admin;Password={DB_PW}"),
-        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS,
+        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS, *RABBIT,
     ]),
     ("workspace", 5153, [
         ("ConnectionStrings__WorkspaceDb", f"Host={data_host('workspace-db')};Port=5432;Database=workspace;Username=workspace_admin;Password={DB_PW}"),
-        *CORS_ORIGINS,
+        *CORS_ORIGINS, *RABBIT,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),
     ]),
     ("chat", 5261, [
         ("ConnectionStrings__ChatDb", f"Host={data_host('chat-db')};Port=5432;Database=chat;Username=chat_admin;Password={DB_PW}"),
-        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS,
+        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS, *RABBIT,
         ("WorkspaceClient__BaseUrl", "http://workspace:8080"),
         ("MediaServiceClient__BaseUrl", "http://media:8080"),
         ("IdentityClient__BaseUrl", "http://identity:8080"),
@@ -604,7 +651,7 @@ SERVICES = [
     ]),
     ("spamtracking", 5160, [
         ("ConnectionStrings__SpamTrackingDb", f"Host={data_host('spamtracking-db')};Port=5432;Database=spamtracking;Username=spamtracking_admin;Password={DB_PW}"),
-        ("Kafka__BootstrapServers", KAFKA_CONN),
+        ("Kafka__BootstrapServers", KAFKA_CONN), *RABBIT,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
     ]),
     ("media", 5300, [
@@ -615,7 +662,7 @@ SERVICES = [
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),
     ]),
     ("admin", 5230, [
-        *CORS_ORIGINS,
+        *CORS_ORIGINS, *RABBIT,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("SpamTrackingClient__BaseUrl", "http://spamtracking:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),

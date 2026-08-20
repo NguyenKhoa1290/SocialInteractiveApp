@@ -30,6 +30,7 @@ var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Kafka trong appsettings");
 builder.Services.AddSingleton(kafkaOptions);
 builder.Services.AddSingleton<KafkaProducerService>();
+builder.Services.AddHostedService<KafkaTopicInitializer>();
 builder.Services.AddSingleton(sp => new ErrorLogPublisher(kafkaOptions, sp.GetRequiredService<ILogger<ErrorLogPublisher>>(), "chat-service"));
 
 var writeChatConsumerOptions = builder.Configuration.GetSection("WriteChatConsumer").Get<WriteChatConsumerOptions>()

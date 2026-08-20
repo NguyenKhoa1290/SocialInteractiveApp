@@ -15,8 +15,7 @@ public static class MeetingsEndpoints
 
         group.MapPost("", async (
             CreateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat,
-            MeetingInviteNotificationPublisher publisher) =>
+            MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat) =>
         {
             var hostId = principal.GetUserId()!.Value;
 
@@ -65,10 +64,9 @@ public static class MeetingsEndpoints
                 await chat.PostSystemMessageAsync(req.ConversationId.Value, $"{nickname} da mo cuoc hop");
             }
 
-            // UC-31 buoc 4 - thieu sot phat hien khi ra soat lai use case:
-            // truoc day CHI publish khi moi truc tiep (UC-32), con viec MO
-            // PHONG khong phat su kien nao ca.
-            await publisher.PublishMeetingCreatedAsync(meeting.Id, hostId, meeting.ConversationId, meeting.CreatedAt);
+            // UC-31 buoc 4 ("publish su kien tao phong de day notification")
+            // duoc dap ung bang chinh tin nhan he thong o tren, khong qua
+            // RabbitMQ nua - xem ghi chu day du o Program.cs.
 
             return Results.Created($"/meetings/{meeting.Id}", MeetingResponse.FromEntity(meeting));
         });

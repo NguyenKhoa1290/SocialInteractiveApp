@@ -4818,3 +4818,120 @@ K8s báo "created" chưa chứng minh được nó đang chạy**.
 - [x] Xác nhận KHÔNG dùng RabbitMQ cho `Delete Account Expired` — đúng, `GuestCleanupService` xử
       lý bằng cron job nội bộ Identity Service (đã làm ở Phase 1)
 
+
+
+---
+
+## Phase 7 (bổ sung sau khi hệ thống đã chạy thật trên k3s) — dọn nợ tồn đọng
+
+Bốn việc, làm sau khi rà lại toàn bộ hệ thống đang chạy chứ không phải liệt kê theo trí nhớ.
+
+### 7.1 Bỏ hàng đợi thông báo mời họp
+
+`media.meeting-created` và `media.meeting-invite` được publish từ Phase 5 nhưng **chưa bao giờ có
+consumer** — đọc RabbitMQ trên cụm thật thấy đúng 2 message tồn đọng với `consumers = 0`. Lời mời
+họp rơi vào hư không.
+
+Quyết định: **bỏ hẳn cả hai**, vì đường thông báo đúng đã có sẵn và người dùng vốn đã nhìn vào đó —
+khung chat:
+
+- Mở họp trong nhóm (`mode=in_chat`) vốn **đã** đăng tin nhắn hệ thống "X đã mở cuộc họp" vào đúng
+  nhóm đó (`ChatServiceClient.PostSystemMessageAsync`). Hàng đợi thứ hai chỉ là đường song song
+  không ai đi.
+- Mời trực tiếp (`type=direct`) nay đăng tin nhắn hệ thống kèm link tham gia vào **khung chat 1-1**
+  giữa hai người — cùng cơ chế, không thêm hạ tầng nào.
+
+Media Service vì thế **không còn dùng RabbitMQ**: đã gỡ `MeetingInviteNotificationPublisher`, khai
+báo `RabbitMq` trong `appsettings.json`, biến môi trường `RabbitMq__HostName` trong manifest/Compose,
+và cả `PackageReference` tới `RabbitMQ.Client`.
+
+**Lỗ hổng phát hiện thêm khi làm việc này:** endpoint nội bộ tạo tin nhắn hệ thống chỉ ghi CSDL rồi
+thôi — **không phát SignalR**. Nghĩa là thông báo "X đã mở cuộc họp" của Phase 5 thực tế chỉ hiện
+sau khi người dùng tải lại trang. Đã thêm broadcast `MessageReceived` giống hệt đường tin nhắn
+thường. Verify: client SignalR thật nhận được lời mời trong vòng dưới 1 giây kể từ khi gọi API.
+
+### 7.2 UC-32 "chỉ mời được bạn bè" — nay thực thi đúng
+
+Phase 5 ghi nhận là *"không làm được vì hệ thống chưa có tính năng bạn bè ở bất kỳ service nào"*.
+Ghi nhận đó **đã lỗi thời**: Identity Service về sau có bảng `friendships` đầy đủ (gửi lời mời →
+đối phương đồng ý). Đã cài lại ràng buộc gốc:
+
+- Identity: thêm `GET /internal/users/{userId}/friends/{otherUserId}` → `{ areFriends }`
+- Media: `IdentityClient.AreFriendsAsync` — **fail-closed**, hỏi không được thì coi như không phải
+  bạn bè, vì thà từ chối nhầm một lời mời hợp lệ còn hơn cho người lạ vào phòng
+- `POST /meetings/{id}/invites` với `type=direct` trả 403 `not_friends` nếu chưa kết bạn
+
+Giao diện: phòng họp giờ có mục **"Mời bạn bè"** liệt kê danh sách bạn bè, người đang trong phòng
+hiện "Đang trong phòng" thay vì nút Mời. Hoàn thiện nốt mục *"Màn hình mời (link / bạn bè)"* của đặc
+tả Frontend — trước đây mới làm được nửa "link".
+
+**Verify thật (9/9 đạt):** mời người lạ → 403 `not_friends`; mời bạn bè → 201; người được mời thấy
+link ngay trong khung chat 1-1; vào thẳng được không qua Phòng chờ; **người thứ ba cầm được link
+direct vẫn bị chặn 403**.
+
+### 7.3 Kafka: topic không còn ra đời một cách tình cờ
+
+**Triệu chứng:** trên cụm k3s, `chat.service-log` và `system.error-log` không tồn tại, và **không có
+consumer group nào** — tức SpamTracking không hề tiêu thụ. Tính năng chặn spam chết âm thầm.
+
+**Chẩn đoán đầu tiên của tôi là SAI.** Tôi đoán "Kafka mất dữ liệu khi khởi động lại". Kiểm tra
+thẳng trên pod: PVC vẫn gắn đúng `/tmp/kraft-combined-logs` trên `/dev/sda3`, `restarts=1`, dữ liệu
+còn nguyên. Nguyên nhân thật khác hẳn:
+
+> **Không nơi nào tạo topic cả.** Chúng "mọc lên" tình cờ khi có producer đẩy tin đầu tiên
+> (broker đặt `auto.create.topics.enable=true`). Cụm mới dựng, chưa ai gửi tin nhắn nào → topic
+> chưa tồn tại → SpamTracking `Subscribe()` vào một topic không có thật.
+
+Và nó **nằm im không báo lỗi**, vì Confluent .NET đặt `allow.auto.create.topics = false` ở phía
+consumer, còn `Consume()` gặp topic không tồn tại thì đơn giản là không trả về gì — nhìn từ ngoài
+giống hệt "đang chạy bình thường mà không có tin nhắn nào".
+
+**Cách sửa** (`KafkaTopicInitializer`, thêm vào Identity + Chat + SpamTracking):
+
+- Gọi `AdminClient.CreateTopicsAsync` lúc khởi động cho đúng các topic service đó cần
+- Chạy lại bao nhiêu lần cũng được: `TopicAlreadyExists` được coi là thành công. Nhờ vậy Kafka có bị
+  xoá sạch hay dựng lại từ đầu thì chỉ cần service khởi động lại là topic trở về — **tự lành**,
+  không phụ thuộc vào một Job chạy một lần lúc deploy
+- Kafka chưa kịp lên thì thử lại mỗi 10 giây thay vì làm service chết (k8s không đảm bảo thứ tự khởi động)
+- Thêm `SetErrorHandler` cho cả hai consumer — trước đây mọi trục trặc tầng dưới đều im lặng tuyệt đối
+
+**Verify thật:** xoá sạch topic trên Kafka local (chỉ còn `__consumer_offsets`) → khởi động lại 3
+service → **không gửi một tin nhắn nào** → cả 3 topic trở lại và 2 consumer group
+(`spamtracking-service`, `chat-service-write-chat`) kết nối được.
+
+### 7.4 Sửa tin nhắn nay lan sang người khác
+
+Chat Service vẫn broadcast `MessageEdited` sau mỗi lần sửa, nhưng **không ai ở phía client nghe cả**.
+Người sửa thấy nội dung mới ngay (tự cập nhật state cục bộ), còn những người khác trong phòng đọc
+bản cũ cho tới khi tải lại trang.
+
+Đã thêm `onMessageEdited` và đấu vào phòng chat. Hai chi tiết đáng ghi lại:
+
+- Bản broadcast của Group **cố ý bị lược** `recipientEncryptedKey` (một payload dùng chung cho cả
+  nhóm). Sửa tin không đổi khoá phiên, nên giữ lại khoá cũ đang có trong state thay vì gọi lại server.
+- Phải xoá bản rõ cũ khỏi cache thì effect giải mã mới chịu chạy lại — nhưng **chỉ xoá khi chắc chắn
+  giải mã lại được**. Tin Group mà mình không có khoá riêng (vào nhóm sau khi tin được gửi) đang hiện
+  dòng "không có khoá để giải mã"; xoá đi thì nó kẹt vĩnh viễn ở "Đang giải mã...". Và điều kiện này
+  phải đọc khoá từ **state cục bộ**, không phải từ bản broadcast — đọc nhầm chỗ thì mọi tin nhóm đều
+  bị coi là không giải mã được, đúng chỗ tôi viết sai lần đầu.
+
+**Verify thật (7/7 đạt):** người thứ hai nhận `MessageEdited` với đúng id, nội dung mới, nonce mới,
+cờ `isEdited`; token tìm kiếm cũ bị gỡ và token mới tìm ra tin.
+
+### 7.5 Còn lại — đã cân nhắc và quyết định KHÔNG làm
+
+| Việc | Quyết định |
+|---|---|
+| Sao lưu Postgres/MinIO | **Không làm** — không có chỗ lưu ngoài (không dùng cloud). Hỏng ổ là mất dữ liệu, đây là rủi ro đã biết và chấp nhận |
+| Nút "dựng thêm LiveKit" ở Admin Page | **Không làm** — đã chốt dùng LiveKit Cloud managed, Cloud tự lo mở rộng nên nút này không còn việc để làm |
+
+Ba hàng đợi thông báo còn lại vẫn **chưa có consumer** (`identity.storage-warning`,
+`identity.chat-message-notification`, `workspace.member-notifications`). Chúng chưa gây hại vì chưa
+có lưu lượng thật, nhưng để nguyên thì sẽ phình mãi và cuối cùng chặn luôn hai hàng đợi **đang hoạt
+động** (`identity.account-locked`, `identity.delete-account-spam`). Đã thêm Job `rabbitmq-init` đặt
+policy TTL 24 giờ cho đúng ba hàng đợi đó qua HTTP management API.
+
+Regex neo hai đầu `^(...)$` và dùng `[.]` thay `\.` là **có chủ ý**: `identity.*` sẽ quét trúng cả
+hai hàng đợi thật, làm mất việc khoá tài khoản spam; còn `\.` là escape **không hợp lệ trong JSON**
+nên RabbitMQ sẽ từ chối. Đã verify trên cụm: policy áp đúng, cột `policy` của hai hàng đợi đang chạy
+vẫn **rỗng**.

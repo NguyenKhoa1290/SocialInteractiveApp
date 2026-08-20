@@ -1615,3 +1615,53 @@ triển khai — tài liệu này chỉ mô tả yêu cầu, chưa implement.
 - [ ] Phần A: Tailscale + k3s agent test launch tay 1 node, `tolerations` thêm vào từng Service Deployment, `AwsBurstService` tích hợp Admin Service
 - [ ] Phần B: Redis dùng chung cấu hình xong, Node 2 test launch tay, code Media Service chọn node/lưu `livekit_node_url` đã viết, test WebRTC thật qua Node 2
 - [ ] (Nếu tự động hoàn toàn) đủ rào chắn mục 7.0 trước khi để cụm tự vận hành không giám sát
+
+
+---
+
+## 12. Hai Job khởi tạo bắt buộc (chạy tự động cùng `all.yaml`)
+
+Cụm k3s có **hai** Job phải chạy được thì hệ thống mới đúng. Cả hai đều **chạy lại bao nhiêu lần
+cũng không sao**, nên cứ `kubectl apply` lại khi nghi ngờ.
+
+| Job | Namespace | Việc | Bỏ quên thì sao |
+|---|---|---|---|
+| `minio-init` | `chat-data` | Tạo bucket `chat-media` | Presign vẫn trả URL bình thường (presign là phép tính offline) nhưng PUT thật trả **404 NoSuchBucket** — chỉ lộ khi upload |
+| `rabbitmq-init` | `chat-data` | Đặt policy TTL 24 giờ cho 3 hàng đợi thông báo chưa có consumer | Ba hàng đợi đó phình mãi, cuối cùng chặn luôn hai hàng đợi **đang hoạt động** |
+
+Kiểm tra policy đã vào chưa:
+
+```bash
+POD=$(k3s kubectl get pod -n chat-data -l app=rabbitmq -o jsonpath='{.items[0].metadata.name}')
+k3s kubectl exec -n chat-data $POD -- rabbitmqctl list_queues name policy consumers
+```
+
+Cột `policy` của `identity.account-locked` và `identity.delete-account-spam` phải **rỗng** — hai hàng
+đợi này có consumer thật, tin nhắn trong đó **không được phép** hết hạn. Regex của policy neo hai đầu
+(`^(...)$`) chính là để tránh quét trúng chúng.
+
+### Topic Kafka thì KHÔNG cần Job
+
+Trước đây topic Kafka ra đời một cách tình cờ — khi có producer đẩy tin đầu tiên. Cụm mới dựng mà
+chưa ai gửi tin nhắn nào thì topic chưa tồn tại, và consumer subscribe vào topic không có thật sẽ
+**nằm im không báo lỗi** (xem mục 7.3 của roadmap). Nay mỗi service tự tạo topic nó cần lúc khởi
+động (`KafkaTopicInitializer`), coi `TopicAlreadyExists` là thành công.
+
+Nghĩa là **Kafka có bị xoá sạch dữ liệu thì chỉ cần khởi động lại service là topic trở về** — không
+phải nhớ chạy Job nào. Kiểm tra:
+
+```bash
+POD=$(k3s kubectl get pod -n chat-data -l app=kafka -o jsonpath='{.items[0].metadata.name}')
+k3s kubectl exec -n chat-data $POD -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+k3s kubectl exec -n chat-data $POD -- /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+```
+
+Phải thấy đủ `chat.service-log`, `system.error-log`, `identity.auth-history` và **hai** consumer
+group `spamtracking-service` + `chat-service-write-chat`. Thiếu consumer group nghĩa là tính năng
+chặn spam đang chết âm thầm.
+
+### Media Service không còn dùng RabbitMQ
+
+Đã gỡ hai hàng đợi `media.meeting-created` / `media.meeting-invite` (chưa bao giờ có consumer). Lời
+mời họp nay đi bằng chính khung chat. Manifest vì thế **không** đặt `RabbitMq__HostName` cho `media`
+nữa — thấy biến đó xuất hiện lại là dấu hiệu ai đó thêm nhầm vào `COMMON` trong `gen-manifests.py`.

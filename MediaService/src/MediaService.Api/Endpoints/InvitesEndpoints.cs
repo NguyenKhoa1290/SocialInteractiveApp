@@ -13,7 +13,7 @@ public static class InvitesEndpoints
     {
         app.MapPost("/meetings/{meetingId:long}/invites", async (
             long meetingId, CreateInviteRequest req, ClaimsPrincipal principal,
-            MediaDbContext db, IdentityClient identity, MeetingInviteNotificationPublisher publisher) =>
+            MediaDbContext db, IdentityClient identity, ChatServiceClient chat, PublicWebOptions web) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
@@ -27,17 +27,19 @@ public static class InvitesEndpoints
                 if (req.InvitedUserId is null)
                     return Results.BadRequest(new ErrorResponse("invalid_request", "invitedUserId bat buoc khi type=direct"));
 
-                // Quyet dinh tu thiet ke: tai lieu goc yeu cau kiem tra
-                // invitedUserId la BAN BE cua nguoi goi, nhung he thong nay
-                // KHONG co tinh nang ket ban/danh sach ban be o bat ky service
-                // nao (Identity/WorkSpace/Chat deu khong co bang "friends").
-                // Thay the bang kiem tra toi thieu: invitedUserId phai la 1
-                // user co that trong he thong. Can bo sung tinh nang ban be
-                // that su o mot service khac truoc khi rang buoc nay co the
-                // sat voi UC-32 nguyen ban.
                 var invitedUser = await identity.ResolveUserAsync(req.InvitedUserId.Value);
                 if (invitedUser is null)
                     return Results.UnprocessableEntity(new ErrorResponse("user_not_found", "invitedUserId khong ton tai"));
+
+                // UC-32: chi moi duoc BAN BE. Rang buoc nay tung bi bo qua vi
+                // luc viet Media Service he thong chua co tinh nang ket ban -
+                // gio Identity Service da co bang friendships nen cai lai
+                // cho dung dac ta.
+                // 422 chu khong phai 403 - dung theo hop dong da ghi trong
+                // Tainguyen/media-service-api.yaml (UC-32, luong ngoai le 1c).
+                if (!await identity.AreFriendsAsync(callerId, req.InvitedUserId.Value))
+                    return Results.UnprocessableEntity(
+                        new ErrorResponse("not_friends", "Chi moi truc tiep duoc nguoi da la ban be"));
             }
 
             var invite = new MeetingInvite
@@ -53,8 +55,25 @@ public static class InvitesEndpoints
             db.MeetingInvites.Add(invite);
             await db.SaveChangesAsync();
 
+            // Bao cho nguoi duoc moi bang chinh khung chat 1-1 cua hai nguoi.
+            // Truoc day cho nay publish mot su kien RabbitMQ de Identity day
+            // notification, nhung khong service nao consume ca - loi moi roi
+            // vao hu khong. Tin nhan he thong thi den ngay (Chat Service phat
+            // qua SignalR) va con luu lai de doc sau.
+            //
+            // Khong chan luong chinh neu buoc nay hong: loi moi da tao xong,
+            // nguoi moi van copy link gui tay duoc.
             if (type == InviteType.Direct)
-                await publisher.PublishAsync(meetingId, req.InvitedUserId!.Value, callerId, invite.InviteToken);
+            {
+                var conversationId = await chat.GetOrCreateP2PAsync(callerId, req.InvitedUserId!.Value);
+                if (conversationId is not null)
+                {
+                    var nickname = principal.GetNickname();
+                    var link = $"{web.BaseUrl}/meetings/join/{invite.InviteToken}";
+                    await chat.PostSystemMessageAsync(conversationId.Value,
+                        $"{nickname} moi ban vao cuoc hop: {link}");
+                }
+            }
 
             return Results.Created($"/meetings/{meetingId}/invites/{invite.Id}", InviteResponse.FromEntity(invite));
         }).RequireAuthorization();

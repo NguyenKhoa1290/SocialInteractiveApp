@@ -190,6 +190,140 @@ paths:
         "403":
           description: Người gọi không phải Trưởng nhóm
 
+    patch:
+      tags: [Messages]
+      summary: Sửa tin nhắn Text đã gửi
+      description: >-
+        Bổ sung ngoài use case gốc (xem `frontend-admin-page-dac-ta.md` mục 5).
+        Chỉ chính người gửi, chỉ `type=text`, và chỉ trong **15 phút** kể từ
+        lúc gửi. Client tự mã hoá lại nội dung với nonce mới; khoá phiên KHÔNG
+        đổi nên với group không cần gửi lại `recipientKeys`. Danh sách
+        `searchTokens` cũ bị thay hoàn toàn bằng danh sách mới.
+        Sau khi sửa, Chat Service phát `MessageEdited` qua SignalR cho cả phòng.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content, contentNonce]
+              properties:
+                content:
+                  type: string
+                  description: Ciphertext base64 (AES-256-GCM)
+                contentNonce:
+                  type: string
+                  description: Nonce base64 MỚI, bắt buộc
+                searchTokens:
+                  type: array
+                  items:
+                    type: string
+                  description: Blind index băm lại theo nội dung mới
+      responses:
+        "200":
+          description: Đã sửa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "403":
+          description: Người gọi không phải người gửi tin nhắn này
+        "422":
+          description: Không phải tin Text (`not_editable`), hoặc đã quá 15 phút (`edit_window_expired`)
+
+  /conversations/{conversationId}/messages/{messageId}/recall:
+    post:
+      tags: [Messages]
+      summary: Thu hồi tin nhắn của chính mình
+      description: >-
+        Bổ sung ngoài use case gốc (mở rộng UC-28). Khác với `DELETE` ở trên:
+        `DELETE` là quyền **Trưởng nhóm**, không giới hạn thời gian, áp dụng
+        cho mọi tin trong nhóm. Còn thu hồi là **bất kỳ người gửi nào** (cả
+        P2P lẫn group) tự thu hồi tin của mình, nhưng chỉ trong **15 phút**.
+        Dùng lại cùng cơ chế soft-delete và cùng sự kiện SignalR
+        `MessageDeleted`.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Đã thu hồi
+        "403":
+          description: Người gọi không phải người gửi tin nhắn này
+        "422":
+          description: Đã quá 15 phút kể từ lúc gửi (`edit_window_expired`)
+
+  /conversations/{conversationId}/messages/search:
+    get:
+      tags: [Messages]
+      summary: Tìm kiếm tin nhắn trong 1 cuộc trò chuyện
+      description: >-
+        Bổ sung ngoài use case gốc (xem `frontend-admin-page-dac-ta.md` mục 5).
+        Tin Text luôn E2EE nên server KHÔNG thể full-text search — dùng
+        **blind index**: `tokens` là danh sách token đã băm sẵn bởi client
+        (HMAC với search-key riêng, cùng khoá đã dùng lúc gửi tin), server chỉ
+        so khớp token == token và không thể suy ngược ra từ gốc. Nhiều token
+        được ghép bằng **AND** — tin nhắn phải chứa đủ tất cả.
+        Các bộ lọc còn lại chạy trên metadata không mã hoá nên dùng được độc
+        lập, kể cả với tin không phải Text.
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+        - name: tokens
+          in: query
+          schema:
+            type: string
+          description: Các token băm sẵn, phân tách bằng dấu phẩy
+        - name: senderId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [text, image, video, file, voice, vote, system]
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        "200":
+          description: Danh sách tin nhắn khớp, mới nhất trước
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+        "403":
+          description: Người gọi không thuộc cuộc trò chuyện này
+
   # ============== FILES ==============
   /files/upload-url:
     post:

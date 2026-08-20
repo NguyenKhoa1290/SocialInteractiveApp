@@ -35,6 +35,8 @@ builder.Services.AddSingleton<RabbitMqPublisher>();
 var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Kafka trong appsettings");
 builder.Services.AddSingleton(kafkaOptions);
+// Dat TRUOC consumer: topic phai co mat roi thi subscribe moi bat duoc du lieu.
+builder.Services.AddHostedService<KafkaTopicInitializer>();
 builder.Services.AddHostedService<ChatLogConsumerService>();
 builder.Services.AddSingleton(sp => new ErrorLogPublisher(kafkaOptions, sp.GetRequiredService<ILogger<ErrorLogPublisher>>(), "spamtracking-service"));
 

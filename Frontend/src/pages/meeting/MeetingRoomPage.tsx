@@ -10,6 +10,7 @@ import {
   type RemoteTrackPublication,
 } from "livekit-client";
 import { meetingApi } from "../../api/mediaApi";
+import { friendApi } from "../../api/friendApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
@@ -23,6 +24,7 @@ import type {
   RoomMetadata,
   WaitingParticipant,
 } from "../../types/media";
+import type { Friend } from "../../types/friend";
 
 function parsePresentation(metadata: string | undefined): PresentationState | null {
   if (!metadata) return null;
@@ -81,6 +83,9 @@ export function MeetingRoomPage() {
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [waiting, setWaiting] = useState<WaitingParticipant[]>([]);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
+  const [invitingId, setInvitingId] = useState<number | null>(null);
   const [showPeople, setShowPeople] = useState(false);
   const [showIptv, setShowIptv] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
@@ -435,6 +440,24 @@ export function MeetingRoomPage() {
     }
   }
 
+  // UC-32 "moi ban be": loi moi type=direct khoa dung 1 nguoi (nguoi khac
+  // cam link cung khong vao duoc) va KHONG phai qua phong cho, vi chu phong
+  // da chu dong chon dung nguoi. Ban duoc moi nhan link ngay trong khung
+  // chat 1-1 - xem InvitesEndpoints.cs ben Media Service.
+  async function handleInviteFriend(friend: Friend) {
+    setInvitingId(friend.userId);
+    setError(null);
+    try {
+      await meetingApi.createInvite(meetingId, "direct", friend.userId);
+      setInvitedIds((prev) => new Set(prev).add(friend.userId));
+      setNotice(`Đã gửi lời mời tới ${friend.nickname}`);
+    } catch (err) {
+      setError(extractApiError(err, "Không mời được bạn này"));
+    } finally {
+      setInvitingId(null);
+    }
+  }
+
   async function handleCreateInviteLink() {
     try {
       const res = await meetingApi.createInvite(meetingId, "link");
@@ -634,6 +657,19 @@ export function MeetingRoomPage() {
       if (pub && pub.isSubscribed !== want) pub.setSubscribed(want);
     }
   }, [room, remotes, visibleKey, hiddenVideos, stageParticipant]);
+
+  // Danh sach ban be chi can khi chu phong that su mo bang dieu khien de
+  // moi - tai san luc vao phong la mot request thua cho phan lon phien hop.
+  useEffect(() => {
+    if (!showPeople || !isHost || friends.length > 0) return;
+    friendApi
+      .list()
+      .then((res) => setFriends(res.data))
+      .catch(() => {
+        // Khong moi duoc ban be thi van con duong tao link - khong dang de
+        // dung mot bao loi do chen ngang cuoc hop.
+      });
+  }, [showPeople, isHost, friends.length]);
 
   const renderTile = (t: Tile) => (
     <ParticipantTile
@@ -888,6 +924,36 @@ export function MeetingRoomPage() {
                       ))}
                     </ul>
                   )}
+
+                  <h3>Mời bạn bè</h3>
+                  {friends.length === 0 ? (
+                    <p className="meet-empty">Chưa có bạn bè nào để mời.</p>
+                  ) : (
+                    <ul className="meet-people">
+                      {friends.map((f) => {
+                        // participants tu API da loc san nguoi con trong phong.
+                        const inRoom = participants.some((p) => p.userId === f.userId);
+                        return (
+                          <li key={f.userId}>
+                            <span>{f.nickname}</span>
+                            <span className="meet-people-actions">
+                              {inRoom ? (
+                                <span className="meet-note">Đang trong phòng</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleInviteFriend(f)}
+                                  disabled={invitingId === f.userId || invitedIds.has(f.userId)}
+                                >
+                                  {invitedIds.has(f.userId) ? "Đã mời" : invitingId === f.userId ? "Đang mời..." : "Mời"}
+                                </button>
+                              )}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <p className="meet-note">Bạn được mời nhận link ngay trong khung chat riêng và vào thẳng, không qua Phòng chờ.</p>
 
                   <h3>Mời bằng link</h3>
                   <button onClick={handleCreateInviteLink}>Tạo link mời (24 giờ)</button>

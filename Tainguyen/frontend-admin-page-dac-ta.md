@@ -147,41 +147,45 @@
 | Admin: danh sách user, vi phạm, khoá/gỡ khoá | UC-10→12 | Admin — `/admin/users*`, `/admin/spam-violations` |
 | Admin: xử lý khiếu nại | UC-13 | Admin — `/admin/complaints/*` |
 | Admin: giám sát & scale | UC-14→16 | Admin — `/admin/system/*` |
-| **Tìm kiếm tin nhắn** | *(chưa có UC/API)* | **Chưa có endpoint — xem mục 5** |
-| **Sửa / thu hồi tin nhắn** | *(chưa có UC/API)* | **Chưa có endpoint — xem mục 5** |
+| Mời bạn bè vào cuộc hộp | UC-32 | Media — `POST /meetings/{id}/invites` (`type=direct`) |
+| **Tìm kiếm tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `GET /conversations/{id}/messages/search` |
+| **Sửa tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `PATCH /conversations/{id}/messages/{messageId}` |
+| **Thu hồi tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `POST /conversations/{id}/messages/{messageId}/recall` |
 
 ---
 
 ## 4. Danh sách màn hình cần xây
 
 **Đăng nhập/Đăng ký**
-- [ ] Màn hình đăng nhập (email + Google/Facebook + lối vào Guest)
-- [ ] Màn hình nhập nickname (Guest, và sau đăng ký/OAuth lần đầu)
-- [ ] Màn hình đăng ký
-- [ ] Màn hình quên mật khẩu (email → OTP → mật khẩu mới)
-- [ ] Màn hình tài khoản bị khoá → điều hướng Khiếu nại
-- [ ] Màn hình thiết lập mã PIN 6 số cho E2EE (lần đầu bật mã hoá)
-- [ ] Màn hình nhập PIN khôi phục khoá (khi đăng nhập trên thiết bị mới)
+- [x] Màn hình đăng nhập (email + Google/Facebook + lối vào Guest)
+- [x] Màn hình nhập nickname (Guest, và sau đăng ký/OAuth lần đầu)
+- [x] Màn hình đăng ký
+- [x] Màn hình quên mật khẩu (email → OTP → mật khẩu mới)
+- [x] Màn hình tài khoản bị khoá → điều hướng Khiếu nại
+- [x] Màn hình thiết lập mã PIN 6 số cho E2EE (lần đầu bật mã hoá)
+- [x] Màn hình nhập PIN khôi phục khoá (khi đăng nhập trên thiết bị mới)
 
 **Workspace**
-- [ ] Danh sách nhóm của tôi
-- [ ] Tạo nhóm mới
-- [ ] Cài đặt nhóm (avatar, tên, xoá nhóm — có dialog xác nhận rõ ràng)
-- [ ] Danh sách thành viên + quản lý vai trò
+- [x] Danh sách nhóm của tôi
+- [x] Tạo nhóm mới
+- [x] Cài đặt nhóm (avatar, tên, xoá nhóm — có dialog xác nhận rõ ràng)
+- [x] Danh sách thành viên + quản lý vai trò
 
 **Chat**
-- [ ] Danh sách cuộc trò chuyện (1-1 + nhóm)
-- [ ] Khung chat (gửi text/ảnh/video/file/voice/vote)
-- [ ] Quản trị phiên chat (chỉ hiện với Trưởng nhóm: mute, xoá tin nhắn/file)
-- [ ] Màn hình dung lượng lưu trữ nhóm + banner cảnh báo hết hạn
-- [ ] Khung chat Khiếu nại (route riêng)
+- [x] Danh sách cuộc trò chuyện (1-1 + nhóm)
+- [x] Khung chat (gửi text/ảnh/video/file/voice/vote)
+- [x] Quản trị phiên chat (chỉ hiện với Trưởng nhóm: mute, xoá tin nhắn/file)
+- [x] Màn hình dung lượng lưu trữ nhóm + banner cảnh báo hết hạn
+- [x] Khung chat Khiếu nại (route riêng)
 
 **Media**
-- [ ] Màn hình mở cuộc họp
-- [ ] Màn hình mời (link / bạn bè)
-- [ ] Màn hình chờ duyệt vào phòng
-- [ ] Giao diện phòng họp (video grid + thanh điều khiển)
-- [ ] Mini App IPTV (thêm kênh, chọn kênh, player)
+- [x] Màn hình mở cuộc họp
+- [x] Màn hình mời (link / bạn bè) — cả hai đường: nút "Tạo link mời (24 giờ)" (ai bấm link cũng
+      phải qua Phòng chờ) và danh sách bạn bè có nút "Mời" (lời mời khoá đúng 1 người, vào thẳng
+      không cần duyệt). Bạn được mời nhận link ngay trong khung chat 1-1 — xem mục 5.
+- [x] Màn hình chờ duyệt vào phòng
+- [x] Giao diện phòng họp (video grid + thanh điều khiển)
+- [x] Mini App IPTV (thêm kênh, chọn kênh, player)
 - [x] **Đổi nguồn camera / micro / loa ngay trong cuộc họp** — *không có trong đặc tả gốc*. Đã tìm cả
       `Drawing2.pdf` (trích 22.345 ký tự, có cả nhãn trong sơ đồ) lẫn `usecase-media-service.docx`:
       không chỗ nào nhắc tới chọn thiết bị phần cứng. Câu *"chọn kênh âm thanh riêng nếu có"* trong
@@ -206,11 +210,24 @@ claim `role=admin`)
 
 ## 5. Ghi chú / Điểm mở
 
-- **Khôi phục khoá khi đổi thiết bị: dùng mã PIN 6 số do user tự đặt và ghi nhớ** (giống cơ chế của Messenger) — PIN dùng để mã hoá/khôi phục private key khi đăng nhập trên thiết bị mới. Cần thêm màn hình thiết lập PIN (lúc bật E2EE lần đầu) và màn hình nhập PIN để khôi phục (khi đăng nhập thiết bị mới) — xem mục 4.
+- **Khôi phục khoá khi đổi thiết bị: dùng mã PIN 6 số do user tự đặt và ghi nhớ** (giống cơ chế của Messenger) — **ĐÃ LÀM.** `components/E2eeGate.tsx` chặn phần soạn tin nhắn Text cho tới khi có private key: lần đầu hiện màn thiết lập PIN (sinh cặp khoá X25519 thật, mã hoá private key bằng khoá dẫn xuất từ PIN qua PBKDF2 rồi đẩy vault ciphertext lên server), các lần sau hiện màn nhập PIN để mở khoá. Server chỉ thấy ciphertext + public key. Xem `lib/crypto/vault.ts`.
 
-- **"Sửa và thu hồi tin nhắn"** — có trong sơ đồ tính năng gốc (giai đoạn đầu thiết kế) nhưng KHÔNG xuất hiện ở bất kỳ use case hay API nào sau đó. Hiện tại Chat Service chỉ hỗ trợ "Xoá tin nhắn" (quyền Trưởng nhóm, UC-28) — không có quyền cho chính người gửi tự sửa/thu hồi tin nhắn của mình. Nếu đây vẫn là tính năng cần có, cần bổ sung: use case mới, endpoint `PATCH /conversations/{id}/messages/{messageId}` (sửa) và có thể tái dùng cơ chế soft-delete hiện có cho "thu hồi" (thêm điều kiện: người gọi phải là chính sender, có thể giới hạn khung thời gian được thu hồi).
+- **"Sửa và thu hồi tin nhắn"** — có trong sơ đồ tính năng gốc nhưng không xuất hiện ở use case/API nào sau đó. **ĐÃ BỔ SUNG.** `PATCH /conversations/{id}/messages/{messageId}` để sửa (chỉ sender, chỉ Type=Text, trong 15 phút kể từ lúc gửi; client tự mã hoá lại với nonce mới, tái dùng khoá phiên cũ nên không phải gửi lại `recipientKeys`) và `POST .../recall` để thu hồi (dùng lại soft-delete sẵn có, thêm điều kiện phải là chính sender và cũng trong 15 phút). Khác hẳn "Xoá tin nhắn" của Trưởng nhóm ở UC-28: quyền đó không giới hạn thời gian và áp dụng cho mọi tin trong nhóm. Sau khi sửa, Chat Service phát `MessageEdited` qua SignalR để mọi người trong phòng thấy ngay.
 
-- **"Tìm kiếm tin nhắn"** — cũng có trong sơ đồ tính năng gốc, và tầng kiến trúc (Search Chat Service) đã thiết kế kỹ cơ chế routing dữ liệu (Redis cho <10.000 tin & <10 ngày, Postgres cho phần còn lại) — nhưng chưa từng có endpoint REST cụ thể nào được viết ra trong `chat-service-api.yaml`. Cần bổ sung endpoint dạng `GET /conversations/{id}/messages/search?q=...` (hoặc tương đương) trước khi Frontend có gì để gọi cho tính năng này.
+- **"Tìm kiếm tin nhắn"** — cũng có trong sơ đồ tính năng gốc nhưng chưa từng có endpoint. **ĐÃ BỔ SUNG:** `GET /conversations/{id}/messages/search`. Vì tin Text luôn E2EE nên server không thể full-text search được — dùng **blind index**: client tự băm từ khoá bằng search-key riêng (HMAC, xem `lib/crypto/searchTokens.ts`) trước khi mã hoá nội dung, server chỉ so khớp token == token và không thể suy ngược ra từ gốc. Các bộ lọc còn lại (`senderId`, `type`, `from`, `to`) chạy trên metadata không mã hoá nên dùng được độc lập.
+
+- **Lời mời họp không đi qua hàng đợi thông báo nữa.** Thiết kế cũ cho Media Service publish 2 hàng
+  đợi RabbitMQ (`media.meeting-created`, `media.meeting-invite`) để Identity đẩy push notification,
+  nhưng chưa bao giờ có consumer — lời mời rơi vào hư không. Đã bỏ hẳn cả hai (Media Service giờ
+  không dùng RabbitMQ nữa) và thay bằng chính khung chat, vốn đã là nơi người dùng nhìn vào:
+  mở họp trong nhóm thì đăng tin nhắn hệ thống vào nhóm đó, mời bạn bè thì đăng vào khung chat 1-1
+  giữa hai người. Tin nhắn hệ thống nay được phát qua SignalR nên hiện ngay, trước đây chỉ ghi CSDL
+  rồi chờ người dùng tải lại trang mới thấy.
+
+- **UC-32 "chỉ mời được bạn bè" nay đã thực thi đúng.** Lúc viết Media Service, hệ thống chưa có
+  tính năng kết bạn nên ràng buộc này bị hạ xuống thành "invitedUserId phải là user có thật".
+  Identity Service về sau đã có bảng `friendships`, nên Media Service giờ hỏi sang
+  `GET /internal/users/{id}/friends/{otherId}` và từ chối 403 `not_friends` nếu hai người chưa kết bạn.
 
 - **Trưởng nhóm rời nhóm = xoá cả nhóm** (quyết định đã chốt ở phần thiết kế CSDL) — đây là hành động phá huỷ dữ liệu lớn nhất trong toàn hệ thống mà 1 cú bấm nhầm có thể gây ra. Bắt buộc phải có dialog xác nhận 2 bước hoặc yêu cầu gõ lại tên nhóm để xác nhận, không chỉ 1 nút "Đồng ý" đơn giản.
 
@@ -218,12 +235,12 @@ claim `role=admin`)
 
 ## 6. Tiến độ triển khai
 
-- [ ] Thiết lập Frontend project (framework, routing, state management)
-- [ ] Lớp gọi API dùng chung (interceptor tự gắn JWT, tự xử lý sliding expiration)
-- [ ] Tích hợp LiveKit JS Client SDK
-- [ ] WebSocket client (Signal IR) cho realtime chat/presence
-- [ ] Tích hợp E2EE phía Frontend (sinh cặp khoá client-side, lưu private key an toàn trên thiết bị, lấy public key người nhận, mã hoá/giải mã) — cơ chế backend đã có sẵn
-- [ ] Luồng thiết lập & khôi phục PIN 6 số cho E2EE (thiết lập lần đầu + khôi phục trên thiết bị mới)
-- [ ] Toàn bộ màn hình ở mục 4
-- [ ] Admin Page — project/route tách biệt
-- [ ] Xác nhận với team: có cần bổ sung "Tìm kiếm tin nhắn" và "Sửa/thu hồi tin nhắn" vào backend trước khi Frontend cần tới không (mục 5)
+- [x] Thiết lập Frontend project (framework, routing, state management)
+- [x] Lớp gọi API dùng chung (interceptor tự gắn JWT, tự xử lý sliding expiration)
+- [x] Tích hợp LiveKit JS Client SDK
+- [x] WebSocket client (Signal IR) cho realtime chat/presence
+- [x] Tích hợp E2EE phía Frontend (sinh cặp khoá client-side, lưu private key an toàn trên thiết bị, lấy public key người nhận, mã hoá/giải mã) — cơ chế backend đã có sẵn
+- [x] Luồng thiết lập & khôi phục PIN 6 số cho E2EE (thiết lập lần đầu + khôi phục trên thiết bị mới)
+- [x] Toàn bộ màn hình ở mục 4
+- [x] Admin Page — project/route tách biệt
+- [x] Xác nhận với team: có cần bổ sung "Tìm kiếm tin nhắn" và "Sửa/thu hồi tin nhắn" vào backend không (mục 5) — **có**, cả ba đã làm xong cả backend lẫn giao diện.
