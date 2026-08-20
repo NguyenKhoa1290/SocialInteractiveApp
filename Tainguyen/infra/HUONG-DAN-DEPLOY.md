@@ -549,9 +549,38 @@ Release workflow **không cần khai báo secret nào** — `GITHUB_TOKEN` sẵn
 
 Chuyển nguồn image bằng một biến trong `gen-manifests.py`:
 ```python
-IMAGE_REGISTRY = ""                        # build cuc bo bang nerdctl (mac dinh)
-IMAGE_REGISTRY = "ghcr.io/nguyenkhoa1290"  # keo tu GHCR, imagePullPolicy tu thanh Always
+IMAGE_REGISTRY = ""                        # build cuc bo bang nerdctl
+IMAGE_REGISTRY = "ghcr.io/nguyenkhoa1290"  # keo tu GHCR (DANG DUNG), pull policy tu thanh Always
 ```
+
+### Trạng thái: ĐÃ CHẠY ĐỦ VÒNG
+
+| Mảnh | Trạng thái |
+|---|---|
+| `ci.yml` | xanh ngay lần chạy đầu |
+| `release.yml` | xanh, 7 image đã lên GHCR |
+| Deployment trên k3s | kéo từ `ghcr.io/nguyenkhoa1290/...`, `imagePullPolicy: Always` |
+| `image-watcher` CronJob | đã bật, ghi được digest cả 7 image |
+
+Vòng lặp: `git push` → Actions build 7 image → đẩy GHCR → CronJob thấy digest mới trong ≤2 phút →
+`rollout restart`.
+
+Quay lui thủ công bằng thẻ SHA (release workflow đẩy cả hai thẻ):
+```bash
+sudo k3s kubectl set image deploy/chat chat=ghcr.io/nguyenkhoa1290/chat-app-chat:<sha> -n chat-app
+```
+
+**Chẩn đoán sai đã mắc — GHCR trả 401 KHÔNG có nghĩa là package riêng tư.** Gọi
+`https://ghcr.io/v2/<owner>/<image>/tags/list` trần thì luôn 401; registry bắt buộc phải có token
+**kể cả token ẩn danh**. Cách kiểm tra đúng là làm y như image-watcher làm:
+
+```bash
+TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:<owner>/<image>:pull" | jq -r .token)
+curl -sI -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/<owner>/<image>/manifests/latest"
+```
+
+Làm đúng cách thì ra **200** — package kéo được ẩn danh, **không cần tạo `imagePullSecret`**. Đã
+kiểm chứng thêm bằng `nerdctl pull` thật trên máy, không đăng nhập.
 
 ### Lỗi chặn đường: 5/6 service KHÔNG có `appsettings.json` trong git
 
@@ -793,6 +822,113 @@ kiểu gì cũng có một chỗ sai chính tả mà không ai phát hiện.
 
 **Hai namespace** để áp được ResourceQuota 60/30/10 (mục 5.4): `chat-data` (6 DB + Redis + Kafka +
 RabbitMQ + MinIO) và `chat-app` (6 service + frontend).
+
+#### Xoay vòng toàn bộ bí mật (sau khi phát hiện rò rỉ trên repo công khai)
+
+Repo `SocialInteractiveApp` là **public** và 4 commit đầu đã chứa bí mật. Tách bí mật khỏi cấu hình
+chỉ chặn rò rỉ *từ nay*; thứ đã public phải **thu hồi và cấp lại**. Đã đổi toàn bộ:
+
+| Bí mật | Cũ | Mới |
+|---|---|---|
+| Gmail App Password | đã lộ 16 ký tự | key mới do người dùng cấp |
+| JWT SigningKey | chuỗi cũ trong git | **64 byte ngẫu nhiên** (`secrets.token_bytes(64)` → base64, 88 ký tự) |
+| 6 mật khẩu Postgres | 6 chuỗi hex ngẫu nhiên | một mật khẩu chung do người vận hành chọn |
+| RabbitMQ `admin` | hex đã lộ | như trên |
+| Redis | hex đã lộ | như trên |
+| MinIO root | **`minioadmin/minioadmin`** — mặc định của phần mềm | `chatapp_admin` + mật khẩu mới |
+
+Khoá ký JWT **không dùng chung** mật khẩu đó: không ai phải gõ tay nó nên không cần dễ nhớ, mà đoán
+được là tự ký được token `role: admin`.
+
+**Thứ tự bắt buộc** — làm ngược là service mất kết nối giữa chừng:
+
+1. Đổi mật khẩu **bên trong dịch vụ** trước: `ALTER USER ... WITH PASSWORD` ×6, `rabbitmqctl change_password`
+2. Cập nhật `secrets.env` + `.env`, sinh lại `all.yaml`
+3. `kubectl apply` → Secret mới
+4. Restart **Redis và MinIO** (mật khẩu nằm trong tham số khởi động, không đọc lại lúc chạy)
+5. Rollout 6 service để nạp Secret mới
+
+**Ba chỗ vấp thật:**
+
+- **Bỏ sót chuỗi kết nối trong phần `SERVICES`.** Chỉ thay mật khẩu ở bảng `DBS` (dùng cho Secret của
+  Postgres) mà quên `ConnectionStrings__*Db` trong env của Deployment → `kubectl apply` báo
+  `deployment unchanged`, service vẫn dùng mật khẩu cũ và đăng ký hỏng. **`unchanged` là tín hiệu
+  cảnh báo, không phải tin tốt** khi mình vừa định đổi thứ gì đó.
+- **Kiểm chứng sai bằng loopback.** `psql -h 127.0.0.1` bên trong pod Postgres luôn thành công bất kể
+  mật khẩu, vì `pg_hba.conf` có dòng `host all all 127.0.0.1/32 trust`. Luật thật áp cho service là
+  dòng cuối `host all all all scram-sha-256`. Muốn kiểm chứng phải đi **từ pod khác**, hoặc đơn giản
+  là xem service có kết nối được không.
+- **`rollout status` hết giờ không có nghĩa là hỏng.** Hai lần lệnh chờ báo timeout trong khi
+  deployment vẫn hoàn tất vài chục giây sau. Kiểm tra lại pod trước khi kết luận.
+
+**Verify sau khi đổi:** đăng ký mới → 201 (Postgres + Kafka + Redis), token JWT mới dùng được ở
+WorkSpace (200) và Media (201 tạo phòng trên LiveKit Cloud), presign ký bằng `chatapp_admin`. Mật khẩu
+RabbitMQ cũ bị từ chối (`authenticate_user` → exit 65).
+
+#### Đưa dịch vụ ra Internet qua cloudflared (vượt CGNAT)
+
+Máy nhà không có IP public, nhưng cloudflared chỉ cần kết nối **đi ra** nên vẫn public hoá được.
+Tunnel có tên sẵn (`e1f67fd0-...`), tên miền `cachephoarong.click`, cấu hình ở `/etc/cloudflared/config.yml`.
+
+Thêm một dịch vụ = thêm một mục `ingress` + một bản ghi CNAME:
+
+```yaml
+  - hostname: dashboard.cachephoarong.click
+    service: https://localhost:9443
+    originRequest:
+      noTLSVerify: true        # Portainer dung chung chi TU KY
+```
+
+```bash
+# cert.pem nam o home cua user, chay sudo thi phai chi duong
+sudo cloudflared --origincert /home/nguyenkhoa/.cloudflared/cert.pem   tunnel route dns <tunnel-id> dashboard.cachephoarong.click
+sudo cloudflared --config /etc/cloudflared/config.yml   --origincert /home/nguyenkhoa/.cloudflared/cert.pem tunnel ingress validate
+sudo systemctl restart cloudflared
+```
+
+**Ba điều bắt buộc:**
+
+- **`noTLSVerify: true`** khi origin dùng chứng chỉ tự ký. Thiếu là cloudflared trả **502**. Phần tự
+  ký chỉ tồn tại ở chặng tunnel → máy; người dùng vẫn nhận chứng chỉ hợp lệ của Cloudflare.
+- **`http_status:404` phải nằm CUỐI.** cloudflared xét ingress theo thứ tự trên xuống; đặt nhầm lên
+  trước là nuốt hết hostname phía dưới.
+- **Sao lưu + `tunnel ingress validate` trước khi restart** — sai cú pháp là mất luôn cả route `ssh`
+  đang dùng để quản trị máy.
+
+Kết quả: `https://dashboard.cachephoarong.click` → **200** từ Internet.
+
+#### ĐÃ ĐƯA TOÀN BỘ HỆ THỐNG RA INTERNET
+
+Frontend ở domain gốc, mỗi service một subdomain. **10/10 tên miền trả 200 từ Internet.**
+
+| Tên miền | Đích | Cổng |
+|---|---|---|
+| `cachephoarong.click` | Frontend | 80 |
+| `identity.` `workspace.` `chat.` `media.` `admin.` | 5 API service | 5194 / 5153 / 5261 / 5300 / 5230 |
+| `files.` | MinIO gateway (có bóp tốc độ) | 9000 |
+| `minio.` `rabbit.` `dashboard.` | MinIO Console · RabbitMQ Mgmt · Portainer | 9001 / 15672 / 9443 |
+
+SpamTracking **không mở** — frontend không gọi nó bao giờ, Admin gọi qua tên container trong cụm.
+AMQP (5672), Postgres, Redis, Kafka đều giữ ClusterIP.
+
+**Ba thứ phải đổi cùng lúc, thiếu một là hỏng:**
+
+1. **Build lại frontend** với `https://<sub>.<domain>` — Vite nhúng URL lúc build. Không build lại thì
+   trình duyệt vẫn gọi IP LAN, người ngoài mạng không tới được **và** bị chặn mixed content.
+2. **CORS** thêm origin `https://cachephoarong.click` (giữ luôn `http://<IP LAN>` để mở bằng IP vẫn chạy).
+3. **`Storage:Providers:home:Endpoint`** → `https://files.<domain>`. Chữ ký S3 gắn với hostname; may là
+   cloudflared giữ nguyên header Host và nginx chuyển tiếp bằng `$http_host` nên chữ ký khớp.
+
+**Ba lỗi đã dính:**
+
+| Lỗi | Triệu chứng | Nguyên nhân |
+|---|---|---|
+| **Quên restart cloudflared** | cả 9 tên miền mới trả **404**, riêng `dashboard` cũ vẫn 200 | Tạo DNS + sửa config nhưng không `systemctl restart` → tunnel vẫn chạy cấu hình cũ, mọi hostname mới rơi vào luật catch-all 404 |
+| **`imagePullPolicy: Always` ghi đè bản build tại chỗ** | bundle vẫn nhúng IP LAN dù vừa build lại | Build local rồi gắn thẻ `:latest` là vô nghĩa — k8s kéo bản **cũ** từ GHCR đè lên. Phải hoặc đẩy lên registry, hoặc dùng thẻ riêng + `Never` |
+| **Quên Job tạo bucket khi chuyển sang k3s** | presign trả URL bình thường nhưng PUT thật **404** | Bản Compose có `minio-init`, bản k3s bỏ quên. Presign là phép tính offline nên **không** kiểm tra bucket có tồn tại — lỗi chỉ lộ khi upload thật |
+
+**Verify end-to-end qua Internet:** đăng ký → tạo nhóm (201) → xin URL upload → **PUT 200** → tải về
+**GET 200**, nội dung khớp bit-by-bit. CORS preflight trả 204 kèm đúng origin.
 
 #### Đã GỠ HẲN Docker khỏi server — chỉ còn containerd của k3s
 

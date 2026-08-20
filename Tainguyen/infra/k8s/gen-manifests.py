@@ -40,20 +40,35 @@ def need(key):
     return v
 
 JWT = need("Jwt__SigningKey")
-REDIS_PW = "154f8287a3654e90665f4e6a58399e0f"
+REDIS_PW = need("Redis__Password")
 RABBIT_PW = need("RabbitMq__Password")
 MINIO_AK = need("Storage__Providers__home__AccessKey")
 MINIO_SK = need("Storage__Providers__home__SecretKey")
+SMTP_PW  = need("Smtp__AppPassword")
+# Mot mat khau chung cho ca 6 CSDL - lua chon cua nguoi van hanh
+# (de nho hon 6 chuoi hex). Ca 6 DB deu la ClusterIP, khong mo ra
+# ngoai cum, nen be mat tan cong van gioi han trong cum.
+DB_PW = need("Db__Password")
 
-# Dia chi ma TRINH DUYET dung. Phai trung voi luc build image frontend -
-# Vite nhung URL vao bundle luc build, doi o day khong an.
-PUBLIC_HOST = "192.168.101.18"
+# Ten mien cong khai, phuc vu qua cloudflared tunnel. Moi service mot
+# subdomain; frontend o domain goc.
+#
+# PHAI TRUNG voi luc build image frontend - Vite nhung URL vao bundle luc
+# build chu khong doc luc chay, doi o day ma khong build lai la vo nghia.
+PUBLIC_DOMAIN = "cachephoarong.click"
+
+def pub(sub=None):
+    return f"https://{sub}.{PUBLIC_DOMAIN}" if sub else f"https://{PUBLIC_DOMAIN}"
+
+# Van giu IP LAN de truy cap noi bo khong qua Internet (nhanh hon, va van
+# chay khi tunnel chet).
+LAN_HOST = "192.168.101.18"
 
 # Nguon image. De TRONG = dung image cuc bo do nerdctl build thang vao
 # containerd cua k3s (imagePullPolicy: Never). Dien registry vao = keo tu do
 # (imagePullPolicy: Always), dung khi da bat CI/CD day image len GHCR.
 #   IMAGE_REGISTRY = "ghcr.io/nguyenkhoa1290"
-IMAGE_REGISTRY = ""
+IMAGE_REGISTRY = "ghcr.io/nguyenkhoa1290"
 
 def image_ref(name):
     return f"{IMAGE_REGISTRY}/{name}:latest" if IMAGE_REGISTRY else f"{name}:latest"
@@ -73,12 +88,12 @@ KAFKA_CONN = f"{data_host('kafka')}:9092"
 
 DBS = [
     # (ten, database, user, password, dung luong)
-    ("identity-db",     "identity",     "identity_admin",     "f8f12714edad39133b1a2f619500a0dc", "5Gi"),
-    ("workspace-db",    "workspace",    "workspace_admin",    "9142ecf6969c0f66826be3d51270ff3e", "5Gi"),
-    ("chat-db",         "chat",         "chat_admin",         "6486380b7831f81bc082871538a2c771", "10Gi"),
-    ("spamtracking-db", "spamtracking", "spamtracking_admin", "5e8b2da3ae764b4bc0d09d9d0c22e92d", "5Gi"),
-    ("media-db",        "media",        "media_admin",        "f82b6df20ed68a55b97361360c1a0f8d", "5Gi"),
-    ("miniapp-db",      "miniapp",      "miniapp_admin",      "a377345d7812f08609dae5d97e8d4de2", "5Gi"),
+    ("identity-db",     "identity",     "identity_admin",     DB_PW, "5Gi"),
+    ("workspace-db",    "workspace",    "workspace_admin",    DB_PW, "5Gi"),
+    ("chat-db",         "chat",         "chat_admin",         DB_PW, "10Gi"),
+    ("spamtracking-db", "spamtracking", "spamtracking_admin", DB_PW, "5Gi"),
+    ("media-db",        "media",        "media_admin",        DB_PW, "5Gi"),
+    ("miniapp-db",      "miniapp",      "miniapp_admin",      DB_PW, "5Gi"),
 ]
 
 out = []
@@ -295,6 +310,20 @@ spec:
     - {{name: amqp, port: 5672, targetPort: 5672}}
     - {{name: mgmt, port: 15672, targetPort: 15672}}
 """)
+# Giao dien quan tri ra ngoai cum de cloudflared tro toi duoc. AMQP (5672)
+# VAN la ClusterIP - khong co ly do gi mo giao thuc do ra ngoai.
+emit(f"""
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-mgmt-lb
+  namespace: {NS_DATA}
+spec:
+  type: LoadBalancer
+  selector: {{app: rabbitmq}}
+  ports:
+    - {{port: 15672, targetPort: 15672}}
+""")
 
 
 # ----------------------------------------------------------------- Kafka
@@ -402,8 +431,8 @@ spec:
           image: quay.io/minio/minio:latest
           args: ["server", "/data", "--console-address", ":9001"]
           env:
-            - {{name: MINIO_ROOT_USER, value: "minioadmin"}}
-            - {{name: MINIO_ROOT_PASSWORD, value: "minioadmin"}}
+            - {{name: MINIO_ROOT_USER, value: "{MINIO_AK}"}}
+            - {{name: MINIO_ROOT_PASSWORD, value: "{MINIO_SK}"}}
           ports:
             - containerPort: 9000
             - containerPort: 9001
@@ -444,6 +473,37 @@ spec:
   selector: {{app: minio}}
   ports:
     - {{port: 9001, targetPort: 9001}}
+""")
+
+# Tao bucket mot lan. Ban Compose co buoc nay (minio-init) nhung khi chuyen
+# sang k3s thi bi bo quen -> presign VAN sinh ra URL (presign la phep tinh
+# offline, khong kiem tra bucket) nhung PUT that tra 404 NoSuchBucket. Loi
+# chi lo ra khi upload that.
+emit(f"""
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: {NS_DATA}
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          resources:
+            requests: {{memory: 32Mi, cpu: 10m}}
+            limits: {{memory: 128Mi}}
+          command: ["sh", "-c"]
+          args:
+            - |
+              until mc alias set m http://minio:9000 "{MINIO_AK}" "{MINIO_SK}"; do
+                echo "cho MinIO san sang..."; sleep 5
+              done
+              mc mb --ignore-existing m/chat-media
+              mc ls m
 """)
 
 # Cong bop toc do dat truoc MinIO.
@@ -506,48 +566,56 @@ stringData:
   RabbitMq__Password: "{RABBIT_PW}"
   Storage__Providers__home__AccessKey: "{MINIO_AK}"
   Storage__Providers__home__SecretKey: "{MINIO_SK}"
+  Smtp__AppPassword: "{SMTP_PW}"
 """)
 
 COMMON = [
     ("ConnectionStrings__Redis", REDIS_CONN),
     ("RabbitMq__HostName", data_host("rabbitmq")),
 ]
-CORS = ("Cors__AllowedOrigins__0", f"http://{PUBLIC_HOST}")
+# Hai nguon goc: qua Internet (ten mien, https) va trong LAN (IP, http).
+# Thieu cai thu hai la mo bang IP se bi chan CORS.
+CORS_ORIGINS = [
+    ("Cors__AllowedOrigins__0", pub()),
+    ("Cors__AllowedOrigins__1", f"http://{LAN_HOST}"),
+]
 
 SERVICES = [
     ("identity", 5194, [
-        ("ConnectionStrings__IdentityDb", f"Host={data_host('identity-db')};Port=5432;Database=identity;Username=identity_admin;Password=f8f12714edad39133b1a2f619500a0dc"),
-        ("Kafka__BootstrapServers", KAFKA_CONN), CORS,
+        ("ConnectionStrings__IdentityDb", f"Host={data_host('identity-db')};Port=5432;Database=identity;Username=identity_admin;Password={DB_PW}"),
+        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS,
     ]),
     ("workspace", 5153, [
-        ("ConnectionStrings__WorkspaceDb", f"Host={data_host('workspace-db')};Port=5432;Database=workspace;Username=workspace_admin;Password=9142ecf6969c0f66826be3d51270ff3e"),
-        CORS,
+        ("ConnectionStrings__WorkspaceDb", f"Host={data_host('workspace-db')};Port=5432;Database=workspace;Username=workspace_admin;Password={DB_PW}"),
+        *CORS_ORIGINS,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),
     ]),
     ("chat", 5261, [
-        ("ConnectionStrings__ChatDb", f"Host={data_host('chat-db')};Port=5432;Database=chat;Username=chat_admin;Password=6486380b7831f81bc082871538a2c771"),
-        ("Kafka__BootstrapServers", KAFKA_CONN), CORS,
+        ("ConnectionStrings__ChatDb", f"Host={data_host('chat-db')};Port=5432;Database=chat;Username=chat_admin;Password={DB_PW}"),
+        ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS,
         ("WorkspaceClient__BaseUrl", "http://workspace:8080"),
         ("MediaServiceClient__BaseUrl", "http://media:8080"),
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         # URL presign di THANG toi trinh duyet -> phai la dia chi cong khai.
-        ("Storage__Providers__home__Endpoint", f"http://{PUBLIC_HOST}:9000"),
+        # URL presign tra THANG cho trinh duyet -> phai la dia chi cong khai va
+# phai la https, vi trang chay https se chan noi dung http (mixed content).
+        ("Storage__Providers__home__Endpoint", pub("files")),
     ]),
     ("spamtracking", 5160, [
-        ("ConnectionStrings__SpamTrackingDb", f"Host={data_host('spamtracking-db')};Port=5432;Database=spamtracking;Username=spamtracking_admin;Password=5e8b2da3ae764b4bc0d09d9d0c22e92d"),
+        ("ConnectionStrings__SpamTrackingDb", f"Host={data_host('spamtracking-db')};Port=5432;Database=spamtracking;Username=spamtracking_admin;Password={DB_PW}"),
         ("Kafka__BootstrapServers", KAFKA_CONN),
         ("IdentityClient__BaseUrl", "http://identity:8080"),
     ]),
     ("media", 5300, [
-        ("ConnectionStrings__MediaDb", f"Host={data_host('media-db')};Port=5432;Database=media;Username=media_admin;Password=f82b6df20ed68a55b97361360c1a0f8d"),
-        ("ConnectionStrings__MiniAppDb", f"Host={data_host('miniapp-db')};Port=5432;Database=miniapp;Username=miniapp_admin;Password=a377345d7812f08609dae5d97e8d4de2"),
-        CORS,
+        ("ConnectionStrings__MediaDb", f"Host={data_host('media-db')};Port=5432;Database=media;Username=media_admin;Password={DB_PW}"),
+        ("ConnectionStrings__MiniAppDb", f"Host={data_host('miniapp-db')};Port=5432;Database=miniapp;Username=miniapp_admin;Password={DB_PW}"),
+        *CORS_ORIGINS,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),
     ]),
     ("admin", 5230, [
-        CORS,
+        *CORS_ORIGINS,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("SpamTrackingClient__BaseUrl", "http://spamtracking:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),

@@ -57,19 +57,23 @@ jobs:
       # Frontend nhung URL API vao bundle LUC BUILD (Vite), khong doc luc
       # chay -> phai truyen dia chi server vao day. Doi dia chi server nghia
       # la phai build lai image, khong sua bien moi truong duoc.
+      # He thong phuc vu qua cloudflared tunnel: moi service mot subdomain,
+      # frontend o domain goc. Doi bang repository variable PUBLIC_DOMAIN.
+      # PHAI la https - trang https goi API http se bi chan (mixed content);
+      # va PHAI la ten mien, vi nguoi ngoai mang khong toi duoc IP LAN.
       - name: Chuan bi build-arg cho frontend
         id: args
         if: matrix.image == 'chat-app-frontend'
         run: |
-          H='${{ vars.PUBLIC_HOST }}'
-          [ -z "$H" ] && H='192.168.101.18'
+          D='${{ vars.PUBLIC_DOMAIN }}'
+          [ -z "$D" ] && D='cachephoarong.click'
           {
             echo 'value<<EOF'
-            echo "VITE_IDENTITY_API_URL=http://$H:5194"
-            echo "VITE_WORKSPACE_API_URL=http://$H:5153"
-            echo "VITE_CHAT_API_URL=http://$H:5261"
-            echo "VITE_MEDIA_API_URL=http://$H:5300"
-            echo "VITE_ADMIN_API_URL=http://$H:5230"
+            echo "VITE_IDENTITY_API_URL=https://identity.$D"
+            echo "VITE_WORKSPACE_API_URL=https://workspace.$D"
+            echo "VITE_CHAT_API_URL=https://chat.$D"
+            echo "VITE_MEDIA_API_URL=https://media.$D"
+            echo "VITE_ADMIN_API_URL=https://admin.$D"
             echo EOF
           } >> "$GITHUB_OUTPUT"
 

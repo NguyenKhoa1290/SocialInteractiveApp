@@ -50,6 +50,7 @@ services:
     ports: ["5194:8080"]
     environment:
       ConnectionStrings__IdentityDb: "Host=host.docker.internal;Port=5432;Database=identity;Username=identity_admin;Password=${IDENTITY_DB_PASSWORD}"
+      Smtp__AppPassword: "${SMTP_APP_PASSWORD}"
       ConnectionStrings__Redis: *redis
       Kafka__BootstrapServers: *kafka
       RabbitMq__HostName: host.docker.internal

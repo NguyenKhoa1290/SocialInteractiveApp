@@ -4789,6 +4789,32 @@ cần restart Identity.
 nối **lười** (trong method, không phải constructor) nên broker chết chỉ làm request publish lỗi,
 không giết host.
 
+**Triển khai thật lên server nhà + CI/CD — hoàn thành:**
+
+Toàn hệ thống chạy trên **k3s** ở máy Ubuntu (8 nhân, 7,2 GB RAM): 18 pod, 2 namespace
+(`chat-data` 11 pod, `chat-app` 7 pod), ResourceQuota 60/30/10 theo mục 5.4. LiveKit dùng Cloud,
+Docker đã gỡ hẳn khỏi server — chỉ còn containerd của k3s, build bằng `nerdctl` + buildkit.
+
+- [x] CI trên GitHub Actions: 6 service `dotnet build` + frontend lint/typecheck/build — **xanh ngay
+      lần chạy đầu**
+- [x] Release: 7 image lên GHCR, thẻ SHA + `latest`, cache layer qua Actions cache
+- [x] CD kiểu **KÉO** (`image-watcher` CronJob trong k3s): CGNAT chặn chiều vào nên Actions không
+      deploy thẳng được; cụm tự hỏi GHCR mỗi 2 phút, so **digest** với ConfigMap, khác thì rollout
+- [x] Tách bí mật khỏi cấu hình: `appsettings.json` ×6 bỏ trống 13 khoá → **commit được** (trước đó
+      5/6 file bị `.gitignore` chặn, nên image dựng từ CI sẽ thiếu cấu hình và chết lúc khởi động)
+- [x] `dashboard.cachephoarong.click` qua cloudflared — dịch vụ đầu tiên ra được Internet thật
+
+**Ba lỗi thật lộ ra trong quá trình này, đều thuộc loại "báo thành công nhưng không chạy":**
+
+| Lỗi | Vì sao khó thấy |
+|---|---|
+| ResourceQuota thiếu 68Mi | `deployment/minio` báo *created* nhưng **không có pod nào** — quota từ chối tạo pod, deployment vẫn báo thành công |
+| Traefik giữ cổng 80 | `frontend-lb` kẹt `EXTERNAL-IP <pending>` vĩnh viễn, curl vào 80 trả 404 của Traefik chứ không phải trang web |
+| Admin Service không có CORS | 13/13 test F6 đều xanh vì test bằng `curl` — mà `curl` không áp dụng same-origin policy. Trang thật sẽ chết ở request đầu |
+
+Bài học chung: **API xanh hết bằng `curl` chưa chứng minh được trang web dùng được**, và **tài nguyên
+K8s báo "created" chưa chứng minh được nó đang chạy**.
+
 - [x] Xác nhận KHÔNG dùng RabbitMQ cho `Delete Account Expired` — đúng, `GuestCleanupService` xử
       lý bằng cron job nội bộ Identity Service (đã làm ở Phase 1)
 
