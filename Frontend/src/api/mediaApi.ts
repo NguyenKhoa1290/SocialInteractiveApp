@@ -90,6 +90,14 @@ export const iptvApi = {
   createGroup: (listId: number, groupName: string) =>
     mediaHttp.post<void>(`/miniapps/iptv/channel-lists/${listId}/groups`, { groupName }),
 
+  // Nhap ca mot playlist M3U. Server tu tai va tach - trinh duyet khong tai
+  // truc tiep duoc vi may chu IPTV gan nhu khong bao gio gui header CORS.
+  importPlaylist: (listId: number, url: string) =>
+    mediaHttp.post<{ isPlaylist: boolean; imported: number; skipped: number; newGroups: number }>(
+      `/miniapps/iptv/channel-lists/${listId}/import`,
+      { url },
+    ),
+
   createChannel: (listId: number, groupId: number, channelName: string, streamUrl: string, audioTrack?: string) =>
     mediaHttp.post<void>(`/miniapps/iptv/channel-lists/${listId}/groups/${groupId}/channels`, {
       channelName,

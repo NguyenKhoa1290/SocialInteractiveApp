@@ -5324,6 +5324,73 @@ Log khớp: *"Da don 1 thong bao da doc qua 7 ngay va 1 thong bao qua 30 ngay"*.
 Bảng đầy đủ "dữ liệu nào tự dọn, dữ liệu nào cố ý không" nằm ở mục 13 của `infra/HUONG-DAN-DEPLOY.md`,
 kèm các lệnh cần chạy khi nghi ngờ RAM.
 
+
+---
+
+## Phase 12 — Playlist M3U chứa nhiều kênh
+
+Người dùng dự án báo: *"Một số kênh .m3u8 nó chứa nhiều kênh, cái này chưa tương thích."*
+
+### 12.1 Vấn đề
+
+Mô hình dữ liệu IPTV là `IptvChannelList` → `IptvChannelGroup` → `IptvChannel`, và kênh được thêm
+**từng cái một** bằng tay: tên + URL. Giả định ngầm là *một URL = một kênh*.
+
+Nhưng phần lớn URL `.m3u8` lưu hành ngoài thực tế lại là **playlist IPTV**: một file `#EXTM3U` liệt kê
+hàng trăm đài, mỗi đài một dòng `#EXTINF` kèm `group-title`. Dán một URL như vậy vào ô "kênh" thì
+trình phát đọc các URL đài như thể chúng là **segment của cùng một luồng** — phát ra rác.
+
+### 12.2 Ba loại file, hai kết cục
+
+Chỗ khó không phải là phân tích cú pháp mà là **phân loại**, vì cả ba loại đều là `.m3u8`:
+
+| Loại | Dấu hiệu | Xử lý |
+|---|---|---|
+| Master playlist | `#EXT-X-STREAM-INF` | **Một** kênh — đó là các mức chất lượng của cùng nội dung, hls.js tự chọn |
+| Media playlist | `#EXT-X-TARGETDURATION` | **Một** kênh — `#EXTINF` ở đây là segment |
+| Playlist IPTV | ≥2 mục `#EXTINF` kèm tên, không có hai thẻ trên | **Nhiều** kênh — tách ra |
+
+**Bẫy nguy hiểm nhất là media playlist**: nó *cũng* có `#EXTINF`. Phân loại chỉ dựa vào `#EXTINF` thì
+mọi luồng HLS bình thường đều bị xé thành "nhiều kênh", mỗi segment một kênh. Nên thứ tự kiểm tra là
+bắt buộc: xét `#EXT-X-TARGETDURATION` / `#EXT-X-STREAM-INF` **trước**.
+
+Một chi tiết nữa: playlist chỉ có **đúng một** mục cũng trả về `SingleStream`. Nhập vào rồi lại ra
+đúng một bản ghi thì chỉ làm người dùng rối trí.
+
+### 12.3 Server tải hộ — và cái giá của nó
+
+Phải tải ở backend chứ không phải trình duyệt: máy chủ IPTV gần như không bao giờ gửi header CORS.
+
+Nhưng điều đó biến endpoint thành **cổng SSRF**: người dùng đọc được nội dung của bất kỳ địa chỉ nào
+mà *server* tới được, kể cả những địa chỉ chỉ tồn tại bên trong cụm. Ví dụ
+`http://identity:8080/internal/users/admin-list` sẽ trả về danh sách người dùng rồi hiện ra dưới dạng
+"tên kênh".
+
+`PlaylistFetcher` vì thế chặn: chỉ `http`/`https`, và **phân giải DNS xong mới kiểm tra IP** — kiểm
+trên chuỗi tên miền là vô dụng vì một tên miền trỏ tới `127.0.0.1` sẽ đi qua được. Chặn loopback, LAN
+riêng, link-local (gồm `169.254.169.254` của metadata cloud), CGNAT, và IPv4 nguỵ trang trong IPv6.
+Thêm giới hạn 8 MB và 20 giây.
+
+*Đánh đổi đã biết:* nguồn IPTV tự dựng trong LAN cũng bị chặn theo. Nếu sau này cần thì thêm allowlist
+cấu hình được, chứ không nới quy tắc chung.
+
+### 12.4 Verify
+
+**Bộ phân tích, 16/16** (chạy offline với các biến thể thật): playlist IPTV có `tvg-*`/`group-title`
+tiếng Việt; master playlist; **media playlist không bị xé**; định dạng cũ `#EXTGRP`; URL tương đối và
+URL bắt đầu bằng `/`; bỏ scheme lạ; bỏ URL không có `#EXTINF` đi kèm; file rỗng và file HTML.
+
+**Đầu-cuối, 10/10** với playlist công khai thật (`iptv-org`, kênh quảng bá VN): **82 kênh vào 21 nhóm
+trong 828 ms**; nhập lại lần hai bỏ qua đủ 82 và **không sinh nhóm trùng**; luồng đơn trả
+`isPlaylist: false`; không nhập được vào danh sách của người khác (404).
+
+**Chặn SSRF, 5/5**: địa chỉ nội bộ trong cụm, metadata cloud, loopback, `file://`, và LAN `192.168.x`
+— tất cả đều 422.
+
+*Ghi nhận:* `iptv-org` đặt nhiều thể loại trong một `group-title`, ngăn bằng dấu chấm phẩy
+("Education;Science"). Tên nhóm được **giữ nguyên như trong playlist** chứ không tự tách — mỗi nhà
+cung cấp một quy ước, đoán mò dễ cho kết quả tệ hơn ở nguồn khác.
+
 ---
 
 ## Trạng thái khi kết thúc đợt Phase 7–11

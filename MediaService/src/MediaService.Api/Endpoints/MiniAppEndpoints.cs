@@ -1,5 +1,6 @@
 using MediaService.Api.Data;
 using MediaService.Api.Models;
+using MediaService.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediaService.Api.Endpoints;
@@ -74,6 +75,97 @@ public static class MiniAppEndpoints
             await db.SaveChangesAsync();
 
             return Results.Created($"/miniapps/iptv/channel-lists/{listId}/groups/{channelGroup.Id}", null);
+        });
+
+        // Nhap ca mot playlist M3U vao danh sach.
+        //
+        // VI SAO CAN: rat nhieu URL .m3u8 nguoi dung dan vao that ra la DANH
+        // SACH hang tram kenh chu khong phai mot luong. Truoc day luu nguyen
+        // no thanh mot "kenh", trinh phat doc cac URL kenh nhu the chung la
+        // segment cua cung mot luong roi phat ra rac - dung nghia "chua tuong
+        // thich".
+        //
+        // Nhom duoc tao tu thuoc tinh group-title trong playlist, va DUNG LAI
+        // nhom trung ten neu da co - nhap playlist lan hai khong sinh ra mot
+        // loat nhom trung.
+        group.MapPost("/channel-lists/{listId:long}/import", async (
+            long listId, ImportPlaylistRequest req, System.Security.Claims.ClaimsPrincipal principal,
+            MiniAppDbContext db, PlaylistFetcher fetcher, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Url))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "url khong duoc trong"));
+
+            var userId = principal.GetUserId()!.Value;
+            var list = await db.IptvChannelLists.FindAsync([listId], ct);
+            if (list is null || list.UserId != userId)
+                return Results.NotFound();
+
+            var fetched = await fetcher.FetchAsync(req.Url, ct);
+            if (!fetched.Ok)
+                return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", fetched.Error!));
+
+            var kind = M3uPlaylist.Detect(fetched.Content!);
+            if (kind == M3uKind.Unknown)
+                return Results.UnprocessableEntity(
+                    new ErrorResponse("not_a_playlist", "Nội dung tải về không phải playlist M3U"));
+
+            // Mot luong HLS binh thuong (co #EXT-X-STREAM-INF hoac
+            // #EXT-X-TARGETDURATION) thi khong co gi de tach - bao cho nguoi
+            // dung them no nhu mot kenh binh thuong.
+            if (kind == M3uKind.SingleStream)
+                return Results.Ok(new ImportPlaylistResponse(false, 0, 0, 0));
+
+            var entries = M3uPlaylist.Parse(fetched.Content!, req.Url);
+            if (entries.Count > M3uPlaylist.MaxChannels)
+                entries = entries.Take(M3uPlaylist.MaxChannels).ToList();
+
+            // Tai san nhung gi da co de khong tao trung - mot lan doc thay vi
+            // hoi lai CSDL cho tung kenh trong hang nghin kenh.
+            var existingGroups = await db.IptvChannelGroups
+                .Where(g => g.ListId == listId)
+                .ToDictionaryAsync(g => g.GroupName, g => g, StringComparer.OrdinalIgnoreCase, ct);
+
+            var groupIds = existingGroups.Values.Select(g => g.Id).ToList();
+            var existingUrls = await db.IptvChannels
+                .Where(c => groupIds.Contains(c.GroupId))
+                .Select(c => c.StreamUrl)
+                .ToListAsync(ct);
+            var seenUrls = new HashSet<string>(existingUrls, StringComparer.OrdinalIgnoreCase);
+
+            var newGroups = 0;
+            var imported = 0;
+            var skipped = 0;
+
+            foreach (var entry in entries)
+            {
+                if (!seenUrls.Add(entry.Url))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var groupName = string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!;
+                if (!existingGroups.TryGetValue(groupName, out var channelGroup))
+                {
+                    channelGroup = new IptvChannelGroup { ListId = listId, GroupName = groupName };
+                    db.IptvChannelGroups.Add(channelGroup);
+                    // Phai luu ngay de co Id gan cho kenh ben duoi.
+                    await db.SaveChangesAsync(ct);
+                    existingGroups[groupName] = channelGroup;
+                    newGroups++;
+                }
+
+                db.IptvChannels.Add(new IptvChannel
+                {
+                    GroupId = channelGroup.Id,
+                    ChannelName = entry.Name,
+                    StreamUrl = entry.Url,
+                });
+                imported++;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new ImportPlaylistResponse(true, imported, skipped, newGroups));
         });
 
         group.MapPost("/channel-lists/{listId:long}/groups/{groupId:long}/channels", async (

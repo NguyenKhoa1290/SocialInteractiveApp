@@ -34,6 +34,9 @@ var chatServiceClientOptions = builder.Configuration.GetSection("ChatServiceClie
     ?? new ChatServiceClientOptions();
 builder.Services.AddSingleton(chatServiceClientOptions);
 builder.Services.AddHttpClient<ChatServiceClient>();
+// Tai playlist IPTV o phia server (may chu IPTV khong gui CORS) - co chan
+// SSRF ben trong, xem PlaylistFetcher.cs.
+builder.Services.AddHttpClient<PlaylistFetcher>();
 
 var liveKitOptions = builder.Configuration.GetSection("LiveKit").Get<LiveKitOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh LiveKit trong appsettings");

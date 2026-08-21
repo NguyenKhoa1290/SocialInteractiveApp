@@ -17,6 +17,8 @@ export function IptvManagePage() {
   const [newListName, setNewListName] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [channelForm, setChannelForm] = useState<{ groupId: number; name: string; url: string; audio: string } | null>(null);
+  const [importUrl, setImportUrl] = useState("");
+  const [importNote, setImportNote] = useState<string | null>(null);
 
   async function loadLists(selectId?: number) {
     const res = await iptvApi.listChannelLists();
@@ -94,6 +96,34 @@ export function IptvManagePage() {
     }
   }
 
+  // Nguoi dung thuong dan mot URL .m3u8 vao o "kenh" ma khong biet no chua
+  // hang tram kenh. Server phan biet giup: playlist nhieu kenh thi tach ra,
+  // luong don thi bao de ho them nhu kenh binh thuong.
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (selectedList === null || !importUrl.trim()) return;
+    setBusy(true);
+    setError(null);
+    setImportNote(null);
+    try {
+      const { data } = await iptvApi.importPlaylist(selectedList, importUrl.trim());
+      if (!data.isPlaylist) {
+        setImportNote("URL này là một luồng phát đơn, không phải danh sách nhiều kênh — thêm nó như một kênh bình thường ở nhóm bên dưới.");
+        return;
+      }
+      setImportNote(
+        `Đã nhập ${data.imported} kênh vào ${data.newGroups} nhóm mới` +
+          (data.skipped > 0 ? `, bỏ qua ${data.skipped} kênh đã có sẵn.` : "."),
+      );
+      setImportUrl("");
+      await loadGroups(selectedList);
+    } catch (err) {
+      setError(extractApiError(err, "Không nhập được playlist"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <AppShell>
       <h2>Mini App · Danh sách kênh IPTV</h2>
@@ -123,6 +153,16 @@ export function IptvManagePage() {
               </option>
             ))}
           </select>
+
+          <form className="meet-inline-form" onSubmit={handleImport}>
+            <input
+              placeholder="Dán link playlist M3U (nhiều kênh)"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+            />
+            <button disabled={busy || !importUrl.trim()}>{busy ? "Đang nhập..." : "Nhập playlist"}</button>
+          </form>
+          {importNote && <p className="meet-note">{importNote}</p>}
 
           <form className="meet-inline-form" onSubmit={handleCreateGroup}>
             <input

@@ -408,6 +408,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/IptvChannelList"
 
+  /miniapps/iptv/channel-lists/{listId}/import:
+    post:
+      tags: [MiniApp]
+      summary: Nhập cả một playlist M3U vào danh sách
+      description: >-
+        Bổ sung ngoài đặc tả gốc. Rất nhiều URL `.m3u8` người dùng dán vào ô
+        "kênh" thực ra là **danh sách hàng trăm kênh** chứ không phải một
+        luồng — lưu nguyên nó thành một kênh thì trình phát đọc các URL kênh
+        như thể chúng là segment của cùng một luồng và phát ra rác.
+
+
+        Server tự phân biệt ba loại: có `#EXT-X-STREAM-INF` hoặc
+        `#EXT-X-TARGETDURATION` là **một luồng HLS thật** (trả `isPlaylist:
+        false`, không tách); có từ 2 mục `#EXTINF` kèm tên là **danh sách
+        kênh** (tách ra và nhập); còn lại là không phải M3U.
+
+
+        Nhóm được tạo từ thuộc tính `group-title` (hoặc `#EXTGRP` với định
+        dạng cũ), và **dùng lại** nhóm trùng tên nên nhập lần hai không sinh
+        ra nhóm trùng. Kênh trùng `streamUrl` bị bỏ qua. Tối đa 2000 kênh mỗi
+        lần nhập.
+
+
+        **Server tải hộ, không phải trình duyệt** — máy chủ IPTV gần như không
+        bao giờ gửi header CORS. Vì thế endpoint này chặn URL trỏ tới địa chỉ
+        nội bộ (loopback, LAN, link-local, metadata cloud) để không thành cổng
+        SSRF đọc các service nội bộ trong cụm.
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  example: https://example.com/playlist.m3u
+      responses:
+        "200":
+          description: Đã xử lý
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isPlaylist:
+                    type: boolean
+                    description: false = URL là một luồng đơn, không có gì để tách
+                  imported:
+                    type: integer
+                  skipped:
+                    type: integer
+                    description: Số kênh bỏ qua vì đã có sẵn cùng streamUrl
+                  newGroups:
+                    type: integer
+        "404":
+          description: Danh sách không tồn tại hoặc không thuộc về người gọi
+        "422":
+          description: >-
+            `fetch_failed` (không tải được, hoặc URL trỏ tới địa chỉ nội bộ)
+            hoặc `not_a_playlist` (nội dung không phải M3U)
+
   /miniapps/iptv/channel-lists/{listId}/groups:
     post:
       tags: [MiniApp]

@@ -65,6 +65,11 @@ public record IptvChannelGroupResponse(long Id, string GroupName, IptvChannelRes
 
 public record CreateChannelRequest(string ChannelName, string StreamUrl, string? AudioTrack);
 
+// isPlaylist = false nghia la URL do la MOT luong HLS binh thuong, khong co
+// gi de tach - noi goi nen bao nguoi dung them no nhu mot kenh don.
+public record ImportPlaylistRequest(string Url);
+public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Skipped, int NewGroups);
+
 public record MiniAppStartRequest(string? AppId);
 
 public record StreamUrlResponse(string StreamUrl, string? AudioTrack);
