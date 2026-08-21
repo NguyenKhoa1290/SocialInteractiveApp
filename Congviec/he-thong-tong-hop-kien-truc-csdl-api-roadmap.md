@@ -5455,6 +5455,60 @@ Nhân tiện sửa luôn một chỗ lãng phí băng thông: cơ chế huỷ đ
 đây **chỉ áp dụng cho camera**, màn hình chia sẻ thì luôn được tải bất kể có ai nhìn hay không — mà nó
 là luồng tốn băng thông nhất. Nay màn hình được đối xử y hệt camera: không hiển thị thì không tải về.
 
+
+---
+
+## Phase 14 — Tin nhắn hệ thống "đã mở cuộc họp" thành thẻ có nút bấm
+
+Người dùng test và báo: mỗi lần mở cuộc họp thì trong nhóm hiện một bong bóng **`[system]` không có
+nội dung gì**. Đề xuất: nó nên là thông tin cuộc họp, có nút vào nếu còn mở, và nút mở thảo luận —
+*"bấm vào hiện ra trang không có gì nếu không có ai nhắn, tức là người dùng vẫn có quyền nhắn tin sau
+khi cuộc họp kết thúc"*.
+
+### 14.1 Lỗi hiển thị
+
+Chuỗi render tin nhắn trong `ChatRoomPage` là: `text` → giải mã, `fileId` → khối file, **còn lại →
+`[{m.type}]`**. Tin hệ thống rơi vào nhánh cuối, nên hiện đúng chữ `[system]` và `m.content` **không
+bao giờ được render** — dù nội dung nằm sẵn ở đó (tin hệ thống không mã hoá E2EE).
+
+### 14.2 Lỗi thiết kế đằng sau nó
+
+Kể cả có render đúng thì cũng chỉ ra một dòng chữ chết: *"X đã mở cuộc họp"*. Không kèm `meetingId`
+nên cả nhóm thấy dòng đó mà **không có cách nào biết cuộc hop nào mà vào**, cũng không mở được luồng
+thảo luận của nó. Đây là thiếu sót đã được ghi nhận từ Phase 5 — và chính là lý do phải đẻ ra endpoint
+`/meetings/active` cùng cơ chế poll 10 giây/lần để lách.
+
+Sửa: Media Service gửi **JSON có cấu trúc** thay cho một câu chữ:
+
+```json
+{"kind":"meeting_started","meetingId":44,"host":"mm","text":"mm da mo cuoc hop"}
+```
+
+Trường `text` giữ lại làm bản dự phòng: tin hệ thống đã lưu từ trước (và mọi nội dung không phải JSON)
+vẫn hiển thị được dạng chữ, không để một bản ghi cũ làm vỡ khung chat.
+
+**Không thêm cột mới.** Cột `meeting_id` sẵn có trong bảng `messages` mang nghĩa khác hẳn — *"tin này
+thuộc luồng thảo luận của cuộc họp X"*, và `GET /messages` lọc `meeting_id IS NULL` để lấy luồng
+chính. Dùng lại nó cho một tin ở luồng chính sẽ làm tin đó biến mất khỏi khung chat.
+
+### 14.3 Thẻ cuộc họp
+
+`SystemMessage.tsx` dựng thẻ với: tên người mở, nhãn **Đang diễn ra / Đã kết thúc**, nút **Vào họp**
+(chỉ hiện khi `/meetings/active` trả về đúng `meetingId` đó), và link **Thảo luận**.
+
+Điểm người dùng nhấn mạnh — *"vẫn có quyền nhắn tin sau khi cuộc họp kết thúc dù trong cuộc họp không
+nhắn gì"* — hoá ra **backend đã đúng sẵn**: `CanAccessAsync` cho thành viên nhóm vào bất kể cuộc họp
+còn hay đã tan. Thứ còn thiếu chỉ là **lối vào** ở giao diện: khối "Thảo luận của các cuộc họp trước"
+lấy từ `listMeetingDiscussions`, mà endpoint đó chỉ trả về cuộc họp **đã có tin nhắn** — nên cuộc họp
+không ai nhắn gì thì không có đường nào mở ra. Thẻ này lấp đúng chỗ đó.
+
+### 14.4 Verify (12/12, chạy trên stack local sau khi Docker được khởi động lại)
+
+Nội dung tin hệ thống không còn rỗng; là JSON có cấu trúc; kèm đúng `meetingId` và tên người mở; có
+`text` dự phòng. Cuộc họp đang mở → `/active` trả đúng id (thẻ hiện nút Vào họp). **Kết thúc họp mà
+trong họp không ai nhắn gì** → vẫn mở được thảo luận (200), trang trống đúng 0 tin, **vẫn nhắn tiếp
+được** (201) và tin được lưu lại. Sau khi kết thúc, `/active` trả 204 → thẻ chuyển sang "Đã kết thúc".
+
 ---
 
 ## Trạng thái khi kết thúc đợt Phase 7–11

@@ -25,6 +25,7 @@ import { AppShell } from "../../components/AppShell";
 import { meetingApi } from "../../api/mediaApi";
 import type { Meeting } from "../../types/media";
 import { FileMessageContent } from "./FileMessageContent";
+import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import type { ConversationDetail } from "../../api/chatApi";
 import "./chat.css";
@@ -785,6 +786,13 @@ export function ChatRoomPage() {
                 </div>
               ) : m.type === "text" ? (
                 <span>{decrypted[m.id] ?? "Đang giải mã..."}</span>
+              ) : m.type === "system" ? (
+                <SystemMessage
+                  content={m.content}
+                  conversationId={conversationId}
+                  activeMeetingId={activeMeeting?.id ?? null}
+                  onJoin={handleJoinMeeting}
+                />
               ) : m.fileId ? (
                 <FileMessageContent fileId={m.fileId} type={m.type} />
               ) : (

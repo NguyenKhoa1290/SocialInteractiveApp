@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MediaService.Api.Data;
 using MediaService.Api.Models;
 using MediaService.Api.Services;
@@ -70,7 +71,23 @@ public static class MeetingsEndpoints
                 //  - Thong bao (UC-31 buoc 4): cho nguoi dang o man hinh khac
                 //    hoac dang offline. Chat Service tra ve danh sach da loai
                 //    san nhung nguoi thuoc nhom dau.
-                await chat.PostSystemMessageAsync(conversationId, $"{nickname} da mo cuoc hop");
+                // Noi dung la JSON co cau truc chu khong phai mot cau chu.
+                //
+                // VI SAO: truoc day chi gui "X da mo cuoc hop" - ca nhom thay
+                // dong chu do nhung KHONG co cach nao biet cuoc hop nao ma
+                // vao, cung khong mo duoc luong thao luan cua no. Kem
+                // meetingId thi Frontend dung duoc mot the co nut "Vao hop"
+                // va "Thao luan".
+                //
+                // Giu "text" ben trong lam ban du phong: client cu (va cac
+                // tin nhan he thong da luu tu truoc) van hien duoc dang chu.
+                await chat.PostSystemMessageAsync(conversationId, JsonSerializer.Serialize(new
+                {
+                    kind = "meeting_started",
+                    meetingId = meeting.Id,
+                    host = nickname,
+                    text = $"{nickname} da mo cuoc hop",
+                }));
 
                 var recipients = await chat.GetNotifyRecipientsAsync(conversationId, hostId);
                 await publisher.PublishMeetingCreatedAsync(meeting.Id, hostId, conversationId, nickname, recipients);

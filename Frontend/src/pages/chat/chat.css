@@ -377,3 +377,73 @@
   color: var(--text);
   font-style: italic;
 }
+
+/* ---- Tin nhan he thong ----
+   Truoc day nhanh render cuoi cung la "[{type}]" nen tin he thong hien ra
+   dung chu "[system]", noi dung khong bao gio duoc hien du no nam san trong
+   content. Rieng su kien mo cuoc hop thi dung mot the co nut bam. */
+.chat-system-text {
+  color: var(--text);
+  font-style: italic;
+}
+
+.chat-system-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 230px;
+}
+
+.chat-system-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.chat-system-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Chi "dang dien ra" moi to mau - trang thai da ket thuc la mac dinh, khong
+   can hut mat nguoi dung vao. */
+.chat-system-badge.open {
+  border-color: transparent;
+  background: #2f9e44;
+  color: #fff;
+}
+
+.chat-system-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-system-card-actions button,
+.chat-system-card-actions a {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.chat-system-card-actions button {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.chat-system-card-actions a {
+  border: 1px solid var(--border);
+  background: var(--social-bg);
+  color: var(--text-h);
+}
