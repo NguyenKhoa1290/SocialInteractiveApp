@@ -27,5 +27,12 @@
     "ClientUrl": "ws://localhost:7880",
     "ApiKey": "<livekit-api-key>",
     "ApiSecret": "<livekit-api-secret>"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "Username": "admin",
+    "Password": "",
+    "MeetingInviteQueue": "media.meeting-invite"
   }
 }

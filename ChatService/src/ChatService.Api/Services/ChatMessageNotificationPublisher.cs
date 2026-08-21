@@ -4,13 +4,15 @@ using RabbitMQ.Client;
 
 namespace ChatService.Api.Services;
 
-public record ChatMessageNotificationMessage(long ConversationId, long MessageId, long SenderId, string MessageType);
+// RecipientUserIds + SenderNickname do BEN NAY tinh san. Identity Service
+// khong co ban sao thanh vien hoi thoai; de no tu tra thi phai goi nguoc lai
+// Chat Service - vong phu thuoc, va thong bao se chet neu Chat dang ban.
+public record ChatMessageNotificationMessage(long ConversationId, long MessageId, long SenderId, string MessageType, string? SenderNickname, List<long> RecipientUserIds);
 
-// Publish thong bao tin nhan moi -> Identity Service (tu de xuat, tai lieu
-// roadmap muc 6.4 - CHUA co consumer ben Identity Service, giong tinh trang
-// voi workspace.member-notifications cua WorkSpace Service: publish truoc,
-// chuan bi san hang doi, chua co UI/co che push-notification chung cho toan
-// he thong nen chua xu ly duoc o dau ca).
+// Publish thong bao tin nhan moi -> Identity Service, noi dong vai tro dau
+// moi notification cua ca he thong (roadmap muc 1 va bang Publisher ->
+// Consumer muc 8.1). Identity luu lai roi day tiep xuong nguoi nhan qua
+// WebSocket - xem NotificationConsumerService.cs ben do.
 public class ChatMessageNotificationPublisher : IAsyncDisposable
 {
     private readonly RabbitMqOptions _options;
@@ -54,13 +56,16 @@ public class ChatMessageNotificationPublisher : IAsyncDisposable
         }
     }
 
-    public async Task PublishAsync(long conversationId, long messageId, long senderId, string messageType)
+    public async Task PublishAsync(long conversationId, long messageId, long senderId, string messageType, string? senderNickname, List<long> recipientUserIds)
     {
+        if (recipientUserIds.Count == 0)
+            return;
+
         try
         {
             var channel = await EnsureChannelAsync();
             var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
-                new ChatMessageNotificationMessage(conversationId, messageId, senderId, messageType)));
+                new ChatMessageNotificationMessage(conversationId, messageId, senderId, messageType, senderNickname, recipientUserIds)));
             await channel.BasicPublishAsync(exchange: "", routingKey: _options.NewMessageQueue, body: body);
         }
         catch (Exception ex)

@@ -11,6 +11,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
     public DbSet<User> Users => Set<User>();
     public DbSet<OAuthLink> OAuthLinks => Set<OAuthLink>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -71,6 +72,20 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
                     v => v == "pending" ? FriendshipStatus.Pending : FriendshipStatus.Accepted);
             entity.Property(f => f.CreatedAt).HasColumnName("created_at");
             entity.Property(f => f.RespondedAt).HasColumnName("responded_at");
+        });
+
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.ToTable("notifications");
+            entity.HasKey(n => n.Id);
+            entity.Property(n => n.Id).HasColumnName("id");
+            entity.Property(n => n.UserId).HasColumnName("user_id");
+            entity.Property(n => n.Type).HasColumnName("type");
+            entity.Property(n => n.Title).HasColumnName("title");
+            entity.Property(n => n.Body).HasColumnName("body");
+            entity.Property(n => n.Link).HasColumnName("link");
+            entity.Property(n => n.IsRead).HasColumnName("is_read");
+            entity.Property(n => n.CreatedAt).HasColumnName("created_at");
         });
     }
 }

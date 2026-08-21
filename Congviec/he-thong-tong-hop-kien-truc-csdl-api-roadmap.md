@@ -4841,9 +4841,10 @@ khung chat:
 - Mời trực tiếp (`type=direct`) nay đăng tin nhắn hệ thống kèm link tham gia vào **khung chat 1-1**
   giữa hai người — cùng cơ chế, không thêm hạ tầng nào.
 
-Media Service vì thế **không còn dùng RabbitMQ**: đã gỡ `MeetingInviteNotificationPublisher`, khai
-báo `RabbitMq` trong `appsettings.json`, biến môi trường `RabbitMq__HostName` trong manifest/Compose,
-và cả `PackageReference` tới `RabbitMQ.Client`.
+> **Cập nhật ở Phase 8:** phần "mời bạn bè" bên trên đã đổi lần nữa. Lời mời trực tiếp nay đi qua
+> hàng đợi `media.meeting-invite` → Identity Service → WebSocket, đúng kiến trúc notification mà tài
+> liệu quy định, thay vì đặt tin nhắn hệ thống vào khung chat 1-1. Hàng đợi `media.meeting-created`
+> thì vẫn bỏ hẳn — lý do ở đoạn trên vẫn đúng nguyên vẹn. Xem mục 8 bên dưới.
 
 **Lỗ hổng phát hiện thêm khi làm việc này:** endpoint nội bộ tạo tin nhắn hệ thống chỉ ghi CSDL rồi
 thôi — **không phát SignalR**. Nghĩa là thông báo "X đã mở cuộc họp" của Phase 5 thực tế chỉ hiện
@@ -4935,3 +4936,93 @@ Regex neo hai đầu `^(...)$` và dùng `[.]` thay `\.` là **có chủ ý**: `
 hai hàng đợi thật, làm mất việc khoá tài khoản spam; còn `\.` là escape **không hợp lệ trong JSON**
 nên RabbitMQ sẽ từ chối. Đã verify trên cụm: policy áp đúng, cột `policy` của hai hàng đợi đang chạy
 vẫn **rỗng**.
+
+
+---
+
+## Phase 8 — Hệ thống thông báo (Identity Service làm đầu mối)
+
+### 8.1 Vì sao phải làm
+
+Tài liệu thiết kế đã quy định từ đầu mà chưa bao giờ được hiện thực hoá:
+
+- Mục 1: *"**Identity Service** — đăng nhập/đăng ký, quản lý JWT, **notification**"*
+- Bảng Publisher → Consumer mục 8.1: *WorkSpace Service → Identity Services → Thông báo rời/bị xoá
+  nhóm → **Push notification**"*
+- Mục 8.1: *"...→ Identity Services khoá tài khoản **+ đẩy thông báo**"*
+
+Thực tế trước Phase 8: **năm hàng đợi publish mà không ai consume**. Thông báo rơi vào hư không, và
+mỗi lần gặp lại tình trạng đó lời giải thích trong code đều là *"chưa có cơ chế push-notification
+chung cho toàn hệ thống"*. Phase 8 xây đúng cơ chế đó.
+
+### 8.2 Đường đi
+
+```
+service phát sự kiện  →  RabbitMQ  →  Identity Service  →  WebSocket  →  tab Thông báo
+                                      (lưu CSDL + đẩy)
+```
+
+Không service nào tự đẩy thông báo tới người dùng. **Mọi thông báo đi qua Identity Service** — đúng
+như tài liệu quy định.
+
+| Hàng đợi | Ai publish | Thông báo |
+|---|---|---|
+| `identity.chat-message-notification` | Chat Service | Có tin nhắn mới |
+| `identity.storage-warning` | Chat Service | Nhóm sắp hết hạn dung lượng (3d/2d/1d/10h) |
+| `workspace.member-notifications` | WorkSpace Service | Rời nhóm / bị xoá khỏi nhóm / nhóm bị giải tán |
+| `media.meeting-invite` | Media Service | Bạn bè mời vào cuộc họp |
+| `identity.account-locked` | SpamTracking | Tài khoản bị khoá (kèm link tới trang Khiếu nại) |
+
+**Lưu trữ chứ không chỉ đẩy realtime:** bảng `notifications` trong Identity DB. Người dùng offline
+lúc sự kiện xảy ra vẫn phải đọc được khi mở lại app, và cần đếm được số chưa đọc.
+
+### 8.3 Ba quyết định thiết kế đáng ghi lại
+
+**Người nhận do BÊN PUBLISH tính sẵn.** Identity Service không có bản sao thành viên nhóm hay hội
+thoại. Nếu để nó tự tra thì phải gọi ngược sang Chat/WorkSpace — thêm hai phụ thuộc chỉ để gửi một
+thông báo, và thông báo sẽ chết nếu hai service đó đang bận. Nên `RecipientUserIds` được nhét sẵn vào
+payload, cùng với `SenderNickname` để Identity không phải hỏi lại chỉ để lấy một cái tên.
+
+**Một sự kiện đi đúng một đường.** Mở họp trong nhóm không sinh thông báo, vì cả nhóm đã nhận tin
+nhắn hệ thống ngay trong khung chat của nhóm. Chỉ mời bạn bè trực tiếp mới đi đường thông báo, vì
+trường hợp đó không có khung chat nhóm nào để nhìn vào.
+
+**Người đang mở chính phòng chat đó thì không nhận thông báo tin nhắn mới.** Họ đã thấy tin nhắn hiện
+ra trước mắt qua SignalR. Không lọc bước này thì một nhóm đông người đang trò chuyện sẽ sinh ra một
+thông báo cho *từng* thành viên trên *mỗi* tin nhắn — chuông báo kêu liên tục và bảng `notifications`
+phình vô ích. `PresenceTracker` được mở rộng để theo dõi ai đang mở phòng nào; dọn theo
+`connectionId` lúc ngắt kết nối, vì đóng tab đột ngột thì không có `LeaveConversation` nào được gọi
+và người đó sẽ bị coi là "đang xem" vĩnh viễn.
+
+### 8.4 Đã làm
+
+**Identity Service:** bảng `notifications`; `NotificationHub` (SignalR, `/hubs/notifications`, mỗi
+người một group riêng); `NotificationService` (một cửa duy nhất tạo + đẩy, để không nơi nào quên
+bước đẩy WebSocket); `NotificationConsumerService` (4 hàng đợi, cùng mẫu chống sập với
+`AccountLockedConsumerService`); REST `/notifications`, `/unread-count`, `/{id}/read`, `/read-all`,
+`DELETE /{id}`.
+
+**Frontend:** tab "Thông báo" ở thanh điều hướng kèm huy hiệu số chưa đọc hiện ở **mọi** màn hình;
+kết nối WebSocket đặt ở `AppShell` chứ không ở trang Thông báo, vì thông báo phải tới dù đang ở đâu;
+bấm vào thông báo là nhảy tới đúng chỗ; đánh dấu đã đọc cập nhật giao diện trước rồi mới gọi server.
+
+**Chi tiết dễ bỏ sót:** trình duyệt không gửi được header `Authorization` trong bắt tay WebSocket,
+nên token đi qua query string — Identity Service phải thêm `OnMessageReceived` giống Chat Service.
+Và lúc đăng xuất phải đóng hub: không đóng thì kết nối cũ vẫn giữ JWT cũ và tiếp tục nhận thông báo
+của tài khoản vừa thoát, người đăng nhập sau sẽ thấy chúng.
+
+### 8.5 Verify thật
+
+**Đường thông báo (12/12 đạt):** ba loại sự kiện từ ba service khác nhau (Chat, Media, WorkSpace) đều
+tới được qua WebSocket với đúng tiêu đề và đúng link; REST đọc lại được; đếm chưa đọc khớp; đánh dấu
+đã đọc giảm đúng 1; đánh dấu tất cả về 0. **Cách ly người dùng:** A không thấy thông báo của B, và A
+gọi đánh dấu đã đọc lên thông báo của B thì nhận 404.
+
+**Bộ lọc người đang xem (3/3 đạt):** B đang mở phòng chat → vẫn nhận tin nhắn realtime nhưng **không**
+bị báo thông báo; B rời phòng → nhận thông báo bình thường.
+
+**Một lỗi thật lộ ra khi verify:** lần chạy đầu thiếu đúng thông báo mời họp. Nguyên nhân: Phase 7 đã
+gỡ `RabbitMq__HostName` khỏi cấu hình của Media Service (lúc đó nó thật sự không dùng RabbitMQ nữa),
+nên khi hàng đợi quay lại thì Media rơi về giá trị mặc định `localhost` — tức chính container của nó.
+Lời mời vẫn tạo thành công và trả token bình thường, chỉ có thông báo là mất, vì publisher nuốt lỗi
+có chủ ý. Đây đúng loại lỗi mà chỉ chạy thật mới thấy: mọi API đều xanh.

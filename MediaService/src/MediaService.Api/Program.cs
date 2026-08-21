@@ -33,29 +33,23 @@ var chatServiceClientOptions = builder.Configuration.GetSection("ChatServiceClie
 builder.Services.AddSingleton(chatServiceClientOptions);
 builder.Services.AddHttpClient<ChatServiceClient>();
 
-// Link moi hop gui cho nguoi khac phai la dia chi TRINH DUYET mo duoc. Mac
-// dinh lay origin dau tien trong Cors:AllowedOrigins - theo dinh nghia do
-// chinh la noi Frontend chay, nen khong phai khai bao them bien moi truong
-// nao khi trien khai. Dat PublicWeb:BaseUrl neu muon ghi de.
-var publicWebBaseUrl = builder.Configuration["PublicWeb:BaseUrl"]
-    ?? builder.Configuration["Cors:AllowedOrigins:0"]
-    ?? "http://localhost:5173";
-builder.Services.AddSingleton(new PublicWebOptions { BaseUrl = publicWebBaseUrl.TrimEnd('/') });
-
 var liveKitOptions = builder.Configuration.GetSection("LiveKit").Get<LiveKitOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh LiveKit trong appsettings");
 builder.Services.AddSingleton(liveKitOptions);
 builder.Services.AddSingleton<LiveKitService>();
 
-// Media Service KHONG dung RabbitMQ nua. Truoc day co
-// MeetingInviteNotificationPublisher day su kien "mo phong"/"moi hop" sang
-// hai hang doi media.meeting-created + media.meeting-invite, nhung khong
-// service nao consume ca - tin nhan chi nam do cho het han. Da bo han vi:
-//  - Mo hop trong nhom (mode=in_chat) DA gui mot tin nhan he thong vao dung
-//    nhom do (xem MeetingsEndpoints.cs, goi ChatServiceClient) - ca nhom
-//    thay ngay, khong can them mot duong thong bao thu hai.
-//  - Moi truc tiep (type=direct) chua bao gio duoc Frontend goi toi: giao
-//    dien chi tao link moi (type=link) roi cho nguoi dung tu gui link di.
+// CHI con MOT hang doi: media.meeting-invite, cho viec moi ban be truc tiep
+// (UC-32). Identity Service consume no roi day thong bao xuong nguoi duoc moi
+// qua WebSocket - Identity la dau moi notification cua ca he thong.
+//
+// Hang doi media.meeting-created cua ban truoc da bo han: mo hop trong nhom
+// da tao san mot tin nhan he thong ngay trong khung chat cua nhom do, ca nhom
+// thay ngay - them mot duong bao thu hai chi la bao trung.
+var rabbitMqOptions = builder.Configuration.GetSection("RabbitMq").Get<RabbitMqOptions>()
+    ?? throw new InvalidOperationException("Thieu cau hinh RabbitMq trong appsettings");
+builder.Services.AddSingleton(rabbitMqOptions);
+builder.Services.AddSingleton<MeetingInviteNotificationPublisher>();
+
 // JWT duoc PHAT HANH boi Identity Service - Media Service chi VALIDATE,
 // dung chung SigningKey/Issuer/Audience voi cac service khac.
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]

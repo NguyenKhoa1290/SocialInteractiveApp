@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using IdentityService.Api.Data;
 using IdentityService.Api.Models;
+using IdentityService.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -16,6 +17,13 @@ public class RabbitMqOptions
     public string Password { get; set; } = "guest";
     public string AccountLockedQueue { get; set; } = "identity.account-locked";
     public string DeleteAccountSpamQueue { get; set; } = "identity.delete-account-spam";
+
+    // Bon hang doi thong bao - xem NotificationConsumerService.cs. Ten phai
+    // khop voi ben publish (Chat/WorkSpace/Media Service).
+    public string MemberNotificationQueue { get; set; } = "workspace.member-notifications";
+    public string StorageWarningQueue { get; set; } = "identity.storage-warning";
+    public string NewMessageQueue { get; set; } = "identity.chat-message-notification";
+    public string MeetingInviteQueue { get; set; } = "media.meeting-invite";
 }
 
 // Format PHAI khop voi SpamTrackingService
@@ -175,6 +183,21 @@ public class AccountLockedConsumerService(
         user.Status = UserStatus.Locked;
         await db.SaveChangesAsync();
         logger.LogInformation("Da khoa tai khoan {UserId}, ly do: {Reason}", message.UserId, message.Reason);
+
+        // Tai lieu roadmap muc 8.1: "Identity Services khoa tai khoan + day
+        // thong bao". Truoc day moi lam ve khoa, phan thong bao bo trong vi
+        // chua co he thong notification.
+        //
+        // Nguoi bi khoa gan nhu chac chan dang offline (bi dang xuat), nen
+        // ban ghi trong CSDL moi la thu co gia tri - ho se doc duoc khi
+        // khieu nai va dang nhap lai.
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationService>();
+        await notifications.CreateAsync(
+            message.UserId,
+            NotificationType.AccountLocked,
+            "Tài khoản của bạn đã bị khoá",
+            string.IsNullOrWhiteSpace(message.Reason) ? "Hệ thống phát hiện hành vi spam." : message.Reason,
+            "/complaints");
     }
 
     private async Task DeleteAccountAsync(DeleteAccountSpamMessage message)

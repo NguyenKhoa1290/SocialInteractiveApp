@@ -14,13 +14,12 @@ public class RabbitMqOptions
     public string NewMessageQueue { get; set; } = "identity.chat-message-notification";
 }
 
-public record StorageWarningMessage(long WorkspaceId, long ConversationId, string Stage, DateTimeOffset? ExpiresAt);
+public record StorageWarningMessage(long WorkspaceId, long ConversationId, string Stage, DateTimeOffset? ExpiresAt, List<long> RecipientUserIds);
 
 // Publish canh bao xoa file qua RabbitMQ -> Identity Services (push
 // notification) - dung theo cung mo hinh voi cac thong bao khac trong tai
-// lieu roadmap (muc 5.1). LUU Y: Identity Service CHUA co consumer cho
-// queue nay (them ngoai OpenAPI spec goc, vi chuoi canh bao 3d/2d/1d/10h
-// khong duoc dac ta chi tiet co che gui - day la trien khai tu de xuat).
+// lieu roadmap (muc 5.1). Identity Service consume hang doi nay va day tiep
+// qua WebSocket, xem NotificationConsumerService.cs.
 public class StorageWarningPublisher : IAsyncDisposable
 {
     private readonly RabbitMqOptions _options;
@@ -64,12 +63,12 @@ public class StorageWarningPublisher : IAsyncDisposable
         }
     }
 
-    public async Task PublishAsync(long workspaceId, long conversationId, string stage, DateTimeOffset? expiresAt)
+    public async Task PublishAsync(long workspaceId, long conversationId, string stage, DateTimeOffset? expiresAt, List<long> recipientUserIds)
     {
         try
         {
             var channel = await EnsureChannelAsync();
-            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new StorageWarningMessage(workspaceId, conversationId, stage, expiresAt)));
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new StorageWarningMessage(workspaceId, conversationId, stage, expiresAt, recipientUserIds)));
             await channel.BasicPublishAsync(exchange: "", routingKey: _options.StorageWarningQueue, body: body);
         }
         catch (Exception ex)

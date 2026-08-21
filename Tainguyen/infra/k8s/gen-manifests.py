@@ -326,15 +326,19 @@ spec:
 """)
 
 
-# Ba hang doi thong bao duoi day CHUA co consumer: Chat/WorkSpace publish
-# vao, khong ai lay ra. Khong dat han thi chung phinh mai cho toi khi
-# RabbitMQ het bo nho va chan luon ca hai hang doi DANG hoat dong
-# (identity.account-locked, identity.delete-account-spam). TTL 24 gio la
-# quyet dinh da chot: tin nao khong duoc xu ly trong 1 ngay thi cung khong
-# con y nghia de day notification nua.
+# TTL 24 gio cho bon hang doi thong bao. Identity Service DA consume ca bon
+# (xem NotificationConsumerService.cs) nen binh thuong chung luon rong -
+# day la LUOI AN TOAN, khong phai cach chong ro ri nhu ban truoc: neu
+# Identity chet vai ngay, thong bao ton dong se tu het han thay vi phinh mai
+# roi chan luon hai hang doi con lai.
 #
-# Regex neo hai dau (^...$) CO CHU Y: "identity.*" se quet trung ca hai hang
-# doi that su co consumer, lam mat viec khoa tai khoan spam.
+# 24 gio la quyet dinh da chot va van hop ly ve nghiep vu: mot thong bao
+# "co tin nhan moi" cua hom qua thi day len cung khong con y nghia gi.
+#
+# Regex neo hai dau (^...$) CO CHU Y: "identity.*" se quet trung ca
+# identity.account-locked va identity.delete-account-spam - hai hang doi
+# LENH KHOA TAI KHOAN, khong phai thong bao. Tin trong do het han nghia la
+# mat luon viec khoa tai khoan spam.
 #
 # Dung HTTP management API chu khong phai rabbitmqctl: rabbitmqctl chi chay
 # duoc TREN chinh node do (can Erlang cookie), con API thi goi qua Service
@@ -362,7 +366,7 @@ spec:
               until curl -sf -u admin:'{RABBIT_PW}' http://rabbitmq:15672/api/overview > /dev/null; do
                 echo "cho RabbitMQ san sang..."; sleep 5
               done
-              PAT='^(identity[.]storage-warning|identity[.]chat-message-notification|workspace[.]member-notifications)$$'
+              PAT='^(identity[.]storage-warning|identity[.]chat-message-notification|workspace[.]member-notifications|media[.]meeting-invite)$$'
               BODY="{{\\"pattern\\":\\"$$PAT\\",\\"definition\\":{{\\"message-ttl\\":86400000}},\\"apply-to\\":\\"queues\\",\\"priority\\":1}}"
               curl -sf -u admin:'{RABBIT_PW}' -H 'Content-Type: application/json' -X PUT http://rabbitmq:15672/api/policies/%2F/notification-ttl -d "$$BODY"
               echo
@@ -616,9 +620,10 @@ stringData:
 COMMON = [
     ("ConnectionStrings__Redis", REDIS_CONN),
 ]
-# Media KHONG co trong danh sach nay: no da bo han RabbitMQ (hai hang doi
-# media.* truoc day khong ai consume - xem MediaService Program.cs). Dat
-# bien nay cho no chi tao mot khoa cau hinh khong ai doc.
+# Ca 6 service deu dung RabbitMQ. Media chi con MOT hang doi
+# (media.meeting-invite, cho viec moi ban be truc tiep) - hang doi
+# media.meeting-created cua ban truoc da bo han vi mo hop trong nhom da tao
+# san tin nhan he thong ngay trong khung chat cua nhom.
 RABBIT = [("RabbitMq__HostName", data_host("rabbitmq"))]
 # Hai nguon goc: qua Internet (ten mien, https) va trong LAN (IP, http).
 # Thieu cai thu hai la mo bang IP se bi chan CORS.
@@ -657,7 +662,7 @@ SERVICES = [
     ("media", 5300, [
         ("ConnectionStrings__MediaDb", f"Host={data_host('media-db')};Port=5432;Database=media;Username=media_admin;Password={DB_PW}"),
         ("ConnectionStrings__MiniAppDb", f"Host={data_host('miniapp-db')};Port=5432;Database=miniapp;Username=miniapp_admin;Password={DB_PW}"),
-        *CORS_ORIGINS,
+        *CORS_ORIGINS, *RABBIT,
         ("IdentityClient__BaseUrl", "http://identity:8080"),
         ("ChatServiceClient__BaseUrl", "http://chat:8080"),
     ]),

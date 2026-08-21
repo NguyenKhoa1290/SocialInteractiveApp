@@ -24,6 +24,13 @@ tags:
     description: Đăng ký tài khoản (UC-06 → UC-08)
   - name: Profile
     description: Thông tin & cài đặt tài khoản của chính user
+  - name: Notifications
+    description: >-
+      Thông báo của người dùng. Identity Service là **đầu mối notification
+      của toàn hệ thống** (xem roadmap mục 1 và bảng Publisher → Consumer
+      mục 8.1): các service khác không tự đẩy thông báo, mà publish sự kiện
+      qua RabbitMQ tới đây; Identity lưu lại rồi đẩy tiếp xuống đúng người
+      qua WebSocket `/hubs/notifications`.
   - name: Internal
     description: >-
       Endpoint nội bộ, chỉ gọi được từ service khác trong hệ thống (không đi
@@ -425,6 +432,88 @@ paths:
         "404":
           description: Không tìm thấy user
 
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Danh sách thông báo của chính mình
+      description: >-
+        Luôn chỉ trả về thông báo của người gọi — `userId` lấy từ JWT, không
+        nhận qua tham số, nên không có đường nào đọc thông báo của người khác.
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        "200":
+          description: Danh sách thông báo, mới nhất trước
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Đếm số thông báo chưa đọc
+      description: >-
+        Tách riêng khỏi `GET /notifications` vì chuông báo chỉ cần con số và
+        được gọi mỗi lần mở app — kéo về cả danh sách chỉ để đếm là lãng phí.
+      responses:
+        "200":
+          description: Số thông báo chưa đọc
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Đánh dấu một thông báo đã đọc
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "204":
+          description: Đã đánh dấu
+        "404":
+          description: Không tìm thấy, hoặc thông báo không thuộc về người gọi
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Đánh dấu tất cả đã đọc
+      responses:
+        "204":
+          description: Đã đánh dấu
+
+  /notifications/{notificationId}:
+    delete:
+      tags: [Notifications]
+      summary: Xoá một thông báo
+      description: >-
+        Xoá hẳn chứ không ẩn — thông báo là dữ liệu dùng một lần, giữ lại
+        không để làm gì.
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "204":
+          description: Đã xoá
+        "404":
+          description: Không tìm thấy, hoặc thông báo không thuộc về người gọi
+
 components:
   securitySchemes:
     bearerAuth:
@@ -432,7 +521,44 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
   schemas:
+    Notification:
+      type: object
+      description: >-
+        Hình dạng này dùng chung cho cả REST lẫn WebSocket — client chỉ phải
+        xử lý một kiểu dữ liệu dù thông báo đến từ đường nào.
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [account_locked, meeting_invite, new_message, storage_warning, member_left, member_kicked, workspace_dissolved]
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        link:
+          type: string
+          nullable: true
+          description: Đường dẫn trong Frontend để bấm vào thông báo là nhảy tới đúng chỗ
+          example: /meetings/join/87268887e8b14af99a1231c87c38af26
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
     User:
       type: object
       properties:

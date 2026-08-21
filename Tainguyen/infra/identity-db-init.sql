@@ -80,3 +80,34 @@ CREATE UNIQUE INDEX idx_friendships_pair
 
 CREATE INDEX idx_friendships_addressee_pending
   ON friendships(addressee_id) WHERE status = 'pending';
+
+-- Thong bao - Identity Service la dau moi notification cua toan he thong
+-- (roadmap muc 1 "Identity Service - dang nhap/dang ky, quan ly JWT,
+-- notification", va bang Publisher->Consumer o muc 8.1). Moi service khac
+-- muon bao gi cho nguoi dung deu publish qua RabbitMQ toi day, Identity
+-- luu lai roi day tiep qua WebSocket. Truoc do cac hang doi do khong ai
+-- consume nen thong bao roi vao hu khong.
+--
+-- Vi sao luu lai chu khong chi day realtime: nguoi dung offline luc su kien
+-- xay ra van phai doc duoc khi mo lai app, va can dem so chua doc.
+CREATE TABLE notifications (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type         VARCHAR(40) NOT NULL,
+  title        VARCHAR(200) NOT NULL,
+  body         TEXT,
+  -- Duong dan trong Frontend de bam vao thong bao la nhay toi dung cho
+  -- (vd /chat/12, /meetings/join/<token>). NULL = thong bao chi de doc.
+  link         VARCHAR(500),
+  is_read      BOOLEAN NOT NULL DEFAULT false,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Truy van duy nhat cua man hinh thong bao: "cua toi, moi nhat truoc".
+CREATE INDEX idx_notifications_user_created
+  ON notifications(user_id, created_at DESC);
+
+-- Dem so chua doc chay moi lan mo app -> index rieng chi phu phan chua doc,
+-- nho hon nhieu so voi index day du vi thong bao da doc chiem da so ve lau dai.
+CREATE INDEX idx_notifications_user_unread
+  ON notifications(user_id) WHERE is_read = false;

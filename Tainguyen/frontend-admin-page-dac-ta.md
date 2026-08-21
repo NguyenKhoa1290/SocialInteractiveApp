@@ -147,7 +147,8 @@
 | Admin: danh sách user, vi phạm, khoá/gỡ khoá | UC-10→12 | Admin — `/admin/users*`, `/admin/spam-violations` |
 | Admin: xử lý khiếu nại | UC-13 | Admin — `/admin/complaints/*` |
 | Admin: giám sát & scale | UC-14→16 | Admin — `/admin/system/*` |
-| Mời bạn bè vào cuộc hộp | UC-32 | Media — `POST /meetings/{id}/invites` (`type=direct`) |
+| Mời bạn bè vào cuộc họp | UC-32 | Media — `POST /meetings/{id}/invites` (`type=direct`) |
+| **Thông báo** (tab riêng + huy hiệu chưa đọc) | *(roadmap mục 1, 8.1)* | Identity — `/notifications*` + WebSocket `/hubs/notifications` |
 | **Tìm kiếm tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `GET /conversations/{id}/messages/search` |
 | **Sửa tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `PATCH /conversations/{id}/messages/{messageId}` |
 | **Thu hồi tin nhắn** | *(bổ sung, xem mục 5)* | Chat — `POST /conversations/{id}/messages/{messageId}/recall` |
@@ -177,6 +178,12 @@
 - [x] Quản trị phiên chat (chỉ hiện với Trưởng nhóm: mute, xoá tin nhắn/file)
 - [x] Màn hình dung lượng lưu trữ nhóm + banner cảnh báo hết hạn
 - [x] Khung chat Khiếu nại (route riêng)
+
+**Thông báo**
+- [x] Tab Thông báo ở thanh điều hướng, kèm huy hiệu số chưa đọc hiện ở mọi màn hình
+- [x] Nhận thông báo realtime qua WebSocket tới Identity Service (không phải service sinh ra sự kiện)
+- [x] Bấm vào thông báo là nhảy tới đúng chỗ (phòng chat, trang tham gia họp, trang khiếu nại)
+- [x] Đánh dấu đã đọc từng cái / tất cả, xoá thông báo
 
 **Media**
 - [x] Màn hình mở cuộc họp
@@ -216,13 +223,22 @@ claim `role=admin`)
 
 - **"Tìm kiếm tin nhắn"** — cũng có trong sơ đồ tính năng gốc nhưng chưa từng có endpoint. **ĐÃ BỔ SUNG:** `GET /conversations/{id}/messages/search`. Vì tin Text luôn E2EE nên server không thể full-text search được — dùng **blind index**: client tự băm từ khoá bằng search-key riêng (HMAC, xem `lib/crypto/searchTokens.ts`) trước khi mã hoá nội dung, server chỉ so khớp token == token và không thể suy ngược ra từ gốc. Các bộ lọc còn lại (`senderId`, `type`, `from`, `to`) chạy trên metadata không mã hoá nên dùng được độc lập.
 
-- **Lời mời họp không đi qua hàng đợi thông báo nữa.** Thiết kế cũ cho Media Service publish 2 hàng
-  đợi RabbitMQ (`media.meeting-created`, `media.meeting-invite`) để Identity đẩy push notification,
-  nhưng chưa bao giờ có consumer — lời mời rơi vào hư không. Đã bỏ hẳn cả hai (Media Service giờ
-  không dùng RabbitMQ nữa) và thay bằng chính khung chat, vốn đã là nơi người dùng nhìn vào:
-  mở họp trong nhóm thì đăng tin nhắn hệ thống vào nhóm đó, mời bạn bè thì đăng vào khung chat 1-1
-  giữa hai người. Tin nhắn hệ thống nay được phát qua SignalR nên hiện ngay, trước đây chỉ ghi CSDL
-  rồi chờ người dùng tải lại trang mới thấy.
+- **Thông báo đi qua Identity Service, không đi tắt.** Tài liệu thiết kế đặt Identity làm đầu mối
+  notification của toàn hệ thống (roadmap mục 1: *"Identity Service — đăng nhập/đăng ký, quản lý JWT,
+  notification"*, và bảng Publisher → Consumer mục 8.1). Đường đi đầy đủ:
+  **service phát sự kiện → RabbitMQ → Identity Service (lưu + đẩy) → WebSocket → tab Thông báo**.
+  Bốn hàng đợi trước đây publish mà không ai consume nay đều có người nhận:
+  `identity.chat-message-notification`, `identity.storage-warning`, `workspace.member-notifications`,
+  `media.meeting-invite`. Cộng thêm `identity.account-locked` cũng sinh thông báo.
+
+- **Mở họp trong nhóm thì KHÔNG sinh thông báo**, vì cả nhóm đã nhận một tin nhắn hệ thống ngay trong
+  khung chat của nhóm — hàng đợi `media.meeting-created` đã bỏ hẳn vì lý do đó. Chỉ **mời bạn bè trực
+  tiếp** mới đi đường thông báo, vì trường hợp đó không có khung chat nhóm nào để nhìn vào. Nguyên tắc
+  chung: một sự kiện đi đúng một đường, không báo trùng.
+
+- **Người đang mở chính phòng chat đó thì không nhận thông báo tin nhắn mới** — họ đã thấy tin nhắn
+  hiện ra trước mắt qua SignalR rồi. Không lọc bước này thì một nhóm đông người đang trò chuyện sẽ
+  sinh ra một thông báo cho *từng* thành viên trên *mỗi* tin nhắn.
 
 - **UC-32 "chỉ mời được bạn bè" nay đã thực thi đúng.** Lúc viết Media Service, hệ thống chưa có
   tính năng kết bạn nên ràng buộc này bị hạ xuống thành "invitedUserId phải là user có thật".

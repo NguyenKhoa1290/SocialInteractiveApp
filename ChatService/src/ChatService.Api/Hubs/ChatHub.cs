@@ -40,6 +40,7 @@ public class ChatHub(ChatDbContext db, WorkspaceClient workspaceClient, MediaSer
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = GetUserId();
+        presence.RemoveViewerConnection(Context.ConnectionId);
         var wentOffline = presence.RemoveConnection(userId, Context.ConnectionId);
         if (wentOffline)
             await Clients.Others.SendAsync("UserOffline", userId);
@@ -62,10 +63,14 @@ public class ChatHub(ChatDbContext db, WorkspaceClient workspaceClient, MediaSer
             return;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(conversationId));
+        presence.AddViewer(conversationId, userId, Context.ConnectionId);
     }
 
-    public Task LeaveConversation(long conversationId) =>
-        Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(conversationId));
+    public Task LeaveConversation(long conversationId)
+    {
+        presence.RemoveViewer(conversationId, GetUserId(), Context.ConnectionId);
+        return Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(conversationId));
+    }
 
     // Tai su dung DUNG logic phan quyen cua REST API (khong lam lai) - xem
     // MeetingDiscussionEndpoints.CanAccessAsync: thanh vien nhom luon vao

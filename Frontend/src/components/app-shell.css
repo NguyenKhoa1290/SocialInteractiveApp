@@ -79,3 +79,19 @@
   color: var(--accent);
   font-weight: 700;
 }
+
+/* Huy hieu so chua doc tren tab dieu huong duoi. */
+.bottom-dock-badge {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: top;
+}

@@ -4,6 +4,7 @@ using System.Text;
 using IdentityService.Api.BackgroundServices;
 using IdentityService.Api.Data;
 using IdentityService.Api.Endpoints;
+using IdentityService.Api.Hubs;
 using IdentityService.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
+// Kenh day thong bao xuong tung nguoi - xem Hubs/NotificationHub.cs.
+builder.Services.AddSignalR();
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("IdentityDb")));
@@ -45,6 +48,11 @@ var rabbitMqOptions = builder.Configuration.GetSection("RabbitMq").Get<RabbitMqO
     ?? throw new InvalidOperationException("Thieu cau hinh RabbitMq trong appsettings");
 builder.Services.AddSingleton(rabbitMqOptions);
 builder.Services.AddHostedService<AccountLockedConsumerService>();
+// Identity Service la dau moi notification cua toan he thong (roadmap muc 1
+// va bang Publisher -> Consumer muc 8.1): consume moi hang doi thong bao roi
+// day tiep qua WebSocket.
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddHostedService<NotificationConsumerService>();
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Jwt trong appsettings");
@@ -69,6 +77,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            // Trinh duyet KHONG gui duoc header Authorization trong bat tay
+            // WebSocket (gioi han cua chuan WebSocket), nen SignalR JS client
+            // dinh token vao query string - cung cach Chat Service dang lam.
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && ctx.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
+                    ctx.Token = accessToken;
+                return Task.CompletedTask;
+            },
+
             // Chan token da logout (nam trong blocklist Redis) - JWT von la
             // stateless nen phai check them lop nay moi request.
             OnTokenValidated = async ctx =>
@@ -130,6 +149,8 @@ app.MapAuthEndpoints();
 app.MapUsersEndpoints();
 app.MapInternalEndpoints();
 app.MapFriendsEndpoints();
+app.MapNotificationsEndpoints();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

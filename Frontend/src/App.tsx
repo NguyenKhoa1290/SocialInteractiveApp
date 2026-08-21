@@ -12,6 +12,7 @@ import { CreateWorkspacePage } from "./pages/workspace/CreateWorkspacePage";
 import { WorkspaceMembersPage } from "./pages/workspace/WorkspaceMembersPage";
 import { WorkspaceSettingsPage } from "./pages/workspace/WorkspaceSettingsPage";
 import { FriendsPage } from "./pages/friends/FriendsPage";
+import { NotificationsPage } from "./pages/notifications/NotificationsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ChatListPage } from "./pages/chat/ChatListPage";
 import { ChatRoomPage } from "./pages/chat/ChatRoomPage";
@@ -124,6 +125,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <FriendsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

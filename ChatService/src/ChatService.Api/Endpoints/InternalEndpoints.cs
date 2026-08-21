@@ -9,7 +9,6 @@ namespace ChatService.Api.Endpoints;
 
 public record CreateGroupInternalRequest(long WorkspaceId);
 public record SystemMessageRequest(string Content);
-public record P2PInternalRequest(long UserAId, long UserBId);
 public record ConversationMembershipResponse(bool IsMember, bool IsLeader);
 
 // KHONG di qua API Gateway public - dung boi WorkSpace Service (xem
@@ -63,37 +62,6 @@ public static class InternalEndpoints
             db.Conversations.Remove(conversation);
             await db.SaveChangesAsync();
             return Results.NoContent();
-        });
-
-        // Lay (hoac tao) hoi thoai 1-1 giua hai nguoi - dung boi Media Service
-        // khi moi ban be vao cuoc hop (UC-32): loi moi duoc gui bang chinh
-        // tin nhan he thong trong khung chat rieng cua hai nguoi, thay vi
-        // mot hang doi thong bao khong ai doc. Logic trung voi
-        // POST /conversations/p2p ban public, chi khac la khong lay nguoi
-        // goi tu JWT ma nhan ca hai id.
-        app.MapPost("/internal/conversations/p2p", async (P2PInternalRequest req, ChatDbContext db) =>
-        {
-            if (req.UserAId == req.UserBId)
-                return Results.BadRequest(new ErrorResponse("invalid_request", "Hai id trung nhau"));
-
-            var (a, b) = req.UserAId < req.UserBId ? (req.UserAId, req.UserBId) : (req.UserBId, req.UserAId);
-            var existing = await db.Conversations.SingleOrDefaultAsync(c =>
-                c.Type == ConversationType.P2P &&
-                ((c.ParticipantAId == a && c.ParticipantBId == b) || (c.ParticipantAId == b && c.ParticipantBId == a)));
-
-            if (existing is not null)
-                return Results.Ok(ConversationResponse.FromEntity(existing));
-
-            var conversation = new Conversation
-            {
-                Type = ConversationType.P2P,
-                ParticipantAId = a,
-                ParticipantBId = b,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-            db.Conversations.Add(conversation);
-            await db.SaveChangesAsync();
-            return Results.Ok(ConversationResponse.FromEntity(conversation));
         });
 
         // Tin nhan he thong (vd: "X da mo cuoc hop") - dung boi Media Service

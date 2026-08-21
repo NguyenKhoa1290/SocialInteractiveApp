@@ -51,6 +51,7 @@ public class StorageWarningService(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
         var publisher = scope.ServiceProvider.GetRequiredService<StorageWarningPublisher>();
+        var workspaceClient = scope.ServiceProvider.GetRequiredService<WorkspaceClient>();
 
         var lockedGroups = await db.GroupChatSettings
             .Where(g => g.IsLocked && g.StorageExpiresAt != null)
@@ -80,7 +81,12 @@ public class StorageWarningService(
             if (conversation?.WorkspaceId is null)
                 continue;
 
-            await publisher.PublishAsync(conversation.WorkspaceId.Value, settings.ConversationId, currentStage.Stage, settings.StorageExpiresAt);
+            // Bao cho CA NHOM chu khong rieng Truong nhom: file cua moi nguoi
+            // deu se bi xoa. Chi Truong nhom nap them duoc, nhung nguoi khac
+            // co quyen biet de con kip tai file cua minh ve.
+            var members = await workspaceClient.GetMembersAsync(conversation.WorkspaceId.Value);
+            var recipients = members is null ? [] : members.Select(m => m.UserId).ToList();
+            await publisher.PublishAsync(conversation.WorkspaceId.Value, settings.ConversationId, currentStage.Stage, settings.StorageExpiresAt, recipients);
             settings.LastWarningStage = currentStage.Stage;
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Da gui canh bao xoa file moc '{Stage}' cho group conversation {ConversationId}", currentStage.Stage, settings.ConversationId);

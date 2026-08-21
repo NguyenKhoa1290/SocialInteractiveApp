@@ -117,11 +117,11 @@ services:
       ConnectionStrings__MediaDb: "Host=host.docker.internal;Port=5436;Database=media;Username=media_admin;Password=${MEDIA_DB_PASSWORD}"
       ConnectionStrings__MiniAppDb: "Host=host.docker.internal;Port=5437;Database=miniapp;Username=miniapp_admin;Password=${MINIAPP_DB_PASSWORD}"
       ConnectionStrings__Redis: *redis
+      RabbitMq__HostName: host.docker.internal
       Jwt__SigningKey: *jwt
+      RabbitMq__Password: *rabbitpw
       IdentityClient__BaseUrl: http://identity:8080
       ChatServiceClient__BaseUrl: http://chat:8080
-      # Khong co RabbitMq o day: Media Service da bo han hang doi thong bao
-      # moi hop (khong ai consume) - xem MediaService/.../Program.cs.
       # ServerUrl: Media Service goi Server API -> dia chi tu trong container.
       # ClientUrl: tra ve cho TRINH DUYET tu ket noi -> dia chi tu may that.
       # Hai cai nay KHAC NHAU, doi nham la phong hop khong vao duoc.

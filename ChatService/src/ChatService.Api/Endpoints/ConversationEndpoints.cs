@@ -174,7 +174,7 @@ public static class ConversationEndpoints
         conv.MapPost("/{conversationId:long}/messages", async (
             long conversationId, CreateMessageRequest req, ClaimsPrincipal principal, ChatDbContext db,
             KafkaProducerService kafka, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub,
-            ChatMessageNotificationPublisher notifyPublisher) =>
+            ChatMessageNotificationPublisher notifyPublisher, PresenceTracker presence) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -289,11 +289,22 @@ public static class ConversationEndpoints
             // de lay dung khoa cua minh.
             await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageReceived", response with { RecipientEncryptedKey = null });
 
-            // RabbitMQ: thong bao tin nhan moi -> Identity Service (tu de
-            // xuat, tai lieu roadmap muc 6.4 - CHUA co consumer ben Identity,
-            // cung tinh trang voi cac queue "chuan bi truoc" khac trong du an
-            // nhu workspace.member-notifications).
-            await notifyPublisher.PublishAsync(conversationId, message.Id, userId, req.Type);
+            // RabbitMQ: thong bao tin nhan moi -> Identity Service, noi dong
+            // vai tro dau moi notification cua ca he thong (roadmap muc 1 va
+            // bang Publisher -> Consumer muc 8.1). Identity luu lai roi day
+            // tiep xuong tung nguoi nhan qua WebSocket.
+            //
+            // Day KHONG phai duong realtime cua khung chat dang mo (do la
+            // SignalR o tren) - no danh cho nguoi khong mo phong chat do,
+            // hoac dang offline va se doc thong bao khi quay lai.
+            // Bo qua nguoi DANG MO chinh phong chat nay: ho vua thay tin nhan
+            // hien ra truoc mat qua SignalR o tren, them mot dong thong bao
+            // nua chi lam chuong bao keu vo nghia. Khong loc buoc nay thi mot
+            // nhom dong nguoi dang tro chuyen se sinh ra mot thong bao cho
+            // TUNG thanh vien tren MOI tin nhan.
+            var recipients = await RecipientsAsync(conversation, userId, workspaceClient);
+            recipients = [.. recipients.Where(id => !presence.IsViewing(conversationId, id))];
+            await notifyPublisher.PublishAsync(conversationId, message.Id, userId, req.Type, GetNickname(principal), recipients);
 
             return Results.Created($"/conversations/{conversationId}/messages/{message.Id}", response);
         });
@@ -664,6 +675,32 @@ public static class ConversationEndpoints
         var member = await workspaceClient.GetMemberAsync(conversation.WorkspaceId.Value, userId);
         return member is not null;
     }
+
+    // Ai can duoc bao khi co tin nhan/su kien moi trong hoi thoai nay: moi
+    // thanh vien TRU nguoi gay ra su kien (khong ai can thong bao ve viec
+    // chinh minh vua lam).
+    //
+    // Tinh o phia Chat Service chu khong de Identity Service tu tra: Identity
+    // khong co ban sao thanh vien nhom, de no hoi nguoc lai la tao vong phu
+    // thuoc va thong bao se chet neu Chat dang ban.
+    internal static async Task<List<long>> RecipientsAsync(Conversation conversation, long excludeUserId, WorkspaceClient workspaceClient)
+    {
+        if (conversation.Type == ConversationType.P2P)
+        {
+            var other = conversation.ParticipantAId == excludeUserId ? conversation.ParticipantBId : conversation.ParticipantAId;
+            return other is null ? [] : [other.Value];
+        }
+
+        if (conversation.WorkspaceId is null)
+            return [];
+
+        var members = await workspaceClient.GetMembersAsync(conversation.WorkspaceId.Value);
+        return members is null ? [] : [.. members.Select(m => m.UserId).Where(id => id != excludeUserId)];
+    }
+
+    // JWT do Identity Service phat co san claim "nickname" - dung de thong bao
+    // doc duoc ten nguoi gui ma khong phai goi sang Identity.
+    internal static string? GetNickname(ClaimsPrincipal principal) => principal.FindFirstValue("nickname");
 
     internal static async Task<bool> IsLeaderAsync(Conversation conversation, long userId, WorkspaceClient workspaceClient)
     {

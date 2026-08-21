@@ -1627,7 +1627,7 @@ cũng không sao**, nên cứ `kubectl apply` lại khi nghi ngờ.
 | Job | Namespace | Việc | Bỏ quên thì sao |
 |---|---|---|---|
 | `minio-init` | `chat-data` | Tạo bucket `chat-media` | Presign vẫn trả URL bình thường (presign là phép tính offline) nhưng PUT thật trả **404 NoSuchBucket** — chỉ lộ khi upload |
-| `rabbitmq-init` | `chat-data` | Đặt policy TTL 24 giờ cho 3 hàng đợi thông báo chưa có consumer | Ba hàng đợi đó phình mãi, cuối cùng chặn luôn hai hàng đợi **đang hoạt động** |
+| `rabbitmq-init` | `chat-data` | Đặt policy TTL 24 giờ cho 4 hàng đợi thông báo | Nếu Identity chết vài ngày, thông báo tồn đọng phình mãi và chặn luôn hai hàng đợi lệnh khoá tài khoản |
 
 Kiểm tra policy đã vào chưa:
 
@@ -1636,9 +1636,15 @@ POD=$(k3s kubectl get pod -n chat-data -l app=rabbitmq -o jsonpath='{.items[0].m
 k3s kubectl exec -n chat-data $POD -- rabbitmqctl list_queues name policy consumers
 ```
 
-Cột `policy` của `identity.account-locked` và `identity.delete-account-spam` phải **rỗng** — hai hàng
-đợi này có consumer thật, tin nhắn trong đó **không được phép** hết hạn. Regex của policy neo hai đầu
-(`^(...)$`) chính là để tránh quét trúng chúng.
+Cột `policy` của `identity.account-locked` và `identity.delete-account-spam` phải **rỗng**. Đây là hai
+hàng đợi **lệnh khoá tài khoản**, không phải thông báo — tin trong đó hết hạn nghĩa là mất luôn việc
+khoá tài khoản spam. Regex của policy neo hai đầu (`^(...)$`) chính là để tránh quét trúng chúng.
+
+Bốn hàng đợi thông báo (`identity.chat-message-notification`, `identity.storage-warning`,
+`workspace.member-notifications`, `media.meeting-invite`) từ Phase 8 **đã có consumer** là Identity
+Service, nên bình thường chúng luôn rỗng. TTL giờ là **lưới an toàn** chứ không còn là cách chống rò
+rỉ. `consumers` của cả bốn phải bằng 1 — bằng 0 nghĩa là `NotificationConsumerService` bên Identity
+đang chết, và mọi thông báo trong hệ thống đang im lặng.
 
 ### Topic Kafka thì KHÔNG cần Job
 
@@ -1660,8 +1666,37 @@ Phải thấy đủ `chat.service-log`, `system.error-log`, `identity.auth-histo
 group `spamtracking-service` + `chat-service-write-chat`. Thiếu consumer group nghĩa là tính năng
 chặn spam đang chết âm thầm.
 
-### Media Service không còn dùng RabbitMQ
+### Thông báo: mọi đường đều qua Identity Service
 
-Đã gỡ hai hàng đợi `media.meeting-created` / `media.meeting-invite` (chưa bao giờ có consumer). Lời
-mời họp nay đi bằng chính khung chat. Manifest vì thế **không** đặt `RabbitMq__HostName` cho `media`
-nữa — thấy biến đó xuất hiện lại là dấu hiệu ai đó thêm nhầm vào `COMMON` trong `gen-manifests.py`.
+Từ Phase 8, không service nào tự đẩy thông báo tới người dùng. Đường đi là
+**service → RabbitMQ → Identity Service (lưu + đẩy) → WebSocket → tab Thông báo**.
+
+Kiểm tra nhanh khi nghi ngờ thông báo không tới:
+
+```bash
+# 1. Consumer bên Identity còn sống không (phải thấy đủ 4 hàng đợi)
+k3s kubectl -n chat-app logs deploy/identity | grep "hang doi thong bao"
+
+# 2. Hàng đợi có bị ứ không (messages phải ~0, consumers phải =1)
+POD=$(k3s kubectl get pod -n chat-data -l app=rabbitmq -o jsonpath='{.items[0].metadata.name}')
+k3s kubectl exec -n chat-data $POD -- rabbitmqctl list_queues name messages consumers
+```
+
+**Bẫy đã dính:** Phase 7 từng gỡ `RabbitMq__HostName` khỏi Media Service (lúc đó nó thật sự không
+dùng RabbitMQ). Khi hàng đợi `media.meeting-invite` quay lại ở Phase 8, Media rơi về mặc định
+`localhost` — tức chính container của nó. Lời mời vẫn tạo thành công và trả token bình thường, **chỉ
+thông báo là mất**, vì publisher nuốt lỗi có chủ ý để RabbitMQ hỏng không làm hỏng cả thao tác mời.
+Mọi API đều xanh. Cả 6 service giờ đều phải có `RabbitMq__HostName` — xem danh sách `RABBIT` trong
+`gen-manifests.py`.
+
+### Nâng cấp lên bản có thông báo: phải chạy DDL trước
+
+Bảng `notifications` là bảng **mới**. Cụm đang chạy từ trước Phase 8 sẽ không tự có nó, và
+`appsettings` không tạo bảng (dự án cố ý không dùng EF Migrations — schema do file SQL thuần quản lý,
+xem đầu `identity-db-init.sql`). Chạy tay phần cuối của `identity-db-init.sql`:
+
+```bash
+k3s kubectl exec -n chat-data -i deploy/identity-db --   psql -h 127.0.0.1 -U identity_admin -d identity -v ON_ERROR_STOP=1 < notifications.sql
+```
+
+Quên bước này thì Identity vẫn khởi động bình thường, chỉ có mọi thao tác thông báo trả 500.

@@ -13,7 +13,7 @@ public static class InvitesEndpoints
     {
         app.MapPost("/meetings/{meetingId:long}/invites", async (
             long meetingId, CreateInviteRequest req, ClaimsPrincipal principal,
-            MediaDbContext db, IdentityClient identity, ChatServiceClient chat, PublicWebOptions web) =>
+            MediaDbContext db, IdentityClient identity, MeetingInviteNotificationPublisher publisher) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
@@ -55,25 +55,16 @@ public static class InvitesEndpoints
             db.MeetingInvites.Add(invite);
             await db.SaveChangesAsync();
 
-            // Bao cho nguoi duoc moi bang chinh khung chat 1-1 cua hai nguoi.
-            // Truoc day cho nay publish mot su kien RabbitMQ de Identity day
-            // notification, nhung khong service nao consume ca - loi moi roi
-            // vao hu khong. Tin nhan he thong thi den ngay (Chat Service phat
-            // qua SignalR) va con luu lai de doc sau.
+            // Bao cho nguoi duoc moi qua Identity Service - dau moi
+            // notification cua ca he thong (roadmap muc 1, bang muc 8.1):
+            // Media publish vao RabbitMQ, Identity luu lai roi day tiep xuong
+            // dung nguoi do qua WebSocket.
             //
-            // Khong chan luong chinh neu buoc nay hong: loi moi da tao xong,
-            // nguoi moi van copy link gui tay duoc.
+            // Ban truoc tung dat tin nhan he thong vao khung chat 1-1 thay
+            // cho viec nay, luc he thong chua co tang notification. Gio da co
+            // thi giu ca hai la bao trung mot su kien tren hai duong.
             if (type == InviteType.Direct)
-            {
-                var conversationId = await chat.GetOrCreateP2PAsync(callerId, req.InvitedUserId!.Value);
-                if (conversationId is not null)
-                {
-                    var nickname = principal.GetNickname();
-                    var link = $"{web.BaseUrl}/meetings/join/{invite.InviteToken}";
-                    await chat.PostSystemMessageAsync(conversationId.Value,
-                        $"{nickname} moi ban vao cuoc hop: {link}");
-                }
-            }
+                await publisher.PublishAsync(meetingId, req.InvitedUserId!.Value, callerId, invite.InviteToken, principal.GetNickname());
 
             return Results.Created($"/meetings/{meetingId}/invites/{invite.Id}", InviteResponse.FromEntity(invite));
         }).RequireAuthorization();
