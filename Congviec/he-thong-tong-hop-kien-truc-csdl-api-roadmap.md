@@ -5234,3 +5234,118 @@ meeting vừa tạo trong DB nếu LiveKit từ chối (UC-31 luồng ngoại l�
 Có thể bỏ được (LiveKit tự tạo phòng khi người đầu tiên vào, và hạn mức số người đã được Media Service
 tự kiểm ở luồng join), nhưng đánh đổi hai thứ trên nên **để nguyên**. Mở cuộc họp là thao tác một lần
 mỗi cuộc họp, khác hẳn chia sẻ màn hình vốn bấm đi bấm lại giữa buổi.
+
+
+---
+
+## Phase 11 — Dữ liệu có tự dọn không, và chuyện RAM tăng 0,5 GB
+
+Người dùng dự án báo: chạy từ hôm trước sang hôm sau, mới tạo 1 mẫu mà RAM tăng thêm 0,5 GB; hỏi các
+dữ liệu có được lập lịch dọn không, sợ để lâu thì nổ RAM.
+
+### 11.1 Tách bạch hai chuyện khác nhau
+
+**Dữ liệu phình** và **RAM phình** không phải một. Đo trước:
+
+| | |
+|---|---|
+| Mỗi CSDL (×6) | ~7,7 MB — gần như trống |
+| Kafka | 4 KB |
+| Redis | 1,56 MB |
+| Tổng RAM **toàn bộ** pod | ~1,4 GB |
+| Máy đang dùng | 3,3 GB |
+
+Phần chênh ~1,9 GB không thuộc về ứng dụng:
+
+| Tiến trình | RSS |
+|---|---|
+| `k3s server` | 780 MB |
+| **`missioncenter` + `missioncenter-magpie`** | **718 MB** (chạy đúng 18h33m) |
+| `systemd-journald` | 207 MB |
+| `gnome-shell` | 172 MB |
+
+**Mission Center** — công cụ GUI theo dõi tài nguyên, và cũng chính là thứ đang được dùng để nhìn con
+số RAM — chiếm nhiều hơn bất kỳ pod nào. Khớp cả về lượng lẫn khoảng thời gian người dùng mô tả. Máy
+này có môi trường desktop; nếu chỉ dùng làm server thì tắt bớt là thu lại gần 1 GB.
+
+**Kết luận: 0,5 GB đó không phải của hệ thống.** Nhưng câu hỏi đúng chỗ — đi kiểm thì ra ba đường
+phình thật, chưa gây hại chỉ vì chưa có lưu lượng.
+
+### 11.2 Ba đường phình không giới hạn
+
+**Cache tin nhắn Redis không bao giờ hết hạn.** `ChatCacheService` *có* logic dọn (10.000 tin/hội
+thoại, 10 ngày) — nhưng `TrimAsync` **chỉ chạy khi hội thoại đó có tin nhắn mới**. Nhóm im lặng thì
+không bao giờ bị dọn. Đo trên hệ thống đang chạy xác nhận đúng vậy: mọi key `chat:msg:*` đều
+`TTL = -1`.
+
+Bài học chung: **dọn theo sự kiện không thay được TTL.** Cơ chế nào chỉ chạy khi có hoạt động thì
+không bao giờ chạm tới dữ liệu đã ngừng hoạt động — mà đó mới chính là dữ liệu cần dọn.
+
+Sửa: mỗi lần ghi đều gia hạn TTL 11 ngày (dài hơn `MaxAge` 10 ngày một chút). Hội thoại còn sống thì
+key không bao giờ hết hạn; chết hẳn thì tự biến mất.
+
+**`maxmemory` của Redis = 0 trong khi pod bị giới hạn 128Mi.** Redis không biết trần nên cứ ghi cho
+tới khi **k8s giết cả pod** — mất sạch — thay vì tự dọn khi gần đầy. Đặt 96mb + `volatile-lru`.
+
+Chọn `volatile-lru` (chỉ dọn key **có hạn**) chứ không `allkeys-lru`: mọi key của ứng dụng giờ đều có
+hạn, cache tin nhắn áp đảo về số lượng nên thực tế nó bị dọn trước, và cache là dữ liệu **dẫn xuất** —
+Postgres vẫn là nguồn sự thật, endpoint đọc tin nhắn đã có sẵn đường fallback.
+
+**Bảng `notifications` chỉ có đường ghi vào, không có đường xoá ra.** Chính bảng mới thêm ở Phase 8 mà
+quên mất phần dọn. Mỗi tin nhắn trong mỗi nhóm sinh một dòng cho *từng* người nhận — nhóm 20 người
+chat 200 tin/ngày là 4.000 dòng/ngày, để lâu thì lớn hơn cả bảng tin nhắn thật.
+
+Thêm `NotificationCleanupService` (cùng khuôn với `GuestCleanupService` / `P2PCleanupService`): chu kỳ
+24 giờ, đã đọc giữ 7 ngày, chưa đọc 30 ngày. Dùng `ExecuteDeleteAsync` để chạy thẳng một câu DELETE
+dưới CSDL chứ không kéo hàng chục nghìn bản ghi lên bộ nhớ.
+
+### 11.3 Ngoài ứng dụng: journald
+
+960 MB và **chưa đặt trần** — mặc định là 10% đĩa, tức sẽ phình tới ~21 GB. Đặt `SystemMaxUse=300M`
+rồi vacuum: 960 MB → 280 MB.
+
+### 11.4 Verify
+
+Cache: gửi một tin nhắn mới → key `chat:msg:{id}` có `TTL = 950389` (~11 ngày) thay vì `-1`.
+
+Redis: `maxmemory = 100663296` (96 MB), `maxmemory-policy = volatile-lru`.
+
+Dọn thông báo, kiểm bằng 4 bản ghi giả trên production rồi khởi động lại Identity:
+
+| Bản ghi | Kết quả |
+|---|---|
+| đã đọc 8 ngày trước | **xoá** |
+| đã đọc 2 ngày trước | giữ |
+| chưa đọc 40 ngày | **xoá** |
+| chưa đọc 3 ngày | giữ |
+
+Log khớp: *"Da don 1 thong bao da doc qua 7 ngay va 1 thong bao qua 30 ngay"*. Đã dọn sạch dữ liệu thử.
+
+Bảng đầy đủ "dữ liệu nào tự dọn, dữ liệu nào cố ý không" nằm ở mục 13 của `infra/HUONG-DAN-DEPLOY.md`,
+kèm các lệnh cần chạy khi nghi ngờ RAM.
+
+---
+
+## Trạng thái khi kết thúc đợt Phase 7–11
+
+Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
+GitHub Actions build → GHCR → `image-watcher` tự cuộn).
+
+- **21 pod** đang chạy: 8 ở `chat-app`, 13 ở `chat-data`
+- **7 hàng đợi RabbitMQ**, tất cả đều có consumer: 5 hàng đợi thông báo (có TTL 24h) + 2 hàng đợi
+  lệnh khoá tài khoản (**không** có TTL — cố ý)
+- **Kafka**: 3 topic nghiệp vụ + 2 consumer group, tự tạo lại khi service khởi động
+- **CSDL sản xuất đang trống** — mọi dữ liệu thử đã dọn sạch sau mỗi lần verify
+
+**Còn lại chưa làm, không phải quên:**
+
+| Việc | Lý do |
+|---|---|
+| Sao lưu Postgres/MinIO | Không có chỗ lưu ngoài (không dùng cloud). Rủi ro đã biết và chấp nhận |
+| Nút "dựng thêm LiveKit" ở Admin Page | Đã chốt dùng LiveKit Cloud managed, Cloud tự lo mở rộng |
+| Mở cuộc họp vẫn ~3,9 giây | `CreateRoom` phải chờ — xem Phase 10.5 |
+| Brute-force PIN 6 số | Đánh đổi đã cân nhắc, Messenger cùng loại — xem Phase 9.3 |
+
+**Chưa kiểm chứng bằng trình duyệt thật** (mới qua typecheck + test API): trang Quản trị, tab Thông
+báo, popup thông báo, phòng họp nhiều người, màn đặt lại PIN. Chủ dự án sẽ thiết kế lại giao diện
+bằng Figma trước khi hoàn thiện phần này.
