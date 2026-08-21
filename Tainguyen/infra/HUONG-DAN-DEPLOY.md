@@ -1700,3 +1700,61 @@ k3s kubectl exec -n chat-data -i deploy/identity-db --   psql -h 127.0.0.1 -U id
 ```
 
 Quên bước này thì Identity vẫn khởi động bình thường, chỉ có mọi thao tác thông báo trả 500.
+
+
+---
+
+## 13. Dữ liệu nào tự dọn, dữ liệu nào không
+
+Bảng này trả lời câu hỏi "để lâu có phình không". Kiểm lại khi thêm bất kỳ chỗ ghi dữ liệu mới nào.
+
+| Dữ liệu | Cơ chế dọn | Chu kỳ / hạn |
+|---|---|---|
+| Tài khoản Guest hết hạn | `GuestCleanupService` (Identity) | 24 giờ |
+| Hội thoại 1-1 im lặng lâu | `P2PCleanupService` (Chat) | 24 giờ |
+| **Thông báo** | `NotificationCleanupService` (Identity) | 24 giờ — đã đọc giữ 7 ngày, chưa đọc 30 ngày |
+| File vượt hạn mức nhóm | `StorageWarningService` (Chat) | theo hạn mức, xoá file cũ nhất |
+| **Cache tin nhắn trong Redis** | TTL 11 ngày trên key + trim 10.000 tin / 10 ngày | gia hạn mỗi lần ghi |
+| Trạng thái trình bày (Redis) | TTL 12 giờ + xoá khi kết thúc họp | — |
+| Phòng chờ / liveness (Redis) | TTL 5 phút / 30 giây | — |
+| Hàng đợi thông báo RabbitMQ | policy `notification-ttl` | 24 giờ |
+| Kafka | `log.retention.hours=168` | 7 ngày |
+| Log hệ thống (journald) | `SystemMaxUse=300M` | trần cứng |
+
+**Không tự dọn, và cố ý như vậy:** tin nhắn, nhóm, người dùng, `meetings` / `meeting_invites` /
+`meeting_participants`, `violations`. Đây là dữ liệu người dùng sở hữu hoặc hồ sơ cần giữ; chúng tăng
+theo hoạt động thật chứ không phải rác, và mỗi cuộc họp chỉ thêm vài dòng.
+
+### Hai cái bẫy đã dính, ghi lại để không lặp
+
+**Trim theo sự kiện không thay được TTL.** `ChatCacheService` có sẵn logic dọn (10.000 tin/hội thoại,
+10 ngày) — nhưng nó **chỉ chạy khi hội thoại đó có tin nhắn mới**. Nhóm im lặng thì không bao giờ bị
+dọn. Đo trên hệ thống đang chạy thấy đúng như vậy: mọi key `chat:msg:*` đều `TTL = -1`, tức nằm lại
+vĩnh viễn. Nay mỗi lần ghi đều gia hạn TTL 11 ngày, nên hội thoại chết hẳn thì tự biến mất.
+
+**`maxmemory` của Redis phải thấp hơn `limits.memory` của pod.** Trước đây `maxmemory = 0` (không
+giới hạn) trong khi pod bị giới hạn 128Mi — nghĩa là Redis cứ ghi cho tới khi **k8s giết cả pod**,
+mất sạch dữ liệu, thay vì tự dọn khi gần đầy. Nay đặt 96mb + `volatile-lru`.
+
+Chọn `volatile-lru` (chỉ dọn key **có hạn**) chứ không phải `allkeys-lru`: mọi key của ứng dụng giờ
+đều có hạn, và cache tin nhắn áp đảo về số lượng nên thực tế nó bị dọn trước. Cache là dữ liệu **dẫn
+xuất** — Postgres vẫn là nguồn sự thật và endpoint đọc tin nhắn đã có sẵn đường fallback.
+
+### Nếu thấy RAM máy tăng mà nghi hệ thống
+
+Đo trước, đừng đoán. Trên máy đang chạy, tổng RAM của **toàn bộ** pod chỉ ~1,4 GB trong khi máy dùng
+3,3 GB. Phần chênh không thuộc về ứng dụng:
+
+```bash
+free -h
+k3s kubectl top pods -A --no-headers | sort -k4 -h -r | head -20   # RAM theo pod
+ps aux --sort=-rss | head -12                                       # RAM theo tiến trình
+journalctl --disk-usage
+```
+
+Thủ phạm thực tế đã gặp: **Mission Center** (công cụ GUI theo dõi tài nguyên) chiếm ~718 MB sau 18
+giờ chạy — nhiều hơn bất kỳ pod nào, và chính nó là thứ đang được dùng để nhìn con số RAM. Cộng thêm
+`gnome-shell` ~172 MB và journald ~207 MB. Máy này có môi trường desktop; nếu chỉ dùng làm server thì
+tắt bớt là thu lại được gần 1 GB.
+
+Kích thước dữ liệu thật để đối chiếu: mỗi CSDL ~7,7 MB (gần như trống), Kafka 4 KB, Redis 1,56 MB.

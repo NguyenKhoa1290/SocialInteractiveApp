@@ -24,6 +24,18 @@ public class ChatCacheService(IConnectionMultiplexer redis)
 {
     private const int MaxMessagesPerConversation = 10_000;
     private static readonly TimeSpan MaxAge = TimeSpan.FromDays(10);
+
+    // Han cho CHINH CAI KEY, khac voi MaxAge (han cho tung tin nhan ben trong).
+    //
+    // VI SAO CAN CA HAI: TrimAsync chi chay khi co tin nhan MOI trong hoi
+    // thoai do. Mot nhom im lang thi khong bao gio bi don - da xac nhan tren
+    // he thong dang chay: cac key chat:msg:* deu co TTL = -1, tuc nam lai
+    // vinh vien. Nhieu hoi thoai ngu dong thi Redis phinh dan cho toi khi
+    // cham gioi han 128Mi cua pod va bi k8s giet.
+    //
+    // Dat dai hon MaxAge mot chut: hoi thoai con hoat dong thi han duoc gia
+    // han moi lan ghi, nen TTL nay chi thuc su cham vao hoi thoai da chet han.
+    private static readonly TimeSpan KeyTtl = TimeSpan.FromDays(11);
     private readonly IDatabase _db = redis.GetDatabase();
 
     private static string HashKey(long conversationId) => $"chat:msg:{conversationId}";
@@ -39,6 +51,11 @@ public class ChatCacheService(IConnectionMultiplexer redis)
         await _db.SortedSetAddAsync(indexKey, message.Id.ToString(), score);
 
         await TrimAsync(hashKey, indexKey);
+
+        // Gia han moi lan ghi - hoi thoai con song thi key khong bao gio het
+        // han, ngung hoat dong thi tu bien mat sau KeyTtl.
+        await _db.KeyExpireAsync(hashKey, KeyTtl);
+        await _db.KeyExpireAsync(indexKey, KeyTtl);
     }
 
     // Cap nhat tin nhan da co san trong cache (vd sau khi xoa mem) - chi

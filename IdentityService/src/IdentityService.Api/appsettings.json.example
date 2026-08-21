@@ -43,5 +43,10 @@
     "NewMessageQueue": "identity.chat-message-notification",
     "MeetingInviteQueue": "media.meeting-invite",
     "MeetingCreatedQueue": "media.meeting-created"
+  },
+  "NotificationCleanup": {
+    "IntervalHours": 24,
+    "ReadRetentionDays": 7,
+    "UnreadRetentionDays": 30
   }
 }

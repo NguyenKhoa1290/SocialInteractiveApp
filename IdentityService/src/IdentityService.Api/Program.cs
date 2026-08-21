@@ -44,6 +44,13 @@ var guestCleanupOptions = builder.Configuration.GetSection("GuestCleanup").Get<G
 builder.Services.AddSingleton(guestCleanupOptions);
 builder.Services.AddHostedService<GuestCleanupService>();
 
+// Bang notifications la bang duy nhat chi co duong ghi vao ma khong co duong
+// xoa ra - xem ghi chu day du o NotificationCleanupService.cs.
+var notificationCleanupOptions = builder.Configuration.GetSection("NotificationCleanup").Get<NotificationCleanupOptions>()
+    ?? new NotificationCleanupOptions();
+builder.Services.AddSingleton(notificationCleanupOptions);
+builder.Services.AddHostedService<NotificationCleanupService>();
+
 var rabbitMqOptions = builder.Configuration.GetSection("RabbitMq").Get<RabbitMqOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh RabbitMq trong appsettings");
 builder.Services.AddSingleton(rabbitMqOptions);

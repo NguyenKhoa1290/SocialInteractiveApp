@@ -242,7 +242,25 @@ spec:
       containers:
         - name: redis
           image: redis:7-alpine
-          args: ["redis-server", "--requirepass", "{REDIS_PW}", "--appendonly", "yes"]
+          # maxmemory PHAI thap hon limits.memory ben duoi: khong dat thi
+          # Redis khong biet tran nen cu ghi toi khi k8s giet ca pod (mat
+          # sach du lieu). Dat roi thi no tu don khi gan day.
+          #
+          # volatile-lru = chi don key CO HAN. Moi key cua ung dung deu co
+          # han (cache tin nhan 11 ngay, trang thai trinh bay 12 gio, phong
+          # cho 5 phut), va cache tin nhan ap dao ve so luong nen thuc te no
+          # bi don truoc. Cache la du lieu DAN XUAT - Postgres van la nguon
+          # su that va endpoint doc tin nhan da co san duong fallback.
+          args:
+            - redis-server
+            - --requirepass
+            - "{REDIS_PW}"
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - "96mb"
+            - --maxmemory-policy
+            - volatile-lru
           ports:
             - containerPort: 6379
           resources:
