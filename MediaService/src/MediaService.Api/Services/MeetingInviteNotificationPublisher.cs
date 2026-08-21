@@ -11,21 +11,32 @@ public class RabbitMqOptions
     public string Username { get; set; } = "guest";
     public string Password { get; set; } = "guest";
     public string MeetingInviteQueue { get; set; } = "media.meeting-invite";
+    public string MeetingCreatedQueue { get; set; } = "media.meeting-created";
 }
 
 // InviterNickname do BEN NAY dien san (doc tu claim trong JWT) de Identity
 // Service khong phai goi nguoc lai chi de lay mot cai ten.
 public record MeetingInviteMessage(long MeetingId, long InvitedUserId, long InvitedBy, string InviteToken, string? InviterNickname);
 
+// RecipientUserIds do Chat Service tinh san (Media khong co ban sao thanh
+// vien nhom) va DA loai nguoi dang mo san man hinh chat do - xem
+// /internal/conversations/{id}/notify-recipients.
+public record MeetingCreatedMessage(long MeetingId, long HostId, long ConversationId, string? HostNickname, List<long> RecipientUserIds);
+
 // UC-32: publish thong bao moi hop -> Identity Service, noi dong vai tro dau
 // moi notification cua ca he thong (roadmap muc 1 va bang Publisher ->
 // Consumer muc 8.1). Identity luu thong bao roi day tiep xuong nguoi duoc moi
 // qua WebSocket - xem NotificationConsumerService.cs ben do.
 //
-// CHI dung cho moi TRUC TIEP (type=direct). Mo hop trong nhom khong publish
-// gi ca: ca nhom da nhan mot tin nhan he thong ngay trong khung chat cua nhom
-// (xem MeetingsEndpoints.cs), them mot duong thu hai chi la bao trung.
-// Hang doi media.meeting-created cua ban truoc da bo han vi ly do do.
+// Hai hang doi, hai doi tuong nhan khac han nhau:
+//   media.meeting-invite  -> moi TRUC TIEP mot nguoi ban (UC-32)
+//   media.meeting-created -> bao cho CA NHOM khi mo hop trong nhom (UC-31)
+//
+// Hang doi thu hai tung bi bo di voi ly do "nhom da co tin nhan he thong
+// roi". Ly do do KHONG dung: tin nhan trong nhom chi toi duoc nguoi DANG MO
+// nhom do, ai dang o man hinh khac thi khong biet gi ca. Nen no quay lai,
+// nhung lan nay nguoi dang mo san phong chat bi loai khoi danh sach nhan
+// (ho da thay the "Cuoc hop dang dien ra" truoc mat) - khong bao trung.
 public class MeetingInviteNotificationPublisher : IAsyncDisposable
 {
     private readonly RabbitMqOptions _options;
@@ -64,6 +75,7 @@ public class MeetingInviteNotificationPublisher : IAsyncDisposable
             _connection = await factory.CreateConnectionAsync();
             _channel = await _connection.CreateChannelAsync();
             await _channel.QueueDeclareAsync(_options.MeetingInviteQueue, durable: true, exclusive: false, autoDelete: false);
+            await _channel.QueueDeclareAsync(_options.MeetingCreatedQueue, durable: true, exclusive: false, autoDelete: false);
             return _channel;
         }
         finally
@@ -88,6 +100,26 @@ public class MeetingInviteNotificationPublisher : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Khong publish duoc thong bao moi hop {MeetingId} toi user {InvitedUserId}", meetingId, invitedUserId);
+        }
+    }
+
+    // UC-31 buoc 4. Chi goi khi mode=in_chat: cuoc hop doc lap (standalone)
+    // khong gan voi nhom nao thi khong co ai de bao.
+    public async Task PublishMeetingCreatedAsync(long meetingId, long hostId, long conversationId, string? hostNickname, List<long> recipientUserIds)
+    {
+        if (recipientUserIds.Count == 0)
+            return;
+
+        try
+        {
+            var channel = await EnsureChannelAsync();
+            var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
+                new MeetingCreatedMessage(meetingId, hostId, conversationId, hostNickname, recipientUserIds)));
+            await channel.BasicPublishAsync(exchange: "", routingKey: _options.MeetingCreatedQueue, body: body);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Khong publish duoc thong bao mo cuoc hop {MeetingId}", meetingId);
         }
     }
 

@@ -26,6 +26,30 @@ public class ChatServiceClient(HttpClient httpClient, ChatServiceClientOptions o
         }
     }
 
+    // Ai can duoc bao khi mo cuoc hop trong nhom. Chat Service tra ve danh
+    // sach DA LOC (bo host, bo nguoi dang mo san man hinh chat do) - Media
+    // khong co du lieu de tu lam viec do.
+    //
+    // Tra danh sach RONG khi hoi khong duoc: thieu mot thong bao con hon
+    // chan luon viec mo cuoc hop.
+    public async Task<List<long>> GetNotifyRecipientsAsync(long conversationId, long excludeUserId)
+    {
+        try
+        {
+            var resp = await httpClient.GetAsync(
+                $"{options.BaseUrl}/internal/conversations/{conversationId}/notify-recipients?exclude={excludeUserId}");
+            if (!resp.IsSuccessStatusCode)
+                return [];
+            var result = await resp.Content.ReadFromJsonAsync<NotifyRecipients>();
+            return result?.UserIds ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Loi hoi Chat Service danh sach nguoi nhan thong bao cho hoi thoai {ConversationId}", conversationId);
+            return [];
+        }
+    }
+
     // Dung cho cuoc hop mode=in_chat: CA NHOM vao thang duoc, khong can link
     // moi. Media Service khong co ban sao workspace_members nen phai hoi
     // Chat Service (xem InternalEndpoints.cs ben Chat Service).
@@ -50,3 +74,5 @@ public class ChatServiceClient(HttpClient httpClient, ChatServiceClientOptions o
 }
 
 public record ConversationMembership(bool IsMember, bool IsLeader);
+
+public record NotifyRecipients(List<long> UserIds);

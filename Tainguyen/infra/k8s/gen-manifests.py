@@ -326,7 +326,7 @@ spec:
 """)
 
 
-# TTL 24 gio cho bon hang doi thong bao. Identity Service DA consume ca bon
+# TTL 24 gio cho nam hang doi thong bao. Identity Service DA consume ca nam
 # (xem NotificationConsumerService.cs) nen binh thuong chung luon rong -
 # day la LUOI AN TOAN, khong phai cach chong ro ri nhu ban truoc: neu
 # Identity chet vai ngay, thong bao ton dong se tu het han thay vi phinh mai
@@ -366,7 +366,7 @@ spec:
               until curl -sf -u admin:'{RABBIT_PW}' http://rabbitmq:15672/api/overview > /dev/null; do
                 echo "cho RabbitMQ san sang..."; sleep 5
               done
-              PAT='^(identity[.]storage-warning|identity[.]chat-message-notification|workspace[.]member-notifications|media[.]meeting-invite)$$'
+              PAT='^(identity[.]storage-warning|identity[.]chat-message-notification|workspace[.]member-notifications|media[.]meeting-invite|media[.]meeting-created)$$'
               BODY="{{\\"pattern\\":\\"$$PAT\\",\\"definition\\":{{\\"message-ttl\\":86400000}},\\"apply-to\\":\\"queues\\",\\"priority\\":1}}"
               curl -sf -u admin:'{RABBIT_PW}' -H 'Content-Type: application/json' -X PUT http://rabbitmq:15672/api/policies/%2F/notification-ttl -d "$$BODY"
               echo

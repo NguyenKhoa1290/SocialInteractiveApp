@@ -6,6 +6,7 @@ public static class NotificationType
 {
     public const string AccountLocked = "account_locked";
     public const string MeetingInvite = "meeting_invite";
+    public const string MeetingStarted = "meeting_started";
     public const string NewMessage = "new_message";
     public const string StorageWarning = "storage_warning";
     public const string MemberLeft = "member_left";

@@ -9,6 +9,7 @@ namespace ChatService.Api.Endpoints;
 
 public record CreateGroupInternalRequest(long WorkspaceId);
 public record SystemMessageRequest(string Content);
+public record NotifyRecipientsResponse(List<long> UserIds);
 public record ConversationMembershipResponse(bool IsMember, bool IsLeader);
 
 // KHONG di qua API Gateway public - dung boi WorkSpace Service (xem
@@ -62,6 +63,28 @@ public static class InternalEndpoints
             db.Conversations.Remove(conversation);
             await db.SaveChangesAsync();
             return Results.NoContent();
+        });
+
+        // Ai can duoc bao khi co su kien moi trong hoi thoai nay.
+        //
+        // Dung boi Media Service khi mo cuoc hop trong nhom (UC-31): Media
+        // khong co ban sao thanh vien nhom, va cung khong biet ai dang mo san
+        // man hinh chat do. Ca hai thu do chi Chat Service biet, nen tra luon
+        // danh sach DA LOC thay vi bat Media tu ghep.
+        //
+        // Loai nguoi dang mo chinh phong chat nay: ho da thay the "Cuoc hop
+        // dang dien ra" hien ngay truoc mat, day them thong bao chi la bao
+        // trung - cung nguyen tac dang ap dung cho thong bao tin nhan moi.
+        app.MapGet("/internal/conversations/{conversationId:long}/notify-recipients", async (
+            long conversationId, long exclude, ChatDbContext db, WorkspaceClient workspaceClient, PresenceTracker presence) =>
+        {
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NotFound();
+
+            var recipients = await ConversationEndpoints.RecipientsAsync(conversation, exclude, workspaceClient);
+            return Results.Ok(new NotifyRecipientsResponse(
+                [.. recipients.Where(id => !presence.IsViewing(conversationId, id))]));
         });
 
         // Tin nhan he thong (vd: "X da mo cuoc hop") - dung boi Media Service

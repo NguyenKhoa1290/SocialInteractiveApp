@@ -184,6 +184,8 @@
 - [x] Nhận thông báo realtime qua WebSocket tới Identity Service (không phải service sinh ra sự kiện)
 - [x] Bấm vào thông báo là nhảy tới đúng chỗ (phòng chat, trang tham gia họp, trang khiếu nại)
 - [x] Đánh dấu đã đọc từng cái / tất cả, xoá thông báo
+- [x] **Popup** cho thông báo có tính khẩn (mở họp, mời họp, khoá tài khoản) — nổi ở góc màn hình
+      kèm nút "Gia nhập", tự tắt sau 15 giây, xếp chồng tối đa 3 cái
 
 **Media**
 - [x] Màn hình mở cuộc họp
@@ -231,10 +233,15 @@ claim `role=admin`)
   `identity.chat-message-notification`, `identity.storage-warning`, `workspace.member-notifications`,
   `media.meeting-invite`. Cộng thêm `identity.account-locked` cũng sinh thông báo.
 
-- **Mở họp trong nhóm thì KHÔNG sinh thông báo**, vì cả nhóm đã nhận một tin nhắn hệ thống ngay trong
-  khung chat của nhóm — hàng đợi `media.meeting-created` đã bỏ hẳn vì lý do đó. Chỉ **mời bạn bè trực
-  tiếp** mới đi đường thông báo, vì trường hợp đó không có khung chat nhóm nào để nhìn vào. Nguyên tắc
-  chung: một sự kiện đi đúng một đường, không báo trùng.
+- **Mở họp trong nhóm báo theo hai đường, cho hai nhóm người khác nhau — không trùng:**
+  *tin nhắn hệ thống* trong khung chat cho người **đang mở** phòng chat đó (họ thấy nó hiện ra giữa
+  khung chat, kèm thẻ "Cuộc hop đang diễn ra"), và *thông báo* qua Identity cho người đang ở màn hình
+  khác hoặc đang offline. Chat Service trả về danh sách người nhận **đã loại sẵn** nhóm đầu
+  (`GET /internal/conversations/{id}/notify-recipients`), nên không ai bị báo hai lần.
+
+  Trước đây hàng đợi `media.meeting-created` từng bị bỏ với lý do *"nhóm đã có tin nhắn hệ thống rồi"*.
+  Lý do đó **sai**: tin nhắn trong nhóm chỉ tới được người đang mở nhóm đó — ai đang ở màn hình khác
+  thì không biết gì cả, và danh sách cuộc trò chuyện cũng không có dấu hiệu chưa đọc nào.
 
 - **Người đang mở chính phòng chat đó thì không nhận thông báo tin nhắn mới** — họ đã thấy tin nhắn
   hiện ra trước mắt qua SignalR rồi. Không lọc bước này thì một nhóm đông người đang trò chuyện sẽ

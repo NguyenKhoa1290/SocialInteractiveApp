@@ -15,7 +15,8 @@ public static class MeetingsEndpoints
 
         group.MapPost("", async (
             CreateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat) =>
+            MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat,
+            MeetingInviteNotificationPublisher publisher) =>
         {
             var hostId = principal.GetUserId()!.Value;
 
@@ -61,12 +62,19 @@ public static class MeetingsEndpoints
             if (req.Mode == "in_chat" && req.ConversationId is not null)
             {
                 var nickname = principal.GetNickname();
-                await chat.PostSystemMessageAsync(req.ConversationId.Value, $"{nickname} da mo cuoc hop");
-            }
+                var conversationId = req.ConversationId.Value;
 
-            // UC-31 buoc 4 ("publish su kien tao phong de day notification")
-            // duoc dap ung bang chinh tin nhan he thong o tren, khong qua
-            // RabbitMQ nua - xem ghi chu day du o Program.cs.
+                // Hai duong bao, cho HAI nhom nguoi khac nhau - khong trung:
+                //  - Tin nhan he thong: cho nguoi DANG MO phong chat do, ho
+                //    thay no hien ra ngay giua khung chat.
+                //  - Thong bao (UC-31 buoc 4): cho nguoi dang o man hinh khac
+                //    hoac dang offline. Chat Service tra ve danh sach da loai
+                //    san nhung nguoi thuoc nhom dau.
+                await chat.PostSystemMessageAsync(conversationId, $"{nickname} da mo cuoc hop");
+
+                var recipients = await chat.GetNotifyRecipientsAsync(conversationId, hostId);
+                await publisher.PublishMeetingCreatedAsync(meeting.Id, hostId, conversationId, nickname, recipients);
+            }
 
             return Results.Created($"/meetings/{meeting.Id}", MeetingResponse.FromEntity(meeting));
         });

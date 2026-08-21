@@ -542,7 +542,7 @@ components:
           format: int64
         type:
           type: string
-          enum: [account_locked, meeting_invite, new_message, storage_warning, member_left, member_kicked, workspace_dissolved]
+          enum: [account_locked, meeting_invite, meeting_started, new_message, storage_warning, member_left, member_kicked, workspace_dissolved]
         title:
           type: string
         body:

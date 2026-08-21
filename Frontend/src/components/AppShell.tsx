@@ -10,7 +10,9 @@ import { clearPersistedKey } from "../lib/crypto/keyPersistence";
 import { onNotification, stopNotificationHub } from "../lib/notificationHub";
 import { notificationApi } from "../api/notificationApi";
 import { useNotificationStore } from "../store/notificationStore";
+import { URGENT_TYPES } from "../types/notification";
 import { BottomDock } from "./BottomDock";
+import { NotificationToasts } from "./NotificationToast";
 import "./app-shell.css";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -39,7 +41,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         // dang de chen mot bao loi vao moi man hinh.
       });
 
-    onNotification((n) => useNotificationStore.getState().prepend(n))
+    onNotification((n) => {
+      useNotificationStore.getState().prepend(n);
+      // Chi loai khan moi noi popup - tin nhan moi va canh bao dung luong
+      // den lien tuc, popup se thanh phien nhieu.
+      if (URGENT_TYPES.includes(n.type)) useNotificationStore.getState().pushToast(n);
+    })
       .then((off) => {
         // Component da thao truoc khi ket noi kip mo -> huy dang ky ngay,
         // neu khong handler se song mai va lam so chua doc nhay lung tung.
@@ -90,6 +97,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="shell-main">{children}</main>
+      <NotificationToasts />
       <BottomDock />
     </div>
   );

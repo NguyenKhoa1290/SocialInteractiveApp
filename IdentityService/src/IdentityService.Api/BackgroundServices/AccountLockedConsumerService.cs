@@ -24,6 +24,7 @@ public class RabbitMqOptions
     public string StorageWarningQueue { get; set; } = "identity.storage-warning";
     public string NewMessageQueue { get; set; } = "identity.chat-message-notification";
     public string MeetingInviteQueue { get; set; } = "media.meeting-invite";
+    public string MeetingCreatedQueue { get; set; } = "media.meeting-created";
 }
 
 // Format PHAI khop voi SpamTrackingService

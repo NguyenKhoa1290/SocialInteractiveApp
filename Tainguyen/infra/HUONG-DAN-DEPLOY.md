@@ -1627,7 +1627,7 @@ cũng không sao**, nên cứ `kubectl apply` lại khi nghi ngờ.
 | Job | Namespace | Việc | Bỏ quên thì sao |
 |---|---|---|---|
 | `minio-init` | `chat-data` | Tạo bucket `chat-media` | Presign vẫn trả URL bình thường (presign là phép tính offline) nhưng PUT thật trả **404 NoSuchBucket** — chỉ lộ khi upload |
-| `rabbitmq-init` | `chat-data` | Đặt policy TTL 24 giờ cho 4 hàng đợi thông báo | Nếu Identity chết vài ngày, thông báo tồn đọng phình mãi và chặn luôn hai hàng đợi lệnh khoá tài khoản |
+| `rabbitmq-init` | `chat-data` | Đặt policy TTL 24 giờ cho 5 hàng đợi thông báo | Nếu Identity chết vài ngày, thông báo tồn đọng phình mãi và chặn luôn hai hàng đợi lệnh khoá tài khoản |
 
 Kiểm tra policy đã vào chưa:
 
@@ -1640,11 +1640,11 @@ Cột `policy` của `identity.account-locked` và `identity.delete-account-spam
 hàng đợi **lệnh khoá tài khoản**, không phải thông báo — tin trong đó hết hạn nghĩa là mất luôn việc
 khoá tài khoản spam. Regex của policy neo hai đầu (`^(...)$`) chính là để tránh quét trúng chúng.
 
-Bốn hàng đợi thông báo (`identity.chat-message-notification`, `identity.storage-warning`,
-`workspace.member-notifications`, `media.meeting-invite`) từ Phase 8 **đã có consumer** là Identity
-Service, nên bình thường chúng luôn rỗng. TTL giờ là **lưới an toàn** chứ không còn là cách chống rò
-rỉ. `consumers` của cả bốn phải bằng 1 — bằng 0 nghĩa là `NotificationConsumerService` bên Identity
-đang chết, và mọi thông báo trong hệ thống đang im lặng.
+Năm hàng đợi thông báo (`identity.chat-message-notification`, `identity.storage-warning`,
+`workspace.member-notifications`, `media.meeting-invite`, `media.meeting-created`) từ Phase 8 **đã có
+consumer** là Identity Service, nên bình thường chúng luôn rỗng. TTL giờ là **lưới an toàn** chứ không
+còn là cách chống rò rỉ. `consumers` của cả năm phải bằng 1 — bằng 0 nghĩa là
+`NotificationConsumerService` bên Identity đang chết, và mọi thông báo trong hệ thống đang im lặng.
 
 ### Topic Kafka thì KHÔNG cần Job
 
@@ -1674,8 +1674,8 @@ Từ Phase 8, không service nào tự đẩy thông báo tới người dùng. 
 Kiểm tra nhanh khi nghi ngờ thông báo không tới:
 
 ```bash
-# 1. Consumer bên Identity còn sống không (phải thấy đủ 4 hàng đợi)
-k3s kubectl -n chat-app logs deploy/identity | grep "hang doi thong bao"
+# 1. Consumer bên Identity còn sống không (phải thấy đủ 5 hàng đợi)
+k3s kubectl -n chat-app logs deploy/identity | grep "hang doi thong bao"   # phải thấy đủ 5
 
 # 2. Hàng đợi có bị ứ không (messages phải ~0, consumers phải =1)
 POD=$(k3s kubectl get pod -n chat-data -l app=rabbitmq -o jsonpath='{.items[0].metadata.name}')

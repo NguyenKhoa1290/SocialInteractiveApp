@@ -1,0 +1,107 @@
+/* Goc duoi ben phai, tren thanh dieu huong duoi (bottom-dock cao ~56px).
+   Tren man hinh hep thi keo rong ra sat hai le - popup hep giua man hinh
+   dien thoai vua kho doc vua kho bam. */
+.notif-toast-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 72px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  pointer-events: none; /* khoang trong giua cac popup khong chan thao tac ben duoi */
+}
+
+@media (max-width: 480px) {
+  .notif-toast-stack {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+}
+
+.notif-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--social-bg);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+  animation: notif-toast-in 180ms ease-out;
+}
+
+@keyframes notif-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Nguoi bat "giam chuyen dong" trong he dieu hanh thuong la vi chuyen dong
+   gay chong mat - bo hieu ung truot, van hien binh thuong. */
+@media (prefers-reduced-motion: reduce) {
+  .notif-toast {
+    animation: none;
+  }
+}
+
+.notif-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-toast-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.notif-toast-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-m);
+  overflow-wrap: anywhere;
+}
+
+.notif-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.notif-toast-open {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.notif-toast-close {
+  border: none;
+  background: none;
+  color: var(--text-m);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.notif-toast-close:hover {
+  color: var(--text-h);
+}

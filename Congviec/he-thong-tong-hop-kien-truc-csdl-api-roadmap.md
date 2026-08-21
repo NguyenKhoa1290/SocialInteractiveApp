@@ -4971,6 +4971,7 @@ như tài liệu quy định.
 | `identity.storage-warning` | Chat Service | Nhóm sắp hết hạn dung lượng (3d/2d/1d/10h) |
 | `workspace.member-notifications` | WorkSpace Service | Rời nhóm / bị xoá khỏi nhóm / nhóm bị giải tán |
 | `media.meeting-invite` | Media Service | Bạn bè mời vào cuộc họp |
+| `media.meeting-created` | Media Service | Có người mở cuộc họp trong nhóm của bạn |
 | `identity.account-locked` | SpamTracking | Tài khoản bị khoá (kèm link tới trang Khiếu nại) |
 
 **Lưu trữ chứ không chỉ đẩy realtime:** bảng `notifications` trong Identity DB. Người dùng offline
@@ -4983,9 +4984,9 @@ thoại. Nếu để nó tự tra thì phải gọi ngược sang Chat/WorkSpace
 thông báo, và thông báo sẽ chết nếu hai service đó đang bận. Nên `RecipientUserIds` được nhét sẵn vào
 payload, cùng với `SenderNickname` để Identity không phải hỏi lại chỉ để lấy một cái tên.
 
-**Một sự kiện đi đúng một đường.** Mở họp trong nhóm không sinh thông báo, vì cả nhóm đã nhận tin
-nhắn hệ thống ngay trong khung chat của nhóm. Chỉ mời bạn bè trực tiếp mới đi đường thông báo, vì
-trường hợp đó không có khung chat nhóm nào để nhìn vào.
+**Một người chỉ được báo một lần cho một sự kiện.** Mở họp trong nhóm đi *hai* đường vì phục vụ *hai*
+nhóm người: tin nhắn hệ thống cho người đang mở phòng chat, thông báo cho người đang ở màn hình khác.
+Chat Service trả về danh sách người nhận đã loại sẵn nhóm đầu, nên không ai bị báo hai lần.
 
 **Người đang mở chính phòng chat đó thì không nhận thông báo tin nhắn mới.** Họ đã thấy tin nhắn hiện
 ra trước mắt qua SignalR. Không lọc bước này thì một nhóm đông người đang trò chuyện sẽ sinh ra một
@@ -5026,3 +5027,40 @@ gỡ `RabbitMq__HostName` khỏi cấu hình của Media Service (lúc đó nó 
 nên khi hàng đợi quay lại thì Media rơi về giá trị mặc định `localhost` — tức chính container của nó.
 Lời mời vẫn tạo thành công và trả token bình thường, chỉ có thông báo là mất, vì publisher nuốt lỗi
 có chủ ý. Đây đúng loại lỗi mà chỉ chạy thật mới thấy: mọi API đều xanh.
+
+
+### 8.6 Bổ sung: thông báo mở họp trong nhóm + popup
+
+Phát hiện khi rà lại câu hỏi *"tạo phòng họp có popup và thảo luận trong nhóm không?"*:
+
+**Thảo luận thì đã có đủ** — mỗi cuộc họp một luồng riêng, dùng group SignalR tách biệt (khách vãng
+lai nghe được thảo luận nhưng không đọc được luồng chat chính), vào từ nút "Xem thảo luận", họp xong
+vẫn xem lại được.
+
+**Nhưng popup thì không, và tệ hơn: người không mở sẵn phòng chat thì không biết gì cả.** Thẻ "Cuộc
+họp đang diễn ra" chỉ hiện khi đã ở trong đúng phòng chat đó (poll 10 giây/lần), tin nhắn hệ thống
+cũng vậy, và `ChatListPage` **không có dấu hiệu chưa đọc nào**. Đây là lỗ hổng do chính quyết định bỏ
+`media.meeting-created` ở mục 7.1 tạo ra — lý do lúc đó (*"nhóm đã có tin nhắn rồi"*) chỉ đúng với
+người đang nhìn vào nhóm.
+
+Đã sửa:
+
+- **`media.meeting-created` quay lại** làm nguồn thông báo thứ năm. Media hỏi Chat Service danh sách
+  người nhận qua `GET /internal/conversations/{id}/notify-recipients?exclude={hostId}` — Chat trả về
+  thành viên nhóm **đã loại** chủ phòng và **đã loại** người đang mở sẵn phòng chat đó (dùng lại
+  `PresenceTracker.IsViewing`). Media không có dữ liệu để tự làm cả hai việc đó.
+- **Popup** (`NotificationToasts`) cho ba loại khẩn: mở họp, mời họp, khoá tài khoản. Tự tắt sau 15
+  giây, xếp chồng tối đa 3, nút "Gia nhập" đi thẳng tới phòng chat. Tin nhắn mới và cảnh báo dung
+  lượng **cố ý** không nổi popup — chúng đến liên tục, popup sẽ thành phiền nhiễu.
+- Link thông báo trỏ về `/app/chat/{id}` chứ **không** phải `/meetings/{id}`: màn hình phòng họp cần
+  `livekitToken` lấy từ API `joinInChat`, không tự vào bằng URL được.
+
+**Một lỗi thật lộ ra khi làm việc này:** link trong thông báo tin nhắn mới và cảnh báo dung lượng đang
+sinh ra `/chat/{id}`, trong khi route thật là `/app/chat/{id}`. Bấm vào sẽ rơi vào catch-all
+`<Route path="*">` và **bị đá về trang đăng nhập**. Bản trước đã lên production với lỗi này. Bài học
+lặp lại: đường dẫn sinh ở backend nhưng chỉ có frontend biết nó đúng hay sai — không có gì bắt được
+trừ khi đối chiếu tay với bảng route.
+
+**Verify thật (5/5):** ba người trong một nhóm — chủ phòng mở họp; người **đang mở** phòng chat nhận
+tin nhắn hệ thống nhưng **không** nhận thông báo; người **ở màn hình khác** nhận thông báo với link
+trỏ đúng phòng chat.

@@ -21,6 +21,7 @@ public record MemberNotificationMessage(string EventType, long WorkspaceId, long
 public record StorageWarningMessage(long WorkspaceId, long ConversationId, string Stage, DateTimeOffset? ExpiresAt, List<long>? RecipientUserIds);
 public record ChatMessageNotificationMessage(long ConversationId, long MessageId, long SenderId, string MessageType, string? SenderNickname, List<long>? RecipientUserIds);
 public record MeetingInviteMessage(long MeetingId, long InvitedUserId, long InvitedBy, string InviteToken, string? InviterNickname);
+public record MeetingCreatedMessage(long MeetingId, long HostId, long ConversationId, string? HostNickname, List<long>? RecipientUserIds);
 
 // Dau moi notification cua toan he thong (roadmap muc 1 va bang
 // Publisher -> Consumer muc 8.1): moi service khac publish su kien can bao
@@ -91,6 +92,7 @@ public class NotificationConsumerService(
             options.StorageWarningQueue,
             options.NewMessageQueue,
             options.MeetingInviteQueue,
+            options.MeetingCreatedQueue,
         };
         foreach (var q in queues)
             await channel.QueueDeclareAsync(q, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
@@ -99,6 +101,7 @@ public class NotificationConsumerService(
         await SubscribeAsync<StorageWarningMessage>(channel, options.StorageWarningQueue, HandleStorageAsync, stoppingToken);
         await SubscribeAsync<ChatMessageNotificationMessage>(channel, options.NewMessageQueue, HandleNewMessageAsync, stoppingToken);
         await SubscribeAsync<MeetingInviteMessage>(channel, options.MeetingInviteQueue, HandleMeetingInviteAsync, stoppingToken);
+        await SubscribeAsync<MeetingCreatedMessage>(channel, options.MeetingCreatedQueue, HandleMeetingCreatedAsync, stoppingToken);
 
         logger.LogInformation("Dang lang nghe {Count} hang doi thong bao: {Queues}", queues.Length, string.Join(", ", queues));
 
@@ -175,7 +178,7 @@ public class NotificationConsumerService(
             NotificationType.StorageWarning,
             $"Nhóm sắp hết hạn dung lượng (còn {remaining})",
             "Hết hạn mà chưa nạp thêm thì các file cũ nhất sẽ bị xoá dần cho tới khi về dưới hạn mức.",
-            $"/chat/{m.ConversationId}");
+            $"/app/chat/{m.ConversationId}");
     }
 
     private async Task HandleNewMessageAsync(ChatMessageNotificationMessage m)
@@ -203,7 +206,7 @@ public class NotificationConsumerService(
             NotificationType.NewMessage,
             $"{who} {what}",
             null,
-            $"/chat/{m.ConversationId}");
+            $"/app/chat/{m.ConversationId}");
     }
 
     private async Task HandleMeetingInviteAsync(MeetingInviteMessage m)
@@ -218,6 +221,27 @@ public class NotificationConsumerService(
             $"{who} mời bạn vào cuộc họp",
             "Lời mời có hiệu lực trong 24 giờ.",
             $"/meetings/join/{m.InviteToken}");
+    }
+
+    private async Task HandleMeetingCreatedAsync(MeetingCreatedMessage m)
+    {
+        if (m.RecipientUserIds is not { Count: > 0 })
+            return;
+
+        var who = string.IsNullOrWhiteSpace(m.HostNickname) ? "Ai đó" : m.HostNickname;
+
+        using var scope = scopeFactory.CreateScope();
+        var notifications = scope.ServiceProvider.GetRequiredService<NotificationService>();
+        // Tro ve PHONG CHAT chu khong thang vao /meetings/{id}: man hinh phong
+        // hop can livekitToken lay tu API joinInChat, khong tu vao bang URL
+        // duoc. Vao phong chat thi thay ngay the "Cuoc hop dang dien ra" kem
+        // nut Gia nhap.
+        await notifications.CreateManyAsync(
+            m.RecipientUserIds,
+            NotificationType.MeetingStarted,
+            $"{who} đã mở cuộc họp trong nhóm",
+            "Bấm để vào phòng chat và tham gia.",
+            $"/app/chat/{m.ConversationId}");
     }
 
     // Don sach truoc khi thu ket noi lai. Nuot loi o day la co y: doi tuong

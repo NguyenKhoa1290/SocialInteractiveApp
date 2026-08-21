@@ -1,6 +1,7 @@
 export type NotificationType =
   | "account_locked"
   | "meeting_invite"
+  | "meeting_started"
   | "new_message"
   | "storage_warning"
   | "member_left"
@@ -19,3 +20,9 @@ export interface AppNotification {
   isRead: boolean;
   createdAt: string;
 }
+
+// Loai thong bao co tinh KHAN - noi len popup thay vi chi tang so tren
+// chuong. Doc muon 10 phut la mat y nghia: cuoc hop da tan, loi moi het han.
+// Tin nhan moi va canh bao dung luong CO Y khong nam trong day - chung den
+// lien tuc, popup se thanh phien nhieu.
+export const URGENT_TYPES: NotificationType[] = ["meeting_started", "meeting_invite", "account_locked"];
