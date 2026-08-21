@@ -61,6 +61,10 @@ export interface PresentationState {
   kind: "screen" | "mini_app";
   appId: string | null;
   startedAt: string;
+  // Chi co nghia voi kind = "mini_app": kenh MA CA PHONG dang xem. null =
+  // da mo Mini App nhung chua chon kenh -> client hien "Dang cho gan link kenh".
+  channelId: number | null;
+  channelName: string | null;
 }
 
 export interface RoomMetadata {

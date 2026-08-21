@@ -9,7 +9,17 @@ namespace MediaService.Api.Services;
 // tung nguoi, xu ly hoan toan o Frontend, khong gui len server va khong ap
 // cho ai khac. Chi nhung thu THUC SU dung chung (man hinh dang chia se, mini
 // app dang mo) moi can trang thai o server.
-public record PresentationState(long UserId, string Nickname, string Kind, string? AppId, DateTimeOffset StartedAt);
+// ChannelId/ChannelName chi co nghia voi Kind = "mini_app": day la kenh MA
+// CA PHONG dang xem. Truoc day moi client tu chon kenh trong component cua
+// rieng no, nen "ca phong cung xem mot kenh" khong bao gio that su xay ra -
+// va doi bo cuc mot cai la mat luon lua chon. Dat o day thi no di theo
+// duong phat san co (Redis + metadata phong LiveKit) toi moi nguoi.
+//
+// NULL nghia la nguoi trinh bay da mo Mini App nhung chua chon kenh - client
+// khac hien "Dang cho gan link kenh".
+public record PresentationState(
+    long UserId, string Nickname, string Kind, string? AppId, DateTimeOffset StartedAt,
+    long? ChannelId = null, string? ChannelName = null);
 
 // Hinh dang metadata phong LiveKit: {"presentation": {...}} hoac {} khi
 // khong ai trinh bay. Giu dang object long nhau de sau nay them truong khac

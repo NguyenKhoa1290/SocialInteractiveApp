@@ -15,7 +15,8 @@ import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
 import { DevicePicker } from "./DevicePicker";
-import { IptvPanel } from "./IptvPanel";
+import { IptvStage } from "./IptvStage";
+import { IptvChannelPicker } from "./IptvChannelPicker";
 import { MeetingDiscussion } from "./MeetingDiscussion";
 import type {
   MeetingParticipant,
@@ -87,7 +88,10 @@ export function MeetingRoomPage() {
   const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
   const [invitingId, setInvitingId] = useState<number | null>(null);
   const [showPeople, setShowPeople] = useState(false);
-  const [showIptv, setShowIptv] = useState(false);
+  // Popup chon kenh - CHI nguoi trinh bay mo. Kenh dang chieu KHONG nam o
+  // day ma nam trong presentation (trang thai chung cua phong), nen doi bo
+  // cuc hay dong popup deu khong lam mat no.
+  const [showIptvPicker, setShowIptvPicker] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
 
   const [micOn, setMicOn] = useState(true);
@@ -430,6 +434,31 @@ export function MeetingRoomPage() {
 
   // Dung trinh bay - nguoi dang trinh bay tu dung, hoac Chu phong go ket khi
   // nguoi kia mat mang ma khong kip tat.
+  // Mo Mini App = gianh suat trinh bay TRUOC (ca phong vao focus mode), roi
+  // mo popup chon kenh. Chua chon kenh thi khung giua hien "Dang cho gan
+  // link kenh" - o may nguoi khac cung vay.
+  async function handleOpenMiniApp() {
+    setNotice(null);
+    try {
+      await meetingApi.startPresentation(meetingId, "mini_app", { appId: "iptv" });
+      setShowIptvPicker(true);
+    } catch (err) {
+      setNotice(extractApiError(err, "Không mở được Mini App"));
+    }
+  }
+
+  // Chon kenh = cap nhat lai chinh suat trinh bay dang giu (server cho phep
+  // nguoi dang trinh bay ghi de chinh minh). Nho vay kenh di theo duong phat
+  // san co toi moi nguoi trong phong, khong can them kenh dong bo nao.
+  async function handlePickChannel(channelId: number, channelName: string) {
+    setShowIptvPicker(false);
+    try {
+      await meetingApi.startPresentation(meetingId, "mini_app", { appId: "iptv", channelId, channelName });
+    } catch (err) {
+      setNotice(extractApiError(err, "Không đổi được kênh"));
+    }
+  }
+
   async function handleStopPresentation() {
     try {
       if (sharing) {
@@ -758,7 +787,7 @@ export function MeetingRoomPage() {
             Người tham gia ({participants.length}){waiting.length > 0 && ` · ${waiting.length} chờ`}
           </button>
           <button onClick={() => setShowDiscussion((v) => !v)}>💬 Thảo luận</button>
-          {canUseMiniApp && <button onClick={() => setShowIptv((v) => !v)}>Mini App IPTV</button>}
+          {canUseMiniApp && <button onClick={handleOpenMiniApp}>Mini App IPTV</button>}
         </div>
       </header>
 
@@ -832,7 +861,13 @@ export function MeetingRoomPage() {
 
                 {showAppStage && (
                   <div className="meet-stage meet-stage-app">
-                    <IptvPanel meetingId={meetingId} onClose={() => {}} stage />
+                    <IptvStage
+                      meetingId={meetingId}
+                      channelId={presentation?.channelId ?? null}
+                      channelName={presentation?.channelName ?? null}
+                      canPick={presentation?.userId === currentUserId}
+                      onOpenPicker={() => setShowIptvPicker(true)}
+                    />
                   </div>
                 )}
 
@@ -872,7 +907,6 @@ export function MeetingRoomPage() {
             </aside>
           )}
 
-          {showIptv && canUseMiniApp && <IptvPanel meetingId={meetingId} onClose={() => setShowIptv(false)} />}
 
           {showPeople && (
             <aside className="meet-side">
@@ -988,6 +1022,10 @@ export function MeetingRoomPage() {
             </aside>
           )}
         </div>
+      )}
+
+      {showIptvPicker && canUseMiniApp && (
+        <IptvChannelPicker onPick={handlePickChannel} onClose={() => setShowIptvPicker(false)} />
       )}
 
       <footer className="meet-controls">

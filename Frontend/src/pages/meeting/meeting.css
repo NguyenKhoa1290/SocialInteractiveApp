@@ -588,3 +588,120 @@
     width: auto;
   }
 }
+
+/* ---- Popup chon kenh IPTV ----
+   Truoc day danh sach kenh nam ngay trong khung trinh bay o giua: chon mot
+   kenh thi danh sach van nam nguyen do, day trinh phat xuong duoi va phai
+   cuon moi thay. Dua vao popup thi chon xong la dong, khung giua chi con
+   luong phat. */
+.iptv-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.iptv-picker {
+  width: min(560px, 100%);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--social-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.iptv-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.iptv-picker-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.iptv-picker-head button {
+  border: none;
+  background: none;
+  color: var(--text-m);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.iptv-picker-controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px 8px;
+  flex-shrink: 0;
+}
+
+.iptv-picker-controls select,
+.iptv-picker-controls input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+/* Playlist nhap tu M3U co the co hang tram kenh - phan cuon phai nam o
+   DAY chu khong phai ca popup, de o tim kiem luon nhin thay duoc. */
+.iptv-picker-body {
+  overflow-y: auto;
+  padding: 0 14px 14px;
+}
+
+.iptv-picker-group {
+  margin-top: 12px;
+}
+
+.iptv-picker-group > strong {
+  display: block;
+  font-size: 12px;
+  color: var(--text-m);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.iptv-picker-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iptv-picker-group li button {
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.iptv-picker-group li button:hover {
+  background: var(--social-bg);
+}

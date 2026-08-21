@@ -74,7 +74,8 @@ public static class PresentationEndpoints
             var nickname = principal.GetNickname();
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
-                callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow);
+                callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow,
+                req.ChannelId, req.ChannelName);
 
             // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu
             // thay cho doc-roi-ghi tren hai loi goi LiveKit - vua nhanh hon
@@ -146,4 +147,4 @@ public static class PresentationEndpoints
             .AnyAsync(p => p.MeetingId == meeting.Id && p.UserId == userId && p.LeftAt == null);
 }
 
-public record StartPresentationRequest(string Kind, string? AppId);
+public record StartPresentationRequest(string Kind, string? AppId, long? ChannelId, string? ChannelName);

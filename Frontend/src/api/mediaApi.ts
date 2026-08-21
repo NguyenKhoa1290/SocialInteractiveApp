@@ -62,10 +62,16 @@ export const meetingApi = {
   // Gianh "suat trinh bay" - chi mot nguoi tai mot thoi diem, nguoi sau bi
   // 409 chu khong de len nguoi truoc. Goi TRUOC khi thuc su bat chia se man
   // hinh / mo mini app.
-  startPresentation: (meetingId: number, kind: "screen" | "mini_app", opts?: { appId?: string }) =>
+  startPresentation: (
+    meetingId: number,
+    kind: "screen" | "mini_app",
+    opts?: { appId?: string; channelId?: number; channelName?: string },
+  ) =>
     mediaHttp.post<PresentationState>(`/meetings/${meetingId}/presentation`, {
       kind,
       appId: opts?.appId ?? null,
+      channelId: opts?.channelId ?? null,
+      channelName: opts?.channelName ?? null,
     }),
 
   stopPresentation: (meetingId: number) => mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`),
