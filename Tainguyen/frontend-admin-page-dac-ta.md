@@ -221,6 +221,27 @@ claim `role=admin`)
 
 - **Khôi phục khoá khi đổi thiết bị: dùng mã PIN 6 số do user tự đặt và ghi nhớ** (giống cơ chế của Messenger) — **ĐÃ LÀM.** `components/E2eeGate.tsx` chặn phần soạn tin nhắn Text cho tới khi có private key: lần đầu hiện màn thiết lập PIN (sinh cặp khoá X25519 thật, mã hoá private key bằng khoá dẫn xuất từ PIN qua PBKDF2 rồi đẩy vault ciphertext lên server), các lần sau hiện màn nhập PIN để mở khoá. Server chỉ thấy ciphertext + public key. Xem `lib/crypto/vault.ts`.
 
+- **Nhập sai PIN thì client biết ngay và chắc chắn.** Vault dùng AES-256-GCM, có thẻ xác thực 128
+  bit: PIN sai → khoá dẫn xuất sai → thẻ không khớp → `crypto.subtle.decrypt` ném lỗi. Nó **không**
+  trả về dữ liệu rác — điểm này mới là quan trọng. Với AES-CBC hay stream cipher, PIN sai sẽ lặng lẽ
+  cho ra 32 byte ngẫu nhiên, client tưởng đó là private key, đăng ký một public key rác lên server,
+  rồi mọi tin nhắn hỏng theo cách không ai truy ra được. Xác suất PIN sai mà lọt: 2⁻¹²⁸.
+
+- **Quên PIN thì có đường đặt lại** (`E2eeGate` mode `reset`). Khoá cũ chỉ tồn tại dưới dạng đã mã
+  hoá bằng chính cái PIN đã quên, nên không có cách nào lấy lại — đặt lại nghĩa là sinh **cặp khoá
+  hoàn toàn mới**, và toàn bộ tin nhắn Text cũ vĩnh viễn không đọc lại được. Vì thế màn hình bắt tick
+  xác nhận trước khi cho bấm. File/ảnh/video và tin nhắn trong cuộc họp không bị ảnh hưởng (không
+  mã hoá E2EE).
+
+  Trước đây **không có lối thoát nào**: đã có vault thì màn nhập PIN là cửa duy nhất, quên PIN nghĩa
+  là không bao giờ gửi được tin nhắn Text nữa ở bất kỳ cuộc trò chuyện nào.
+
+- **Brute-force PIN 6 số: chấp nhận, giống Messenger.** Vault tải nguyên về máy rồi thử PIN hoàn toàn
+  phía client — không đếm số lần sai, không khoá tạm. PBKDF2 100.000 vòng chỉ làm chậm chứ không cứu
+  được không gian một triệu khả năng. Signal/WhatsApp nhốt bộ đếm trong HSM/enclave để vault không bao
+  giờ tải về được; hệ thống này không có thứ đó. Đây là **đánh đổi đã cân nhắc và chấp nhận**, không
+  phải thiếu sót.
+
 - **"Sửa và thu hồi tin nhắn"** — có trong sơ đồ tính năng gốc nhưng không xuất hiện ở use case/API nào sau đó. **ĐÃ BỔ SUNG.** `PATCH /conversations/{id}/messages/{messageId}` để sửa (chỉ sender, chỉ Type=Text, trong 15 phút kể từ lúc gửi; client tự mã hoá lại với nonce mới, tái dùng khoá phiên cũ nên không phải gửi lại `recipientKeys`) và `POST .../recall` để thu hồi (dùng lại soft-delete sẵn có, thêm điều kiện phải là chính sender và cũng trong 15 phút). Khác hẳn "Xoá tin nhắn" của Trưởng nhóm ở UC-28: quyền đó không giới hạn thời gian và áp dụng cho mọi tin trong nhóm. Sau khi sửa, Chat Service phát `MessageEdited` qua SignalR để mọi người trong phòng thấy ngay.
 
 - **"Tìm kiếm tin nhắn"** — cũng có trong sơ đồ tính năng gốc nhưng chưa từng có endpoint. **ĐÃ BỔ SUNG:** `GET /conversations/{id}/messages/search`. Vì tin Text luôn E2EE nên server không thể full-text search được — dùng **blind index**: client tự băm từ khoá bằng search-key riêng (HMAC, xem `lib/crypto/searchTokens.ts`) trước khi mã hoá nội dung, server chỉ so khớp token == token và không thể suy ngược ra từ gốc. Các bộ lọc còn lại (`senderId`, `type`, `from`, `to`) chạy trên metadata không mã hoá nên dùng được độc lập.

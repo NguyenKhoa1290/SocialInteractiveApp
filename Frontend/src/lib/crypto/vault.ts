@@ -30,11 +30,60 @@ export async function setupVault(pin: string): Promise<void> {
   const pinKey = await deriveKeyFromPin(pin, salt);
   const { ciphertext, nonce } = await encryptAesGcm(pinKey, privateKey);
 
-  await keysApi.saveVault(bytesToBase64(salt), bytesToBase64(nonce), bytesToBase64(ciphertext));
+  // Dang ky public key TRUOC, luu vault SAU. Thu tu nay quan trong vi hai
+  // loi goi khong nguyen tu: neu buoc sau hong thi trang thai con lai phai
+  // la trang thai TU SUA DUOC.
+  //   - Thu tu nay: co public key, khong co vault -> hasVault() = false ->
+  //     lan sau vao lai hien man thiet lap, sinh cap khoa moi, ghi de. On.
+  //   - Thu tu nguoc lai (ban cu): co vault, khong co public key ->
+  //     hasVault() = true -> hien man NHAP PIN, mo khoa thanh cong, nhung
+  //     public key khong bao gio duoc dang ky. Nguoi dung thay moi thu binh
+  //     thuong ma KHONG AI gui duoc tin ma hoa cho ho, va khong tu lanh.
   await keysApi.registerPublicKey(publicKeyToBase64(publicKey));
+  await keysApi.saveVault(bytesToBase64(salt), bytesToBase64(nonce), bytesToBase64(ciphertext));
 
   useKeyStore.getState().setKeys(privateKey, publicKey);
   persistIfSessionKnown(privateKey, publicKey);
+}
+
+// Luoi thu hai cho dung van de tren: moi lan mo khoa deu doi chieu public
+// key tren server voi khoa that su suy ra tu private key. Thieu hoac lech
+// thi dang ky lai.
+//
+// Lech co the xay ra khi: dang ky that bai luc thiet lap, hoac tai khoan
+// tung dat lai PIN o thiet bi khac. Ca hai truong hop deu dan toi "khong ai
+// gui duoc tin ma hoa cho nguoi nay" ma khong co dau hieu gi.
+//
+// Nuot loi co chu y: viec mo khoa da thanh cong roi, khong duoc phep hong
+// vi mot buoc va loi. Hong thi lan mo khoa sau thu lai.
+async function ensurePublicKeyRegistered(publicKey: Uint8Array): Promise<void> {
+  const userId = useAuthStore.getState().user?.id;
+  if (!userId) return;
+
+  const mine = publicKeyToBase64(publicKey);
+  try {
+    const { data } = await keysApi.getPublicKey(userId);
+    if (data.publicKey === mine) return;
+  } catch {
+    // 404 = chua tung dang ky - roi vao dung nhanh can sua ben duoi
+  }
+
+  try {
+    await keysApi.registerPublicKey(mine);
+  } catch {
+    // thu lai o lan mo khoa sau
+  }
+}
+
+// Dat lai PIN khi nguoi dung quen. Sinh cap khoa HOAN TOAN MOI va ghi de ca
+// vault lan public key - khong co cach nao khac, vi private key cu chi ton
+// tai duoi dang ma hoa bang chinh cai PIN da quen.
+//
+// HAU QUA KHONG THE DAO NGUOC: moi tin nhan Text cu deu duoc ma hoa cho khoa
+// cu, sau buoc nay se khong bao gio doc lai duoc nua. Noi goi BAT BUOC phai
+// canh bao ro va bat xac nhan truoc khi goi.
+export async function resetVault(newPin: string): Promise<void> {
+  await setupVault(newPin);
 }
 
 // Khoi phuc tren thiet bi bat ky (hoac sau khi reload trang, vi private key
@@ -58,6 +107,7 @@ export async function unlockVault(pin: string): Promise<void> {
   const publicKey = getPublicKeyFromPrivate(privateKey);
   useKeyStore.getState().setKeys(privateKey, publicKey);
   persistIfSessionKnown(privateKey, publicKey);
+  await ensurePublicKeyRegistered(publicKey);
 }
 
 export async function hasVault(): Promise<boolean> {

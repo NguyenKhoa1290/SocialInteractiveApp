@@ -5064,3 +5064,80 @@ trừ khi đối chiếu tay với bảng route.
 **Verify thật (5/5):** ba người trong một nhóm — chủ phòng mở họp; người **đang mở** phòng chat nhận
 tin nhắn hệ thống nhưng **không** nhận thông báo; người **ở màn hình khác** nhận thông báo với link
 trỏ đúng phòng chat.
+
+
+---
+
+## Phase 9 — Hai lỗ hổng trong luồng khôi phục khoá E2EE
+
+Phát hiện khi rà lại câu hỏi *"đổi máy mà nhập sai PIN thì có biết được không?"*.
+
+Câu trả lời cho chính câu hỏi đó là **có, biết ngay và chắc chắn** — AES-256-GCM có thẻ xác thực 128
+bit, PIN sai làm thẻ không khớp và `crypto.subtle.decrypt` ném lỗi thay vì trả về dữ liệu rác. Nhưng
+đi kiểm chứng thì lộ ra hai vấn đề khác.
+
+### 9.1 Lỗ hổng: thiết lập hỏng giữa chừng là hỏng vĩnh viễn
+
+`setupVault` gọi hai API **nối tiếp, không nguyên tử**. Bản cũ theo thứ tự: lưu vault trước, đăng ký
+public key sau. Nếu bước sau hỏng (mạng chớp, server 500), người dùng rơi vào trạng thái **có vault
+nhưng không có public key**:
+
+- Lần sau vào lại, `hasVault()` trả `true` → hiện màn **nhập PIN** chứ không phải thiết lập
+- Mở khoá thành công bình thường, người dùng thấy mọi thứ đều ổn
+- Nhưng `unlockVault` **không hề đăng ký public key** → `GET /keys/{id}` mãi trả 404 → **không ai gửi
+  được tin nhắn mã hoá cho họ**, và nó không tự lành ở bất kỳ lần đăng nhập nào
+
+Sửa bằng hai lớp:
+
+1. **Đổi thứ tự**: đăng ký public key trước, lưu vault sau. Trạng thái còn lại khi hỏng giữa chừng
+   trở thành "có public key, không có vault" → `hasVault()` = false → lần sau hiện màn thiết lập,
+   sinh khoá mới ghi đè. Tự sửa được.
+2. **`ensurePublicKeyRegistered`**: mỗi lần mở khoá đều đối chiếu public key trên server với khoá suy
+   ra từ private key vừa giải mã; thiếu hoặc lệch thì đăng ký lại. Vá luôn mọi trường hợp lệch khoá
+   về sau, không riêng lỗi trên.
+
+**Tính chất phải đúng tuyệt đối trước khi dám làm lớp 2:** `getPublicKeyFromPrivate` phải là nghịch
+đảo chính xác của `generateKeyPair`. Nếu sai, code mới sẽ **ghi đè khoá đúng bằng khoá sai ở mỗi lần
+mở khoá** — biến một lỗi hiếm thành hỏng vĩnh viễn cho tất cả. Đúng theo cấu tạo (cùng một lời gọi
+`x25519.getPublicKey`), và đã kiểm chứng 200 lần bằng chính thư viện Frontend dùng.
+
+### 9.2 Quên PIN là ngõ cụt
+
+`E2eeGate` chỉ có hai chế độ: chưa có vault thì thiết lập, có vault thì nhập PIN. **Không có nút
+"Quên PIN"**. Vì gate bọc cả khung soạn tin, người quên PIN kẹt vĩnh viễn và không gửi được tin nhắn
+Text ở bất kỳ cuộc trò chuyện nào.
+
+Backend vốn đã sẵn sàng (`POST /keys` và `POST /keys/vault` đều là upsert) — thiếu đúng phần giao
+diện. Đã thêm mode `reset`: cảnh báo rõ hậu quả, bắt tick xác nhận, rồi nhập PIN mới hai lần.
+
+Đặt lại **không phải là khôi phục**: khoá cũ chỉ tồn tại dưới dạng đã mã hoá bằng chính cái PIN đã
+quên. Đặt lại = sinh cặp khoá hoàn toàn mới = toàn bộ tin nhắn Text cũ vĩnh viễn không đọc lại được.
+File/ảnh/video và tin nhắn trong cuộc họp không bị ảnh hưởng vì không mã hoá E2EE.
+
+### 9.3 Brute-force: đã cân nhắc, chấp nhận
+
+Vault tải nguyên về máy rồi thử PIN hoàn toàn phía client — không đếm số lần sai, không khoá tạm.
+PIN 6 số chỉ có một triệu khả năng; PBKDF2 100.000 vòng làm chậm chứ không cứu được. Ai lấy được JWT
+của người dùng, hoặc chính người vận hành server, đều tải vault về dò offline.
+
+Signal/WhatsApp nhốt bộ đếm trong HSM/enclave để vault không bao giờ tải về được. Hệ thống này không
+có thứ đó, và **quyết định là chấp nhận** — Messenger cũng cùng loại đánh đổi. Ghi lại ở đây để sau
+này không ai tưởng là thiếu sót.
+
+Liên quan: `keyPersistence.ts` lưu private key **đã giải mã** trong localStorage tới khi JWT hết hạn
+(theo yêu cầu "không bắt nhập lại PIN mỗi lần reload"). Nên trên chính máy người dùng, kẻ có XSS hoặc
+dùng chung máy không cần PIN làm gì cả.
+
+### 9.4 Verify thật
+
+**Tầng crypto (4/4)** bằng đúng thư viện `@noble/curves` Frontend dùng: suy public key khớp tuyệt đối
+200/200 lần; PIN đúng giải ra đúng private key; PIN sai (4 biến thể) **luôn** ném lỗi, không lần nào
+trả về dữ liệu rác.
+
+**Tự sửa trạng thái hỏng (6/6)** trên backend thật: dựng lại đúng trạng thái "có vault, không có
+public key" → xác nhận `GET /keys/{id}` trả 404 và vault vẫn còn (tức app sẽ hiện màn nhập PIN) →
+chạy logic mở khoá mới → public key được đăng ký, đúng bằng khoá gốc → chạy lần nữa thì nhận ra đã
+khớp và không ghi đè.
+
+**Đặt lại PIN (5/5)**: ghi đè cả vault lẫn public key bằng cặp khoá mới, khác hẳn khoá cũ; vault mở
+được bằng PIN mới; **PIN cũ không còn mở được nữa**.

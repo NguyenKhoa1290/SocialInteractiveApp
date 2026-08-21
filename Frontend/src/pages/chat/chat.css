@@ -308,6 +308,41 @@
   margin-bottom: 12px;
 }
 
+/* Man dat lai PIN rong hon man nhap PIN vi phai chua canh bao mat du lieu -
+   ep vao 320px thi doan canh bao bi vo thanh mot cot chu dai. */
+.e2ee-gate:has(.e2ee-gate-confirm) {
+  max-width: 420px;
+}
+
+.e2ee-gate-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-h);
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.e2ee-gate-confirm input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* Loi thoat cho nguoi quen PIN - de nho va nhat vi day la duong huy du lieu,
+   khong phai hanh dong nen khuyen khich bam. */
+.e2ee-gate-forgot {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .chat-msg-edited {
   font-size: 11px;
   color: var(--text);
