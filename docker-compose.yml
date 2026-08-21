@@ -1,4 +1,8 @@
-# Chay toan bo 6 service + frontend trong Docker.
+# Chay 6 service nghiep vu trong Docker.
+#
+# Frontend KHONG chay mac dinh nua (xem ghi chu o service "frontend" cuoi
+# file) - dev-start.ps1 da chay Vite thang tren Windows, nhanh hon va khong
+# lam Docker Desktop sap.
 #
 #   docker compose up -d --build      # bat tat ca (lan dau, co build)
 #   docker compose up -d              # bat lai, khong build
@@ -218,7 +222,24 @@ services:
       retries: 5
       start_period: 10s
 
+  # KHONG chay mac dinh - phai goi ro:  docker compose --profile ui up -d frontend
+  #
+  # VI SAO tat mac dinh: day la thu DUY NHAT trong stack bind-mount mot thu
+  # muc Windows vao container, va con bat CHOKIDAR_USEPOLLING nen Vite phai
+  # stat lai toan bo file theo chu ky - moi lan stat deu di qua lop chia se
+  # file Windows<->Linux cua Docker Desktop. Do dung la thanh phan da bao loi
+  # "service fs failed: injecting event blocked for 60s" roi keo sap ca Docker
+  # Desktop giua chung.
+  #
+  # Va no THUA: dev-start.ps1 von da chay `npm run dev` THANG tren Windows
+  # (nhanh hon, hot reload bang inotify that thay vi polling, khong dinh gi
+  # toi Docker). Ca hai deu bind cong 5173 nen chay container thi dev-start
+  # tu bo qua - tuc lau nay ban dang dung ban CHAM hon ma khong biet.
+  #
+  # Dia chi API khong doi (localhost:5194...) vi cac service deu publish cong
+  # ra Windows host, chay kieu nao cung goi duoc.
   frontend:
+    profiles: ["ui"]
     image: node:22-alpine
     working_dir: /app
     networks: [app]
@@ -229,8 +250,6 @@ services:
       # container lam npm cham va de hong symlink.
       - frontend_node_modules:/app/node_modules
     environment:
-      # Bind mount tu Windows khong ban su kien inotify -> Vite khong tu
-      # reload neu khong bat polling.
       CHOKIDAR_USEPOLLING: "true"
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     restart: unless-stopped
