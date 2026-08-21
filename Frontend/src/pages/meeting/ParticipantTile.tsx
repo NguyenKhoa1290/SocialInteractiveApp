@@ -13,6 +13,7 @@ export function ParticipantTile({
   label,
   stage = false,
   videoHidden = false,
+  source = "camera",
 }: {
   participant: Participant;
   isLocal: boolean;
@@ -22,6 +23,11 @@ export function ParticipantTile({
   // kiem bang thong). Xem MeetingRoomPage.toggleHideVideo: cho tat that su
   // bang setSubscribed(false), khong chi an bang CSS.
   videoHidden?: boolean;
+  // Nguon video muon hien trong o NAY. Truoc day tile luon uu tien man hinh
+  // chia se hon camera, nen nguoi dang trinh chieu bi mat o khuon mat - ca
+  // phong thay man hinh nhung khong thay nguoi. Gio man hinh co O RIENG
+  // (giong Teams/Meet), nen phai noi ro o nay lay nguon nao.
+  source?: "camera" | "screen";
   // stage = o trung tam khi dang focus mode: khung to, va uu tien hien
   // NGUYEN khung hinh (object-fit: contain) thay vi cat vien nhu o video
   // khuon mat - noi dung trinh chieu bi cat la mat chu.
@@ -30,12 +36,10 @@ export function ParticipantTile({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Uu tien man hinh chia se hon camera - khi ai do dang trinh chieu thi cai
-  // dang xem la noi dung trinh chieu, khong phai khuon mat.
   const screenPub = participant.getTrackPublication(Track.Source.ScreenShare);
   const camPub = participant.getTrackPublication(Track.Source.Camera);
   const micPub = participant.getTrackPublication(Track.Source.Microphone);
-  const videoPub = screenPub?.track ? screenPub : camPub;
+  const videoPub = source === "screen" ? screenPub : camPub;
 
   useEffect(() => {
     const el = videoRef.current;
@@ -49,7 +53,7 @@ export function ParticipantTile({
 
   useEffect(() => {
     // KHONG attach mic cua chinh minh - se tu nghe lai tieng minh (voi lai).
-    if (isLocal) return;
+    if (isLocal || source === "screen") return;
     const el = audioRef.current;
     const track = micPub?.track;
     if (!el || !track) return;
@@ -57,9 +61,12 @@ export function ParticipantTile({
     return () => {
       track.detach(el);
     };
-  }, [micPub?.track, version, isLocal]);
+  }, [micPub?.track, version, isLocal, source]);
 
   const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted && !videoHidden;
+  // Noi dung trinh chieu bi cat vien la mat chu - luon hien nguyen khung du
+  // o dang o luoi nho.
+  const contain = stage || source === "screen";
   const micMuted = !micPub?.track || micPub.isMuted;
 
   return (
@@ -70,17 +77,18 @@ export function ParticipantTile({
           autoPlay
           playsInline
           muted={isLocal}
-          className={stage ? "meet-tile-video meet-tile-video-contain" : "meet-tile-video"}
+          className={contain ? "meet-tile-video meet-tile-video-contain" : "meet-tile-video"}
         />
       ) : (
         <div className="meet-tile-placeholder">{label.slice(0, 1).toUpperCase()}</div>
       )}
-      {!isLocal && <audio ref={audioRef} autoPlay />}
+      {/* O man hinh KHONG gan lai mic: nguoi do da co o camera rieng roi,
+          gan hai lan la nghe doi tieng. */}
+      {!isLocal && source === "camera" && <audio ref={audioRef} autoPlay />}
       <div className="meet-tile-label">
-        {micMuted && <span className="meet-tile-muted">🔇</span>}
+        {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
         {label}
-        {isLocal && " (bạn)"}
-        {screenPub?.track && " · đang trình chiếu"}
+        {source === "camera" && isLocal && " (bạn)"}
       </div>
     </div>
   );

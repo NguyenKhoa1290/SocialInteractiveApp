@@ -19,12 +19,16 @@ export function IptvStage({
   channelName,
   canPick,
   onOpenPicker,
+  compact = false,
 }: {
   meetingId: number;
   channelId: number | null;
   channelName: string | null;
   canPick: boolean;
   onOpenPicker: () => void;
+  // compact = dang nam trong mot O LUOI chu khong phai khung trung tam:
+  // khong con cho cho nut/link phu, chi giu dung trinh phat.
+  compact?: boolean;
 }) {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [audioTrack, setAudioTrack] = useState<string | null>(null);
@@ -55,10 +59,12 @@ export function IptvStage({
   }, [meetingId, channelId]);
 
   return (
-    <div className="meet-app-stage">
+    <div className={compact ? "meet-app-stage meet-app-compact" : "meet-app-stage"}>
       <div className="meet-side-head">
-        <h3>Mini App · IPTV{channelName ? ` · ${channelName}` : ""}</h3>
-        {canPick && <button onClick={onOpenPicker}>{channelId === null ? "Chọn kênh" : "Đổi kênh"}</button>}
+        <h3>{compact ? (channelName ?? "Mini App · IPTV") : `Mini App · IPTV${channelName ? ` · ${channelName}` : ""}`}</h3>
+        {canPick && !compact && (
+          <button onClick={onOpenPicker}>{channelId === null ? "Chọn kênh" : "Đổi kênh"}</button>
+        )}
       </div>
 
       {error && <p className="meet-error">{error}</p>}
@@ -66,7 +72,8 @@ export function IptvStage({
       {channelId === null ? (
         <p className="meet-empty">
           Đang chờ gắn link kênh…
-          {canPick && " Bấm “Chọn kênh” để phát cho cả phòng."}
+          {canPick && !compact && " Bấm “Chọn kênh” để phát cho cả phòng."}
+          {canPick && compact && " Bấm “Mini App IPTV” ở trên để chọn."}
         </p>
       ) : !streamUrl && !error ? (
         <p className="meet-empty">Đang lấy luồng phát…</p>
@@ -76,9 +83,11 @@ export function IptvStage({
             {/* Phat qua hls.js (xem IptvPlayer.tsx) - the <video> thuan chi
                 phat duoc .m3u8 tren Safari, Chrome/Firefox thi khong phat gi. */}
             <IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} />
-            <a href={streamUrl} target="_blank" rel="noreferrer" className="meet-note">
-              Mở luồng ở tab mới
-            </a>
+            {!compact && (
+              <a href={streamUrl} target="_blank" rel="noreferrer" className="meet-note">
+                Mở luồng ở tab mới
+              </a>
+            )}
           </>
         )
       )}

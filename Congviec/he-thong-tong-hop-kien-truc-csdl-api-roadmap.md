@@ -5391,6 +5391,70 @@ trong 828 ms**; nhập lại lần hai bỏ qua đủ 82 và **không sinh nhóm
 ("Education;Science"). Tên nhóm được **giữ nguyên như trong playlist** chứ không tự tách — mỗi nhà
 cung cấp một quy ước, đoán mò dễ cho kết quả tệ hơn ở nguồn khác.
 
+
+---
+
+## Phase 13 — Mini App và màn hình chia sẻ thành ô riêng trong lưới
+
+Người dùng test thật trong phòng họp và báo ba chuyện, hai đợt.
+
+### 13.1 Đợt một: danh sách kênh không thu lại, bấm lưới thì mất Mini App
+
+*"Khi bấm vô phát IPTV thì list phải thu lại chứ nhỉ. Bấm vào dạng ô lưới nó tắt luôn."*
+Kèm đề xuất: đưa danh sách vào popup riêng, trang chính vào focus mode, client khác hiển thị
+*"Đang chờ gắn link kênh"*.
+
+**Gốc rễ sâu hơn phần giao diện:** kênh đang chọn nằm trong state của `IptvPanel`. Hai hệ quả:
+
+- Đổi bố cục → component tháo ra → **mất luôn kênh đang xem**
+- Kênh **không được chia sẻ** — mỗi máy tự chọn riêng. Chú thích cũ trong code đã thừa nhận:
+  *"cả phòng cùng xem 1 kênh hiện phải tự thoả thuận qua chat, không tự đồng bộ được"*
+
+Đề xuất *"client khác hiển thị Đang chờ gắn link kênh"* chính là chỉ vào chỗ này — câu đó chỉ có
+nghĩa khi kênh là trạng thái **chung**.
+
+Sửa: đưa `channelId`/`channelName` vào `PresentationState`. Nó đi theo đúng đường phát sẵn có
+(Redis → metadata phòng LiveKit → mọi người), không cần thêm kênh đồng bộ nào. Chọn kênh = ghi đè
+chính suất trình bày đang giữ, mà server vốn đã cho phép.
+
+Nhờ vậy cả ba vấn đề tan cùng lúc: `IptvChannelPicker` (popup, có ô tìm kênh vì playlist nhập từ M3U
+cho ra hàng trăm kênh), `IptvStage` (khung giữa chỉ còn trình phát, `channelId` đến từ trên nên đổi bố
+cục không mất), và trạng thái "chưa chọn kênh" hiển thị giống nhau ở mọi máy.
+
+Bỏ `IptvPanel` — nó vừa là bảng điều khiển vừa là khung trình bày, và thực tế **render hai bản cùng
+lúc**: một ở panel bên, một ở giữa.
+
+**Verify 10/10 trên production:** B thấy Mini App mở nhưng chưa có kênh → A chọn kênh → B thấy đúng
+kênh đó và tự lấy được luồng riêng → B không đổi được kênh khi chưa có quyền (403) → A đổi kênh → B
+thấy kênh mới.
+
+### 13.2 Đợt hai: ở dạng lưới thì cả hai đều biến mất
+
+*"IPTV khi xem ở dạng lưới nên là một ô người dùng ảo (cả tính năng chia sẻ màn hình) thay vì ẩn đi."*
+
+Hai vấn đề khác nhau, cùng một cách chữa:
+
+- **Mini App**: ở dạng lưới thì `showAppStage = false` nên không render ở đâu cả — mất hẳn.
+- **Màn hình chia sẻ**: không mất, nhưng `ParticipantTile` luôn *ưu tiên* màn hình hơn camera, nên nó
+  **chiếm luôn ô của người trình bày** — cả phòng thấy màn hình nhưng không còn thấy mặt họ.
+
+Sửa: `Tile` từ một kiểu duy nhất thành ba loại — `participant`, `screen`, `iptv`. Màn hình và Mini App
+trở thành **ô riêng**, đúng như Teams/Meet làm.
+
+Ba chi tiết dễ sai khi làm việc này:
+
+1. **Ô màn hình dựa vào TRACK có thật**, không phải trạng thái trình bày — track mới là thứ đang thực
+   sự phát, trạng thái có thể lệch một nhịp.
+2. **Lọc theo đúng loại khi thứ gì đó đang ở khung lớn.** Khung lớn chiếu màn hình thì chỉ loại *ô màn
+   hình* của người đó khỏi lưới — **ô camera của họ vẫn ở lại**, nên giờ vừa thấy màn hình vừa thấy mặt
+   người trình bày. Lọc nhầm cả hai là quay lại đúng lỗi cũ.
+3. **Không gắn mic hai lần.** Ô màn hình không gắn lại audio track, vì người đó đã có ô camera riêng —
+   gắn hai lần là nghe đôi tiếng.
+
+Nhân tiện sửa luôn một chỗ lãng phí băng thông: cơ chế huỷ đăng ký luồng cho ô không hiển thị trước
+đây **chỉ áp dụng cho camera**, màn hình chia sẻ thì luôn được tải bất kể có ai nhìn hay không — mà nó
+là luồng tốn băng thông nhất. Nay màn hình được đối xử y hệt camera: không hiển thị thì không tải về.
+
 ---
 
 ## Trạng thái khi kết thúc đợt Phase 7–11

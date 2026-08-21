@@ -593,6 +593,9 @@ export function MeetingRoomPage() {
     presentation?.kind === "screen" && !gridOverride ? findParticipant(presentation.userId) : undefined;
 
   const stageParticipant = pinnedParticipant ?? autoFocusParticipant;
+  // Khung lon dang chieu MAN HINH hay khuon mat? Ghim mot nguoi la muon xem
+  // NGUOI do; focus tu dong khi ai do trinh chieu la muon xem MAN HINH.
+  const stageIsScreen = !pinnedParticipant && Boolean(autoFocusParticipant);
   const showAppStage = presentation?.kind === "mini_app" && !gridOverride && pinnedUserId === null;
   const inFocusLayout = Boolean(stageParticipant) || showAppStage;
 
@@ -656,16 +659,43 @@ export function MeetingRoomPage() {
 
   // --- Phan trang luoi ----------------------------------------------------
 
-  type Tile = { key: string; participant: Participant; isLocal: boolean; userId: number };
+  // Ngoai o cua tung nguoi con co O AO: man hinh dang chia se, va Mini App
+  // IPTV. Truoc day o dang luoi thi ca hai deu BIEN MAT - man hinh chia se
+  // thi chiem luon o cua nguoi trinh bay (nen ca phong khong con thay mat
+  // ho), con IPTV thi khong hien o dau ca.
+  type Tile =
+    | { kind: "participant"; key: string; participant: Participant; isLocal: boolean; userId: number }
+    | { kind: "screen"; key: string; participant: Participant; isLocal: boolean; userId: number }
+    | { kind: "iptv"; key: string };
 
   const allTiles: Tile[] = [];
   if (room)
-    allTiles.push({ key: "local", participant: room.localParticipant, isLocal: true, userId: currentUserId ?? -1 });
+    allTiles.push({ kind: "participant", key: "local", participant: room.localParticipant, isLocal: true, userId: currentUserId ?? -1 });
   for (const p of remotes)
-    allTiles.push({ key: p.sid, participant: p, isLocal: false, userId: Number(p.identity) });
+    allTiles.push({ kind: "participant", key: p.sid, participant: p, isLocal: false, userId: Number(p.identity) });
 
-  // Nguoi dang o khung lon thi khong lap lai o cot ben canh.
-  const gridTiles = stageParticipant ? allTiles.filter((t) => t.participant !== stageParticipant) : allTiles;
+  // O man hinh dua vao TRACK co that chu khong phai trang thai trinh bay -
+  // track moi la thu dang thuc su phat, trang thai co the lech mot nhip.
+  const screenSharers: { participant: Participant; isLocal: boolean; userId: number }[] = [];
+  if (room?.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track)
+    screenSharers.push({ participant: room.localParticipant, isLocal: true, userId: currentUserId ?? -1 });
+  for (const p of remotes)
+    if (p.getTrackPublication(Track.Source.ScreenShare)?.track)
+      screenSharers.push({ participant: p, isLocal: false, userId: Number(p.identity) });
+  for (const sh of screenSharers)
+    allTiles.push({ kind: "screen", key: `screen-${sh.userId}`, ...sh });
+
+  if (presentation?.kind === "mini_app") allTiles.push({ kind: "iptv", key: "iptv" });
+
+  // Thu dang o khung lon thi khong lap lai o cot ben canh. Luu y CHI loai o
+  // dung loai: nguoi dang trinh chieu van giu o CAMERA cua ho trong luoi,
+  // chi o MAN HINH cua ho moi bi loai (vi no dang o khung lon).
+  const gridTiles = allTiles.filter((t) => {
+    if (showAppStage && t.kind === "iptv") return false;
+    if (!stageParticipant) return true;
+    if (stageIsScreen) return !(t.kind === "screen" && t.participant === stageParticipant);
+    return !(t.kind === "participant" && t.participant === stageParticipant);
+  });
 
   // Focus mode: cot ben phai hep nen it o hon. Man hinh hep: it hon nua.
   const perPage = inFocusLayout ? (isNarrow ? 2 : 6) : isNarrow ? 4 : 9;
@@ -685,8 +715,15 @@ export function MeetingRoomPage() {
   }, [page, totalPages]);
 
   const visibleKey = visibleTiles
-    .filter((t) => !t.isLocal)
-    .map((t) => t.userId)
+    .filter((t) => t.kind === "participant" && !t.isLocal)
+    .map((t) => (t as { userId: number }).userId)
+    .join(",");
+
+  // Rieng cho o MAN HINH - tach khoi visibleKey vi mot nguoi co the co o
+  // camera dang an ma o man hinh dang hien, hoac nguoc lai.
+  const visibleScreenKey = visibleTiles
+    .filter((t) => t.kind === "screen" && !t.isLocal)
+    .map((t) => (t as { userId: number }).userId)
     .join(",");
 
   // Day moi la phan tiet kiem that: o nao khong hien thi thi HUY DANG KY
@@ -697,19 +734,31 @@ export function MeetingRoomPage() {
   //   - dang o khung lon  -> luon giu
   //   - dang o trang hien tai -> giu
   //   - bi nguoi dung tu an (hiddenVideos) -> BO, thang moi thu tren
-  // Chi dung toi Track.Source.Camera; KHONG dung toi audio (van phai nghe
-  // duoc moi nguoi) va khong dung toi luong chia se man hinh.
+  // KHONG dung toi audio - van phai nghe duoc moi nguoi du o cua ho khong
+  // hien. Man hinh chia se nay da co o RIENG nen cung duoc tinh y het nhu
+  // camera: khong hien thi thi khong tai ve. Truoc day man hinh luon duoc
+  // tai bat ke co ai nhin hay khong, ma no la luong ton bang thong nhat.
   useEffect(() => {
     if (!room) return;
     const visible = new Set(visibleKey ? visibleKey.split(",").map(Number) : []);
+    const visibleScreens = new Set(visibleScreenKey ? visibleScreenKey.split(",").map(Number) : []);
 
     for (const p of remotes) {
       const uid = Number(p.identity);
-      const want = (p === stageParticipant || visible.has(uid)) && !hiddenVideos.has(uid);
-      const pub = p.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
-      if (pub && pub.isSubscribed !== want) pub.setSubscribed(want);
+
+      // Khung lon dang chieu MAN HINH thi khong can giu camera cua nguoi do
+      // - o camera cua ho (neu co hien) da nam trong visible roi.
+      const onStageAsCamera = p === stageParticipant && !stageIsScreen;
+      const wantCam = (onStageAsCamera || visible.has(uid)) && !hiddenVideos.has(uid);
+      const camPub = p.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
+      if (camPub && camPub.isSubscribed !== wantCam) camPub.setSubscribed(wantCam);
+
+      const onStageAsScreen = p === stageParticipant && stageIsScreen;
+      const wantScreen = onStageAsScreen || visibleScreens.has(uid);
+      const screenPub = p.getTrackPublication(Track.Source.ScreenShare) as RemoteTrackPublication | undefined;
+      if (screenPub && screenPub.isSubscribed !== wantScreen) screenPub.setSubscribed(wantScreen);
     }
-  }, [room, remotes, visibleKey, hiddenVideos, stageParticipant]);
+  }, [room, remotes, visibleKey, visibleScreenKey, hiddenVideos, stageParticipant, stageIsScreen]);
 
   // Danh sach ban be chi can khi chu phong that su mo bang dieu khien de
   // moi - tai san luc vao phong la mot request thua cho phan lon phien hop.
@@ -724,16 +773,39 @@ export function MeetingRoomPage() {
       });
   }, [showPeople, isHost, friends.length]);
 
-  const renderTile = (t: Tile) => (
-    <ParticipantTile
-      key={t.key}
-      participant={t.participant}
-      isLocal={t.isLocal}
-      version={version}
-      label={t.isLocal ? (nickname ?? "Bạn") : nameOf(t.participant)}
-      videoHidden={!t.isLocal && hiddenVideos.has(t.userId)}
-    />
-  );
+  const renderTile = (t: Tile) => {
+    if (t.kind === "iptv")
+      return (
+        <div key={t.key} className="meet-tile meet-tile-app">
+          <IptvStage
+            meetingId={meetingId}
+            channelId={presentation?.channelId ?? null}
+            channelName={presentation?.channelName ?? null}
+            canPick={presentation?.userId === currentUserId}
+            onOpenPicker={() => setShowIptvPicker(true)}
+            compact
+          />
+        </div>
+      );
+
+    return (
+      <ParticipantTile
+        key={t.key}
+        participant={t.participant}
+        isLocal={t.isLocal}
+        version={version}
+        source={t.kind === "screen" ? "screen" : "camera"}
+        label={
+          t.kind === "screen"
+            ? `Màn hình của ${t.isLocal ? (nickname ?? "bạn") : nameOf(t.participant)}`
+            : t.isLocal
+              ? (nickname ?? "Bạn")
+              : nameOf(t.participant)
+        }
+        videoHidden={t.kind === "participant" && !t.isLocal && hiddenVideos.has(t.userId)}
+      />
+    );
+  };
 
   const pager = totalPages > 1 && (
     <div className="meet-pager">
@@ -741,7 +813,7 @@ export function MeetingRoomPage() {
         ‹
       </button>
       <span>
-        {safePage + 1}/{totalPages} · {gridTiles.length} người
+        {safePage + 1}/{totalPages} · {gridTiles.length} ô
       </span>
       <button disabled={safePage >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
         ›
@@ -853,7 +925,12 @@ export function MeetingRoomPage() {
                       participant={stageParticipant}
                       isLocal={stageParticipant === room?.localParticipant}
                       version={version}
-                      label={pinnedParticipant ? nameOfUserId(pinnedUserId!) : (presentation?.nickname ?? "")}
+                      source={stageIsScreen ? "screen" : "camera"}
+                      label={
+                        pinnedParticipant
+                          ? nameOfUserId(pinnedUserId!)
+                          : `Màn hình của ${presentation?.nickname ?? ""}`
+                      }
                       stage
                     />
                   </div>

@@ -705,3 +705,46 @@
 .iptv-picker-group li button:hover {
   background: var(--social-bg);
 }
+
+/* ---- O ao trong luoi: Mini App IPTV ----
+   Truoc day o dang luoi thi Mini App bien mat han (va man hinh chia se thi
+   chiem luon o cua nguoi trinh bay, nen ca phong khong con thay mat ho).
+   Gio ca hai deu co o rieng, dung nhu mot nguoi tham gia ao. */
+.meet-tile-app {
+  display: flex;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.meet-app-compact {
+  gap: 6px;
+  overflow: hidden;
+  justify-content: center;
+}
+
+.meet-app-compact .meet-side-head h3 {
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trong o nho khong con cho cho thanh am luong/chon tieng - trinh phat co
+   san controls cua trinh duyet la du. Nguoi muon chinh thi chuyen ve khung
+   trinh bay. */
+.meet-app-compact .iptv-player-controls {
+  display: none;
+}
+
+.meet-app-compact .meet-iptv-video,
+.meet-app-compact video {
+  width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.meet-app-compact .meet-empty {
+  font-size: 12px;
+  text-align: center;
+}
