@@ -88,7 +88,7 @@ public static class MeetingsEndpoints
         // Chat Service).
         group.MapGet("/active", async (
             long conversationId, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db, ChatServiceClient chat, LiveKitService liveKit) =>
+            MediaDbContext db, ChatServiceClient chat, LiveKitService liveKit, RoomLivenessCache liveness) =>
         {
             var callerId = principal.GetUserId()!.Value;
             var membership = await chat.GetMembershipAsync(conversationId, callerId);
@@ -108,7 +108,7 @@ public static class MeetingsEndpoints
             // DB van ghi "active" - truong hop moi nguoi dong tab chu khong
             // bam "Roi phong". Neu khong don o day, phong chat se hien banner
             // "Dang co cuoc hop" VINH VIEN cho mot cuoc hop khong con ai.
-            if (!await liveKit.RoomExistsAsync(meeting.Id))
+            if (!await liveness.IsAliveAsync(meeting.Id, () => liveKit.RoomExistsAsync(meeting.Id)))
             {
                 meeting.Status = MeetingStatus.Ended;
                 meeting.EndedAt = DateTimeOffset.UtcNow;
@@ -258,7 +258,8 @@ public static class MeetingsEndpoints
 
         group.MapPost("/{meetingId:long}/end", async (
             long meetingId, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit, WaitingRoomStore waiting) =>
+            MediaDbContext db, LiveKitService liveKit, WaitingRoomStore waiting, PresentationStore presentation,
+            RoomLivenessCache liveness) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
@@ -274,6 +275,11 @@ public static class MeetingsEndpoints
 
             try { await liveKit.DeleteRoomAsync(meetingId); } catch (Exception) { /* room co the da tu don vi het nguoi */ }
             await waiting.ClearMeetingAsync(meetingId);
+            // Trang thai trinh bay nam o Redis co TTL 12 gio - het hop thi xoa
+            // luon, khong de treo lai lam nguoi mo hop moi tuong co ai dang
+            // trinh bay.
+            await presentation.ClearAsync(meetingId);
+            await liveness.ClearAsync(meetingId);
 
             return Results.NoContent();
         });

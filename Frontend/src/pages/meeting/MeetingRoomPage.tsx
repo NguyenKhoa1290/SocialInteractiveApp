@@ -380,26 +380,50 @@ export function MeetingRoomPage() {
       return;
     }
 
-    // GIANH SUAT TRINH BAY TRUOC khi bat chia se: chi mot nguoi duoc trinh
-    // bay mot luc (giong Teams). Neu nguoi khac dang trinh bay -> 409, khong
-    // de len nguoi ta.
+    // Mo hop chon man hinh va gianh suat trinh bay CUNG LUC, khong noi tiep.
+    //
+    // Ban cu goi API truoc roi moi mo hop chon -> nguoi dung nhin nut dong
+    // bang vai giay truoc khi thay bat cu thu gi (do that: hon 3 giay, vi
+    // moi loi goi LiveKit Cloud tu server nha ton ~1250ms). Chay song song
+    // thi hop chon hien ra ngay, va viec gianh suat xong tu luc nao khong ai
+    // biet - nguoi dung con dang chon cua so.
+    //
+    // Con mot ly do nua quan trong hon toc do: getDisplayMedia YEU CAU
+    // "transient user activation". Goi no sau mot await dai la dat cuoc vao
+    // viec quyen do chua het han - de vo o trinh duyet khac.
+    const claim = meetingApi.startPresentation(meetingId, "screen");
+    // Bat loi ngay de tranh unhandled rejection neu nhanh duoi thoat truoc.
+    claim.catch(() => {});
+
+    let tracks;
     try {
-      await meetingApi.startPresentation(meetingId, "screen");
+      tracks = await createLocalScreenTracks({ audio: false });
+    } catch {
+      // Nguoi dung bam Huy o hop chon man hinh - khong phai loi. Tra lai
+      // suat vua gianh, neu khong ca phong se ket o focus mode voi mot man
+      // hinh trong.
+      claim.then(() => meetingApi.stopPresentation(meetingId).catch(() => {})).catch(() => {});
+      return;
+    }
+
+    try {
+      // Chi mot nguoi duoc trinh bay mot luc (giong Teams). Nguoi khac dang
+      // trinh bay -> 409, khong de len nguoi ta.
+      await claim;
     } catch (err) {
+      // Thua cuoc: da chon man hinh roi nhung khong duoc phep - phai dong
+      // track lai, neu khong camera/man hinh van sang den bao dang chia se.
+      tracks.forEach((t) => t.stop());
       setNotice(extractApiError(err, "Không bắt đầu trình chiếu được"));
       return;
     }
 
     try {
-      // Tu lay track truoc roi moi publish de bat duoc truong hop nguoi dung
-      // bam Huy o hop chon man hinh cua trinh duyet (khong phai loi).
-      const tracks = await createLocalScreenTracks({ audio: false });
       await Promise.all(tracks.map((t) => room.localParticipant.publishTrack(t)));
       setSharing(true);
       setVersion((v) => v + 1);
     } catch {
-      // Nguoi dung huy o hop chon man hinh -> phai TRA LAI suat vua gianh,
-      // neu khong ca phong se ket o focus mode voi mot man hinh trong.
+      tracks.forEach((t) => t.stop());
       await meetingApi.stopPresentation(meetingId).catch(() => {});
     }
   }

@@ -22,6 +22,8 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")
         ?? throw new InvalidOperationException("Thieu ConnectionStrings:Redis")));
 builder.Services.AddSingleton<WaitingRoomStore>();
+builder.Services.AddSingleton<PresentationStore>();
+builder.Services.AddSingleton<RoomLivenessCache>();
 
 var identityClientOptions = builder.Configuration.GetSection("IdentityClient").Get<IdentityClientOptions>()
     ?? new IdentityClientOptions();

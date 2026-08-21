@@ -5141,3 +5141,96 @@ khớp và không ghi đè.
 
 **Đặt lại PIN (5/5)**: ghi đè cả vault lẫn public key bằng cặp khoá mới, khác hẳn khoá cũ; vault mở
 được bằng PIN mới; **PIN cũ không còn mở được nữa**.
+
+
+---
+
+## Phase 10 — Vì sao chia sẻ màn hình và mở Mini App chậm dù CPU nhàn
+
+Người dùng dự án báo: trong phòng họp, bấm chia sẻ màn hình hoặc bật Mini App phải chờ vài giây; tải
+danh sách nhóm cũng có cảm giác chậm; nhưng CPU thì nhàn. Câu hỏi: có phải lỗi code không?
+
+**CPU nhàn mà chậm nghĩa là đang ngồi chờ I/O, không phải tính toán.** Nên việc đầu tiên là đo, không
+đoán.
+
+### 10.1 Số đo trên hệ thống thật
+
+| Endpoint | Số lời gọi LiveKit Cloud | Trung vị |
+|---|---|---|
+| `GET /health` (nền đường truyền) | 0 | ~150 ms |
+| `GET /workspaces` (danh sách nhóm) | 0 | **155 ms** |
+| `GET /miniapps/iptv/channels` | 0 | 147 ms |
+| `GET /meetings/{id}` | 0 | 188 ms |
+| `GET .../presentation` | 1 | **1433 ms** |
+| `POST .../presentation` (bắt đầu trình bày) | 2 | **3033 ms** |
+| `POST /meetings` (mở cuộc họp) | 1 | 3908 ms |
+
+Độ trễ tăng **tuyến tính theo số lời gọi LiveKit**: ~1250 ms mỗi lời gọi.
+
+Phân rã tầng mạng từ chính server ra `chatapp-jam7t3bu.livekit.cloud`:
+
+| | thời gian |
+|---|---|
+| Kết nối **mới** mỗi lần | ~700–750 ms (TCP 220 + TLS 280 + request 200) |
+| **Dùng lại** kết nối sẵn | ~205 ms |
+
+Tức RTT tới LiveKit đã là ~200 ms, và mỗi lần bắt tay TLS mới cộng thêm ~500 ms nữa.
+
+### 10.2 Trả lời câu hỏi
+
+**Danh sách nhóm: KHÔNG phải lỗi code.** 155 ms, đúng bằng nền đường truyền qua cloudflared, và
+**không tăng khi có 8 nhóm** (153 → 155 ms) nên cũng không có N+1. Đây là giới hạn vật lý của việc
+server nằm sau CGNAT ở nhà, đi vòng qua Cloudflare.
+
+**Chia sẻ màn hình và Mini App: CÓ, là lỗi thiết kế.** Cả hai cùng gọi `POST .../presentation`, và
+endpoint đó gọi LiveKit **hai lần nối tiếp**: đọc metadata phòng xem ai đang trình bày, rồi ghi
+metadata để giành suất. Hơn 3 giây cho một cú bấm nút.
+
+### 10.3 Sửa
+
+**Đổi nguồn sự thật sang Redis.** Trạng thái "ai đang trình bày" chuyển từ metadata phòng LiveKit
+(bên kia Internet) sang Redis (trong cụm, dưới 1 ms). Metadata LiveKit **vẫn được ghi** — nó là kênh
+phát cho người đang trong phòng và cho người vào muộn đọc lúc kết nối — nhưng **không await**: người
+bấm nút không cần chờ nó, họ publish track được ngay, còn người khác thấy chuyển focus sau ~1 giây,
+đúng lúc luồng video thật sự tới nơi.
+
+**Lợi thêm, không chỉ tốc độ — sửa luôn một race thật.** Cách cũ là check-then-act trên hai lời gọi
+mạng tách rời: hai người bấm cùng lúc thì cả hai đều đọc thấy "chưa ai trình bày" rồi cùng ghi, người
+ghi sau đè lên người ghi trước. Redis `SET NX` là một thao tác nguyên tử — đúng một người thắng. Đã
+verify bằng hai request bắn song song: kết quả luôn là `[200, 409]`.
+
+**Cache liveness cho endpoint bị poll.** `GET /meetings/active` bị Frontend poll 10 giây/lần trong
+mọi phòng chat đang mở, và khi có cuộc họp thì mỗi lần poll đều gọi LiveKit. Một nhóm 5 người cùng mở
+phòng chat là 30 lời gọi mỗi phút cho cùng một câu hỏi. Thêm cache Redis 30 giây — đủ chính xác, vì
+nó chỉ phục vụ việc phát hiện "cuộc họp đã tan thật sự", mà LiveKit phải 5 phút không người mới tự
+dọn phòng.
+
+**Chạy song song ở Frontend.** Bản cũ gọi API xong mới mở hộp chọn màn hình → người dùng nhìn nút
+đóng băng vài giây trước khi thấy bất cứ thứ gì. Nay hai việc chạy cùng lúc: hộp chọn hiện ra ngay,
+việc giành suất xong lúc nào không ai biết vì người dùng còn đang chọn cửa sổ.
+
+Còn một lý do quan trọng hơn tốc độ: `getDisplayMedia` **yêu cầu** "transient user activation". Gọi
+nó sau một `await` dài là đặt cược vào việc quyền đó chưa hết hạn — dễ vỡ ở trình duyệt khác.
+
+Xử lý các nhánh hỏng: người dùng bấm Huỷ ở hộp chọn → trả lại suất vừa giành; giành thua (409) sau khi
+đã chọn màn hình → `track.stop()`, nếu không đèn báo "đang chia sẻ" vẫn sáng.
+
+### 10.4 Kết quả
+
+`POST .../presentation` từ **3033 ms** xuống **20 ms** đo trong LAN (không còn lời gọi LiveKit nào
+chặn đường trả lời). Qua tunnel sẽ là ~150–190 ms, tức bằng nền đường truyền.
+
+**Verify (7/7):** chưa có quyền → 403; có quyền, chưa ai trình bày → giành được; người khác đang
+trình bày → 409; tự bấm lại → không tự chặn mình; Chủ phòng gỡ kẹt được; sau khi gỡ giành lại được;
+**hai người bấm cùng lúc → đúng một người thắng**. Không có cảnh báo ghi metadata thất bại nào trong
+log.
+
+### 10.5 Chưa sửa: mở cuộc họp vẫn ~3.9 giây
+
+`POST /meetings` gọi `CreateRoom` của LiveKit và **phải chờ** — kết quả quyết định việc dọn lại
+meeting vừa tạo trong DB nếu LiveKit từ chối (UC-31 luồng ngoại lệ 2a). `CreateRoom` cũng là nơi đặt
+`EmptyTimeout` 5 phút, mà cơ chế tự phát hiện "cuộc họp đã tan" ở trên phụ thuộc vào chính giá trị đó.
+
+Có thể bỏ được (LiveKit tự tạo phòng khi người đầu tiên vào, và hạn mức số người đã được Media Service
+tự kiểm ở luồng join), nhưng đánh đổi hai thứ trên nên **để nguyên**. Mở cuộc họp là thao tác một lần
+mỗi cuộc họp, khác hẳn chia sẻ màn hình vốn bấm đi bấm lại giữa buổi.

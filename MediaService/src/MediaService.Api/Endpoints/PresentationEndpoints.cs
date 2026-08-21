@@ -15,45 +15,22 @@ namespace MediaService.Api.Endpoints;
 // mot thoi diem. Ai dang trinh bay ma nguoi khac bam trinh bay thi bi tu
 // choi, khong phai "nguoi sau de len nguoi truoc".
 //
-// Trang thai luu trong metadata cua phong ben LiveKit chu khong phai bang
-// rieng - xem ghi chu trong LiveKitService.GetRoomMetadataAsync.
+// Nguon su that la Redis (PresentationStore) chu KHONG phai metadata phong
+// LiveKit - moi loi goi LiveKit Cloud tu server nha ton ~1250ms, xem ghi chu
+// day du o PresentationStore.cs. Metadata LiveKit van duoc ghi nhung khong
+// chan duong tra loi.
 public static class PresentationEndpoints
 {
-    // Hinh dang metadata phong: {"presentation": {...}} hoac {} khi khong ai
-    // trinh bay. Giu dang object long nhau de sau nay them truong khac vao
-    // metadata phong ma khong pha vo client cu.
-    // Kind: screen (chia se man hinh) hoac mini_app (IPTV...).
-    //
-    // CO Y KHONG co kind "ghim nguoi vao giua": ghim la LUA CHON XEM RIENG
-    // cua tung nguoi, xu ly hoan toan o Frontend, khong gui len server va
-    // khong ap cho ai khac. Chi nhung thu THUC SU dung chung (man hinh dang
-    // chia se, mini app dang mo) moi can trang thai o server.
-    public record PresentationState(long UserId, string Nickname, string Kind, string? AppId, DateTimeOffset StartedAt);
-    public record RoomMetadata(PresentationState? Presentation);
+    // PresentationState va RoomMetadata nay o Services/PresentationStore.cs.
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    internal static PresentationState? ReadPresentation(string? metadata)
-    {
-        if (string.IsNullOrWhiteSpace(metadata))
-            return null;
-        try
-        {
-            return JsonSerializer.Deserialize<RoomMetadata>(metadata, JsonOpts)?.Presentation;
-        }
-        catch (JsonException)
-        {
-            // Metadata hong/khong dung dinh dang -> coi nhu khong ai trinh bay,
-            // khong duoc nem loi lam chet ca cuoc hop.
-            return null;
-        }
-    }
 
     public static void MapPresentationEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/meetings/{meetingId:long}/presentation").RequireAuthorization();
 
-        group.MapGet("", async (long meetingId, ClaimsPrincipal principal, MediaDbContext db, LiveKitService liveKit) =>
+        group.MapGet("", async (long meetingId, ClaimsPrincipal principal, MediaDbContext db, PresentationStore store) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
@@ -63,13 +40,14 @@ public static class PresentationEndpoints
             if (!await IsInRoomAsync(db, meeting, callerId))
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong o trong phong hop nay"), statusCode: 403);
 
-            var state = ReadPresentation(await liveKit.GetRoomMetadataAsync(meetingId));
+            var state = await store.GetAsync(meetingId);
             return state is null ? Results.NoContent() : Results.Ok(state);
         });
 
         group.MapPost("", async (
             long meetingId, StartPresentationRequest req, ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit, IdentityClient identity) =>
+            MediaDbContext db, LiveKitService liveKit, IdentityClient identity,
+            PresentationStore store, ILoggerFactory loggerFactory) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
@@ -93,32 +71,35 @@ public static class PresentationEndpoints
                     new ErrorResponse("forbidden", $"Ban chua duoc cap quyen {MeetingPermission.ToStringValue(needed)}"),
                     statusCode: 403);
 
-            // CHI MOT NGUOI trinh bay cung luc. Nguoi dang trinh bay bam lai
-            // thi coi nhu doi noi dung (vd tu chia se man hinh sang mini app)
-            // - khong chan chinh minh.
-            var current = ReadPresentation(await liveKit.GetRoomMetadataAsync(meetingId));
-            if (current is not null && current.UserId != callerId)
-                return Results.Json(
-                    new ErrorResponse("presentation_taken", $"{current.Nickname} dang trinh bay - chi mot nguoi duoc trinh bay mot luc"),
-                    statusCode: 409);
-
             var nickname = principal.GetNickname();
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
                 callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow);
 
-            await liveKit.SetRoomMetadataAsync(meetingId, JsonSerializer.Serialize(new RoomMetadata(state), JsonOpts));
+            // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu
+            // thay cho doc-roi-ghi tren hai loi goi LiveKit - vua nhanh hon
+            // hon 10 lan, vua het canh hai nguoi bam cung luc deu doc thay
+            // "chua ai trinh bay" roi cung ghi de len nhau.
+            var taken = await store.TryClaimAsync(meetingId, state);
+            if (taken is not null)
+                return Results.Json(
+                    new ErrorResponse("presentation_taken", $"{taken.Nickname} dang trinh bay - chi mot nguoi duoc trinh bay mot luc"),
+                    statusCode: 409);
+
+            PushMetadata(liveKit, loggerFactory, meetingId, state);
             return Results.Ok(state);
         });
 
-        group.MapDelete("", async (long meetingId, ClaimsPrincipal principal, MediaDbContext db, LiveKitService liveKit) =>
+        group.MapDelete("", async (
+            long meetingId, ClaimsPrincipal principal, MediaDbContext db, LiveKitService liveKit,
+            PresentationStore store, ILoggerFactory loggerFactory) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
                 return Results.NotFound();
 
             var callerId = principal.GetUserId()!.Value;
-            var current = ReadPresentation(await liveKit.GetRoomMetadataAsync(meetingId));
+            var current = await store.GetAsync(meetingId);
             if (current is null)
                 return Results.NoContent(); // khong ai trinh bay - idempotent
 
@@ -127,8 +108,36 @@ public static class PresentationEndpoints
             if (current.UserId != callerId && meeting.HostId != callerId)
                 return Results.Json(new ErrorResponse("forbidden", "Chi nguoi dang trinh bay hoac Chu phong duoc dung trinh bay"), statusCode: 403);
 
-            await liveKit.SetRoomMetadataAsync(meetingId, JsonSerializer.Serialize(new RoomMetadata(null), JsonOpts));
+            await store.ClearAsync(meetingId);
+            PushMetadata(liveKit, loggerFactory, meetingId, null);
             return Results.NoContent();
+        });
+    }
+
+    // Ghi trang thai vao metadata phong LiveKit de moi nguoi DANG O TRONG
+    // PHONG nhan duoc su kien RoomMetadataChanged, va nguoi vao muon doc duoc
+    // tu room.metadata luc ket noi.
+    //
+    // KHONG await: loi goi nay ton ~1250ms va nguoi bam nut khong can cho no.
+    // Ho publish track ngay duoc; nhung nguoi khac thay chuyen focus sau
+    // khoang 1 giay - dung luc luong video that su toi noi.
+    //
+    // Nuot loi va ghi log: Redis moi la nguon su that, hong buoc nay chi lam
+    // cham viec chuyen focus chu khong lam sai trang thai.
+    private static void PushMetadata(LiveKitService liveKit, ILoggerFactory loggerFactory, long meetingId, PresentationState? state)
+    {
+        var logger = loggerFactory.CreateLogger(typeof(PresentationEndpoints));
+        var json = JsonSerializer.Serialize(new RoomMetadata(state), JsonOpts);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await liveKit.SetRoomMetadataAsync(meetingId, json);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Khong ghi duoc metadata trinh bay cho cuoc hop {MeetingId}", meetingId);
+            }
         });
     }
 
