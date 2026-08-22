@@ -5511,6 +5511,108 @@ trong họp không ai nhắn gì** → vẫn mở được thảo luận (200), 
 
 ---
 
+## Phase 12 — Trình phát IPTV: giữ sống qua đổi bố cục, tự chữa khi luồng đứt
+
+Ba lỗi người dùng báo sau khi test Mini App IPTV, đều quy về **một nguyên nhân gốc chung**: mọi thứ
+đang phó mặc cho hành vi mặc định của thẻ `<video>`.
+
+### 12.1 Đổi focus mode ↔ lưới thì video tải lại từ đầu
+
+`<IptvStage>` được render ở **hai chỗ khác nhau trong cây React** — một trong khung trình bày, một
+trong ô lưới. Đổi bố cục là React tháo chỗ này ra dựng chỗ kia lên, tức là huỷ cả `Hls` instance,
+gọi lại `GET /meetings/{id}/mini-app/iptv/stream-url`, rồi tải manifest từ đầu. Không phải lỗi
+mạng, là lỗi vòng đời component.
+
+**Cách sửa — `IptvPlayerHost.tsx`:** thẻ `<video>` không nằm trong cây React của bất kỳ bố cục nào.
+Nó sống trong một `div` rời (*holder*) do host giữ suốt phiên, nội dung được đổ vào bằng
+`createPortal`, và được **di chuyển** bằng `appendChild` sang ô đang hiển thị. `<IptvStage>` từ
+component sở hữu trình phát trở thành một **ổ cắm**: nó chỉ render phần viền và một `div` rỗng nhận
+`mount` làm ref. Việc gọi API lấy stream URL cũng chuyển lên host, vì nó phụ thuộc vào **kênh** chứ
+không phải vào bố cục đang xem.
+
+**Vì sao di chuyển thẻ `<video>` không làm mất luồng:** theo đặc tả HTML, khi media element bị gỡ
+khỏi document trình duyệt *chờ tới "stable state" rồi mới kiểm tra* — nếu lúc đó nó đã nằm trong
+document trở lại thì không tạm dừng gì cả. React làm cả hai việc (gỡ ô cũ ở mutation phase, dựng ô
+mới ở layout phase) trong **cùng một lần commit đồng bộ**, nên điều kiện đó luôn đúng.
+
+**Đo bằng Chrome thật** (dựng một bản React tối giản đúng bản React của dự án, phát audio thật, báo
+kết quả về server để đọc được thời gian thực):
+
+| Bước | `paused` | `currentTime` | Holder nằm ở |
+|---|---|---|---|
+| 1. Bắt đầu (focus) | false | 0.00 | `focusLayout` |
+| 2. Sang lưới | false | 0.40 | `gridLayout` |
+| 3. Về focus | false | 1.01 | `focusLayout` |
+| 4. Sang trang lưới khác (không có ô IPTV) | — | — | (tách rời) |
+| 5. Quay lại ô IPTV | false | 1.94 | `gridLayout` |
+| 6. Người dùng tự bấm dừng rồi đổi bố cục | **true** | 1.94 | `focusLayout` |
+
+`currentTime` chạy liên tục qua bước 2–3 chứng minh luồng **không** khởi động lại. Đối chứng "gỡ ra
+và không gắn lại" thì `paused=true` đúng như đặc tả, nên phép đo là có độ nhạy.
+
+**Bước 4–6 là một lỗ hổng phát sinh từ chính cách sửa này, phải vá thêm:** ô IPTV nằm ở trang lưới
+khác thì không ô nào nhận trình phát, trình duyệt tạm dừng nó, và lúc quay lại sẽ đứng hình (trước
+đây nó unmount rồi remount nên tự phát lại). Vá bằng cách phân biệt **hai loại tạm dừng**: một lần
+`pause` khi thẻ `<video>` **đang ở trong document** là do người dùng bấm nút; `pause` khi nó **đã bị
+gỡ ra** là do trình duyệt. Nghe ở pha capture vì `play`/`pause` không nổi bọt lên. Bước 5 tự chạy
+tiếp, bước 6 tôn trọng ý người dùng.
+
+### 12.2 Video dừng hẳn, không tự chạy tiếp
+
+hls.js có retry riêng nhưng **hết lượt thì nó im lặng** — không phát sự kiện gì thêm, màn hình đứng
+yên mãi. Nguồn IPTV miễn phí rớt gói, đổi CDN, hoặc ngừng phát vài giây là chuyện thường.
+
+Thêm hai lớp trong `IptvPlayer.tsx`:
+
+- **Watchdog** mỗi giây kiểm tra `currentTime` có nhích không. Treo quá **8 giây** thì nhảy về
+  `liveSyncPosition` (mép sóng, vì luồng trực tiếp không có khái niệm "tua lại") và `startLoad()`.
+  Đây là thứ bắt được trường hợp *không có sự kiện lỗi nào cả*.
+- **Xử lý lỗi fatal**: `MEDIA_ERROR` → `recoverMediaError()`, lần hai thêm `swapAudioCodec()` (một
+  số nguồn đổi codec giữa chừng). Lỗi mạng → nạp lại với giãn cách tăng dần tối đa 8 giây. Tối đa 8
+  lần liên tiếp rồi mới bỏ cuộc và hiện nút "Thử lại" — **bộ đếm về 0 ngay khi video chạy lại
+  được**, nên kênh chập chờn cả ngày vẫn không bao giờ chạm trần, chỉ kênh chết hẳn mới chạm.
+
+Kèm cấu hình bám mép sóng: `liveSyncDurationCount: 3`, `maxLiveSyncPlaybackRate: 1.5` (tự tăng tốc
+phát nhẹ để đuổi kịp sau mỗi lần nghẽn), `backBufferLength: 60` (kênh chạy liền hàng giờ, giữ lại
+phần đã phát chỉ tốn RAM).
+
+### 12.3 Không tự chuyển tiếng cho `.m3u8` nhiều luồng âm thanh
+
+Hai lỗi thật:
+
+- Lựa chọn của người xem được **nhớ theo chỉ số**, mà chỉ số đổi sau mỗi lần nạp lại → cứ đứt mạng
+  một cái là tiếng nhảy về mặc định. Giờ nhớ theo **tên**, và khớp nhiều mức (bằng tên → bằng mã
+  ngôn ngữ → chứa tên → chứa mã), vì tên trong DB do người dùng gõ tay ("VN", "Tiếng Việt", "vie")
+  còn tên trong luồng do nhà đài đặt.
+- Chỉ đọc danh sách track **một lần** lúc bắt đầu. Giờ nghe `AUDIO_TRACKS_UPDATED` liên tục, vì
+  danh sách có thể đổi giữa chừng khi nguồn chuyển chương trình (ví dụ trận bóng có thêm bình luận
+  tiếng Việt ở hiệp hai).
+
+**Giới hạn còn lại, đã kiểm chứng trong mã nguồn hls.js:** bộ demux TS chỉ lấy **audio PID đầu
+tiên** (`if (result.audioPid === -1) result.audioPid = pid`). Nghĩa là chỉ đổi được tiếng khi nguồn
+khai báo các bản âm thanh bằng `#EXT-X-MEDIA:TYPE=AUDIO` trong master playlist. Kênh nào nhồi nhiều
+luồng âm thanh vào **cùng một mux MPEG-TS** thì hls.js chỉ thấy luồng đầu — không sửa được ở tầng
+ứng dụng, phải vá chính bộ demux.
+
+### 12.4 Ghi chú: không phải "trình phát mặc định của Chrome"
+
+Từ Phase 5 dự án đã dùng hls.js làm bộ giải mã, không phải bộ giải mã sẵn của trình duyệt (Chrome
+không có bộ giải mã HLS). Cái đang là mặc định của trình duyệt là **thanh điều khiển** (`controls`)
+và **chính sách vòng đời media element** — và đúng là cả ba lỗi trên đều đến từ vế thứ hai.
+
+Một thay đổi kèm theo: **ưu tiên hls.js hơn bản HLS native của Safari** (ngược với trước). Bản
+native không cho đọc/đổi audio track qua `hls.audioTracks` và không móc được lớp tự chữa ở trên,
+nên hai trình duyệt sẽ hành xử khác hẳn nhau. Native giờ chỉ còn là đường lui khi trình duyệt không
+có MSE (Safari trên iOS).
+
+**Verify:** typecheck + build sạch; đã đẩy lên `main`, `image-watcher` cuộn xong, bundle
+`index-CJx-STCB.js` trên pod khớp đúng bundle mà `cachephoarong.click` đang trả về, và trong đó có
+đủ `iptv-player-holder`, `iptv-player-slot`, `maxLiveSyncPlaybackRate`, cùng CSS
+`.iptv-player-slot,.iptv-player-holder{display:contents}`. **Chưa xem bằng mắt trên luồng IPTV
+thật** — cần chủ dự án bật một kênh nhiều tiếng để kiểm phần 12.3.
+
+---
+
 ## Trạng thái khi kết thúc đợt Phase 7–11
 
 Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
@@ -5532,5 +5634,6 @@ GitHub Actions build → GHCR → `image-watcher` tự cuộn).
 | Brute-force PIN 6 số | Đánh đổi đã cân nhắc, Messenger cùng loại — xem Phase 9.3 |
 
 **Chưa kiểm chứng bằng trình duyệt thật** (mới qua typecheck + test API): trang Quản trị, tab Thông
-báo, popup thông báo, phòng họp nhiều người, màn đặt lại PIN. Chủ dự án sẽ thiết kế lại giao diện
-bằng Figma trước khi hoàn thiện phần này.
+báo, popup thông báo, phòng họp nhiều người, màn đặt lại PIN, và phần đổi tiếng của trình phát IPTV
+(Phase 12.3 — cần một kênh có nhiều bản âm thanh). Chủ dự án sẽ thiết kế lại giao diện bằng Figma
+trước khi hoàn thiện phần này.
