@@ -6,7 +6,7 @@ namespace MediaService.Api.Services;
 // Blocked = bi TU CHOI vi ly do an toan (scheme la, dia chi noi bo), khac
 // han voi that bai vi mang. Noi goi phai phan biet: dia chi noi bo thi tuyet
 // doi khong duoc di tiep, con nguon khong phan hoi thi con duong xu ly khac.
-public record FetchResult(bool Ok, string? Content, string? Error, bool Blocked = false);
+public record FetchResult(bool Ok, string? Content, string? Error, bool Blocked = false, string? ContentType = null);
 
 // Tai noi dung playlist tu URL nguoi dung nhap.
 //
@@ -88,10 +88,13 @@ public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> log
                 total += read;
             }
 
-            if (total == 0)
-                return new FetchResult(false, null, "Nguồn trả về nội dung rỗng");
+            var contentType = resp.Content.Headers.ContentType?.MediaType;
 
-            return new FetchResult(true, System.Text.Encoding.UTF8.GetString(buffer, 0, total), null);
+            if (total == 0)
+                return new FetchResult(false, null, "Nguồn trả về nội dung rỗng", ContentType: contentType);
+
+            return new FetchResult(
+                true, System.Text.Encoding.UTF8.GetString(buffer, 0, total), null, ContentType: contentType);
         }
         catch (OperationCanceledException)
         {

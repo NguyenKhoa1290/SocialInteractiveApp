@@ -138,10 +138,22 @@ public static class MiniAppSessionEndpoints
                     $"Link nay la danh sach {count}+ kenh chu khong phai mot luong. Hay nhap no vao mot Danh sach kenh roi chon kenh muon xem."));
             }
 
+            // Khong nhan ra la HLS: BAO chu khong CHAN.
+            //
+            // Do that tren kenh VTV6 cua nguoi dung: nguon do CHONG HOTLINK -
+            // voi may chu nha no chuyen huong hai lan roi tra ve mot video moi
+            // (ACEClick.mp4, content-type video/mp4), trong khi trinh duyet
+            // cua nguoi dung nhan duoc luong that. Khong co cach nao do o phia
+            // may chu bat duoc su khac biet do, nen chan cung o day la chan
+            // nham chinh noi dung that cua ho.
+            //
+            // Rieng ChannelList o tren van chan cung, va do la ly do ban dau
+            // cua ca buoc kiem nay: mot danh sach kenh thi noi dung DUNG la
+            // danh sach - khong the la nan nhan cua chong hotlink.
             if (kind == M3uKind.Unknown)
-                return Results.UnprocessableEntity(new ErrorResponse(
-                    "not_hls",
-                    "Link nay khong phai luong HLS (.m3u8). Trinh phat trong phong hop chi phat duoc HLS."));
+                return Results.Ok(new DirectStreamResponse(
+                    url, NameFor(req.Name, url), false,
+                    $"May chu nhan ve {peeked.ContentType ?? "noi dung la"} chu khong phai playlist HLS - co the nguon dang chan may chu (chong hotlink)."));
 
             return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url), true, null));
         }).RequireAuthorization();
