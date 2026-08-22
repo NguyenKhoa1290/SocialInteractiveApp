@@ -5768,6 +5768,84 @@ LiveKit `EmptyTimeout` 300 giây, cộng mốc tuổi 6 phút, cộng nhịp qu�
 
 ---
 
+## Phase 14 — IPTV phát link trực tiếp, và vào phòng mặc định tắt mic/camera
+
+### 14.1 Vào phòng mặc định tắt mic và camera
+
+Bỏ hẳn đoạn tự bật thiết bị lúc kết nối. Ngoài chuyện tế nhị, nó còn bỏ luôn hai phiền toái đã biết:
+trình duyệt hỏi quyền thiết bị ngay giây đầu tiên, và tab cũ chưa kịp nhả camera khi F5 nên báo
+`NotReadableError`. Người dùng tự bấm bật — `toggleDevice` đã báo lỗi tử tế khi thiết bị bị chiếm.
+
+### 14.2 Phát link trực tiếp, song song với danh sách đã lưu
+
+Popup chọn kênh có thêm ô dán link + tên hiển thị, đặt **trên** danh sách đã lưu vì đây thường là việc
+gấp ("có link trận đấu, mở lên xem luôn") còn danh sách là thứ dùng lâu. Hai đường độc lập: dùng đường
+này không đụng gì đến danh sách đã lưu.
+
+`PresentationState` có thêm `ChannelUrl`, song song với `ChannelId` — cái nào có thì dùng cái đó,
+`ChannelUrl` ưu tiên. URL đi kèm luôn trong trạng thái trình bày nên **không tốn thêm vòng gọi API
+nào**; mỗi máy tự phát như cũ.
+
+Popup **giữ nguyên** khi link hỏng và hiện đúng lý do, thay vì đóng lại rồi báo lỗi ở góc màn hình làm
+mất cái link vừa gõ.
+
+### 14.3 Kiểm ở server — và bài học về giới hạn của việc kiểm
+
+Kiểm trước khi phát (`POST .../mini-app/iptv/resolve-direct`) vì hai cái giá đã trả trước đây: rất
+nhiều URL `.m3u8` thật ra là **danh sách hàng trăm kênh**, và link sai định dạng thì trình phát chạy
+hết 8 lượt tự chữa (~36 giây) rồi báo sai nguyên nhân. Trình duyệt không tự kiểm được vì máy chủ IPTV
+gần như không gửi CORS.
+
+**Nhưng đo trên chính kênh VTV6 của chủ dự án thì lộ ra hai lỗi thật:**
+
+**Lỗi 1 — `PlaylistFetcher` treo trên luồng không có điểm dừng.** Endpoint trả về *"Nguồn không phản
+hồi trong 20 giây"* — sai hoàn toàn. Nguồn phản hồi rất tốt; nó chuyển hướng tới một luồng **không bao
+giờ kết thúc**, mà `FetchAsync` thì đọc tới khi hết dữ liệu hoặc đầy 8 MB, nên vòng nào cũng chạm trần
+thời gian. Thêm `PeekAsync` đọc tối đa 64 KB / 8 giây: phân loại chỉ cần vài KB đầu, mọi thẻ quyết định
+(`#EXTM3U`, `#EXT-X-STREAM-INF`, `#EXT-X-TARGETDURATION`, vài mục `#EXTINF`) đều nằm ở đầu file. Kèm
+theo khai báo `User-Agent` trình duyệt thông thường thay vì để trống — nhiều nguồn IPTV từ chối client
+không phải trình duyệt.
+
+**Lỗi 2 — kiểm ở server không thể thay cho trình duyệt.** Sau khi sửa lỗi 1, nguồn đó trả lời được
+nhưng trả về thứ khác hẳn: nó **chống hotlink**.
+
+```
+/VIP/vtv6/nactha → 301 → /module/IPTV/?id=vtv6... → 302 → /ACEClick.mp4   (content-type: video/mp4)
+```
+
+Máy chủ nhà nhận một video mồi, còn trình duyệt của người dùng nhận luồng thật. Không có cách nào dò ở
+phía máy chủ bắt được khác biệt đó. Chặn cứng ở đây là **chặn nhầm chính nội dung thật** của họ.
+
+**Nên chính sách cuối cùng phân ba mức, theo đúng mức độ chắc chắn:**
+
+| Trường hợp | Xử lý | Vì sao |
+|---|---|---|
+| Địa chỉ nội bộ / scheme lạ | **Chặn cứng** | URL này phát cho CẢ PHÒNG — một địa chỉ nội bộ sẽ thành lệnh dò mạng LAN trên máy từng người xem |
+| Nội dung đúng là **danh sách nhiều kênh** | **Chặn cứng** | Đây là cái bẫy đã biết, và một danh sách kênh thì nội dung *đúng* là danh sách — không thể là nạn nhân của chống hotlink |
+| Không đọc được, hoặc không nhận ra là HLS | **Cho phát**, kèm cảnh báo nói rõ máy chủ nhận được content-type gì | Máy chủ sau CGNAT, nhiều nguồn chặn nó trong khi trình duyệt vào bình thường |
+
+Bài học ghi lại: **việc kiểm là để bắt cái bẫy đã biết, không phải để làm trọng tài cho khả năng kết
+nối của máy chủ.** Máy chủ và trình duyệt nhìn thấy hai thứ khác nhau, và trong luồng này trình duyệt
+mới là bên thực sự phát.
+
+### 14.4 Verify — 11/11 pass trên hệ thống thật
+
+| Kiểm | Kết quả |
+|---|---|
+| Kênh **thật** của chủ dự án (nguồn chống hotlink) | 200, `verified=false`, cảnh báo nói rõ *"máy chủ nhận về video/mp4"* |
+| Luồng HLS chuẩn (Mux test stream) | 200, `verified=true` |
+| Link thật ra là danh sách 302+ kênh (iptv-org) | 422 `is_playlist` |
+| Link không phải HLS (`example.com`) | 200 `verified=false`, cảnh báo *"nhận về text/html"* |
+| Địa chỉ nội bộ trong cụm (`http://identity:8080/health`) | 422 `blocked` |
+| `javascript:alert(1)` | 422 `blocked` |
+| Người không có quyền `mini_app` | 403 |
+| Đặt vào trạng thái trình bày rồi đọc lại | `channelUrl` tới được cả phòng, `channelId` vẫn rỗng |
+| POST thẳng `channelUrl` rác vào endpoint trình bày | 400 — chặn cả khi bỏ qua bước resolve |
+
+Đã dọn sạch: 4 cuộc họp thử, 8 tài khoản thử; 6 tài khoản thật còn nguyên.
+
+---
+
 ## Trạng thái khi kết thúc đợt Phase 7–11
 
 Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
