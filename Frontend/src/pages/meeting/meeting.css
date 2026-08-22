@@ -538,6 +538,62 @@
   align-items: center;
 }
 
+/* O nhan trinh phat va the giu no deu la PASS-THROUGH: trinh phat duoc
+   IptvPlayerHost chuyen qua lai giua khung trinh bay va o luoi bang
+   appendChild, nen hai the boc nay khong duoc them mot tang layout nao -
+   neu khong bo cuc se khac nhau o hai cho. */
+.iptv-player-slot,
+.iptv-player-holder {
+  display: contents;
+}
+
+/* Khung boc the <video> de dat lop phu "dang ket noi lai" len tren. */
+.iptv-player-frame {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+
+.iptv-player-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #e9ecef;
+  font-size: 13px;
+  text-align: center;
+  /* Khong duoc chan thanh dieu khien cua trinh duyet nam ben duoi - chi
+     rieng cai nut trong lop phu moi bam duoc. */
+  pointer-events: none;
+}
+
+.iptv-player-overlay button {
+  pointer-events: auto;
+  padding: 5px 12px;
+  border: 1px solid #7f2b2b;
+  border-radius: 6px;
+  background: #3a1c1c;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iptv-player-reload {
+  padding: 4px 10px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #22262d;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 13px;
+}
+
 .iptv-player-controls select {
   padding: 4px 8px;
   border: 1px solid #3a3f47;
@@ -747,4 +803,10 @@
 .meet-app-compact .meet-empty {
   font-size: 12px;
   text-align: center;
+}
+
+/* Trong o nho van phai thay bao "dang ket noi lai", chi thu nho chu. */
+.meet-app-compact .iptv-player-overlay {
+  font-size: 11px;
+  gap: 6px;
 }

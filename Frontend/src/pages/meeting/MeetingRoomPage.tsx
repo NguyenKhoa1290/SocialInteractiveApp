@@ -17,6 +17,7 @@ import { ParticipantTile } from "./ParticipantTile";
 import { DevicePicker } from "./DevicePicker";
 import { IptvStage } from "./IptvStage";
 import { IptvChannelPicker } from "./IptvChannelPicker";
+import { IptvPlayerHost } from "./IptvPlayerHost";
 import { MeetingDiscussion } from "./MeetingDiscussion";
 import type {
   MeetingParticipant,
@@ -778,8 +779,6 @@ export function MeetingRoomPage() {
       return (
         <div key={t.key} className="meet-tile meet-tile-app">
           <IptvStage
-            meetingId={meetingId}
-            channelId={presentation?.channelId ?? null}
             channelName={presentation?.channelName ?? null}
             canPick={presentation?.userId === currentUserId}
             onOpenPicker={() => setShowIptvPicker(true)}
@@ -851,6 +850,12 @@ export function MeetingRoomPage() {
   }
 
   return (
+    // Trinh phat IPTV song o day chu khong o trong bo cuc: doi focus mode <->
+    // luoi thi no chi DOI CHO, khong bi thao ra dung lai. Xem IptvPlayerHost.
+    <IptvPlayerHost
+      meetingId={meetingId}
+      channelId={presentation?.kind === "mini_app" ? (presentation.channelId ?? null) : null}
+    >
     <div className="meet-page">
       <header className="meet-header">
         <span>Cuộc họp #{meetingId}</span>
@@ -939,8 +944,6 @@ export function MeetingRoomPage() {
                 {showAppStage && (
                   <div className="meet-stage meet-stage-app">
                     <IptvStage
-                      meetingId={meetingId}
-                      channelId={presentation?.channelId ?? null}
                       channelName={presentation?.channelName ?? null}
                       canPick={presentation?.userId === currentUserId}
                       onOpenPicker={() => setShowIptvPicker(true)}
@@ -1128,5 +1131,6 @@ export function MeetingRoomPage() {
         )}
       </footer>
     </div>
+    </IptvPlayerHost>
   );
 }
