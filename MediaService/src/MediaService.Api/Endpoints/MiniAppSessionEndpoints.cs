@@ -104,20 +104,38 @@ public static class MiniAppSessionEndpoints
 
             var url = req.Url.Trim();
 
-            // FetchAsync tu chan scheme la va dia chi noi bo (SSRF) - xem
-            // PlaylistFetcher.cs.
-            var fetched = await fetcher.FetchAsync(url, ct);
-            if (!fetched.Ok)
-                return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", fetched.Error!));
+            // PeekAsync chu khong FetchAsync: chi can vai KB dau de phan loai.
+            // Rat nhieu URL IPTV la luong khong bao gio ket thuc, doc het thi
+            // vong nao cung cham tran thoi gian - xem PlaylistFetcher.cs.
+            var peeked = await fetcher.PeekAsync(url, ct);
 
-            var kind = M3uPlaylist.Detect(fetched.Content!);
+            // Bi chan vi an toan (scheme la, dia chi noi bo) thi DUNG HAN o
+            // day. Tuyet doi khong duoc noi long: URL nay se duoc phat cho ca
+            // phong, nen mot dia chi noi bo se thanh mot lenh do mang LAN tren
+            // may cua tung nguoi xem.
+            if (peeked.Blocked)
+                return Results.UnprocessableEntity(new ErrorResponse("blocked", peeked.Error!));
+
+            // Khong doc duoc vi mang: VAN CHO PHAT, kem canh bao.
+            //
+            // Ly do: may chu nha nam sau CGNAT va nhieu nguon IPTV chan hoac
+            // rat cham voi no, trong khi trinh duyet cua nguoi dung lai vao
+            // duoc binh thuong. Do that tren chinh kenh VTV6 cua nguoi dung.
+            // Chan cung o day thi tinh nang nay vo dung voi noi dung that cua
+            // ho. Viec kiem la de bat cai BAY DA BIET (link that ra la danh
+            // sach nhieu kenh), khong phai de lam trong tai cho kha nang ket
+            // noi cua may chu.
+            if (!peeked.Ok)
+                return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url), false, peeked.Error));
+
+            var kind = M3uPlaylist.Detect(peeked.Content!);
 
             if (kind == M3uKind.ChannelList)
             {
-                var count = M3uPlaylist.Parse(fetched.Content!, url).Count;
+                var count = M3uPlaylist.Parse(peeked.Content!, url).Count;
                 return Results.UnprocessableEntity(new ErrorResponse(
                     "is_playlist",
-                    $"Link nay la danh sach {count} kenh chu khong phai mot luong. Hay nhap no vao mot Danh sach kenh roi chon kenh muon xem."));
+                    $"Link nay la danh sach {count}+ kenh chu khong phai mot luong. Hay nhap no vao mot Danh sach kenh roi chon kenh muon xem."));
             }
 
             if (kind == M3uKind.Unknown)
@@ -125,7 +143,7 @@ public static class MiniAppSessionEndpoints
                     "not_hls",
                     "Link nay khong phai luong HLS (.m3u8). Trinh phat trong phong hop chi phat duoc HLS."));
 
-            return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url)));
+            return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url), true, null));
         }).RequireAuthorization();
     }
 

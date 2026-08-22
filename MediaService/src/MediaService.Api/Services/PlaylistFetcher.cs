@@ -3,7 +3,10 @@ using System.Net.Sockets;
 
 namespace MediaService.Api.Services;
 
-public record FetchResult(bool Ok, string? Content, string? Error);
+// Blocked = bi TU CHOI vi ly do an toan (scheme la, dia chi noi bo), khac
+// han voi that bai vi mang. Noi goi phai phan biet: dia chi noi bo thi tuyet
+// doi khong duoc di tiep, con nguon khong phan hoi thi con duong xu ly khac.
+public record FetchResult(bool Ok, string? Content, string? Error, bool Blocked = false);
 
 // Tai noi dung playlist tu URL nguoi dung nhap.
 //
@@ -24,34 +27,63 @@ public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> log
     // rong, va du nho de mot URL doc hai khong keo sap bo nho service.
     private const int MaxBytes = 8 * 1024 * 1024;
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+    // Chi de PHAN LOAI thi khong can tai het: cac the quyet dinh (#EXTM3U,
+    // #EXT-X-STREAM-INF, #EXT-X-TARGETDURATION, vai muc #EXTINF dau tien) deu
+    // nam o dau file. 64 KB la thua du.
+    private const int PeekBytes = 64 * 1024;
 
-    public async Task<FetchResult> FetchAsync(string url, CancellationToken ct = default)
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan PeekTimeout = TimeSpan.FromSeconds(8);
+
+    // Nhieu nguon IPTV tu choi client khong phai trinh duyet. Khong gia mao
+    // gi ca - chi la khai bao mot UA thong thuong thay vi de trong, neu
+    // khong thi mot link nguoi dung xem duoc trong Chrome lai bi bao la hong.
+    private const string UserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+    // Doc vua du de PHAN LOAI roi dung han.
+    //
+    // VI SAO CAN RIENG: FetchAsync doc toi khi het du lieu hoac day 8 MB. Rat
+    // nhieu URL IPTV khong tra ve mot file ma la mot LUONG KHONG BAO GIO KET
+    // THUC (hoac chuyen huong toi mot cai nhu vay). Voi nhung URL do,
+    // FetchAsync luon chay het 20 giay roi bao "nguon khong phan hoi" - sai
+    // hoan toan, nguon phan hoi rat tot, chi la no khong co diem dung. Do
+    // that tren link VTV6 cua nguoi dung: dung nhu vay.
+    public Task<FetchResult> PeekAsync(string url, CancellationToken ct = default) =>
+        FetchAsync(url, PeekBytes, PeekTimeout, ct);
+
+    public Task<FetchResult> FetchAsync(string url, CancellationToken ct = default) =>
+        FetchAsync(url, MaxBytes, Timeout, ct);
+
+    private async Task<FetchResult> FetchAsync(string url, int maxBytes, TimeSpan timeout, CancellationToken ct)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-            return new FetchResult(false, null, "URL phải bắt đầu bằng http:// hoặc https://");
+            return new FetchResult(false, null, "URL phải bắt đầu bằng http:// hoặc https://", Blocked: true);
 
         var blocked = await IsBlockedAddressAsync(uri.Host, ct);
         if (blocked is not null)
-            return new FetchResult(false, null, blocked);
+            return new FetchResult(false, null, blocked, Blocked: true);
 
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(Timeout);
+            cts.CancelAfter(timeout);
 
-            using var resp = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            using var req = new HttpRequestMessage(HttpMethod.Get, uri);
+            req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+
+            using var resp = await httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             if (!resp.IsSuccessStatusCode)
                 return new FetchResult(false, null, $"Nguồn trả về lỗi {(int)resp.StatusCode}");
 
             // Doc co gioi han thay vi ReadAsStringAsync: khong tin vao
             // Content-Length do may chu kia khai bao.
             using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
-            var buffer = new byte[MaxBytes];
+            var buffer = new byte[maxBytes];
             var total = 0;
-            while (total < MaxBytes)
+            while (total < maxBytes)
             {
-                var read = await stream.ReadAsync(buffer.AsMemory(total, MaxBytes - total), cts.Token);
+                var read = await stream.ReadAsync(buffer.AsMemory(total, maxBytes - total), cts.Token);
                 if (read == 0) break;
                 total += read;
             }

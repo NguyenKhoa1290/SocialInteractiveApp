@@ -76,4 +76,7 @@ public record StreamUrlResponse(string StreamUrl, string? AudioTrack);
 
 public record ResolveDirectRequest(string Url, string? Name);
 
-public record DirectStreamResponse(string StreamUrl, string Name);
+// Verified = may chu doc duoc noi dung va xac nhan day la mot luong HLS.
+// false nghia la khong kiem duoc (nguon chan/khong phan hoi voi may chu) -
+// van phat, nhung bao cho nguoi trinh bay biet.
+public record DirectStreamResponse(string StreamUrl, string Name, bool Verified, string? Warning);

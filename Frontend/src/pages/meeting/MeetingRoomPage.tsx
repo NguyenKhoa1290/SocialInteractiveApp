@@ -521,6 +521,14 @@ export function MeetingRoomPage() {
       channelUrl: res.data.streamUrl,
       channelName: res.data.name,
     });
+    // Server khong doc duoc nguon (bi chan hoac khong phan hoi voi no) nhung
+    // trinh duyet co the van vao duoc - van phat, chi noi ro la chua kiem
+    // duoc, de neu hong thi nguoi trinh bay biet nhin di dau.
+    setNotice(
+      res.data.verified
+        ? null
+        : `Máy chủ không kiểm được nguồn này (${res.data.warning ?? "không rõ lý do"}) — vẫn phát thử, nếu không lên hình thì do link.`,
+    );
   }
 
   async function handleStopPresentation() {

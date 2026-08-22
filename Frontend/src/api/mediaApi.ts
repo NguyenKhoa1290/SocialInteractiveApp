@@ -121,7 +121,7 @@ export const iptvApi = {
   // la danh sach nhieu kenh, va chan link khong phai HLS. Phai kiem o server
   // vi may chu IPTV gan nhu khong bao gio gui header CORS.
   resolveDirect: (meetingId: number, url: string, name?: string) =>
-    mediaHttp.post<{ streamUrl: string; name: string }>(
+    mediaHttp.post<{ streamUrl: string; name: string; verified: boolean; warning: string | null }>(
       `/meetings/${meetingId}/mini-app/iptv/resolve-direct`,
       { url, name: name || null },
     ),
