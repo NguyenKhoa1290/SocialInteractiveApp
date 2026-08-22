@@ -25,6 +25,10 @@ builder.Services.AddSingleton<WaitingRoomStore>();
 builder.Services.AddSingleton<PresentationStore>();
 builder.Services.AddSingleton<RoomLivenessCache>();
 builder.Services.AddSingleton<ParticipantReconciler>();
+// Don cuoc hop khong con ai. Truoc day viec nay di nho GET /meetings/active
+// nen chi chay khi co nguoi mo dung phong chat do, va khong bao gio cham toi
+// cuoc hop doc lap - xem MeetingSweeperService.cs.
+builder.Services.AddHostedService<MediaService.Api.BackgroundServices.MeetingSweeperService>();
 
 var identityClientOptions = builder.Configuration.GetSection("IdentityClient").Get<IdentityClientOptions>()
     ?? new IdentityClientOptions();

@@ -97,6 +97,42 @@ public class LiveKitService
     public Task DeleteRoomAsync(long meetingId) =>
         _roomService.DeleteRoom(new DeleteRoomRequest { Room = RoomName(meetingId) });
 
+    // Hoi MOT LAN cho NHIEU cuoc hop: trong danh sach nay, phong nao ben
+    // LiveKit con ton tai. Dung cho tien trinh quet dinh ky - hoi rieng tung
+    // cai la moi vong quet ton dung bang so cuoc hop dang mo loi goi mang,
+    // trong khi ListRooms nhan duoc nhieu ten cung luc.
+    //
+    // Tra ve null khi khong hoi duoc, y nghia la "khong biet" chu KHONG phai
+    // "khong con phong nao" - ben goi phai bo qua ca vong quet. Nham cho nay
+    // thi mot lan LiveKit tro chung se di ket thuc sach moi cuoc hop that.
+    public async Task<HashSet<long>?> ListExistingRoomsAsync(IReadOnlyCollection<long> meetingIds)
+    {
+        if (meetingIds.Count == 0) return [];
+
+        try
+        {
+            var req = new ListRoomsRequest();
+            var byName = new Dictionary<string, long>();
+            foreach (var id in meetingIds)
+            {
+                var name = RoomName(id);
+                byName[name] = id;
+                req.Names.Add(name);
+            }
+
+            var resp = await _roomService.ListRooms(req);
+            var alive = new HashSet<long>();
+            foreach (var room in resp.Rooms)
+                if (byName.TryGetValue(room.Name, out var id))
+                    alive.Add(id);
+            return alive;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     // Ai DANG THUC SU ket noi trong phong. Khac han voi bang
     // meeting_participants: bang do chi biet nhung gi client tu khai bao
     // (bam nut "Roi phong"), con dong tab thi khong bao gi ca. LiveKit thi
