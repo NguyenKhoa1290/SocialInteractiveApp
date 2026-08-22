@@ -5613,6 +5613,93 @@ thật** — cần chủ dự án bật một kênh nhiều tiếng để kiểm
 
 ---
 
+## Phase 13 — Người "ma" khi đóng tab, và thu quyền mic/camera
+
+### 13.1 Đóng tab thì khuôn mặt biến mất nhưng tên vẫn còn
+
+**Gốc rễ: hai nguồn sự thật.** Ô video lấy từ `room.remoteParticipants` của LiveKit — thời gian thực,
+kết nối đứt là biết ngay. Còn con số "Người tham gia" và danh sách bên phải lấy từ bảng
+`meeting_participants`, mà bảng đó **chỉ biết những gì client tự khai báo**: `left_at` được ghi ở đúng
+ba chỗ — bấm nút Rời phòng, bị chủ phòng mời ra, và cuộc họp kết thúc. Đóng tab không trúng chỗ nào.
+
+Hậu quả không dừng ở con số sai: **mọi kiểm tra quyền đều hỏi đúng bảng đó** (`InternalEndpoints`
+cho thảo luận cuộc họp, `MiniAppSessionEndpoints`, `PresentationEndpoints`, hạn mức
+`max_participants`). Người đã đóng tab vẫn giữ nguyên quyền.
+
+**Vì sao không bắt sự kiện đóng tab ở Frontend:** đã từng làm và đã phải gỡ. `pagehide` không phân
+biệt được đóng tab với F5/điều hướng, nên một cái F5 là gọi `/leave` → trigger
+`trg_close_meeting_if_empty` thấy phòng rỗng → **kết thúc cả cuộc họp**. Ghi chú đầy đủ nằm trong
+[MeetingRoomPage.tsx](Frontend/src/pages/meeting/MeetingRoomPage.tsx).
+
+**Cách sửa — hỏi thẳng LiveKit "trong phòng đang có những ai"** rồi đối chiếu
+([ParticipantReconciler.cs](MediaService/src/MediaService.Api/Services/ParticipantReconciler.cs)),
+chạy ngay trong `GET /meetings/{id}/participants` vì Frontend đã poll sẵn 4 giây một lần.
+
+Ba lằn cản an toàn, đều để không lặp lại đúng cái bẫy cũ là **quét nhầm người đang họp**:
+
+1. **Không hỏi được LiveKit → không kết luận gì.** `ListParticipantIdsAsync` trả `null` chứ không trả
+   danh sách rỗng khi lỗi. Một sự cố tạm thời của LiveKit không được phép đuổi người ra khỏi cuộc họp
+   thật.
+2. **Phòng rỗng → không làm gì.** Trường hợp "mọi người cùng đóng tab" đã có đường tự chữa riêng ở
+   `GET /meetings/active` (LiveKit tự xoá phòng rỗng sau `EmptyTimeout`). Nhờ luật này hàm mới **không
+   bao giờ làm rỗng bảng**, tức không bao giờ kích hoạt trigger đóng phòng.
+3. **Phải vắng mặt qua HAI lần quan sát cách nhau ≥60 giây**, mốc lần đầu ghi vào Redis. Một lần không
+   thấy có thể là đang F5 hoặc đang nối lại mạng. Người đang gọi chính API này luôn được bỏ qua.
+
+Chặn tần suất gọi LiveKit bằng `SET NX EX 10` — phòng 5 người poll 4 giây/lần sẽ thành hơn một
+request mỗi giây nếu không chặn.
+
+### 13.2 Chủ phòng thu quyền bật mic/camera của từng người
+
+Thêm `no_mic` và `no_camera` vào `meeting_permissions`. **Hai loại này ngược nghĩa với ba loại cũ**:
+`share_screen`/`mini_app`/`focus_mode` có hàng = *được phép*, còn `no_mic`/`no_camera` có hàng = *bị
+cấm* — vì mic và camera thì mặc định ai cũng có, nên thao tác đáng ghi lại là việc **thu**. Ghi chung
+một bảng vì `GET /participants` đã trả sẵn mảng `permissions`.
+
+**Cưỡng chế ở LiveKit chứ không chỉ ẩn nút** — ẩn nút chỉ ngăn người dùng bình thường, ai mở Console
+gọi thẳng SDK vẫn publish được. Ba lớp:
+
+- `UpdateParticipant` với `canPublishSources` — LiveKit từ chối track có nguồn không nằm trong danh sách.
+- `MutePublishedTrack` — đổi quyền chỉ chặn lần publish *sau*, track đang phát vẫn chạy nên phải tắt riêng.
+- **Nhúng thẳng vào token lúc sinh** — giữa lúc vào phòng và lúc gọi `UpdateParticipant` có một khe đủ
+  rộng để publish một lần. Cả 4 chỗ sinh token đều đã đọc quyền hiện tại.
+
+**Bẫy đã tránh:** `canPublishSources` **rỗng** nghĩa là *cho phép tất cả* chứ không phải *cấm tất cả*,
+nên luôn phải liệt kê tường minh những nguồn được phép.
+
+Màn hình chia sẻ cố ý **không** đụng vào — quyền `share_screen` vẫn kiểm tra ở tầng API như cũ.
+
+### 13.3 Tiện thể: `POST /meetings/{id}/end` quên đóng participant
+
+Nút "Kết thúc cho tất cả" đánh dấu cuộc họp `ended` nhưng **không** ghi `left_at`, nên cả phòng nằm
+lại với `left_at = NULL` trong một cuộc họp đã tan. Đường `/meetings/active` đã làm đúng từ trước, chỉ
+riêng nút này thì quên. Đã vá, và đã vá luôn 6 hàng dữ liệu cũ bị bỏ quên trong CSDL sản xuất (cuộc
+họp 17, 19, 20).
+
+### 13.4 Verify — chạy thật, không phải typecheck
+
+Dựng một trình duyệt Chrome headless nối **thật** vào LiveKit Cloud bằng hai tài khoản, cấp mic giả
+(`--use-fake-device-for-media-stream`), rồi điều khiển theo kịch bản. **9/9 pass:**
+
+| Kiểm | Kết quả |
+|---|---|
+| **Đối chứng — 2 người đang kết nối, gọi `/participants` liên tục 100 giây** | Vẫn đủ 2 người. Không đuổi nhầm ai |
+| Thu quyền mic → API | 201, `/participants` báo B có `no_mic` |
+| Thu quyền mic → LiveKit | `canPublishSources` của B còn `["CAMERA","SCREEN_SHARE","SCREEN_SHARE_AUDIO"]` — mất `MICROPHONE` |
+| Track đang phát | Bị gỡ ngay (`LocalTrackUnpublished` source=microphone) |
+| B thử bật lại mic | `PublishTrackError: failed to publish track, insufficient permissions` |
+| Trả lại quyền | `no_mic` biến mất khỏi danh sách |
+| B cắt kết nối, **không** gọi `/leave` | Bị dọn sau **73 giây** |
+| A (vẫn đang kết nối) | Còn nguyên trong danh sách |
+| Cuộc họp | Vẫn `active` — không bị kết thúc nhầm |
+
+Lằn cản đầu tiên (đối chứng 100 giây) mới là phép đo quan trọng nhất: nó chứng minh cơ chế mới không
+tái tạo lại đúng cái lỗi mà `pagehide` từng gây ra.
+
+Đã dọn sạch: xoá cuộc họp thử, xoá 2 tài khoản thử, 5 tài khoản thật còn nguyên.
+
+---
+
 ## Trạng thái khi kết thúc đợt Phase 7–11
 
 Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
