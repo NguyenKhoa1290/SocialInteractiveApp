@@ -197,7 +197,8 @@ public static class MeetingsEndpoints
             }
 
             var email = (await identity.ResolveUserDetailAsync(callerId))?.Email;
-            var token = liveKit.GenerateAccessToken(meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6));
+            var (micOk, camOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
+            var token = liveKit.GenerateAccessToken(meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6), micOk, camOk);
             return Results.Ok(new JoinResultResponse("approved", token, liveKit.ClientUrl, meeting.Id));
         });
 
@@ -288,6 +289,14 @@ public static class MeetingsEndpoints
 
             meeting.Status = MeetingStatus.Ended;
             meeting.EndedAt = DateTimeOffset.UtcNow;
+            // Dong luon moi hang participant. Truoc day KHONG lam buoc nay:
+            // cuoc hop chuyen sang "ended" nhung ca phong van con left_at =
+            // NULL vinh vien, tuc trong CSDL ho van "dang o trong phong" cua
+            // mot cuoc hop da tan. Duong /meetings/active da lam dung viec
+            // nay tu truoc, chi rieng nut "Ket thuc cho tat ca" thi quen.
+            await db.MeetingParticipants
+                .Where(p => p.MeetingId == meetingId && p.LeftAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.LeftAt, DateTimeOffset.UtcNow));
             await db.SaveChangesAsync();
 
             try { await liveKit.DeleteRoomAsync(meetingId); } catch (Exception) { /* room co the da tu don vi het nguoi */ }

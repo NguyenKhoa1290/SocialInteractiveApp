@@ -48,7 +48,10 @@ export interface MeetingParticipant {
   permissions: PermissionType[];
 }
 
-export type PermissionType = "share_screen" | "mini_app" | "focus_mode";
+// Chu y hai loai cuoi NGUOC nghia voi ba loai dau: share_screen/mini_app/
+// focus_mode co trong mang = DUOC phep, con no_mic/no_camera co trong mang =
+// BI CAM (mic va camera mac dinh ai cung bat duoc).
+export type PermissionType = "share_screen" | "mini_app" | "focus_mode" | "no_mic" | "no_camera";
 
 // Trang thai "ai dang trinh bay" - doc tu metadata cua phong LiveKit
 // (RoomMetadataChanged), khong phai tu REST. Chi MOT nguoi tai mot thoi diem.

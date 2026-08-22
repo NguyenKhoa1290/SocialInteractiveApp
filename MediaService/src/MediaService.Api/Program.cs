@@ -24,6 +24,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 builder.Services.AddSingleton<WaitingRoomStore>();
 builder.Services.AddSingleton<PresentationStore>();
 builder.Services.AddSingleton<RoomLivenessCache>();
+builder.Services.AddSingleton<ParticipantReconciler>();
 
 var identityClientOptions = builder.Configuration.GetSection("IdentityClient").Get<IdentityClientOptions>()
     ?? new IdentityClientOptions();

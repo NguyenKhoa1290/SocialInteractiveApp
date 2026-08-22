@@ -49,8 +49,12 @@ CREATE TABLE meeting_permissions (
   id                BIGSERIAL PRIMARY KEY,
   meeting_id        BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   user_id           BIGINT NOT NULL,
+  -- share_screen / mini_app / focus_mode: CO hang = DUOC phep.
+  -- no_mic / no_camera:                     CO hang = BI CAM.
+  -- Nguoc nghia nhau la co y: mic va camera thi mac dinh ai cung co, nen
+  -- thao tac dang ghi lai la viec THU quyen. Xem Models/MeetingPermission.cs.
   permission_type   VARCHAR(20) NOT NULL
-                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode')),
+                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode','no_mic','no_camera')),
   granted_by        BIGINT NOT NULL,
   granted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (meeting_id, user_id, permission_type)

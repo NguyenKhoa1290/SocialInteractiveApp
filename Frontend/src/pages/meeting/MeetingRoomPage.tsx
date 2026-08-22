@@ -133,6 +133,12 @@ export function MeetingRoomPage() {
   const myPermissions = participants.find((p) => p.userId === currentUserId)?.permissions ?? [];
   const canUseMiniApp = isHost || myPermissions.includes("mini_app");
   const canShareScreen = isHost || myPermissions.includes("share_screen");
+  // Mac dinh ai cung bat duoc mic/camera - chu phong THU quyen thi moi co
+  // hang trong meeting_permissions. Day chi la de hien dung giao dien; cho
+  // chan that su la LiveKit (xem LiveKitService.ApplyPublishPermissionsAsync),
+  // vi an nut chi ngan nguoi dung binh thuong.
+  const micAllowed = isHost || !myPermissions.includes("no_mic");
+  const camAllowed = isHost || !myPermissions.includes("no_camera");
 
   // --- Ket noi phong -------------------------------------------------------
   useEffect(() => {
@@ -333,6 +339,23 @@ export function MeetingRoomPage() {
   // LiveKit: no tu don phong rong sau EmptyTimeout roi GET /meetings/active
   // se tu danh dau cuoc hop la ended (xem MeetingsEndpoints.cs).
 
+  // Bi thu quyen ngay khi dang bat: LiveKit da tat track ben server roi,
+  // nhung state cua nut o day van dang "dang bat" - phai keo ve cho khop,
+  // neu khong nguoi dung tuong minh van dang noi.
+  useEffect(() => {
+    if (!room) return;
+    if (!micAllowed && micOn) {
+      void room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+      setMicOn(false);
+      setNotice("Chủ phòng vừa thu quyền bật micro của bạn.");
+    }
+    if (!camAllowed && camOn) {
+      void room.localParticipant.setCameraEnabled(false).catch(() => {});
+      setCamOn(false);
+      setNotice("Chủ phòng vừa thu quyền bật camera của bạn.");
+    }
+  }, [room, micAllowed, camAllowed, micOn, camOn]);
+
   // --- Dieu khien --------------------------------------------------------
   // Bat/tat thiet bi CO THE that bai that su (NotReadableError khi camera
   // dang bi ung dung khac giu, NotAllowedError khi bi tu choi quyen). Truoc
@@ -340,6 +363,12 @@ export function MeetingRoomPage() {
   // dung bam nut va KHONG THAY GI XAY RA, khong biet tai sao.
   async function toggleDevice(kind: "mic" | "cam") {
     if (!room) return;
+    // Bao ngay thay vi de LiveKit tu choi am tham - nguoi dung bam nut ma
+    // khong thay gi xay ra la kho chiu nhat.
+    if ((kind === "mic" && !micAllowed) || (kind === "cam" && !camAllowed)) {
+      setNotice(`Chủ phòng đã thu quyền bật ${kind === "mic" ? "micro" : "camera"} của bạn.`);
+      return;
+    }
     const next = kind === "mic" ? !micOn : !camOn;
     setNotice(null);
     try {
@@ -552,7 +581,13 @@ export function MeetingRoomPage() {
   // Chi con 2 quyen co duong dung that. `focus_mode` van con trong schema
   // nhung khong endpoint nao kiem tra nua - ghim la thao tac cuc bo cua
   // tung nguoi, khong can cap phep.
-  async function handleTogglePermission(p: MeetingParticipant, perm: "share_screen" | "mini_app") {
+  // Dung chung cho ca quyen CAP (share_screen, mini_app) lan quyen THU
+  // (no_mic, no_camera): ca hai deu la "co hang thi xoa, khong co thi them",
+  // chi khac nghia cua viec co hang. Xem types/media.ts.
+  async function handleTogglePermission(
+    p: MeetingParticipant,
+    perm: "share_screen" | "mini_app" | "no_mic" | "no_camera",
+  ) {
     try {
       if (p.permissions.includes(perm)) await meetingApi.revokePermission(meetingId, p.userId, perm);
       else await meetingApi.grantPermission(meetingId, p.userId, perm);
@@ -1032,6 +1067,14 @@ export function MeetingRoomPage() {
                           <button onClick={() => handleTogglePermission(p, "mini_app")}>
                             {p.permissions.includes("mini_app") ? "Thu quyền Mini App" : "Cho Mini App"}
                           </button>
+                          {/* Nguoc chieu voi hai nut tren: co hang = BI CAM,
+                              vi mic/camera mac dinh ai cung bat duoc. */}
+                          <button onClick={() => handleTogglePermission(p, "no_mic")}>
+                            {p.permissions.includes("no_mic") ? "Trả quyền mic" : "Thu quyền mic"}
+                          </button>
+                          <button onClick={() => handleTogglePermission(p, "no_camera")}>
+                            {p.permissions.includes("no_camera") ? "Trả quyền camera" : "Thu quyền camera"}
+                          </button>
                           <button className="meet-danger" onClick={() => handleKick(p.userId)}>
                             Mời ra
                           </button>
@@ -1109,11 +1152,21 @@ export function MeetingRoomPage() {
       )}
 
       <footer className="meet-controls">
-        <button onClick={toggleMic} className={micOn ? "" : "meet-off"}>
-          {micOn ? "Tắt mic" : "Bật mic"}
+        <button
+          onClick={toggleMic}
+          className={micOn ? "" : "meet-off"}
+          disabled={!micAllowed}
+          title={micAllowed ? undefined : "Chủ phòng đã thu quyền bật micro của bạn"}
+        >
+          {!micAllowed ? "🚫 Mic bị khoá" : micOn ? "Tắt mic" : "Bật mic"}
         </button>
-        <button onClick={toggleCam} className={camOn ? "" : "meet-off"}>
-          {camOn ? "Tắt cam" : "Bật cam"}
+        <button
+          onClick={toggleCam}
+          className={camOn ? "" : "meet-off"}
+          disabled={!camAllowed}
+          title={camAllowed ? undefined : "Chủ phòng đã thu quyền bật camera của bạn"}
+        >
+          {!camAllowed ? "🚫 Cam bị khoá" : camOn ? "Tắt cam" : "Bật cam"}
         </button>
         {room && <DevicePicker room={room} />}
         {canShareScreen && (

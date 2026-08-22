@@ -97,6 +97,104 @@ public class LiveKitService
     public Task DeleteRoomAsync(long meetingId) =>
         _roomService.DeleteRoom(new DeleteRoomRequest { Room = RoomName(meetingId) });
 
+    // Ai DANG THUC SU ket noi trong phong. Khac han voi bang
+    // meeting_participants: bang do chi biet nhung gi client tu khai bao
+    // (bam nut "Roi phong"), con dong tab thi khong bao gi ca. LiveKit thi
+    // QUAN SAT duoc, vi ket noi dut la no biet ngay.
+    //
+    // Tra ve null khi khong hoi duoc (LiveKit loi, hoac phong khong con) -
+    // KHONG duoc lan lon voi "phong rong". Ben goi phai coi null la "khong
+    // biet" va khong dam ket luan gi, neu khong mot su co tam thoi cua
+    // LiveKit se quet sach danh sach nguoi trong mot cuoc hop that.
+    public async Task<HashSet<long>?> ListParticipantIdsAsync(long meetingId)
+    {
+        try
+        {
+            var resp = await _roomService.ListParticipants(new ListParticipantsRequest { Room = RoomName(meetingId) });
+            var ids = new HashSet<long>();
+            foreach (var p in resp.Participants)
+                if (long.TryParse(p.Identity, out var id))
+                    ids.Add(id);
+            return ids;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // Chu phong thu quyen bat mic/camera cua mot nguoi.
+    //
+    // PHAI cuong che o LiveKit chu khong chi an nut ben Frontend: an nut chi
+    // ngan nguoi dung binh thuong, ai mo Console goi thang SDK van publish
+    // duoc. LiveKit tu choi track co source khong nam trong danh sach cho
+    // phep, nen no la cho duy nhat chan duoc that.
+    //
+    // BAY: canPublishSources RONG co nghia la "cho phep TAT CA" chu khong
+    // phai "cam tat ca". Nen luon phai liet ke tuong minh nhung nguon duoc
+    // phep, khong bao gio de danh sach rong.
+    public Task ApplyPublishPermissionsAsync(long meetingId, long userId, bool micAllowed, bool camAllowed)
+    {
+        var permission = new ParticipantPermission
+        {
+            CanSubscribe = true,
+            CanPublish = true,
+            CanPublishData = true,
+        };
+
+        if (micAllowed) permission.CanPublishSources.Add(TrackSource.Microphone);
+        if (camAllowed) permission.CanPublishSources.Add(TrackSource.Camera);
+        // Man hinh chia se KHONG dong o day - quyen share_screen van kiem tra
+        // o tang API nhu cu, dong vao day se doi hanh vi cua mot tinh nang
+        // khong lien quan.
+        permission.CanPublishSources.Add(TrackSource.ScreenShare);
+        permission.CanPublishSources.Add(TrackSource.ScreenShareAudio);
+
+        return _roomService.UpdateParticipant(new UpdateParticipantRequest
+        {
+            Room = RoomName(meetingId),
+            Identity = userId.ToString(),
+            Permission = permission,
+        });
+    }
+
+    // Doi quyen chi chan lan publish TIEP THEO - track dang phat van chay.
+    // Nen phai tat thang track dang co, neu khong nguoi bi thu quyen van
+    // dang noi cho ca phong nghe cho toi khi ho tu tat.
+    public async Task MutePublishedAsync(long meetingId, long userId, bool muteMic, bool muteCam)
+    {
+        if (!muteMic && !muteCam) return;
+
+        try
+        {
+            var info = await _roomService.GetParticipant(new RoomParticipantIdentity
+            {
+                Room = RoomName(meetingId),
+                Identity = userId.ToString(),
+            });
+
+            foreach (var track in info.Tracks)
+            {
+                var hit = (muteMic && track.Source == TrackSource.Microphone)
+                       || (muteCam && track.Source == TrackSource.Camera);
+                if (!hit || track.Muted) continue;
+
+                await _roomService.MutePublishedTrack(new MuteRoomTrackRequest
+                {
+                    Room = RoomName(meetingId),
+                    Identity = userId.ToString(),
+                    TrackSid = track.Sid,
+                    Muted = true,
+                });
+            }
+        }
+        catch (Exception)
+        {
+            // Nguoi do co the vua roi phong - quyen da ghi trong DB roi, lan
+            // vao sau se lay theo token moi.
+        }
+    }
+
     public Task RemoveParticipantAsync(long meetingId, long userId) =>
         _roomService.RemoveParticipant(new RoomParticipantIdentity
         {
@@ -107,16 +205,37 @@ public class LiveKitService
     // identity = userId (dang string) de cac endpoint dieu khien phong
     // (kick, mute...) map thang duoc ve user_id trong DB, khong can lookup
     // them. name = nickname hien thi trong phong.
-    public string GenerateAccessToken(long meetingId, long userId, string nickname, string? email, TimeSpan ttl)
+    public string GenerateAccessToken(
+        long meetingId, long userId, string nickname, string? email, TimeSpan ttl,
+        bool micAllowed = true, bool camAllowed = true)
     {
         var identity = new Dictionary<string, string> { ["userId"] = userId.ToString() };
         if (email is not null)
             identity["email"] = email;
 
+        // Quyen phat phai nam ngay trong TOKEN chu khong doi goi
+        // UpdateParticipant sau khi ho vao phong: giua hai thoi diem do co
+        // mot khe du rong de publish mic/cam mot lan.
+        var sources = new List<string>();
+        if (micAllowed) sources.Add("microphone");
+        if (camAllowed) sources.Add("camera");
+        sources.Add("screen_share");
+        sources.Add("screen_share_audio");
+
+        var grants = new VideoGrants
+        {
+            RoomJoin = true,
+            Room = RoomName(meetingId),
+            CanPublish = true,
+            CanSubscribe = true,
+            CanPublishData = true,
+            CanPublishSources = sources,
+        };
+
         var token = new AccessToken(_options.ApiKey, _options.ApiSecret)
             .WithIdentity(userId.ToString())
             .WithName(nickname)
-            .WithGrants(new VideoGrants { RoomJoin = true, Room = RoomName(meetingId) })
+            .WithGrants(grants)
             .WithAttributes(identity)
             .WithTtl(ttl);
 

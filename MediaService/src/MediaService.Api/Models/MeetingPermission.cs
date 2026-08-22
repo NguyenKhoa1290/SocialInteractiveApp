@@ -5,6 +5,20 @@ public enum PermissionType
     ShareScreen,
     MiniApp,
     FocusMode,
+
+    // CHU Y - hai loai nay NGUOC nghia voi ba loai tren.
+    //
+    // share_screen / mini_app / focus_mode: CO hang = duoc phep. Mac dinh
+    // khong ai co, chu phong cap them.
+    //
+    // no_mic / no_camera: CO hang = BI CAM. Mac dinh AI CUNG duoc bat mic va
+    // camera - do la thu co ban nhat cua mot cuoc hop - nen thu quyen moi la
+    // thao tac can ghi lai, khong phai cap quyen.
+    //
+    // Ghi chung mot bang vi GET /participants da tra ve mang permissions san
+    // roi; tach bang rieng chi de Frontend phai goi them mot API nua.
+    NoMic,
+    NoCamera,
 }
 
 public class MeetingPermission
@@ -21,6 +35,8 @@ public class MeetingPermission
         "share_screen" => PermissionType.ShareScreen,
         "mini_app" => PermissionType.MiniApp,
         "focus_mode" => PermissionType.FocusMode,
+        "no_mic" => PermissionType.NoMic,
+        "no_camera" => PermissionType.NoCamera,
         _ => throw new ArgumentException($"Gia tri permission_type khong hop le: {s}"),
     };
 
@@ -29,6 +45,8 @@ public class MeetingPermission
         PermissionType.ShareScreen => "share_screen",
         PermissionType.MiniApp => "mini_app",
         PermissionType.FocusMode => "focus_mode",
+        PermissionType.NoMic => "no_mic",
+        PermissionType.NoCamera => "no_camera",
         _ => throw new ArgumentOutOfRangeException(nameof(p)),
     };
 }
