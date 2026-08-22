@@ -9,7 +9,7 @@ import {
   type RemoteParticipant,
   type RemoteTrackPublication,
 } from "livekit-client";
-import { meetingApi } from "../../api/mediaApi";
+import { meetingApi, iptvApi } from "../../api/mediaApi";
 import { friendApi } from "../../api/friendApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
@@ -99,8 +99,12 @@ export function MeetingRoomPage() {
   const [showIptvPicker, setShowIptvPicker] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
 
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(true);
+  // Vao phong la TAT san mic va camera - nguoi dung tu bat khi muon noi.
+  // Ngoai chuyen te nhi, no con bo luon canh trinh duyet hoi quyen thiet bi
+  // ngay giay dau tien va canh tranh camera voi tab cu khi F5
+  // (NotReadableError), vi khong con ai doi mo thiet bi luc vao phong.
+  const [micOn, setMicOn] = useState(false);
+  const [camOn, setCamOn] = useState(false);
   const [sharing, setSharing] = useState(false);
   // Ai dang trinh bay - doc tu metadata cua phong LiveKit. KHONG poll REST:
   // LiveKit tu ban RoomMetadataChanged cho ca phong, va nguoi vao muon doc
@@ -259,37 +263,11 @@ export function MeetingRoomPage() {
         // Thu lai 1 lan sau 700ms neu that bai: khi tai lai trang, ban
         // trang CU chua kip nha camera/mic thi ban MOI da doi -> Chrome nem
         // NotReadableError du khong he co ung dung nao khac dung thiet bi.
-        // Cho mot nhip roi thu lai thi thuong duoc ngay.
-        async function enableWithRetry(fn: () => Promise<unknown>) {
-          try {
-            await fn();
-            return true;
-          } catch {
-            await new Promise((resolve) => setTimeout(resolve, 700));
-            try {
-              await fn();
-              return true;
-            } catch {
-              return false;
-            }
-          }
-        }
-
-        const failed: string[] = [];
-        if (!(await enableWithRetry(() => r.localParticipant.setMicrophoneEnabled(true)))) {
-          if (!cancelled) setMicOn(false);
-          failed.push("micro");
-        }
-        if (!(await enableWithRetry(() => r.localParticipant.setCameraEnabled(true)))) {
-          if (!cancelled) setCamOn(false);
-          failed.push("camera");
-        }
-        if (failed.length > 0 && !cancelled) {
-          setNotice(
-            `Không bật được ${failed.join(" và ")}. Bạn vẫn đang ở trong phòng — bấm nút bật lại để thử. ` +
-              `Nếu vẫn không được: kiểm tra xem có tab/ứng dụng nào khác đang dùng thiết bị, hoặc trình duyệt chưa được cấp quyền.`,
-          );
-        }
+        // KHONG bat mic/camera o day. Truoc day co, va no keo theo ba phien
+        // toai: trinh duyet hoi quyen thiet bi ngay giay dau tien, tab cu
+        // chua kip nha camera khi F5 nen bao NotReadableError, va ai vao hop
+        // cung phat tieng phong minh ra ca phong. Nguoi dung tu bam bat -
+        // xem toggleDevice, no bao loi tu te khi thiet bi bi chiem.
 
         roomRef.current = r;
         setRoom(r);
@@ -526,6 +504,23 @@ export function MeetingRoomPage() {
     } catch (err) {
       setNotice(extractApiError(err, "Không đổi được kênh"));
     }
+  }
+
+  // Duong song song voi handlePickChannel: link dan thang, khong luu vao
+  // danh sach nao. Server kiem truoc (chan link that ra la danh sach nhieu
+  // kenh, chan link khong phai HLS) roi URL di kem luon trong trang thai
+  // trinh bay - moi may trong phong tu phat, khong ton them vong goi nao.
+  //
+  // KHONG bat loi o day: popup can biet de giu nguyen va hien ly do, chu
+  // dong lai roi bao loi o goc man hinh thi nguoi dung mat luon cai link
+  // vua go.
+  async function handlePlayDirect(url: string, name: string) {
+    const res = await iptvApi.resolveDirect(meetingId, url, name);
+    await meetingApi.startPresentation(meetingId, "mini_app", {
+      appId: "iptv",
+      channelUrl: res.data.streamUrl,
+      channelName: res.data.name,
+    });
   }
 
   async function handleStopPresentation() {
@@ -929,6 +924,7 @@ export function MeetingRoomPage() {
     <IptvPlayerHost
       meetingId={meetingId}
       channelId={presentation?.kind === "mini_app" ? (presentation.channelId ?? null) : null}
+      channelUrl={presentation?.kind === "mini_app" ? (presentation.channelUrl ?? null) : null}
     >
     <div className="meet-page">
       <header className="meet-header">
@@ -1189,7 +1185,11 @@ export function MeetingRoomPage() {
       )}
 
       {showIptvPicker && canUseMiniApp && (
-        <IptvChannelPicker onPick={handlePickChannel} onClose={() => setShowIptvPicker(false)} />
+        <IptvChannelPicker
+          onPick={handlePickChannel}
+          onPlayDirect={handlePlayDirect}
+          onClose={() => setShowIptvPicker(false)}
+        />
       )}
 
       <footer className="meet-controls">

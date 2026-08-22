@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using MediaService.Api.Data;
 using MediaService.Api.Models;
+using MediaService.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace MediaService.Api.Endpoints;
@@ -66,5 +67,82 @@ public static class MiniAppSessionEndpoints
 
             return Results.Ok(new StreamUrlResponse(channel.StreamUrl, channel.AudioTrack));
         }).RequireAuthorization();
+
+        // Phat mot link dan thang vao, khong qua danh sach kenh da luu.
+        //
+        // Duong nay song song voi duong chon-tu-danh-sach chu khong thay the:
+        // danh sach la de dung lau, con day la de xem mot lan ("co link tran
+        // dau, mo len xem luon").
+        //
+        // VI SAO PHAI KIEM O SERVER chu khong dan thang xuong trinh phat:
+        //  - Rat nhieu URL .m3u8 that ra la DANH SACH hang tram kenh. Dua
+        //    thang cho hls.js thi no doc cac URL kenh nhu the chung la segment
+        //    cua cung mot luong va phat ra rac. Day dung la lo hong da phai va
+        //    o duong nhap playlist (xem MiniAppEndpoints.cs).
+        //  - Link sai dinh dang thi trinh phat se chay het 8 luot tu chua (~36
+        //    giay) roi moi bao loi, va bao sai nguyen nhan. Chan o day thi
+        //    nguoi dan link biet ngay tai sao.
+        //
+        // Trinh duyet khong tu kiem duoc: may chu IPTV gan nhu khong bao gio
+        // gui header CORS cho request kiem tra.
+        app.MapPost("/meetings/{meetingId:long}/mini-app/iptv/resolve-direct", async (
+            long meetingId, ResolveDirectRequest req, ClaimsPrincipal principal,
+            MediaDbContext db, PlaylistFetcher fetcher, CancellationToken ct) =>
+        {
+            var meeting = await db.Meetings.FindAsync([meetingId], ct);
+            if (meeting is null || meeting.Status != MeetingStatus.Active)
+                return Results.NotFound();
+
+            var userId = principal.GetUserId()!.Value;
+            if (!await CanUseMiniAppAsync(db, meeting, userId))
+                return Results.Json(
+                    new ErrorResponse("forbidden", "Khong phai host va khong duoc cap quyen mini_app"),
+                    statusCode: 403);
+
+            if (string.IsNullOrWhiteSpace(req.Url))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "url khong duoc trong"));
+
+            var url = req.Url.Trim();
+
+            // FetchAsync tu chan scheme la va dia chi noi bo (SSRF) - xem
+            // PlaylistFetcher.cs.
+            var fetched = await fetcher.FetchAsync(url, ct);
+            if (!fetched.Ok)
+                return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", fetched.Error!));
+
+            var kind = M3uPlaylist.Detect(fetched.Content!);
+
+            if (kind == M3uKind.ChannelList)
+            {
+                var count = M3uPlaylist.Parse(fetched.Content!, url).Count;
+                return Results.UnprocessableEntity(new ErrorResponse(
+                    "is_playlist",
+                    $"Link nay la danh sach {count} kenh chu khong phai mot luong. Hay nhap no vao mot Danh sach kenh roi chon kenh muon xem."));
+            }
+
+            if (kind == M3uKind.Unknown)
+                return Results.UnprocessableEntity(new ErrorResponse(
+                    "not_hls",
+                    "Link nay khong phai luong HLS (.m3u8). Trinh phat trong phong hop chi phat duoc HLS."));
+
+            return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url)));
+        }).RequireAuthorization();
+    }
+
+    // Ten hien tren khung trinh bay. Nguoi dan link thuong khong buon dat
+    // ten, nen doan tu chinh URL: uu tien ten file, khong co thi lay ten
+    // mien - van hon la de trong.
+    private static string NameFor(string? given, string url)
+    {
+        if (!string.IsNullOrWhiteSpace(given))
+            return given.Trim();
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return "Link truc tiep";
+
+        var file = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
+        return string.IsNullOrWhiteSpace(file) || file is "index" or "playlist" or "master"
+            ? uri.Host
+            : file;
     }
 }

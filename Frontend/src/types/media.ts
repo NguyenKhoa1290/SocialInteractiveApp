@@ -68,6 +68,9 @@ export interface PresentationState {
   // da mo Mini App nhung chua chon kenh -> client hien "Dang cho gan link kenh".
   channelId: number | null;
   channelName: string | null;
+  // Link nguoi trinh bay dan thang vao, khong qua danh sach kenh. Duong song
+  // song voi channelId - cai nao co thi dung cai do, channelUrl uu tien.
+  channelUrl: string | null;
 }
 
 export interface RoomMetadata {

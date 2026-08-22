@@ -71,11 +71,20 @@ public static class PresentationEndpoints
                     new ErrorResponse("forbidden", $"Ban chua duoc cap quyen {MeetingPermission.ToStringValue(needed)}"),
                     statusCode: 403);
 
+            // Chan tu day chu khong chi tin vao endpoint resolve-direct: trang
+            // thai nay duoc phat cho CA PHONG, nen mot URL rac o day la rac
+            // tren may cua moi nguoi. Chi cho http/https - dac biet chan
+            // javascript: va data:.
+            if (req.ChannelUrl is not null &&
+                (!Uri.TryCreate(req.ChannelUrl, UriKind.Absolute, out var directUri) ||
+                 directUri.Scheme is not ("http" or "https")))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "channelUrl phai bat dau bang http:// hoac https://"));
+
             var nickname = principal.GetNickname();
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
                 callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow,
-                req.ChannelId, req.ChannelName);
+                req.ChannelId, req.ChannelName, req.ChannelUrl);
 
             // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu
             // thay cho doc-roi-ghi tren hai loi goi LiveKit - vua nhanh hon
@@ -147,4 +156,5 @@ public static class PresentationEndpoints
             .AnyAsync(p => p.MeetingId == meeting.Id && p.UserId == userId && p.LeftAt == null);
 }
 
-public record StartPresentationRequest(string Kind, string? AppId, long? ChannelId, string? ChannelName);
+public record StartPresentationRequest(
+    string Kind, string? AppId, long? ChannelId, string? ChannelName, string? ChannelUrl = null);

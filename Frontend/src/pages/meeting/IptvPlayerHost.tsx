@@ -54,11 +54,15 @@ export function useIptvSlot() {
 export function IptvPlayerHost({
   meetingId,
   channelId,
+  channelUrl,
   children,
 }: {
   meetingId: number;
   // Kenh dang chieu cho ca phong (null = chua ai gan link kenh).
   channelId: number | null;
+  // Link dan thang - da di kem trong trang thai trinh bay nen khong phai goi
+  // API doi ra URL. Co gia tri thi dung luon, bo qua channelId.
+  channelUrl: string | null;
   children: ReactNode;
 }) {
   const holderRef = useRef<HTMLDivElement | null>(null);
@@ -81,6 +85,15 @@ export function IptvPlayerHost({
     // Doi kenh la doi han luong - phai bo trinh phat cu di, khong tai cho.
     setStreamUrl(null);
     setError(null);
+
+    // Link dan thang: URL da nam san trong trang thai trinh bay, khong ton
+    // mot vong goi API nao.
+    if (channelUrl) {
+      setStreamUrl(channelUrl);
+      setAudioTrack(null);
+      return;
+    }
+
     if (channelId === null) return;
 
     let cancelled = false;
@@ -98,7 +111,7 @@ export function IptvPlayerHost({
     return () => {
       cancelled = true;
     };
-  }, [meetingId, channelId]);
+  }, [meetingId, channelId, channelUrl]);
 
   // Bam y dinh cua nguoi xem: mot lan tam dung khi the <video> DANG o trong
   // document la do nguoi dung bam nut; tam dung khi no da bi go ra la do
@@ -137,7 +150,8 @@ export function IptvPlayerHost({
     }
   }, []);
 
-  const status: SlotStatus = channelId === null ? "idle" : error ? "error" : streamUrl ? "ready" : "loading";
+  const status: SlotStatus =
+    channelId === null && !channelUrl ? "idle" : error ? "error" : streamUrl ? "ready" : "loading";
 
   const api = useMemo<IptvSlotApi>(() => ({ status, error, streamUrl, mount }), [status, error, streamUrl, mount]);
 

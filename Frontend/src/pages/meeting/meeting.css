@@ -698,6 +698,54 @@
   padding: 0 4px;
 }
 
+/* Dan link thang - duong thu hai song song voi danh sach da luu. */
+.iptv-direct {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.iptv-direct strong {
+  width: 100%;
+  font-size: 13px;
+}
+
+.iptv-direct input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #22262d;
+  color: #e9ecef;
+  font-size: 13px;
+}
+
+.iptv-direct button {
+  padding: 6px 14px;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  background: #2f3a2a;
+  color: #e9ecef;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iptv-direct button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.iptv-picker-or {
+  margin: 4px 0 8px;
+  padding-top: 8px;
+  border-top: 1px solid #2b2f36;
+  font-size: 12px;
+  color: #9aa3ad;
+}
+
 .iptv-picker-controls {
   display: flex;
   gap: 8px;

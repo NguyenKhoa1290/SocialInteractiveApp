@@ -17,9 +17,16 @@ namespace MediaService.Api.Services;
 //
 // NULL nghia la nguoi trinh bay da mo Mini App nhung chua chon kenh - client
 // khac hien "Dang cho gan link kenh".
+// ChannelId va ChannelUrl la HAI DUONG song song toi cung mot cho:
+//   ChannelId  - kenh lay tu danh sach da luu (moi may tu goi
+//                /mini-app/iptv/stream-url de doi ra URL).
+//   ChannelUrl - link nguoi trinh bay dan thang vao, khong luu vao danh
+//                sach nao. URL di luon trong trang thai nay nen khong can
+//                mot vong goi API nua.
+// Chi mot trong hai co gia tri tai mot thoi diem; ChannelUrl duoc uu tien.
 public record PresentationState(
     long UserId, string Nickname, string Kind, string? AppId, DateTimeOffset StartedAt,
-    long? ChannelId = null, string? ChannelName = null);
+    long? ChannelId = null, string? ChannelName = null, string? ChannelUrl = null);
 
 // Hinh dang metadata phong LiveKit: {"presentation": {...}} hoac {} khi
 // khong ai trinh bay. Giu dang object long nhau de sau nay them truong khac

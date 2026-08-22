@@ -73,3 +73,7 @@ public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Skipped,
 public record MiniAppStartRequest(string? AppId);
 
 public record StreamUrlResponse(string StreamUrl, string? AudioTrack);
+
+public record ResolveDirectRequest(string Url, string? Name);
+
+public record DirectStreamResponse(string StreamUrl, string Name);

@@ -65,13 +65,14 @@ export const meetingApi = {
   startPresentation: (
     meetingId: number,
     kind: "screen" | "mini_app",
-    opts?: { appId?: string; channelId?: number; channelName?: string },
+    opts?: { appId?: string; channelId?: number; channelName?: string; channelUrl?: string },
   ) =>
     mediaHttp.post<PresentationState>(`/meetings/${meetingId}/presentation`, {
       kind,
       appId: opts?.appId ?? null,
       channelId: opts?.channelId ?? null,
       channelName: opts?.channelName ?? null,
+      channelUrl: opts?.channelUrl ?? null,
     }),
 
   stopPresentation: (meetingId: number) => mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`),
@@ -115,6 +116,15 @@ export const iptvApi = {
   // broadcast thuc su duoc vi Media Service chua co tang WebSocket).
   startMiniApp: (meetingId: number, appId = "iptv") =>
     mediaHttp.post<{ appId: string }>(`/meetings/${meetingId}/mini-app/start`, { appId }),
+
+  // Kiem mot link dan thang truoc khi phat cho ca phong: chan link that ra
+  // la danh sach nhieu kenh, va chan link khong phai HLS. Phai kiem o server
+  // vi may chu IPTV gan nhu khong bao gio gui header CORS.
+  resolveDirect: (meetingId: number, url: string, name?: string) =>
+    mediaHttp.post<{ streamUrl: string; name: string }>(
+      `/meetings/${meetingId}/mini-app/iptv/resolve-direct`,
+      { url, name: name || null },
+    ),
 
   // Moi nguoi trong phong TU fetch stream rieng (UC-37 buoc 4).
   getStreamUrl: (meetingId: number, channelId: number) =>
