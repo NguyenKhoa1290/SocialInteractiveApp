@@ -5719,6 +5719,53 @@ hết hạn RTC).
 Nhờ tách như vậy, backend **không cần** rút ngắn 60 giây ân hạn — mỗi bên được chỉnh cho đúng mục
 đích của nó: giao diện chỉnh cho nhanh, sổ sách chỉnh cho an toàn.
 
+### 13.6 Cuộc họp không còn ai nhưng vẫn "đang diễn ra"
+
+Grep cả Media Service: `RoomExistsAsync` được gọi ở **đúng một nơi** — bên trong
+`GET /meetings/active?conversationId=X`. Việc dọn dẹp đang đi nhờ một endpoint phục vụ mục đích khác,
+và sinh ra ba lỗ hổng:
+
+1. **Chỉ dọn khi có người mở đúng phòng chat đó.** Không ai mở thì cuộc họp "đang diễn ra" vô thời hạn,
+   và banner "Đang có cuộc họp" treo mãi.
+2. **Cuộc họp độc lập** (`mode=standalone`, `conversation_id` NULL) không lọt vào truy vấn đó, nên
+   **không có đường nào** kết thúc được chúng.
+3. `GET /meetings/{id}` — chính cái mà trang phòng họp poll — không hề kiểm tra, nên ngồi trong một
+   cuộc họp đã chết thì không gì sửa được nó.
+
+Và `grep AddHostedService` trong Media Service trả về **rỗng** — không ai quét định kỳ. Ba lỗ hổng
+cùng một gốc: việc dọn dẹp không có ai chịu trách nhiệm.
+
+Cần nói rõ: bộ đối chiếu ở 13.1 **cố ý không đụng** trường hợp phòng rỗng, với lý do ghi trong code là
+"để đường tự chữa ở `/meetings/active` lo". Lằn cản đó vẫn đúng — nó là thứ giữ cho việc dọn người
+không bao giờ kích hoạt trigger đóng phòng — nhưng cái đích được uỷ thác thì yếu hơn giả định. Bài học:
+uỷ thác cho một cơ chế khác thì phải kiểm cơ chế đó trước.
+
+**Sửa —
+[MeetingSweeperService.cs](MediaService/src/MediaService.Api/BackgroundServices/MeetingSweeperService.cs):**
+quét mỗi 60 giây, lấy cuộc họp `active` đã quá 6 phút tuổi, hỏi LiveKit **theo lô** (`ListRooms` nhận
+nhiều tên một lần, nên một vòng quét tốn đúng một lời gọi mạng bất kể bao nhiêu cuộc họp), phòng nào
+mất thì đóng — `ended_at`, đóng hết `left_at`, dọn phòng chờ, dọn trạng thái trình bày, xoá cache.
+
+Dọn dẹp là việc định kỳ theo thời gian chứ không phải việc phát sinh từ một request, nên gắn vào
+request thì luôn còn một đường nào đó không ai đi qua.
+
+**An toàn:** `ListExistingRoomsAsync` trả `null` khi không hỏi được LiveKit và vòng quét bỏ qua cả
+lượt — không bao giờ được suy "không hỏi được" thành "không còn phòng nào", nếu không một lần LiveKit
+trở chứng sẽ đi kết thúc sạch mọi cuộc họp thật. Mốc 6 phút để không chạm cuộc họp vừa tạo.
+
+Chi tiết nhỏ đáng ghi: đổi `status` qua **entity** chứ không `ExecuteUpdate`, vì cột đó có value
+converter enum ↔ chuỗi `'active'`/`'ended'`.
+
+**Verify — chạy thật, 2/2 pass:**
+
+| | Kết quả |
+|---|---|
+| X — cuộc họp độc lập, tạo xong không ai vào (trước đây **không có** đường nào đóng nó) | Bị đóng sau **7,1 phút**, `participants` trả về rỗng |
+| Y — cuộc họp độc lập, chủ phòng nối thật vào LiveKit và ở lại | **Vẫn `active`** suốt 8 phút, kể cả hai vòng theo dõi thêm |
+
+Log của pod: `Da dong 1 cuoc hop khong con ai (phong LiveKit da tan): 25`. 7,1 phút khớp thiết kế —
+LiveKit `EmptyTimeout` 300 giây, cộng mốc tuổi 6 phút, cộng nhịp quét 60 giây.
+
 ---
 
 ## Trạng thái khi kết thúc đợt Phase 7–11
