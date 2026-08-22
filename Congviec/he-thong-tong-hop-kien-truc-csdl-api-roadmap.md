@@ -5698,6 +5698,27 @@ tái tạo lại đúng cái lỗi mà `pagehide` từng gây ra.
 
 Đã dọn sạch: xoá cuộc họp thử, xoá 2 tài khoản thử, 5 tài khoản thật còn nguyên.
 
+### 13.5 Tách "cái nhìn thấy" khỏi "cái ghi lại"
+
+73 giây là đúng cho **sổ sách** nhưng quá lâu cho **mắt người xem**: ô video của người rời phòng biến
+mất ngay, mà tên họ vẫn nằm trong danh sách cả phút — trông như hệ thống đếm sai.
+
+Sửa bằng cách để giao diện bám theo LiveKit thay vì theo API, tức **cùng nguồn với các ô video** nên
+hai chỗ không bao giờ lệch nhau nữa. Giữ hai danh sách tách bạch trong `MeetingRoomPage`:
+
+- `participants` — sổ sách từ API. Dùng để tra tên, tra quyền. Giữ nguyên chỗ cần biết "ai có hồ sơ
+  trong cuộc họp này" (ví dụ danh sách mời bạn bè: người vừa rớt mạng vẫn còn hồ sơ, mời lại chỉ tổ
+  lỗi "đã ở trong phòng").
+- `presentParticipants` — trong số đó, ai đang thực sự kết nối. Dùng cho danh sách bên phải và con số
+  trên tiêu đề. Có ân hạn 20 giây cho người vừa được duyệt, vì bắt tay WebRTC mất vài giây.
+
+**Đo thật:** từ lúc đóng tab đến lúc trình duyệt bên kia nhận `ParticipantDisconnected` là **1,80
+giây** (đóng tab là ngắt có báo trước, nên LiveKit biết ngay; rút cáp mạng thì lâu hơn vì phải chờ
+hết hạn RTC).
+
+Nhờ tách như vậy, backend **không cần** rút ngắn 60 giây ân hạn — mỗi bên được chỉnh cho đúng mục
+đích của nó: giao diện chỉnh cho nhanh, sổ sách chỉnh cho an toàn.
+
 ---
 
 ## Trạng thái khi kết thúc đợt Phase 7–11

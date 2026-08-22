@@ -43,6 +43,10 @@ import "./meeting.css";
 // nguoi cho duyet va quyen mini_app chi cap nhat duoc bang poll.
 const POLL_MS = 4000;
 
+// Vua duoc nhan vao phong thi con phai bat tay WebRTC vai giay moi hien ra
+// ben LiveKit - trong khoang do van hien ho trong danh sach.
+const CONNECT_GRACE_MS = 20000;
+
 // Hang doi TUAN TU HOA moi thao tac ket noi/ngat phong.
 //
 // Bug that: React StrictMode (dev) goi effect 2 LAN. Truoc day moi lan tao 1
@@ -130,7 +134,42 @@ export function MeetingRoomPage() {
   }, []);
 
   const isHost = meeting !== null && currentUserId === meeting.hostId;
+  // LUU Y - hai danh sach, dung sai cho la sinh loi:
+  //
+  //   participants        = bang meeting_participants tu API. La SO SACH:
+  //                         dung de tra ten, tra quyen, biet ai co ho so
+  //                         trong cuoc hop nay.
+  //   presentParticipants = trong so do, ai DANG THUC SU ket noi. La cai
+  //                         MAT NGUOI DUNG NHIN THAY.
+  //
+  // Hai cai lech nhau vi backend co y doi 60 giay truoc khi ghi nhan mot
+  // nguoi da roi (de khong duoi nham nguoi dang F5 hay dang noi lai mang -
+  // xem ParticipantReconciler.cs). Doi thi dung cho SO SACH, nhung khong the
+  // bat nguoi xem cho: o video cua ho da bien mat ngay roi, danh sach van
+  // con ten thi trong nhu he thong dem sai.
+  //
+  // Nen giao dien bam theo LiveKit - cung dung nguon voi cac o video, nen
+  // hai cho khong bao gio le nhau nua.
   const myPermissions = participants.find((p) => p.userId === currentUserId)?.permissions ?? [];
+  const liveUserIds = new Set<number>();
+  if (room) {
+    // Chinh minh khong nam trong remoteParticipants.
+    if (currentUserId != null) liveUserIds.add(currentUserId);
+    for (const rp of remotes) liveUserIds.add(Number(rp.identity));
+  }
+
+  const presentParticipants =
+    status === "connected" && room
+      ? participants.filter(
+          (p) =>
+            liveUserIds.has(p.userId) ||
+            // Vua duoc duyet vao, chua kip noi LiveKit (mat vai giay). Khong
+            // chua cho nay thi chu phong bam Duyet xong lai thay nguoi do
+            // bien mat mot lat roi hien lai - trong nhu loi.
+            Date.now() - new Date(p.joinedAt).getTime() < CONNECT_GRACE_MS,
+        )
+      : participants;
+
   const canUseMiniApp = isHost || myPermissions.includes("mini_app");
   const canShareScreen = isHost || myPermissions.includes("share_screen");
   // Mac dinh ai cung bat duoc mic/camera - chu phong THU quyen thi moi co
@@ -896,7 +935,7 @@ export function MeetingRoomPage() {
         <span>Cuộc họp #{meetingId}</span>
         <div className="meet-header-actions">
           <button onClick={() => setShowPeople((v) => !v)}>
-            Người tham gia ({participants.length}){waiting.length > 0 && ` · ${waiting.length} chờ`}
+            Người tham gia ({presentParticipants.length}){waiting.length > 0 && ` · ${waiting.length} chờ`}
           </button>
           <button onClick={() => setShowDiscussion((v) => !v)}>💬 Thảo luận</button>
           {canUseMiniApp && <button onClick={handleOpenMiniApp}>Mini App IPTV</button>}
@@ -1027,7 +1066,7 @@ export function MeetingRoomPage() {
             <aside className="meet-side">
               <h3>Trong phòng</h3>
               <ul className="meet-people">
-                {participants.map((p) => (
+                {presentParticipants.map((p) => (
                   <li key={p.userId}>
                     <span>
                       {p.nickname}
@@ -1112,7 +1151,9 @@ export function MeetingRoomPage() {
                   ) : (
                     <ul className="meet-people">
                       {friends.map((f) => {
-                        // participants tu API da loc san nguoi con trong phong.
+                        // Co y dung participants (so sach) chu khong phai
+                        // presentParticipants: nguoi vua rot mang van con ho so
+                        // trong cuoc hop, moi lai chi to loi "da o trong phong".
                         const inRoom = participants.some((p) => p.userId === f.userId);
                         return (
                           <li key={f.userId}>
