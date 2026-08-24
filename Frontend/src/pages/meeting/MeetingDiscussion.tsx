@@ -5,6 +5,7 @@ import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { FileMessageContent } from "../chat/FileMessageContent";
 import type { Message, MessageType } from "../../types/chat";
+import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
 import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -30,6 +31,7 @@ export function MeetingDiscussion({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState<MessageType | null>(null);
+  const [upload, setUpload] = useState<UploadState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -100,19 +102,23 @@ export function MeetingDiscussion({
     }
 
     setUploading(type as MessageType);
+    setUpload({ name: file.name, loaded: 0, total: file.size });
     setError(null);
     try {
       // Truyen meetingId de server kiem tra quyen theo nhanh "dang o trong
       // cuoc hop" (khach vang lai khong thuoc nhom). File VAN tinh vao han
       // muc 2GB cua nhom.
       const { data: urlRes } = await chatApi.requestUploadUrl(conversationId, type, file.size, meetingId);
-      await chatApi.uploadToPresignedUrl(urlRes.uploadUrl, file);
+      await chatApi.uploadToPresignedUrl(urlRes.uploadUrl, file, (loaded, total) =>
+        setUpload({ name: file.name, loaded, total }),
+      );
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {
       setError(extractApiError(err, "Không gửi được tệp"));
     } finally {
       setUploading(null);
+      setUpload(null);
     }
   }
 
@@ -176,7 +182,11 @@ export function MeetingDiscussion({
           📎 Tệp
           <input type="file" hidden onChange={(e) => handleUpload(e, "file")} />
         </label>
-        {uploading && <span className="disc-empty">Đang tải lên…</span>}
+        {upload ? (
+          <UploadProgressBar state={upload} />
+        ) : (
+          uploading && <span className="disc-empty">Đang tải lên…</span>
+        )}
       </div>
       <p className="disc-note">
         Thảo luận không mã hoá đầu cuối (để khách mời tham gia được). Tệp đính kèm tính vào dung lượng của nhóm.

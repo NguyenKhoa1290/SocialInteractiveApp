@@ -102,8 +102,42 @@ export const chatApi = {
 
   getDownloadUrl: (fileId: number) => chatHttp.get<UploadUrlResponse>(`/files/${fileId}/download-url`),
 
-  uploadToPresignedUrl: (uploadUrl: string, file: File) =>
-    fetch(uploadUrl, { method: "PUT", body: file }),
+  // Tai file len thang MinIO bang URL da ky san.
+  //
+  // Dung XMLHttpRequest chu KHONG phai fetch: fetch() khong co cach nao bao
+  // tien do tai LEN. Body cua no la mot khoi kin, trinh duyet khong phat su
+  // kien nao trong luc gui. XHR thi co xhr.upload.onprogress - day la ly do
+  // duy nhat con giu XHR trong ma nguon nay.
+  //
+  // Tien the sua mot lo hong that: ban fetch cu KHONG kiem tra ma tra ve.
+  // fetch() chi reject khi loi mang, con MinIO tra 403/500 thi no van coi la
+  // thanh cong, roi ma o tren goi tiep sendFileMessage - sinh ra mot tin
+  // nhan tro toi file KHONG HE TON TAI tren kho. Ban nay kiem status.
+  uploadToPresignedUrl: (
+    uploadUrl: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl);
+
+      xhr.upload.onprogress = (e) => {
+        // lengthComputable = false khi trinh duyet khong biet tong kich
+        // thuoc; voi File thi hiem, nhung van lay file.size lam duong lui.
+        onProgress?.(e.loaded, e.lengthComputable ? e.total : file.size);
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Kho lưu trữ từ chối tệp (HTTP ${xhr.status})`));
+      };
+      xhr.onerror = () => reject(new Error("Mất kết nối khi đang tải tệp lên"));
+      xhr.ontimeout = () => reject(new Error("Tải tệp lên quá lâu, đã dừng"));
+      xhr.onabort = () => reject(new Error("Đã huỷ tải tệp lên"));
+
+      xhr.send(file);
+    }),
 
   listMutedMembers: (conversationId: number) => chatHttp.get<number[]>(`/conversations/${conversationId}/mutes`),
 

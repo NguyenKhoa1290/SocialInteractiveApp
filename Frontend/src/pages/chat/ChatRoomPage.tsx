@@ -28,6 +28,7 @@ import { FileMessageContent } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import type { ConversationDetail } from "../../api/chatApi";
+import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
 import "./chat.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -53,6 +54,9 @@ export function ChatRoomPage() {
   const [members, setMembers] = useState<{ userId: number; nickname: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<MessageType | null>(null);
+  // Tien do tai len. Tach khoi `uploading` vi hai thu tra loi hai cau hoi
+  // khac nhau: `uploading` khoa cac nut lai, con cai nay ve thanh tien do.
+  const [upload, setUpload] = useState<UploadState | null>(null);
   const [textInput, setTextInput] = useState("");
   const [sendingText, setSendingText] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -579,18 +583,22 @@ export function ChatRoomPage() {
     }
 
     setUploading(type);
+    setUpload({ name: file.name, loaded: 0, total: file.size });
     try {
-      const { data: upload } = await chatApi.requestUploadUrl(
+      const { data: slot } = await chatApi.requestUploadUrl(
         conversationId,
         type as "image" | "video" | "voice" | "file",
         file.size,
       );
-      await chatApi.uploadToPresignedUrl(upload.uploadUrl, file);
-      await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, upload.fileId);
+      await chatApi.uploadToPresignedUrl(slot.uploadUrl, file, (loaded, total) =>
+        setUpload({ name: file.name, loaded, total }),
+      );
+      await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, slot.fileId);
     } catch (err) {
       setError(extractApiError(err, "Gửi file thất bại"));
     } finally {
       setUploading(null);
+      setUpload(null);
     }
   }
 
@@ -824,6 +832,10 @@ export function ChatRoomPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Dat TREN thanh soan tin chu khong nhet vao trong: thanh do la flex
+          hang ngang, chen them vao se bop cac nut lai. */}
+      {upload && <UploadProgressBar state={upload} />}
+
       <div className="chat-compose-bar">
         <button disabled={!!uploading} onClick={() => pickFile("image", "image/*")}>
           🖼️ Ảnh
@@ -839,7 +851,7 @@ export function ChatRoomPage() {
             📎 File
           </button>
         )}
-        {uploading && <span className="chat-uploading">Đang gửi {uploading}...</span>}
+        {uploading && !upload && <span className="chat-uploading">Đang gửi {uploading}...</span>}
       </div>
 
       {error && <p className="chat-error">{error}</p>}

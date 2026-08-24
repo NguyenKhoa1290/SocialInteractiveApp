@@ -1,0 +1,80 @@
+/* Thanh tien do tai file len.
+   Dung o CA trang chat (nen sang) lan phong hop (nen toi), nen moi mau o day
+   phai trung tinh: chu theo currentColor, ray dung xam trong suot. */
+
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 0;
+  font-size: 12px;
+  color: currentColor;
+}
+
+.upload-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* Ten file dai thi cat bot, KHONG de no day con so phan tram ra khoi khung. */
+.upload-progress-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  opacity: 0.85;
+}
+
+.upload-progress-num {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.upload-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.3);
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent, #aa3bff);
+  /* Su kien progress cua trinh duyet nhay tung nac; khong lam muot thi thanh
+     giat cuc. */
+  transition: width 0.15s linear;
+}
+
+/* Da gui xong, dang cho may chu tra loi - keo soc de nguoi dung biet no van
+   dang chay chu khong phai treo o 100%. */
+.upload-progress-fill-done {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--accent, #aa3bff) 0 10px,
+    rgba(128, 128, 128, 0.45) 10px 20px
+  );
+  animation: upload-progress-stripes 0.8s linear infinite;
+}
+
+@keyframes upload-progress-stripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 20px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-progress-fill {
+    transition: none;
+  }
+  .upload-progress-fill-done {
+    animation: none;
+  }
+}
