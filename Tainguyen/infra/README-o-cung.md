@@ -107,6 +107,59 @@ nên để kernel bỏ bớt page cache trước, chỉ swap khi thật sự c�
 Đã kiểm chứng cả swap lẫn mount lên đúng qua **đường systemd dùng lúc khởi động**, và sống sót qua một
 lần khởi động lại thật.
 
+## Bố trí thư mục trên ổ và quyền truy cập
+
+```
+/mnt/hdd500/
+├── minio/        drwx------ root:root   <- du lieu MinIO, KHOA
+├── nguyenkhoa/   drwxr-xr-x nguyenkhoa  <- cho nguoi dung tu do dung
+└── lost+found/   drwx------ root:root
+```
+
+Thư mục `minio/` để **700 root** chứ không phải 777 như lúc mới chuyển sang: nó chứa file người dùng
+tải lên, không có lý do gì để tài khoản desktop xoá được. MinIO chạy bằng `root` nên không ảnh hưởng —
+đã kiểm sau khi siết: vẫn đọc đủ 3/3 object.
+
+### Vì sao Files (Nautilus) không thấy ổ
+
+Hồi còn NTFS, ổ được `udisks2` tự gắn vào `/media/nguyenkhoa/…` như một thiết bị rời, nên Files hiện nó
+trong thanh bên và mọi file đều thuộc `uid=1000` (do tuỳ chọn mount ép). Sau khi chuyển sang fstab +
+ext4 thì **hai thứ đổi cùng lúc**:
+
+1. **Mount khai trong `/etc/fstab` bị Files coi là mount hệ thống** và không hiện trong thanh bên, trừ
+   khi có `x-gvfs-show`.
+2. **ext4 thi hành quyền thật**, không như NTFS ép `uid=1000` cho toàn bộ. `/mnt/hdd500` thuộc `root`
+   nên tài khoản desktop chỉ đọc được, không ghi được.
+
+Sửa cả hai:
+
+```
+UUID=… /mnt/hdd500 ext4 defaults,nofail,x-systemd.device-timeout=10,x-gvfs-show,x-gvfs-name=O%20500GB 0 2
+```
+
+cộng với thư mục `/mnt/hdd500/nguyenkhoa` thuộc quyền người dùng. Đã kiểm: ghi được vào thư mục của
+mình, và **không** mở được `minio/` (`Permission denied`) — đúng như mong muốn.
+
+## Ổ ghi liên tục ~2 MB/s sau khi format: `ext4lazyinit`
+
+Sau khi tạo ext4, Mission Center báo ổ ghi đều 1–2 MB/s dù không ai đụng vào. Đo ra: **`ext4lazyinit`**
+— tiến trình nhân do `mkfs.ext4` để lại.
+
+`mkfs.ext4` mặc định bật `lazy_itable_init=1`: nó **không** ghi zero toàn bộ bảng inode lúc format
+(nếu ghi thì format một ổ quay 451 GB mất rất lâu), mà giao cho nhân làm ngầm sau khi mount.
+
+Khối lượng: **29.548.544 inode × 256 byte ≈ 7 GB** phải ghi zero. Nhân cố ý tự kìm tốc độ để không
+tranh I/O với việc thật, nên ra đúng con số ~2 MB/s.
+
+- Đây là việc **một lần**, xong là hết. Có khởi động lại giữa chừng thì nó *tiếp tục* chứ không làm
+  lại (mỗi nhóm có cờ `ITABLE_ZEROED`).
+- Xem tiến độ: `sudo dumpe2fs /dev/sdb1 2>/dev/null | grep -c ITABLE_ZEROED` — so với **3607** nhóm.
+- Xem còn chạy không: `ps -eo pid,comm | grep ext4lazyinit`.
+
+Ghi chú cho lần sau: `mkfs.ext4 -E lazy_itable_init=0` sẽ ghi hết ngay lúc format (format lâu hơn
+nhiều, đổi lại không có việc chạy ngầm). Còn nếu ổ chỉ chứa file lớn thì `-i 1048576` giảm số inode
+xuống vài trăm nghìn, bảng inode teo lại và gần như không còn gì để khởi tạo.
+
 ## Cạm bẫy: GParted để lại mask trong systemd
 
 Sau khi chạy GParted, phát hiện một loạt symlink `-> /dev/null` trong `/run/systemd/system/`, gồm
