@@ -133,6 +133,18 @@ Hai bản, đều trên SSD, giữ làm đường lùi:
 | Đường dẫn | Là gì |
 |---|---|
 | `/var/lib/rancher/k3s/storage/pvc-c93998b0-…_chat-data_minio-data` | Bản trước khi chuyển sang HDD (PV cũ, đã đổi `Retain`) |
-| `/var/tmp/minio-backup` | Bản chụp ngay trước khi định dạng lại sang ext4 |
+| `/var/backups/minio-truoc-khi-format-ext4-2026-08-24` | Bản chụp ngay trước khi định dạng lại sang ext4 |
 
-Mỗi bản 34 MB. Chạy ổn định một thời gian thì xoá được cả hai.
+Mỗi bản 34 MB, **đều nằm trên SSD** — cố ý để khác ổ với bản đang chạy, chứ để cùng ổ thì hỏng ổ là
+mất cả hai.
+
+Đã kiểm: **dữ liệu người dùng (`chat-media`) giống hệt nhau ở cả ba nơi** — 6 file, checksum khớp.
+Số file tổng thì khác nhau (19 / 31 / 42) nhưng đó chỉ là `.minio.sys`, phần metadata nội bộ MinIO tự
+sinh thêm trong lúc chạy, không phải dữ liệu.
+
+Ban đầu bản chụp để ở `/var/tmp/minio-backup` — đã chuyển sang `/var/backups/`. Trên máy này
+`systemd-tmpfiles` không có luật nào dọn `/var/tmp` (dòng `q /var/tmp … 30d` trong
+`/usr/lib/tmpfiles.d/tmp.conf` đang bị chú thích), nên nó sẽ không tự mất; nhưng cái tên "tmp" mời gọi
+người ta xoá, mà `/var/backups` thì đúng chỗ và không ai đụng.
+
+Chạy ổn định một thời gian thì xoá được cả hai.
