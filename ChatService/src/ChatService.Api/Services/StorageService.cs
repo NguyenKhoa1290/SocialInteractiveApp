@@ -139,20 +139,27 @@ public class StorageService
 
     // --- Tai len nhieu phan (multipart) ---------------------------------
     //
-    // VI SAO CAN: he thong ra Internet qua Cloudflare Tunnel, ma Cloudflare
-    // goi mien phi chi cho origin ~100 GIAY de tra loi mot request. Kho luu
-    // tru chi tra loi SAU KHI nhan xong toan bo file, nen Cloudflare ngoi cho
-    // suot ca lan tai len - file nao truyen lau hon nguong do la bi cat giua
-    // chung voi loi 524, du may chu hoan toan khoe.
+    // VI SAO CAN: he thong ra Internet qua Cloudflare Tunnel, va Cloudflare
+    // bo cuoc voi nhung lan tai len lon, tra ve loi 524 ("origin khong tra
+    // loi kip"). Kho luu tru chi tra loi SAU KHI nhan xong toan bo file nen
+    // Cloudflare phai cho suot ca lan tai len.
     //
-    // Da do that: 10MB qua duoc (72,6 giay), 25MB chet HTTP 524 (132,5 giay).
-    // Nguong KHONG phai mot con so MB co dinh ma la mot khoang THOI GIAN, nen
-    // no troi theo toc do mang - dung nhu trieu chung "toi thi hong som hon
-    // sang".
+    // SO LIEU DO DUOC (khong phai suy dien):
+    //   mot lan  10MB -> 200, 72,6 giay
+    //   mot lan  25MB -> 524, 132,5 giay
+    //   nhieu phan 25MB (5 phan) -> thanh cong
+    //   nhieu phan 45MB (9 phan) -> thanh cong, checksum khop
     //
-    // Cach di qua: cat file thanh nhieu phan, MOI PHAN mot request rieng nen
-    // moi phan co ngan sach 100 giay rieng. Kem theo mot loi lon: phan nao
-    // hong thi thu lai MOT MINH phan do, khong phai lam lai ca file.
+    // LUU Y ve co che: ban dau tuong quy tac la "qua ~100 giay thi cat" theo
+    // con so Cloudflare cong bo cho goi mien phi. Nhung trong lan do 45MB co
+    // MOT PHAN chay 148,7 giay VAN tra 200 - nen quy tac that phuc tap hon
+    // the, khong phai mot moc tong thoi gian gon ghe. Cai chac chan la: body
+    // cang nho thi cang de qua. Do la du de chon cach sua, nhung dung ghi vao
+    // day mot con so chinh xac ma minh khong do duoc.
+    //
+    // Cach di qua: cat file thanh nhieu phan, MOI PHAN mot request rieng va
+    // du nho. Kem theo mot loi lon: phan nao hong thi thu lai MOT MINH phan
+    // do, khong phai lam lai ca file.
     public const int PartSizeBytes = 5 * 1024 * 1024;
 
     // File nho hon nguong nay thi tai mot lan cho gon - it request hon, va

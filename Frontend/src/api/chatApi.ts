@@ -151,18 +151,14 @@ export const chatApi = {
 
   // Tai mot tep len, tu chon di duong mot lan hay nhieu phan.
   //
-  // VI SAO CAN NHIEU PHAN: he thong ra Internet qua Cloudflare Tunnel, ma
-  // Cloudflare goi mien phi chi cho origin ~100 GIAY de tra loi mot request.
-  // Kho luu tru chi tra loi SAU KHI nhan xong toan bo tep, nen Cloudflare
-  // ngoi cho suot ca lan tai len - tep nao truyen lau hon nguong do la bi
-  // cat giua chung voi loi 524. Da do that: 10MB qua duoc (72,6 giay), 25MB
-  // chet 524 (132,5 giay). Nguong khong phai mot con so MB co dinh ma la mot
-  // khoang THOI GIAN, nen no troi theo toc do mang.
+  // VI SAO CAN NHIEU PHAN: he thong ra Internet qua Cloudflare Tunnel, va
+  // Cloudflare bo cuoc voi nhung lan tai len lon (loi 524). Do that: mot lan
+  // 10MB qua duoc (72,6 giay), mot lan 25MB chet 524; cat thanh nhieu phan
+  // thi 25MB va 45MB deu qua, checksum khop.
   //
-  // Cat thanh nhieu phan thi MOI PHAN mot request rieng, moi phan co ngan
-  // sach 100 giay rieng. Kem theo mot loi lon nua: phan nao dut thi THU LAI
-  // MOT MINH phan do, khong phai lam lai ca tep - dung cai canh "tai do bi
-  // dut la phai lam lai tu dau".
+  // Cat nho thi moi phan la mot request rieng va du nho de di lot. Kem theo
+  // mot loi lon nua: phan nao dut thi THU LAI MOT MINH phan do, khong phai
+  // lam lai ca tep - dung cai canh "tai do bi dut la phai lam lai tu dau".
   uploadFile: async (
     slot: UploadUrlResponse,
     file: File,
@@ -184,9 +180,12 @@ export const chatApi = {
 
       // Thu lai tung phan. Mang nha chap chon thi mot phan hong khong con la
       // tham hoa nua.
+      // 5 lan chu khong phai 3: da quan sat that mot phan 5MB chay toi 148
+      // giay moi xong, va 524 thi thinh thoang van roi vao. Thu them vai lan
+      // re hon nhieu so voi bat nguoi dung lam lai ca tep.
       let lastErr: unknown = null;
       let ok = false;
-      for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+      for (let attempt = 1; attempt <= 5 && !ok; attempt++) {
         try {
           await chatApi.uploadToPresignedUrl(slot.partUrls[i], chunk, (loaded) =>
             onProgress?.(done + loaded, file.size),
@@ -195,7 +194,7 @@ export const chatApi = {
         } catch (err) {
           lastErr = err;
           // Cho tang dan roi thu lai - dut mang thoang qua thi lan sau qua.
-          if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1500));
+          if (attempt < 5) await new Promise((r) => setTimeout(r, attempt * 2000));
         }
       }
       if (!ok) throw lastErr;
