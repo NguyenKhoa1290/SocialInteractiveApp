@@ -171,37 +171,77 @@ export const chatApi = {
     }
 
     const partSize = slot.partSizeBytes;
-    let done = 0;
 
+    const chunks: Blob[] = [];
     for (let i = 0; i < slot.partUrls.length; i++) {
       const start = i * partSize;
       if (start >= file.size) break;
-      const chunk = file.slice(start, Math.min(start + partSize, file.size));
+      chunks.push(file.slice(start, Math.min(start + partSize, file.size)));
+    }
 
-      // Thu lai tung phan. Mang nha chap chon thi mot phan hong khong con la
-      // tham hoa nua.
+    // Tien do phai cong don theo TUNG PHAN chu khong dung mot bien chay:
+    // nhieu phan bay cung luc nen "da xong bao nhieu + phan nay duoc bao
+    // nhieu" khong con dung nua.
+    const loadedPerPart = new Array<number>(chunks.length).fill(0);
+    const report = () => onProgress?.(loadedPerPart.reduce((a, b) => a + b, 0), file.size);
+
+    const sendPart = async (index: number) => {
       // 5 lan chu khong phai 3: da quan sat that mot phan 5MB chay toi 148
       // giay moi xong, va 524 thi thinh thoang van roi vao. Thu them vai lan
       // re hon nhieu so voi bat nguoi dung lam lai ca tep.
       let lastErr: unknown = null;
-      let ok = false;
-      for (let attempt = 1; attempt <= 5 && !ok; attempt++) {
+      for (let attempt = 1; attempt <= 5; attempt++) {
         try {
-          await chatApi.uploadToPresignedUrl(slot.partUrls[i], chunk, (loaded) =>
-            onProgress?.(done + loaded, file.size),
-          );
-          ok = true;
+          await chatApi.uploadToPresignedUrl(slot.partUrls![index], chunks[index], (loaded) => {
+            loadedPerPart[index] = loaded;
+            report();
+          });
+          // Chot bang dung kich thuoc phan: su kien progress cuoi cung khong
+          // phai luc nao cung bao du, de thanh tien do ket lai o 99%.
+          loadedPerPart[index] = chunks[index].size;
+          report();
+          return;
         } catch (err) {
           lastErr = err;
-          // Cho tang dan roi thu lai - dut mang thoang qua thi lan sau qua.
+          loadedPerPart[index] = 0; // thu lai la gui lai tu dau phan do
+          report();
           if (attempt < 5) await new Promise((r) => setTimeout(r, attempt * 2000));
         }
       }
-      if (!ok) throw lastErr;
+      throw lastErr;
+    };
 
-      done += chunk.size;
-      onProgress?.(done, file.size);
-    }
+    // --- Gui SONG SONG ---------------------------------------------------
+    //
+    // Do that tren he thong (4 cap xen ke tuan tu/song song, moi vong 15MB):
+    //   tuan tu    : 0,186  0,083  0,173  0,145  MB/s
+    //   song song 3: 0,113  0,396  0,465  0,477  MB/s
+    //
+    // Ba trong bon lan song song dat 0,40-0,48 MB/s, muc ma tuan tu chua lan
+    // nao cham toi (cao nhat 0,186). Nghia la nut that KHONG phai bang thong
+    // duong truyen - neu la bang thong thi chia luong chi lam moi luong cham
+    // di, tong van the. Nut that la DO TRE: duong di may nguoi dung -> bien
+    // Cloudflare -> tunnel -> may chu nha co RTT rat cao, mot ket noi TCP don
+    // le gui het mot cua so roi phai ngoi cho xac nhan quay ve.
+    //
+    // Vi sao dung 3 chu khong nhieu hon: nginx truoc kho luu tru dat
+    // limit_conn perip 4. Lay 3 la con chua mot suat cho viec tai VE cua chinh
+    // nguoi do; cham tran se bi tra 503. Trong lan do, 24/24 request deu 200 -
+    // muc 3 khong cham tran.
+    //
+    // LUU Y TRUNG THUC: mot trong bon cap do ra song song CHAM hon (0,61x).
+    // Mang nha dao dong rat manh nen day la xu huong, khong phai hang so.
+    const CONCURRENCY = 3;
+    let next = 0;
+    const workers = Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, async () => {
+      while (next < chunks.length) await sendPart(next++);
+    });
+    // Phai la allSettled roi tu nem: voi Promise.all, mot phan hong se tra ve
+    // NGAY trong khi cac phan khac VAN DANG BAY - vua ro ri ket noi vua co the
+    // goi complete-upload luc chua du phan.
+    const settled = await Promise.allSettled(workers);
+    const failed = settled.find((r) => r.status === "rejected");
+    if (failed) throw (failed as PromiseRejectedResult).reason;
   },
 
   listMutedMembers: (conversationId: number) => chatHttp.get<number[]>(`/conversations/${conversationId}/mutes`),
