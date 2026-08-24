@@ -5,8 +5,8 @@
 | Ổ | Loại | Định dạng | Gắn ở | Dùng cho |
 |---|---|---|---|---|
 | `sda` 223 GB | **SSD** | ext4 | `/` | Hệ điều hành, k3s, **toàn bộ CSDL** |
-| `sdb1` 451 GB | **HDD** (ổ quay) | **NTFS** | `/mnt/hdd500` | **Dữ liệu MinIO** (file người dùng tải lên) |
-| `sdb2` 15 GB | HDD | swap | *(swap)* | Swap dự phòng, ưu tiên thấp |
+| `sdb1` 451 GB | **HDD** (ổ quay) | **ext4** (nhãn `hdd500`) | `/mnt/hdd500` | **Dữ liệu MinIO** (file người dùng tải lên) |
+| `sdb2` 15 GB | HDD | swap | — | Swap dự phòng, ưu tiên thấp |
 
 ## Vì sao chia như vậy
 
@@ -17,19 +17,41 @@ mà không được gì.
 **MinIO sang HDD.** Nó giữ file người dùng tải lên — thứ *duy nhất* trong hệ thống phình to không giới
 hạn, và nó đọc/ghi tuần tự nên ổ quay hoàn toàn đủ. Đo thực tế trên ổ này: **86,5 MB/s** ghi tuần tự.
 
-**Giữ NTFS chứ không định dạng lại ext4**, vì ổ này có thể được rút ra cắm sang máy Windows. Đã kiểm
-chứng MinIO chạy tốt trên `ntfs3`: format pool thành công, ghi/đọc 20 MB qua service khớp checksum,
-ghi đè và xoá đều bình thường. MinIO chạy bằng `root` nên không vướng chuyện quyền.
+## Vì sao đổi từ NTFS sang ext4
 
-## Ổ này có thể bị rút ra — và hệ thống đã tính đến
+Ban đầu ổ này để NTFS, vì tính chuyện rút ra cắm sang máy Windows. Sau khi chốt **không rút nữa** thì
+lý do đó biến mất, và NTFS chỉ còn lại phần phiền:
 
-Hai lớp bảo vệ, cả hai đều đã đo:
+- **Công cụ Linux báo động giả liên tục.** GParted nhìn vào ổ và kêu `$MFTMirr does not match $MFT` /
+  `NTFS is inconsistent. Run chkdsk /f on Windows`. Đó là **báo nhầm**: GParted dò bằng bộ userspace
+  `ntfs-3g` trong khi nhân `ntfs3` đang mount ổ ở chế độ ghi, mà `$MFTMirr` chỉ đồng bộ với `$MFT` tại
+  checkpoint và lúc tháo mount. Đã kiểm chứng — tháo mount sạch rồi chạy `ntfsfix -n` thì:
 
-**1. `nofail` trong `/etc/fstab`** — rút ổ ra thì máy vẫn khởi động bình thường, không treo ở màn hình
-boot chờ thiết bị.
+  ```
+  Processing of $MFT and $MFTMirr completed successfully.
+  Volume Flags: 0x0000          ← cờ dirty KHÔNG bật
+  ```
+
+  Nhưng mỗi lần muốn chứng minh nó vô hại lại phải dừng dịch vụ để tháo mount. Không đáng.
+- **`fsck` lúc khởi động không kiểm được NTFS.** Với ext4 thì kernel tự kiểm và tự vá (cột `pass` = 2
+  trong fstab).
+- `ntfs3` là driver còn trẻ; ext4 thì đã bị dùng đến mòn.
+
+Đổi rất rẻ vì dữ liệu chỉ 34 MB: sao lưu sang SSD → đối chiếu md5 từng file → `mkfs.ext4` → khôi phục
+→ đối chiếu lại. **31/31 file khớp checksum** ở cả hai lần đối chiếu.
+
+Dùng `mkfs.ext4 -m 1` chứ không để mặc định 5% — ổ này chỉ chứa dữ liệu, không cần dành 22 GB cho
+`root`.
+
+## Bảo vệ khi ổ vắng mặt
+
+Vẫn giữ dù đã chốt không rút ổ — nó bảo vệ cả trường hợp ổ hỏng hoặc mount hụt vì lý do khác.
+
+**1. `nofail` trong `/etc/fstab`** — ổ vắng/hỏng thì máy vẫn khởi động bình thường, không treo ở màn
+hình boot chờ thiết bị.
 
 ```
-UUID=539C3B9A5FD23C8B /mnt/hdd500 ntfs3 defaults,nofail,uid=0,gid=0,umask=0022,windows_names,x-systemd.device-timeout=10 0 0
+UUID=b2a37915-5a17-4e35-83d4-e9eb9fe50619 /mnt/hdd500 ext4 defaults,nofail,x-systemd.device-timeout=10 0 2
 ```
 
 **2. `hostPath` với `type: Directory`** thay vì `local-path` như các PVC khác. Đây là điểm mấu chốt:
@@ -47,22 +69,23 @@ UUID=539C3B9A5FD23C8B /mnt/hdd500 ntfs3 defaults,nofail,uid=0,gid=0,umask=0022,w
   Đã thử thật: gỡ mount → pod đứng ở `ContainerCreating` với đúng thông báo trên, và **không một byte
   nào bị ghi vào SSD**. Gắn ổ lại → MinIO chạy tiếp bình thường.
 
-> **Lưu ý:** chủ dự án đã quyết định **không rút ổ ra nữa**, và swap 15 GB ở dưới nằm trên chính ổ
-> này. Nếu sau này đổi ý muốn rút, phải `sudo swapoff /dev/sdb2` trước — rút swap đang hoạt động ra
-> khỏi kernel thì tiến trình nào có trang bị đẩy xuống đó sẽ chết.
-
 ### Muốn rút ổ ra thì làm gì
 
+Phải `swapoff` trước — swap 15 GB nằm trên chính ổ này, rút swap đang hoạt động ra khỏi kernel thì
+tiến trình nào có trang bị đẩy xuống đó sẽ chết.
+
 ```bash
-sudo k3s kubectl -n chat-data scale deploy minio --replicas=0   # dừng MinIO trước
+sudo k3s kubectl -n chat-data scale deploy minio --replicas=0
+sudo swapoff /dev/sdb2
 sudo umount /mnt/hdd500
 # ... rút ổ, cắm lại ...
 sudo mount /mnt/hdd500
+sudo swapon /dev/sdb2
 sudo k3s kubectl -n chat-data scale deploy minio --replicas=1
 ```
 
-Rút ổ khi MinIO đang chạy sẽ làm nó gặp lỗi I/O. Trong lúc ổ vắng mặt, **mọi file đính kèm trong chat
-không tải về được** — tin nhắn text vẫn bình thường vì chúng nằm trong Postgres trên SSD.
+Trong lúc ổ vắng mặt, **mọi file đính kèm trong chat không tải về được** — tin nhắn text vẫn bình
+thường vì chúng nằm trong Postgres trên SSD.
 
 ## Swap
 
@@ -77,25 +100,39 @@ Số `pri` cao hơn được kernel dùng trước. Đây là điểm dễ sai: 
 còn `/swapfile` để mặc định là `-2`, nghĩa là **ổ quay được dùng trước SSD** — ngược hẳn ý muốn. Đã
 đặt `pri` tường minh cho cả hai.
 
-```
-/swapfile                                 none  swap  sw,pri=10        0  0
-UUID=e21bb9c9-f511-4666-b8fe-f437bbe5a704 none  swap  sw,pri=5,nofail  0  0
-```
-
 **`vm.swappiness` hạ từ 60 xuống 10** (`/etc/sysctl.d/99-swappiness.conf`). Mặc định 60 khá mạnh tay:
 kernel sẵn sàng đẩy trang ra đĩa dù RAM còn trống. Máy này chạy CSDL và một phần swap nằm trên ổ quay,
 nên để kernel bỏ bớt page cache trước, chỉ swap khi thật sự cần.
 
-Đã kiểm chứng cả hai vùng lên đúng qua **đường systemd dùng lúc khởi động** (`systemctl start
-dev-disk-by-uuid-....swap`), không phải chỉ `swapon` bằng tay.
+Đã kiểm chứng cả swap lẫn mount lên đúng qua **đường systemd dùng lúc khởi động**, và sống sót qua một
+lần khởi động lại thật.
 
-## Bản dữ liệu MinIO cũ
+## Cạm bẫy: GParted để lại mask trong systemd
 
-Trước khi chuyển, PV cũ đã được đổi `persistentVolumeReclaimPolicy` sang `Retain`, nên dữ liệu gốc vẫn
-còn nguyên tại:
+Sau khi chạy GParted, phát hiện một loạt symlink `-> /dev/null` trong `/run/systemd/system/`, gồm
+`mnt-hdd500.mount` và **toàn bộ mount unit của kubelet cho các PVC Postgres**. GParted cố tình mask
+chúng để systemd không tự gắn ổ giữa lúc nó thao tác, nhưng lần đó không gỡ lại.
 
+Hậu quả gặp phải: `systemctl start mnt-hdd500.mount` báo `Unit is masked`, và
+`systemctl unmask` **không gỡ được** — mask nằm trong `/run` nên phải:
+
+```bash
+sudo systemctl unmask --runtime mnt-hdd500.mount
+# hoac don sach tat ca:
+sudo find /run/systemd/system -maxdepth 1 -type l -lname /dev/null -delete
+sudo systemctl daemon-reload
 ```
-/var/lib/rancher/k3s/storage/pvc-c93998b0-4ae4-4a87-9823-86819e993ef8_chat-data_minio-data
-```
 
-Giữ lại làm bản lùi. Chạy ổn định một thời gian thì xoá được — nó chiếm 34 MB trên SSD.
+Chúng nằm trong `/run` (tmpfs) nên tự biến mất sau khi khởi động lại. Nhưng nếu gặp lỗi mount lạ ngay
+sau khi dùng GParted thì hãy nhìn vào đây trước.
+
+## Các bản lưu dữ liệu MinIO
+
+Hai bản, đều trên SSD, giữ làm đường lùi:
+
+| Đường dẫn | Là gì |
+|---|---|
+| `/var/lib/rancher/k3s/storage/pvc-c93998b0-…_chat-data_minio-data` | Bản trước khi chuyển sang HDD (PV cũ, đã đổi `Retain`) |
+| `/var/tmp/minio-backup` | Bản chụp ngay trước khi định dạng lại sang ext4 |
+
+Mỗi bản 34 MB. Chạy ổn định một thời gian thì xoá được cả hai.

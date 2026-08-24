@@ -472,11 +472,11 @@ spec:
 # phinh to khong gioi han, va no doc/ghi tuan tu nen o quay hoan toan du.
 # Con CSDL thi o lai SSD, vi Postgres song bang truy cap ngau nhien.
 #
-# hostPath + "type: Directory" la CO Y, khong phai tien tay: o do co the bi
-# RUT RA. Neu o vang mat, thu muc /mnt/hdd500/minio khong ton tai va kubelet
-# TU CHOI khoi dong pod. Neu dung local-path nhu cac PVC khac thi provisioner
-# se tu tao thu muc rong ngay tren o SSD va MinIO khoi dong nhu chua tung co
-# file nao - hong am tham, kieu hong te nhat.
+# hostPath + "type: Directory" la CO Y, khong phai tien tay: neu o vang mat
+# (hong, rut ra, mount hut) thi thu muc /mnt/hdd500/minio khong ton tai va
+# kubelet TU CHOI khoi dong pod. Neu dung local-path nhu cac PVC khac thi
+# provisioner se tu tao thu muc rong ngay tren o SSD va MinIO khoi dong nhu
+# chua tung co file nao - hong am tham, kieu hong te nhat.
 #
 # O phia may chu can hai thu, xem Tainguyen/infra/README-o-cung.md:
 #   - dong fstab co "nofail" (rut o ra thi may van khoi dong duoc)
