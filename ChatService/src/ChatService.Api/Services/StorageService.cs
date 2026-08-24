@@ -243,6 +243,22 @@ public class StorageService
         }, ct);
     }
 
+    // Xoa han object khoi kho luu tru.
+    //
+    // Truoc day KHONG CO cho nao goi xoa - file da tai len thi nam do mai
+    // mai, ke ca khi tin nhan chua no da bi thu hoi. Vua ton dia vua sai ve
+    // ke toan: han muc cua nhom van bi tinh cho mot file khong ai xem duoc
+    // nua.
+    public async Task DeleteObjectAsync(string provider, string objectKey, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        await entry.Client.DeleteObjectAsync(new DeleteObjectRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+        }, ct);
+    }
+
     private (AmazonS3Client Client, StorageProviderOptions Opts) ClientFor(string provider) =>
         _clients.TryGetValue(provider, out var entry) ? entry : throw new StorageProviderUnavailableException(provider);
 

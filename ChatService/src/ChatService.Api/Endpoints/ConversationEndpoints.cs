@@ -20,6 +20,47 @@ public static class ConversationEndpoints
     // nen phai co han; thu hoi chi la go bo nen khong can.
     private static readonly TimeSpan EditWindow = TimeSpan.FromMinutes(15);
 
+    // Tra lai dung luong va xoa han file khi mot tin nhan bien mat vinh vien
+    // (thu hoi, hoac Truong nhom xoa).
+    //
+    // Truoc day chi soft-delete tin nhan: file van nam nguyen tren MinIO va
+    // han muc cua nhom van bi tinh cho no. Nguoi dung thu hoi mot video 50MB
+    // roi van thay nhom "day" - dung la vo ly.
+    //
+    // THU TU CO Y: xoa hang `files` TRUOC (trigger trg_files_delete_sync_storage
+    // tu tru storage_used_bytes), roi moi xoa object. Neu dao lai ma buoc DB
+    // hong thi vua mat file vua khong tra dung luong - hong ca hai dau. Con
+    // theo thu tu nay, xau nhat la con lai mot object mo coi tren dia: ton
+    // cho nhung ke toan van dung, va dia thi con 439GB.
+    //
+    // Tra ve fileId da xoa (neu co) de noi goi cap nhat cache cho khop.
+    private static async Task<long?> ReleaseFileAsync(
+        ChatDbContext db, StorageService storage, ILogger logger, long messageId)
+    {
+        var file = await db.Files.FirstOrDefaultAsync(f => f.MessageId == messageId);
+        if (file is null) return null;
+
+        var (id, provider, key, size) = (file.Id, file.StorageProvider, file.ObjectKey, file.SizeBytes);
+
+        db.Files.Remove(file);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            await storage.DeleteObjectAsync(provider, key);
+        }
+        catch (Exception ex)
+        {
+            // Khong nem ra ngoai: dung luong DA duoc tra lai roi, va nguoi
+            // dung khong lam gi duoc voi loi nay. Ghi log de con biet ma don.
+            logger.LogWarning(ex,
+                "Da tra {Size} byte cho nhom nhung KHONG xoa duoc object {Key} o kho {Provider} - con lai file mo coi",
+                size, key, provider);
+        }
+
+        return id;
+    }
+
     public static void MapConversationEndpoints(this WebApplication app)
     {
         var conv = app.MapGroup("/conversations").RequireAuthorization();
@@ -314,7 +355,7 @@ public static class ConversationEndpoints
         // UC-28: xoa tin nhan (soft-delete). Group: chi Truong nhom. P2P: chi
         // nguoi gui tu xoa tin cua minh (gia dinh rieng, tai lieu goc chi quy
         // dinh ro cho Group).
-        conv.MapDelete("/{conversationId:long}/messages/{messageId:long}", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
+        conv.MapDelete("/{conversationId:long}/messages/{messageId:long}", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache, StorageService storage, ILoggerFactory loggerFactory) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -338,12 +379,16 @@ public static class ConversationEndpoints
             message.IsDeleted = true;
             await db.SaveChangesAsync();
 
+            // Giong thu hoi: xoa han la mat vinh vien nen phai tra dung luong
+            // va don file. Truong nhom xoa mot video 50MB cua thanh vien ma
+            // nhom khong nhe ra duoc thi con vo ly hon.
+            await ReleaseFileAsync(db, storage, loggerFactory.CreateLogger(typeof(ConversationEndpoints)), message.Id);
+
             // Cap nhat truc tiep cache Redis (khong qua Kafka - day la update
             // nho, khong can tach write path nhu luc tao tin nhan moi).
-            var fileId = await db.Files.Where(f => f.MessageId == message.Id).Select(f => (long?)f.Id).FirstOrDefaultAsync();
             await cache.UpdateCachedMessageAsync(new CachedMessage(
                 message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
-                message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
+                message.Content, null, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
                 message.IsEdited, message.EditedAt));
 
             await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
@@ -354,7 +399,7 @@ public static class ConversationEndpoints
         // khac voi xoa o tren (danh cho Truong nhom, ap dung cho MOI tin nhan
         // trong Group). Recall: BAT KY sender nao (ca P2P lan Group) tu thu
         // hoi tin CUA MINH, KHONG gioi han thoi gian.
-        conv.MapPost("/{conversationId:long}/messages/{messageId:long}/recall", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
+        conv.MapPost("/{conversationId:long}/messages/{messageId:long}/recall", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache, StorageService storage, ILoggerFactory loggerFactory) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -383,10 +428,13 @@ public static class ConversationEndpoints
             message.IsDeleted = true;
             await db.SaveChangesAsync();
 
-            var fileId = await db.Files.Where(f => f.MessageId == message.Id).Select(f => (long?)f.Id).FirstOrDefaultAsync();
+            // Thu hoi la mat vinh vien -> tra lai dung luong va xoa file that.
+            await ReleaseFileAsync(db, storage, loggerFactory.CreateLogger(typeof(ConversationEndpoints)), message.Id);
+
+            // fileId = null: file da bi xoa han, khong con gi de tro toi.
             await cache.UpdateCachedMessageAsync(new CachedMessage(
                 message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
-                message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
+                message.Content, null, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
                 message.IsEdited, message.EditedAt));
 
             await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
