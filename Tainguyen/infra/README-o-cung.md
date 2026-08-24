@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | `sda` 223 GB | **SSD** | ext4 | `/` | Hệ điều hành, k3s, **toàn bộ CSDL** |
 | `sdb1` 451 GB | **HDD** (ổ quay) | **NTFS** | `/mnt/hdd500` | **Dữ liệu MinIO** (file người dùng tải lên) |
-| `sdb2` 15 GB | HDD | swap | *(không bật)* | — |
+| `sdb2` 15 GB | HDD | swap | *(swap)* | Swap dự phòng, ưu tiên thấp |
 
 ## Vì sao chia như vậy
 
@@ -47,6 +47,10 @@ UUID=539C3B9A5FD23C8B /mnt/hdd500 ntfs3 defaults,nofail,uid=0,gid=0,umask=0022,w
   Đã thử thật: gỡ mount → pod đứng ở `ContainerCreating` với đúng thông báo trên, và **không một byte
   nào bị ghi vào SSD**. Gắn ổ lại → MinIO chạy tiếp bình thường.
 
+> **Lưu ý:** chủ dự án đã quyết định **không rút ổ ra nữa**, và swap 15 GB ở dưới nằm trên chính ổ
+> này. Nếu sau này đổi ý muốn rút, phải `sudo swapoff /dev/sdb2` trước — rút swap đang hoạt động ra
+> khỏi kernel thì tiến trình nào có trang bị đẩy xuống đó sẽ chết.
+
 ### Muốn rút ổ ra thì làm gì
 
 ```bash
@@ -62,16 +66,28 @@ không tải về được** — tin nhắn text vẫn bình thường vì chún
 
 ## Swap
 
-Đang dùng `/swapfile` 2 GB trên SSD. Phân vùng `sdb2` 15 GB trên ổ HDD **cố ý không bật**: nó nằm trên
-chính cái ổ có thể bị rút ra, mà rút swap đang hoạt động ra khỏi kernel thì tiến trình nào có trang bị
-đẩy xuống đó sẽ chết. Với 16 GB RAM và mức dùng thực tế ~3 GB thì swap thêm cũng không giải quyết gì.
+Tổng **16 GB swap**, chia hai mức ưu tiên:
 
-Nếu về sau quyết định không rút ổ nữa thì bật bằng:
+| Vùng | Nằm ở | Kích thước | `pri` | Vai trò |
+|---|---|---|---|---|
+| `/swapfile` | **SSD** | 2 GB | **10** | Dùng trước — nhanh hơn nhiều |
+| `/dev/sdb2` | **HDD** | 15 GB | **5** | Chỉ dùng khi swapfile đầy |
 
-```bash
-sudo swapon /dev/sdb2
-echo 'UUID=e21bb9c9-f511-4666-b8fe-f437bbe5a704 none swap sw,nofail 0 0' | sudo tee -a /etc/fstab
+Số `pri` cao hơn được kernel dùng trước. Đây là điểm dễ sai: khi mới bật, phân vùng HDD nhận `pri=5`
+còn `/swapfile` để mặc định là `-2`, nghĩa là **ổ quay được dùng trước SSD** — ngược hẳn ý muốn. Đã
+đặt `pri` tường minh cho cả hai.
+
 ```
+/swapfile                                 none  swap  sw,pri=10        0  0
+UUID=e21bb9c9-f511-4666-b8fe-f437bbe5a704 none  swap  sw,pri=5,nofail  0  0
+```
+
+**`vm.swappiness` hạ từ 60 xuống 10** (`/etc/sysctl.d/99-swappiness.conf`). Mặc định 60 khá mạnh tay:
+kernel sẵn sàng đẩy trang ra đĩa dù RAM còn trống. Máy này chạy CSDL và một phần swap nằm trên ổ quay,
+nên để kernel bỏ bớt page cache trước, chỉ swap khi thật sự cần.
+
+Đã kiểm chứng cả hai vùng lên đúng qua **đường systemd dùng lúc khởi động** (`systemctl start
+dev-disk-by-uuid-....swap`), không phải chỉ `swapon` bằng tay.
 
 ## Bản dữ liệu MinIO cũ
 
