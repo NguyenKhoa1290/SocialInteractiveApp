@@ -464,6 +464,41 @@ spec:
 
 
 # ----------------------------------------------------------------- MinIO
+#
+# KHAC moi PVC con lai: MinIO khong dung local-path (o SSD cua he thong) ma
+# nam tren mot O CUNG RIENG gan o /mnt/hdd500.
+#
+# Ly do: MinIO giu file nguoi dung tai len - thu DUY NHAT trong he thong
+# phinh to khong gioi han, va no doc/ghi tuan tu nen o quay hoan toan du.
+# Con CSDL thi o lai SSD, vi Postgres song bang truy cap ngau nhien.
+#
+# hostPath + "type: Directory" la CO Y, khong phai tien tay: o do co the bi
+# RUT RA. Neu o vang mat, thu muc /mnt/hdd500/minio khong ton tai va kubelet
+# TU CHOI khoi dong pod. Neu dung local-path nhu cac PVC khac thi provisioner
+# se tu tao thu muc rong ngay tren o SSD va MinIO khoi dong nhu chua tung co
+# file nao - hong am tham, kieu hong te nhat.
+#
+# O phia may chu can hai thu, xem Tainguyen/infra/README-o-cung.md:
+#   - dong fstab co "nofail" (rut o ra thi may van khoi dong duoc)
+#   - thu muc /mnt/hdd500/minio ton tai tren chinh o do
+emit(f"""
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: minio-data-hdd
+spec:
+  capacity:
+    storage: 400Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    path: /mnt/hdd500/minio
+    type: Directory
+  claimRef:
+    namespace: {NS_DATA}
+    name: minio-data
+""")
 emit(f"""
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -472,9 +507,13 @@ metadata:
   namespace: {NS_DATA}
 spec:
   accessModes: [ReadWriteOnce]
+  # storageClassName rong = khong nho local-path cap phat, ma gan dung vao
+  # PV o tren. De trong thi no se lay lai o SSD.
+  storageClassName: ""
+  volumeName: minio-data-hdd
   resources:
     requests:
-      storage: 50Gi
+      storage: 400Gi
 """)
 emit(f"""
 apiVersion: apps/v1
