@@ -13,9 +13,11 @@ public static class ConversationEndpoints
     private const long VideoMaxBytes = 50L * 1024 * 1024;
     private const long VoiceMaxBytes = 25L * 1024 * 1024;
 
-    // Khung thoi gian cho phep tu sua/thu hoi tin nhan cua chinh minh (tu de
-    // xuat, tai lieu goc chua chot con so nay) - qua moc nay chi con Truong
-    // nhom xoa duoc (Group) hoac khong ai sua/thu hoi duoc nua (P2P).
+    // Khung thoi gian cho phep tu SUA tin nhan cua chinh minh (tu de xuat,
+    // tai lieu goc chua chot con so nay).
+    //
+    // CHI ap dung cho SUA, khong ap dung cho THU HOI. Sua la viet lai lich su
+    // nen phai co han; thu hoi chi la go bo nen khong can.
     private static readonly TimeSpan EditWindow = TimeSpan.FromMinutes(15);
 
     public static void MapConversationEndpoints(this WebApplication app)
@@ -349,11 +351,9 @@ public static class ConversationEndpoints
         });
 
         // Tu de xuat (mo rong UC-28) - "thu hoi" tin nhan cua CHINH MINH,
-        // khac voi xoa o tren (danh cho Truong nhom, khong gioi han thoi
-        // gian, ap dung cho MOI tin nhan trong Group). Recall: BAT KY sender
-        // nao (ca P2P lan Group) tu thu hoi tin CUA MINH, nhung chi trong
-        // EditWindow sau khi gui - qua moc do phai nho Truong nhom xoa ho
-        // (Group) hoac khong con cach nao thu hoi (P2P).
+        // khac voi xoa o tren (danh cho Truong nhom, ap dung cho MOI tin nhan
+        // trong Group). Recall: BAT KY sender nao (ca P2P lan Group) tu thu
+        // hoi tin CUA MINH, KHONG gioi han thoi gian.
         conv.MapPost("/{conversationId:long}/messages/{messageId:long}/recall", async (long conversationId, long messageId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, IHubContext<ChatHub> hub, ChatCacheService cache) =>
         {
             var userId = GetUserId(principal)!.Value;
@@ -370,8 +370,15 @@ public static class ConversationEndpoints
             if (message.SenderId != userId)
                 return Results.Json(new ErrorResponse("forbidden", "Chi nguoi gui duoc thu hoi tin nhan nay"), statusCode: 403);
 
-            if (DateTimeOffset.UtcNow - message.CreatedAt > EditWindow)
-                return Results.Json(new ErrorResponse("edit_window_expired", $"Chi thu hoi duoc trong {EditWindow.TotalMinutes} phut sau khi gui"), statusCode: 422);
+            // KHONG gioi han thoi gian. Truoc day thu hoi dung chung
+            // EditWindow 15 phut voi sua tin nhan, nhung hai viec nay khac
+            // ban chat: SUA la viet lai lich su (tin cu doi noi dung ma nguoi
+            // doc khong hay biet), con THU HOI chi la go bo - noi dung bien
+            // mat, khong ai bi dan sai. Zalo/Messenger cung cho thu hoi bat
+            // ky luc nao.
+            //
+            // Frontend van luon hien nut "Thu hoi" cho tin cua chinh minh, nen
+            // moc 15 phut chi tao ra canh bam nut roi an loi 422.
 
             message.IsDeleted = true;
             await db.SaveChangesAsync();
