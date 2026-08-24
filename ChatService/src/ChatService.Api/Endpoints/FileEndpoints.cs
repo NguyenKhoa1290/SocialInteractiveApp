@@ -79,8 +79,79 @@ public static class FileEndpoints
                 await db.SaveChangesAsync();
             }
 
-            var uploadUrl = storage.GeneratePresignedUploadUrl(file.StorageProvider, file.ObjectKey, file.SizeBytes);
-            return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, storage.PresignExpiryFor(file.SizeBytes)));
+            var expiry = storage.PresignExpiryFor(file.SizeBytes);
+
+            // File nho: mot lan PUT nhu cu.
+            if (file.SizeBytes < StorageService.MultipartThresholdBytes)
+            {
+                var uploadUrl = storage.GeneratePresignedUploadUrl(file.StorageProvider, file.ObjectKey, file.SizeBytes);
+                return Results.Ok(new UploadUrlResponse(file.Id, uploadUrl, expiry));
+            }
+
+            // File lon: cat thanh nhieu phan. Xem StorageService de biet vi
+            // sao - tom tat: Cloudflare chi cho origin ~100 giay tra loi mot
+            // request, ma kho luu tru chi tra loi sau khi nhan xong het file.
+            var uploadId = await storage.InitiateMultipartAsync(file.StorageProvider, file.ObjectKey);
+            var partCount = StorageService.PartCountFor(file.SizeBytes);
+            var partUrls = new string[partCount];
+            for (var i = 0; i < partCount; i++)
+                partUrls[i] = storage.GeneratePresignedPartUrl(file.StorageProvider, file.ObjectKey, uploadId, i + 1, expiry);
+
+            return Results.Ok(new UploadUrlResponse(
+                file.Id, partUrls[0], expiry, uploadId, StorageService.PartSizeBytes, partUrls));
+        }).RequireAuthorization();
+
+        // Ghep cac phan lai sau khi client da PUT xong het.
+        //
+        // Chua ghep thi object CHUA TON TAI o kho luu tru - cac phan chi nam
+        // roi rac. Nen buoc nay bat buoc, va neu client bo giua chung thi cac
+        // phan do treo lai; MinIO co lifecycle rule don multipart do dang,
+        // hoac goi POST .../abort-upload.
+        app.MapPost("/files/{fileId:long}/complete-upload", async (
+            long fileId, CompleteUploadRequest req, ClaimsPrincipal principal,
+            ChatDbContext db, StorageService storage) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var file = await db.Files.FindAsync(fileId);
+            if (file is null)
+                return Results.NotFound();
+
+            // Chi nguoi da xin URL moi duoc ghep - khong de nguoi khac ket
+            // thuc ho mot lan tai len dang do.
+            if (file.UploadedBy != userId)
+                return Results.Json(new ErrorResponse("forbidden", "Khong phai nguoi tai len tep nay"), statusCode: 403);
+
+            if (string.IsNullOrWhiteSpace(req.UploadId))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Thieu uploadId"));
+
+            try
+            {
+                await storage.CompleteMultipartAsync(file.StorageProvider, file.ObjectKey, req.UploadId);
+            }
+            catch (Exception ex)
+            {
+                return Results.UnprocessableEntity(new ErrorResponse("complete_failed", $"Khong ghep duoc cac phan: {ex.Message}"));
+            }
+
+            return Results.NoContent();
+        }).RequireAuthorization();
+
+        // Huy mot lan tai len dang do, don cac phan da nam tren kho.
+        app.MapPost("/files/{fileId:long}/abort-upload", async (
+            long fileId, CompleteUploadRequest req, ClaimsPrincipal principal,
+            ChatDbContext db, StorageService storage) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var file = await db.Files.FindAsync(fileId);
+            if (file is null)
+                return Results.NotFound();
+            if (file.UploadedBy != userId)
+                return Results.Json(new ErrorResponse("forbidden", "Khong phai nguoi tai len tep nay"), statusCode: 403);
+
+            try { await storage.AbortMultipartAsync(file.StorageProvider, file.ObjectKey, req.UploadId); }
+            catch (Exception) { /* co the da huy roi - idempotent */ }
+
+            return Results.NoContent();
         }).RequireAuthorization();
 
         // Tu de xuat - thieu sot phat hien khi build Frontend F2: co upload

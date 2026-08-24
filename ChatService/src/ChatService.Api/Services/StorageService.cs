@@ -137,6 +137,108 @@ public class StorageService
     public string GeneratePresignedUploadUrl(string provider, string objectKey, long sizeBytes) =>
         Presign(provider, objectKey, HttpVerb.PUT, PresignExpiryFor(sizeBytes));
 
+    // --- Tai len nhieu phan (multipart) ---------------------------------
+    //
+    // VI SAO CAN: he thong ra Internet qua Cloudflare Tunnel, ma Cloudflare
+    // goi mien phi chi cho origin ~100 GIAY de tra loi mot request. Kho luu
+    // tru chi tra loi SAU KHI nhan xong toan bo file, nen Cloudflare ngoi cho
+    // suot ca lan tai len - file nao truyen lau hon nguong do la bi cat giua
+    // chung voi loi 524, du may chu hoan toan khoe.
+    //
+    // Da do that: 10MB qua duoc (72,6 giay), 25MB chet HTTP 524 (132,5 giay).
+    // Nguong KHONG phai mot con so MB co dinh ma la mot khoang THOI GIAN, nen
+    // no troi theo toc do mang - dung nhu trieu chung "toi thi hong som hon
+    // sang".
+    //
+    // Cach di qua: cat file thanh nhieu phan, MOI PHAN mot request rieng nen
+    // moi phan co ngan sach 100 giay rieng. Kem theo mot loi lon: phan nao
+    // hong thi thu lai MOT MINH phan do, khong phai lam lai ca file.
+    public const int PartSizeBytes = 5 * 1024 * 1024;
+
+    // File nho hon nguong nay thi tai mot lan cho gon - it request hon, va
+    // 8MB o toc do te nhat van thua trong 100 giay.
+    public const long MultipartThresholdBytes = 8 * 1024 * 1024;
+
+    // S3 gioi han 10.000 phan. Chan som o 2000 (=10GB voi phan 5MB) de mot
+    // so lieu sai khong bat server sinh ra hang van URL.
+    private const int MaxParts = 2000;
+
+    public static int PartCountFor(long sizeBytes) =>
+        (int)Math.Min(MaxParts, Math.Max(1, (sizeBytes + PartSizeBytes - 1) / PartSizeBytes));
+
+    public async Task<string> InitiateMultipartAsync(string provider, string objectKey, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        var resp = await entry.Client.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+        }, ct);
+        return resp.UploadId;
+    }
+
+    public string GeneratePresignedPartUrl(string provider, string objectKey, string uploadId, int partNumber, int expirySeconds)
+    {
+        var entry = ClientFor(provider);
+        var url = entry.Client.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddSeconds(expirySeconds),
+            UploadId = uploadId,
+            PartNumber = partNumber,
+        });
+        return FixScheme(entry, url);
+    }
+
+    // Ghep cac phan lai.
+    //
+    // ETag cua tung phan doc bang ListParts o PHIA SERVER chu khong bat client
+    // gui len. Ly do rat thuc te: trinh duyet chi doc duoc header ETag cua
+    // response neu may chu co Access-Control-Expose-Headers dung - mot chi
+    // tiet CORS de hong am tham. Hoi thang kho luu tru thi khong phu thuoc
+    // vao dieu do chut nao.
+    public async Task CompleteMultipartAsync(string provider, string objectKey, string uploadId, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+
+        var parts = new List<PartETag>();
+        var listed = await entry.Client.ListPartsAsync(new ListPartsRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+            UploadId = uploadId,
+        }, ct);
+        foreach (var p in listed.Parts)
+            parts.Add(new PartETag(p.PartNumber ?? 0, p.ETag));
+
+        if (parts.Count == 0)
+            throw new InvalidOperationException("Chua co phan nao duoc tai len");
+
+        await entry.Client.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+            UploadId = uploadId,
+            PartETags = parts,
+        }, ct);
+    }
+
+    public async Task AbortMultipartAsync(string provider, string objectKey, string uploadId, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        await entry.Client.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+            UploadId = uploadId,
+        }, ct);
+    }
+
+    private (AmazonS3Client Client, StorageProviderOptions Opts) ClientFor(string provider) =>
+        _clients.TryGetValue(provider, out var entry) ? entry : throw new StorageProviderUnavailableException(provider);
+
     // Tu de xuat - thieu sot phat hien khi build Frontend F2: chi co presign
     // PUT (upload), khong co cach nao lay lai URL de XEM/TAI file da gui.
     // Xem GET /files/{fileId}/download-url o FileEndpoints.cs.
@@ -161,11 +263,18 @@ public class StorageService
         // MinIO cua du an (chi nghe HTTP thuong tren port 9000, khong co TLS).
         // Ep lai dung scheme theo Endpoint da cau hinh, neu khong client that
         // se bi loi SSL handshake khi PUT len URL nay.
-        if (entry.Opts.Endpoint.StartsWith("http://") && url.StartsWith("https://"))
-            url = "http://" + url["https://".Length..];
-
-        return url;
+        return FixScheme(entry, url);
     }
+
+    // AWSSDK.S3 luon sinh scheme "https://" trong URL presign bat ke
+    // AmazonS3Config.UseHttp da bat - da xac nhan bang test thuc te voi MinIO
+    // cua du an (chi nghe HTTP thuong tren port 9000, khong co TLS). Ep lai
+    // dung scheme theo Endpoint da cau hinh, neu khong client that se bi loi
+    // SSL handshake khi PUT len URL nay.
+    private static string FixScheme((AmazonS3Client Client, StorageProviderOptions Opts) entry, string url) =>
+        entry.Opts.Endpoint.StartsWith("http://") && url.StartsWith("https://")
+            ? "http://" + url["https://".Length..]
+            : url;
 }
 
 // Hang file tro toi mot kho khong con cau hinh (vd da go cau hinh cloud

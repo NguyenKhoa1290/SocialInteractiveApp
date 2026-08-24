@@ -109,9 +109,10 @@ export function MeetingDiscussion({
       // cuoc hop" (khach vang lai khong thuoc nhom). File VAN tinh vao han
       // muc 2GB cua nhom.
       const { data: urlRes } = await chatApi.requestUploadUrl(conversationId, type, file.size, meetingId);
-      await chatApi.uploadToPresignedUrl(urlRes.uploadUrl, file, (loaded, total) =>
+      await chatApi.uploadFile(urlRes, file, (loaded, total) =>
         setUpload({ name: file.name, loaded, total }),
       );
+      if (urlRes.uploadId) await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {

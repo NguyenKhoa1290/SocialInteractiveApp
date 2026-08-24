@@ -75,7 +75,21 @@ public record MessageLite(
 // khach vang lai. File van thuoc conversation nhu binh thuong nen VAN tinh
 // vao han muc luu tru cua nhom.
 public record UploadUrlRequest(long ConversationId, string FileType, long SizeBytes, long? MeetingId = null);
-public record UploadUrlResponse(long FileId, string UploadUrl, int ExpiresInSeconds);
+// UploadId != null nghia la file nay phai tai len theo NHIEU PHAN: client
+// PUT tung phan vao PartUrls[i] (phan i lay tu byte i*PartSizeBytes), roi goi
+// POST /files/{id}/complete-upload de ghep lai. Xem StorageService de biet vi
+// sao phai lam vay (gioi han ~100 giay moi request cua Cloudflare).
+//
+// UploadId == null la file nho, tai mot lan bang UploadUrl nhu cu.
+public record UploadUrlResponse(
+    long FileId,
+    string UploadUrl,
+    int ExpiresInSeconds,
+    string? UploadId = null,
+    int PartSizeBytes = 0,
+    string[]? PartUrls = null);
+
+public record CompleteUploadRequest(string UploadId);
 
 public record FileMetaResponse(long Id, long ConversationId, long UploadedBy, string FileType, long SizeBytes, DateTimeOffset UploadedAt)
 {

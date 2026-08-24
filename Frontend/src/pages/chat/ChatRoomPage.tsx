@@ -590,9 +590,12 @@ export function ChatRoomPage() {
         type as "image" | "video" | "voice" | "file",
         file.size,
       );
-      await chatApi.uploadToPresignedUrl(slot.uploadUrl, file, (loaded, total) =>
+      await chatApi.uploadFile(slot, file, (loaded, total) =>
         setUpload({ name: file.name, loaded, total }),
       );
+      // Tep lon duoc tai len theo nhieu phan - chua ghep thi object CHUA ton
+      // tai tren kho, nen buoc nay bat buoc truoc khi gan vao tin nhan.
+      if (slot.uploadId) await chatApi.completeUpload(slot.fileId, slot.uploadId);
       await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, slot.fileId);
     } catch (err) {
       setError(extractApiError(err, "Gửi file thất bại"));

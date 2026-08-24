@@ -14,6 +14,10 @@ export interface ConversationDetail {
 export interface UploadUrlResponse {
   fileId: number;
   uploadUrl: string;
+  // Co gia tri = file nay phai tai len theo NHIEU PHAN. Xem uploadFile().
+  uploadId?: string | null;
+  partSizeBytes?: number;
+  partUrls?: string[] | null;
   expiresInSeconds: number;
 }
 
@@ -102,6 +106,12 @@ export const chatApi = {
 
   getDownloadUrl: (fileId: number) => chatHttp.get<UploadUrlResponse>(`/files/${fileId}/download-url`),
 
+  completeUpload: (fileId: number, uploadId: string) =>
+    chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId }),
+
+  abortUpload: (fileId: number, uploadId: string) =>
+    chatHttp.post<void>(`/files/${fileId}/abort-upload`, { uploadId }),
+
   // Tai file len thang MinIO bang URL da ky san.
   //
   // Dung XMLHttpRequest chu KHONG phai fetch: fetch() khong co cach nao bao
@@ -115,7 +125,7 @@ export const chatApi = {
   // nhan tro toi file KHONG HE TON TAI tren kho. Ban nay kiem status.
   uploadToPresignedUrl: (
     uploadUrl: string,
-    file: File,
+    body: Blob,
     onProgress?: (loaded: number, total: number) => void,
   ): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -125,7 +135,7 @@ export const chatApi = {
       xhr.upload.onprogress = (e) => {
         // lengthComputable = false khi trinh duyet khong biet tong kich
         // thuoc; voi File thi hiem, nhung van lay file.size lam duong lui.
-        onProgress?.(e.loaded, e.lengthComputable ? e.total : file.size);
+        onProgress?.(e.loaded, e.lengthComputable ? e.total : body.size);
       };
 
       xhr.onload = () => {
@@ -136,8 +146,64 @@ export const chatApi = {
       xhr.ontimeout = () => reject(new Error("Tải tệp lên quá lâu, đã dừng"));
       xhr.onabort = () => reject(new Error("Đã huỷ tải tệp lên"));
 
-      xhr.send(file);
+      xhr.send(body);
     }),
+
+  // Tai mot tep len, tu chon di duong mot lan hay nhieu phan.
+  //
+  // VI SAO CAN NHIEU PHAN: he thong ra Internet qua Cloudflare Tunnel, ma
+  // Cloudflare goi mien phi chi cho origin ~100 GIAY de tra loi mot request.
+  // Kho luu tru chi tra loi SAU KHI nhan xong toan bo tep, nen Cloudflare
+  // ngoi cho suot ca lan tai len - tep nao truyen lau hon nguong do la bi
+  // cat giua chung voi loi 524. Da do that: 10MB qua duoc (72,6 giay), 25MB
+  // chet 524 (132,5 giay). Nguong khong phai mot con so MB co dinh ma la mot
+  // khoang THOI GIAN, nen no troi theo toc do mang.
+  //
+  // Cat thanh nhieu phan thi MOI PHAN mot request rieng, moi phan co ngan
+  // sach 100 giay rieng. Kem theo mot loi lon nua: phan nao dut thi THU LAI
+  // MOT MINH phan do, khong phai lam lai ca tep - dung cai canh "tai do bi
+  // dut la phai lam lai tu dau".
+  uploadFile: async (
+    slot: UploadUrlResponse,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<void> => {
+    // Tep nho: mot lan PUT nhu cu.
+    if (!slot.uploadId || !slot.partUrls || !slot.partSizeBytes) {
+      await chatApi.uploadToPresignedUrl(slot.uploadUrl, file, onProgress);
+      return;
+    }
+
+    const partSize = slot.partSizeBytes;
+    let done = 0;
+
+    for (let i = 0; i < slot.partUrls.length; i++) {
+      const start = i * partSize;
+      if (start >= file.size) break;
+      const chunk = file.slice(start, Math.min(start + partSize, file.size));
+
+      // Thu lai tung phan. Mang nha chap chon thi mot phan hong khong con la
+      // tham hoa nua.
+      let lastErr: unknown = null;
+      let ok = false;
+      for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+        try {
+          await chatApi.uploadToPresignedUrl(slot.partUrls[i], chunk, (loaded) =>
+            onProgress?.(done + loaded, file.size),
+          );
+          ok = true;
+        } catch (err) {
+          lastErr = err;
+          // Cho tang dan roi thu lai - dut mang thoang qua thi lan sau qua.
+          if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1500));
+        }
+      }
+      if (!ok) throw lastErr;
+
+      done += chunk.size;
+      onProgress?.(done, file.size);
+    }
+  },
 
   listMutedMembers: (conversationId: number) => chatHttp.get<number[]>(`/conversations/${conversationId}/mutes`),
 
