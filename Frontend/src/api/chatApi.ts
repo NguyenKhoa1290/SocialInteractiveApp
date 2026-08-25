@@ -1,4 +1,6 @@
 import { chatHttp } from "./httpClient";
+import { CHAT_API_URL } from "../config";
+import { useAuthStore } from "../store/authStore";
 import type { ConversationSummary, ConversationType, Message, MessageType } from "../types/chat";
 
 export interface ConversationDetail {
@@ -9,6 +11,107 @@ export interface ConversationDetail {
   participantBId: number | null;
   lastMessageAt: string | null;
   createdAt: string;
+}
+
+// Mot lan tai len dang chay, nhin tu phia server.
+export interface UploadTracker {
+  // Bao "van dang chay". Tu han che tan suat, goi bao nhieu lan cung duoc.
+  beat: () => void;
+  // Bao bo cuoc: server tra lai dung luong va don kho ngay.
+  abort: () => Promise<void>;
+  // Ngung theo doi (da xong, hoac da huy).
+  stop: () => void;
+}
+
+// Toi da mot nhip dap moi 15 giay.
+const HEARTBEAT_MS = 15_000;
+
+// Giu cho server biet lan tai len nay VAN DANG SONG.
+//
+// VAN DE: cac phan bay THANG toi kho luu tru bang URL da ky - server khong
+// he nhin thay chung. Nen tu phia server, mot lan dang chay va mot lan da
+// chet (nguoi dung F5, mat mang, tat may) trong y HET nhau: cung la mot hang
+// `files` chua co message_id. Truoc day server danh phai doi den khi URL da
+// ky het han moi dam ket luan - do that voi tep 864MB la 43,8 phut, suot ca
+// 43,8 phut do nguoi dung van bi tru 0,84GB han muc.
+//
+// NHIP DAP DI THEO BYTE, KHONG DI THEO DONG HO. Chrome ha tan so setInterval
+// cua tab dang an xuong con 1 lan/phut, nen mot nhip dap thuan tinh gio se
+// bi ket luan la chet oan trong khi tep van dang len binh thuong o tab nen.
+// Su kien progress cua XHR thi do MANG day chu khong phai bo dinh gio, khong
+// bi tiet che - "van con byte chay" chinh la dieu can bao. Bo dem chi la
+// nguon phu cho luc dang doi giua hai lan thu lai.
+function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
+  let lastBeatAt = 0;
+  let live = true;
+
+  const beat = () => {
+    if (!live) return;
+    const now = Date.now();
+    if (now - lastBeatAt < HEARTBEAT_MS) return;
+    lastBeatAt = now;
+    // Nuot loi: mot nhip roi khong sao (server bo qua duoc 11 nhip lien
+    // tiep), va lam hong ca lan tai len vi mot nhip la vo ly.
+    void chatHttp.post(`/files/${slot.fileId}/heartbeat`).catch(() => {});
+  };
+
+  // Dap ngay tu dau: hang `files` vua duoc tao ben server, dung de no thieu
+  // nhip nao - neu khong, dong tab trong 3 giay dau se roi vao duong lui
+  // cham (het han URL) thay vi duong nhanh.
+  beat();
+
+  const timer = window.setInterval(beat, HEARTBEAT_MS);
+
+  const abort = async () => {
+    live = false;
+    try {
+      await chatHttp.post(`/files/${slot.fileId}/abort-upload`, { uploadId: slot.uploadId ?? null });
+    } catch {
+      // Khong sao - nhip dap tat thi bo quet cua server cung ket luan duoc,
+      // chi cham hon vai phut.
+    }
+  };
+
+  // Tai lai trang / dong tab: bao huy NGAY thay vi de server ngoi doi het
+  // nhip dap.
+  //
+  // Phai la fetch(keepalive) chu khong phai axios: trang dang bi thao do nen
+  // moi request thuong deu bi huy theo no. keepalive cho phep request song
+  // tiep sau khi tai lieu da chet. Dung `pagehide` chu khong phai
+  // `beforeunload` - `beforeunload` khong dang tin tren di dong va chan
+  // bfcache.
+  //
+  // TRUNG THUC: request nay co header Authorization nen bat buoc phai
+  // preflight, va khong co gi bao dam preflight kip chay xong trong luc
+  // trang dang dong. Day chi la duong TAT; duong chac chan van la nhip dap.
+  const onPageHide = () => {
+    if (!live) return;
+    const token = useAuthStore.getState().accessToken;
+    try {
+      void fetch(`${CHAT_API_URL}/files/${slot.fileId}/abort-upload`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ uploadId: slot.uploadId ?? null }),
+      });
+    } catch {
+      /* con nhip dap lo */
+    }
+  };
+  window.addEventListener("pagehide", onPageHide);
+
+  return {
+    beat,
+    abort,
+    stop: () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", onPageHide);
+    },
+  };
 }
 
 export interface UploadUrlResponse {
@@ -120,8 +223,16 @@ export const chatApi = {
   completeUpload: (fileId: number, uploadId: string) =>
     chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId }),
 
-  abortUpload: (fileId: number, uploadId: string) =>
-    chatHttp.post<void>(`/files/${fileId}/abort-upload`, { uploadId }),
+  // uploadId khong bat buoc: server da tu luu trong bang files.
+  abortUpload: (fileId: number, uploadId?: string | null) =>
+    chatHttp.post<void>(`/files/${fileId}/abort-upload`, { uploadId: uploadId ?? null }),
+
+  // Mo mot phien theo doi cho lan tai len nay. Goi NGAY sau khi xin duoc URL,
+  // va phai .stop() sau khi tin nhan da gui xong - khong phai sau khi tai
+  // xong. Giua hai moc do con complete-upload (ghep hang tram phan, co the
+  // lau) va sendFileMessage; ngung dap som la tu bay ra mot cua so ma bo quet
+  // co the xoa mat mot lan tai len dang hoan tat binh thuong.
+  trackUpload: (slot: UploadUrlResponse): UploadTracker => createUploadTracker(slot),
 
   // Tai file len thang MinIO bang URL da ky san.
   //
@@ -170,7 +281,37 @@ export const chatApi = {
   // Cat nho thi moi phan la mot request rieng va du nho de di lot. Kem theo
   // mot loi lon nua: phan nao dut thi THU LAI MOT MINH phan do, khong phai
   // lam lai ca tep - dung cai canh "tai do bi dut la phai lam lai tu dau".
+  // tracker: neu noi goi da mo mot phien theo doi (de no phu ca buoc ghep
+  // phan va gui tin nhan) thi truyen vao day. Khong truyen thi ham tu mo mot
+  // phien rieng, va tu dong lai khi xong.
   uploadFile: async (
+    slot: UploadUrlResponse,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    tracker?: UploadTracker,
+  ): Promise<void> => {
+    const track = tracker ?? createUploadTracker(slot);
+    const ownsTracker = !tracker;
+
+    // Moi lan co byte chay la mot lan bao "van dang song". Tracker tu han
+    // che tan suat nen goi day dac o day khong ton them request nao.
+    const progress = (loaded: number, total: number) => {
+      track.beat();
+      onProgress?.(loaded, total);
+    };
+
+    try {
+      await chatApi.uploadParts(slot, file, progress);
+    } catch (err) {
+      if (ownsTracker) await track.abort();
+      throw err;
+    } finally {
+      if (ownsTracker) track.stop();
+    }
+  },
+
+  // Phan tai len thuan tuy, khong dinh gi toi viec theo doi phien.
+  uploadParts: async (
     slot: UploadUrlResponse,
     file: File,
     onProgress?: (loaded: number, total: number) => void,

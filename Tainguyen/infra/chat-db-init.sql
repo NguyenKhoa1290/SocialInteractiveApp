@@ -211,10 +211,23 @@ CREATE TABLE files (
   -- file khong tu di chuyen, nen day la nguon su that duy nhat khi tai ve.
   -- DEFAULT 'home' de moi hang cu van dung sau khi them cot.
   storage_provider VARCHAR(20) NOT NULL DEFAULT 'home',
-  uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  uploaded_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Lan cuoi client bao "lan tai len nay VAN DANG CHAY".
+  --
+  -- Cac phan bay THANG toi kho luu tru bang URL da ky nen server khong he
+  -- thay chung: mot lan dang tai va mot lan da chet (nguoi dung F5, mat
+  -- mang, dong may) trong y het nhau o phia server. Cot nay la tin hieu
+  -- song duy nhat. NULL = client doi cu chua biet gui nhip dap; luc do bo
+  -- quet lui ve moc "URL da ky het han" nhu truoc.
+  last_heartbeat_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_files_conversation ON files(conversation_id);
+
+-- Bo quet tai len bo do chay moi phut va chi hoi dung nhung hang chua gan
+-- vao tin nhan nao. Chi so mot phan: chi cac hang do moi nam trong chi so,
+-- nen no be ti du bang files co lon den dau.
+CREATE INDEX idx_files_pending ON files(uploaded_at) WHERE message_id IS NULL;
 
 -- Trigger: tu dong cong/tru storage_used_bytes khi them/xoa file,
 -- tranh phai tu tinh toan roi rac o tang ung dung (de bi lech).

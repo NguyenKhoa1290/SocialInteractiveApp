@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
-import type { StorageInfo, TopupRequestInfo } from "../../api/chatApi";
+import type { StorageInfo, TopupRequestInfo, UploadTracker } from "../../api/chatApi";
 import { keysApi } from "../../api/keysApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { joinConversation, leaveConversation, onMessageDeleted, onMessageEdited, onMessageReceived } from "../../lib/chatHub";
@@ -588,6 +588,11 @@ export function ChatRoomPage() {
 
     setUploading(type);
     setUpload({ name: file.name, loaded: 0, total: file.size });
+
+    // Phien theo doi phai phu CA BA buoc, khong chi buoc tai len: server tru
+    // dung luong ngay tu luc cap URL, nen bat cu buoc nao dut giua chung deu
+    // de lai mot cho da giu ma khong ai tra. Xem chatApi.trackUpload.
+    let track: UploadTracker | null = null;
     try {
       const { data: slot } = await chatApi.requestUploadUrl(
         conversationId,
@@ -596,14 +601,23 @@ export function ChatRoomPage() {
         undefined,
         file.name,
       );
-      await chatApi.uploadFile(slot, file, (loaded, total) =>
-        setUpload({ name: file.name, loaded, total }),
+      track = chatApi.trackUpload(slot);
+      await chatApi.uploadFile(
+        slot,
+        file,
+        (loaded, total) => setUpload({ name: file.name, loaded, total }),
+        track,
       );
       // Tep lon duoc tai len theo nhieu phan - chua ghep thi object CHUA ton
       // tai tren kho, nen buoc nay bat buoc truoc khi gan vao tin nhan.
       if (slot.uploadId) await chatApi.completeUpload(slot.fileId, slot.uploadId);
       await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, slot.fileId);
     } catch (err) {
+      // Bao huy ngay: dung luong duoc tra lai trong tich tac thay vi doi bo
+      // quet ben server phat hien. track van null khi chinh buoc xin URL
+      // hong - luc do chua co gi de tra.
+      if (track) void track.abort();
+
       const code = apiErrorCode(err);
       const message = extractApiError(err, "Gửi file thất bại");
       // Server tra kem con so (tep to bao nhieu, nhom con trong bao nhieu)
@@ -611,6 +625,7 @@ export function ChatRoomPage() {
       if (code === "storage_quota_exceeded" || code === "storage_locked") setQuotaAlert(message);
       else setError(message);
     } finally {
+      track?.stop();
       setUploading(null);
       setUpload(null);
     }

@@ -164,21 +164,58 @@ public static class FileEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
-        // Huy mot lan tai len dang do, don cac phan da nam tren kho.
+        // Bao "lan tai len nay VAN DANG CHAY".
+        //
+        // Cac phan bay THANG toi kho luu tru bang URL da ky, server khong he
+        // thay chung - nen day la tin hieu song DUY NHAT ma server co. Thieu
+        // no thi server phai doi toi khi URL da ky het han moi dam ket luan
+        // la nguoi dung da bo cuoc: voi mot tep 864MB la 44 phut, suot ca 44
+        // phut do dung luong van bi tru.
+        //
+        // Co y lam that re: mot cau UPDATE, khong nap thuc the, khong tra ve
+        // gi. Client goi 15 giay mot lan.
+        //
+        // Tra 404 khi khong con hang nao khop (da gui xong, hoac da bi don) -
+        // client hieu la "thoi dap di".
+        app.MapPost("/files/{fileId:long}/heartbeat", async (
+            long fileId, ClaimsPrincipal principal, ChatDbContext db) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var now = DateTimeOffset.UtcNow;
+            var updated = await db.Files
+                .Where(f => f.Id == fileId && f.UploadedBy == userId && f.MessageId == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(f => f.LastHeartbeatAt, now));
+            return updated == 0 ? Results.NotFound() : Results.NoContent();
+        }).RequireAuthorization();
+
+        // Huy mot lan tai len dang do: TRA LAI DUNG LUONG va don sach kho.
+        //
+        // Ban truoc chi huy multipart ma KHONG xoa hang `files`, nen nguoi
+        // dung bam huy xong van bi tru nguyen dung luong - dung cai bug ma
+        // buoc nay le ra phai chua. Gio di qua ReleasePendingAsync nhu bo
+        // quet, hai duong cung mot loi.
         app.MapPost("/files/{fileId:long}/abort-upload", async (
-            long fileId, CompleteUploadRequest req, ClaimsPrincipal principal,
-            ChatDbContext db, StorageService storage) =>
+            long fileId, AbortUploadRequest? req, ClaimsPrincipal principal,
+            ChatDbContext db, StorageService storage, ILoggerFactory loggerFactory) =>
         {
             var userId = GetUserId(principal)!.Value;
             var file = await db.Files.FindAsync(fileId);
+            // Da don roi thi coi nhu xong - buoc huy phai goi bao nhieu lan
+            // cung duoc, vi client co the vua gui luc dong trang vua gui lai
+            // o nhanh bat loi.
             if (file is null)
-                return Results.NotFound();
+                return Results.NoContent();
             if (file.UploadedBy != userId)
                 return Results.Json(new ErrorResponse("forbidden", "Khong phai nguoi tai len tep nay"), statusCode: 403);
 
-            try { await storage.AbortMultipartAsync(file.StorageProvider, file.ObjectKey, req.UploadId); }
-            catch (Exception) { /* co the da huy roi - idempotent */ }
+            // Da gan vao mot tin nhan roi thi day khong con la "dang tai len"
+            // nua. Khong duoc xoa: mot request huy toi muon se lam bay mat
+            // mot tep DA GUI THANH CONG.
+            if (file.MessageId is not null)
+                return Results.Json(new ErrorResponse("already_sent", "Tep nay da duoc gui, khong huy duoc"), statusCode: 409);
 
+            await ReleasePendingAsync(
+                db, storage, loggerFactory.CreateLogger(typeof(FileEndpoints)), file, req?.UploadId);
             return Results.NoContent();
         }).RequireAuthorization();
 
@@ -277,6 +314,55 @@ public static class FileEndpoints
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+    }
+
+    // Tra lai dung luong va don sach mot lan tai len CHUA HOAN TAT.
+    //
+    // Dung chung cho hai duong: nguoi dung/trinh duyet bao huy (abort-upload)
+    // va bo quet tu phat hien (AbandonedUploadCleanupService). Mot ham thi
+    // hai duong khong the lech nhau.
+    //
+    // THU TU CO Y - xoa hang `files` TRUOC, roi moi dong vao kho:
+    // trigger trg_files_delete_sync_storage tu tra lai storage_used_bytes
+    // ngay khi hang bien mat. Neu dao lai ma buoc DB hong thi vua mat file
+    // vua khong tra dung luong. Theo thu tu nay, xau nhat chi con mot object
+    // mo coi tren dia - luot quet mo coi se don, va ke toan van dung.
+    internal static async Task ReleasePendingAsync(
+        ChatDbContext db, StorageService storage, ILogger logger,
+        FileAttachment file, string? uploadIdHint = null, CancellationToken ct = default)
+    {
+        var (id, provider, key, size, conversationId) =
+            (file.Id, file.StorageProvider, file.ObjectKey, file.SizeBytes, file.ConversationId);
+
+        // Uu tien ma da luu trong DB; uploadIdHint chi la duong lui cho cac
+        // hang co truoc khi co cot upload_id.
+        var uploadId = file.UploadId ?? uploadIdHint;
+
+        db.Files.Remove(file);
+        await db.SaveChangesAsync(ct);
+
+        try
+        {
+            // Tep lon di duong nhieu phan: object chinh CHUA TUNG ton tai,
+            // cai dang an dia la cac phan da tai len - phai huy dich danh.
+            if (!string.IsNullOrEmpty(uploadId))
+                await storage.AbortMultipartAsync(provider, key, uploadId, ct);
+            else
+                await storage.DeleteObjectAsync(provider, key, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Da tra {Size} byte cho hoi thoai {ConversationId} nhung khong don duoc {Key}",
+                size, conversationId, key);
+        }
+
+        // Tra dung luong xong ma nhom van khoa thi cung nhu khong.
+        await ConversationEndpoints.UnlockIfUnderQuotaAsync(db, conversationId, logger);
+
+        logger.LogInformation(
+            "Da huy lan tai len do dang: file {FileId} ({Size} byte) cua hoi thoai {ConversationId}",
+            id, size, conversationId);
     }
 
     // Doi byte sang chuoi nguoi doc duoc. Dat o day chu khong dung mot thu

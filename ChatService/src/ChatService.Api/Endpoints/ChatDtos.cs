@@ -98,6 +98,11 @@ public record UploadUrlResponse(
 
 public record CompleteUploadRequest(string UploadId);
 
+// UploadId cho phep NULL: luc trang bi dong, client goi buoc huy nay bang
+// mot request "keepalive" toi gian va server da tu luu upload_id trong bang
+// files roi - khong bat client phai gui lai cho dung.
+public record AbortUploadRequest(string? UploadId);
+
 public record FileMetaResponse(long Id, long ConversationId, long UploadedBy, string FileType, long SizeBytes, DateTimeOffset UploadedAt)
 {
     public static FileMetaResponse FromEntity(FileAttachment f) => new(

@@ -127,6 +127,7 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(f => f.UploadId).HasColumnName("upload_id");
             entity.Property(f => f.SizeBytes).HasColumnName("size_bytes");
             entity.Property(f => f.UploadedAt).HasColumnName("uploaded_at");
+            entity.Property(f => f.LastHeartbeatAt).HasColumnName("last_heartbeat_at");
             entity.Property(f => f.StorageProvider).HasColumnName("storage_provider");
         });
 

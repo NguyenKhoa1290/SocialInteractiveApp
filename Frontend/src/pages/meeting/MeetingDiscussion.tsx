@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
+import type { UploadTracker } from "../../api/chatApi";
 import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageReceived } from "../../lib/chatHub";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
@@ -104,20 +105,28 @@ export function MeetingDiscussion({
     setUploading(type as MessageType);
     setUpload({ name: file.name, loaded: 0, total: file.size });
     setError(null);
+    // Phien theo doi phu ca ba buoc - xem ghi chu o ChatRoomPage.
+    let track: UploadTracker | null = null;
     try {
       // Truyen meetingId de server kiem tra quyen theo nhanh "dang o trong
       // cuoc hop" (khach vang lai khong thuoc nhom). File VAN tinh vao han
       // muc 2GB cua nhom.
       const { data: urlRes } = await chatApi.requestUploadUrl(conversationId, type, file.size, meetingId, file.name);
-      await chatApi.uploadFile(urlRes, file, (loaded, total) =>
-        setUpload({ name: file.name, loaded, total }),
+      track = chatApi.trackUpload(urlRes);
+      await chatApi.uploadFile(
+        urlRes,
+        file,
+        (loaded, total) => setUpload({ name: file.name, loaded, total }),
+        track,
       );
       if (urlRes.uploadId) await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {
+      if (track) void track.abort();
       setError(extractApiError(err, "Không gửi được tệp"));
     } finally {
+      track?.stop();
       setUploading(null);
       setUpload(null);
     }

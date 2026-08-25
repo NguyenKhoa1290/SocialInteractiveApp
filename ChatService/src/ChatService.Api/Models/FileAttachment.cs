@@ -29,6 +29,10 @@ public class FileAttachment
     public long SizeBytes { get; set; }
     public DateTimeOffset UploadedAt { get; set; }
 
+    // Lan cuoi client bao lan tai len nay van dang chay. NULL = chua bao gio
+    // bao (client doi cu) - xem AbandonedUploadCleanupService.
+    public DateTimeOffset? LastHeartbeatAt { get; set; }
+
     // Kho luu tru chua file nay ("home" = MinIO may nha, "cloud" = R2/S3).
     // Quyet dinh mot lan luc upload theo dung luong roi giu nguyen mai mai -
     // file da nam o dau thi o do, khong tu di chuyen. Xem StorageService.

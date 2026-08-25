@@ -22,20 +22,48 @@ namespace ChatService.Api.BackgroundServices;
 // cong. Kem theo 3 lan tai nhieu phan do dang trong MinIO, hai trong so do
 // thuoc hoi thoai da bi xoa tu lau.
 //
-// KHI NAO COI LA BO CUOC: khi URL da ky HET HAN. Qua moc do thi khong ai co
-// the tai tiep duoc nua, nen giu lai cung vo nghia. Han do co gian theo kich
-// thuoc file (xem StorageService.PresignExpiryFor) - file nho vai phut, file
-// rat lon toi 6 tieng - nen dung dung cong thuc do thay vi mot con so chung,
-// tranh don nham mot lan tai 900MB dang chay dở.
+// KHI NAO COI LA BO CUOC - hai moc, uu tien cai thu nhat:
+//
+// 1. NHIP DAP TAT (HeartbeatTimeout). Client bao "van dang chay" 15 giay mot
+//    lan trong suot lan tai len (POST /files/{id}/heartbeat). Nhip tat nghia
+//    la trang da dong, da F5, mat mang, hoac may sap nguon - tra lai dung
+//    luong sau vai phut chu khong doi het han URL.
+//
+// 2. URL DA KY HET HAN - duong lui cho hang co last_heartbeat_at NULL, tuc
+//    client doi cu chua biet gui nhip dap. Qua moc do thi khong ai co the
+//    tai tiep duoc nua nen giu lai cung vo nghia. Han co gian theo kich
+//    thuoc file (StorageService.PresignExpiryFor) - file nho vai phut, file
+//    rat lon toi 6 tieng.
+//
+// VI SAO CAN CA HAI: khong the coi "NULL" la "da chet". Mot tab mo tu truoc
+// khi trien khai ban nay van dang tai binh thuong ma khong he gui nhip dap
+// nao; giet no la lam hong mot viec dang chay dung. Nen NULL di duong cu -
+// cham nhung an toan - con client moi thi duoc don nhanh.
+//
+// Do that truoc khi sua: mot tep 905.709.598 byte bi bo do luc F5 giu nguyen
+// 0,84GB han muc cua nhom trong 43,8 phut (28,8 phut han URL + 15 phut du).
 public class AbandonedUploadCleanupService(
     IServiceScopeFactory scopeFactory,
     StorageService storage,
     ILogger<AbandonedUploadCleanupService> logger) : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);
+    // Moi phut, khong phai moi 10 phut: gio da co nhip dap nen ket luan
+    // den nhanh, vong quet cham lai thi bang thua. Cau truy van ben duoi chi
+    // dung toi cac hang chua gan tin nhan (idx_files_pending) nen re.
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
 
-    // Cong them vao han presign truoc khi ket luan bo cuoc. Phong dong ho
-    // lech va nhung giay cuoi cung cua mot lan tai vua kip.
+    // Bao lau khong co nhip dap thi coi la da chet.
+    //
+    // Client dap 15 giay mot lan -> 3 phut la bo qua duoc 11 nhip lien tiep.
+    // Rong rai co chu dich: nhip dap co the im that lau ma lan tai len VAN
+    // SONG - dang doi giua hai lan thu lai mot phan hong, hoac mot phan dang
+    // chay rat cham (da do duoc mot phan 5MB chay 148 giay). Bat qua 3 phut
+    // thi tram cham nhat cung da co nhip.
+    private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromMinutes(3);
+
+    // Cong them vao han presign truoc khi ket luan bo cuoc (duong lui cho
+    // hang khong co nhip dap). Phong dong ho lech va nhung giay cuoi cung
+    // cua mot lan tai vua kip.
     private static readonly TimeSpan Grace = TimeSpan.FromMinutes(15);
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -76,51 +104,30 @@ public class AbandonedUploadCleanupService(
 
         var now = DateTimeOffset.UtcNow;
         var cleaned = 0;
-        var touchedConversations = new HashSet<long>();
 
         foreach (var file in pending)
         {
-            var deadline = file.UploadedAt
-                .AddSeconds(storage.PresignExpiryFor(file.SizeBytes))
-                .Add(Grace);
+            // Co nhip dap thi tin nhip dap: no noi ve HIEN TAI, con han
+            // presign chi la mot du doan dat ra tu luc bat dau.
+            var deadline = file.LastHeartbeatAt is { } beat
+                ? beat.Add(HeartbeatTimeout)
+                : file.UploadedAt
+                    .AddSeconds(storage.PresignExpiryFor(file.SizeBytes))
+                    .Add(Grace);
             if (now < deadline) continue; // van con co hoi hoan tat
 
-            var (id, provider, key, size, conversationId, uploadId) =
-                (file.Id, file.StorageProvider, file.ObjectKey, file.SizeBytes, file.ConversationId, file.UploadId);
+            var (id, size, conversationId) = (file.Id, file.SizeBytes, file.ConversationId);
+            var byHeartbeat = file.LastHeartbeatAt is not null;
 
-            // Xoa hang TRUOC - trigger tu tra lai storage_used_bytes. Cung
-            // thu tu voi ReleaseFileAsync: hong buoc kho luu tru thi chi con
-            // file mo coi, con ke toan van dung.
-            db.Files.Remove(file);
-            await db.SaveChangesAsync(ct);
-
-            try
-            {
-                // File lon di duong nhieu phan: object chinh chua bao gio ton
-                // tai, cai an dia la cac PHAN da tai len - phai huy DICH DANH
-                // bang uploadId da luu.
-                if (uploadId is not null)
-                    await storage.AbortMultipartAsync(provider, key, uploadId, ct);
-                else
-                    await storage.DeleteObjectAsync(provider, key, ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex,
-                    "Da tra {Size} byte cho hoi thoai {ConversationId} nhung khong don duoc {Key}",
-                    size, conversationId, key);
-            }
+            // Cung mot loi voi luc nguoi dung tu bam huy - xem
+            // FileEndpoints.ReleasePendingAsync.
+            await FileEndpoints.ReleasePendingAsync(db, storage, logger, file, null, ct);
 
             cleaned++;
-            touchedConversations.Add(conversationId);
             logger.LogInformation(
-                "Don lan tai len bo do: file {FileId} ({Size} byte) cua hoi thoai {ConversationId}",
-                id, size, conversationId);
+                "Don lan tai len bo do: file {FileId} ({Size} byte) cua hoi thoai {ConversationId} ({LyDo})",
+                id, size, conversationId, byHeartbeat ? "tat nhip dap" : "het han URL");
         }
-
-        // Tra dung luong xong ma nhom van khoa thi cung nhu khong.
-        foreach (var conversationId in touchedConversations)
-            await ConversationEndpoints.UnlockIfUnderQuotaAsync(db, conversationId, logger);
 
         if (cleaned > 0)
             logger.LogInformation("Da don {Count} lan tai len bo do", cleaned);
