@@ -69,14 +69,27 @@ public static class InternalEndpoints
             // Phai lam TRUOC vi sau khi cascade thi khong con hang files nao
             // de biet file nam o kho nao.
             var prefix = $"{conversation.Id}/";
+
+            // Huy cac lan tai len do dang bang uploadId DA LUU - dich danh,
+            // khong phu thuoc vao ListMultipartUploads. Ban dau dua vao liet
+            // ke va loc theo thoi gian, do that thi ra "huy 0 lan" trong khi
+            // multipart van con nam do.
+            var pending = await db.Files
+                .Where(f => f.ConversationId == conversation.Id && f.UploadId != null)
+                .Select(f => new { f.StorageProvider, f.ObjectKey, f.UploadId })
+                .ToListAsync();
+
+            foreach (var p in pending)
+            {
+                try { await storage.AbortMultipartAsync(p.StorageProvider, p.ObjectKey, p.UploadId!); }
+                catch (Exception ex) { logger.LogWarning(ex, "Khong huy duoc lan tai len {Key}", p.ObjectKey); }
+            }
+
             var providers = await db.Files
                 .Where(f => f.ConversationId == conversation.Id)
                 .Select(f => f.StorageProvider)
                 .Distinct()
                 .ToListAsync();
-
-            // Khong co hang files nao van phai quet: co the con multipart do
-            // dang cua nhung lan tai len chua bao gio hoan tat.
             if (providers.Count == 0) providers = [StorageService.Home];
 
             foreach (var provider in providers)
@@ -84,10 +97,9 @@ public static class InternalEndpoints
                 try
                 {
                     var deleted = await storage.DeleteByPrefixAsync(provider, prefix);
-                    var aborted = await storage.AbortIncompleteUploadsAsync(provider, prefix, DateTime.UtcNow);
                     logger.LogInformation(
                         "Xoa nhom {ConversationId}: da don {Deleted} object va huy {Aborted} lan tai len do dang o kho {Provider}",
-                        conversation.Id, deleted, aborted, provider);
+                        conversation.Id, deleted, pending.Count, provider);
                 }
                 catch (Exception ex)
                 {

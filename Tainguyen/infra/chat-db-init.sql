@@ -197,6 +197,15 @@ CREATE TABLE files (
   -- KHONG suy nguoc ra ten duoc - khong luu o day thi mat han. NULL cho cac
   -- hang co truoc khi them cot: client tu lui ve chu "Tai file".
   file_name        VARCHAR(255),
+  -- Ma lan tai len nhieu phan, giu lai de HUY duoc chinh xac khi bo do.
+  --
+  -- Ban dau khong luu, chi dua vao ListMultipartUploads roi loc theo thoi
+  -- gian. Do that: khi xoa nhom, object bi xoa dung nhung multipart thi
+  -- "huy 0 lan" - loc theo thoi gian khong an. Luu thang ma o day thi huy
+  -- la goi dich danh, khong phu thuoc vao liet ke lan so sanh dong ho.
+  --
+  -- NULL = file nho, tai mot lan, khong co multipart nao.
+  upload_id        VARCHAR(255),
   -- Kho luu tru chua file: 'home' = MinIO may nha, 'cloud' = R2/S3.
   -- Chon theo dung luong luc upload (Storage:HomeMaxBytes) roi giu nguyen -
   -- file khong tu di chuyen, nen day la nguon su that duy nhat khi tai ve.

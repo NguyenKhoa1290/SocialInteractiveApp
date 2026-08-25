@@ -114,6 +114,12 @@ public static class FileEndpoints
             // sao - tom tat: Cloudflare chi cho origin ~100 giay tra loi mot
             // request, ma kho luu tru chi tra loi sau khi nhan xong het file.
             var uploadId = await storage.InitiateMultipartAsync(file.StorageProvider, file.ObjectKey);
+
+            // Ghi lai ngay: neu lan tai nay bi bo do thi bo quet can dung ma
+            // nay de huy dich danh, khong phai di liet ke va doan.
+            file.UploadId = uploadId;
+            await db.SaveChangesAsync();
+
             var partCount = StorageService.PartCountFor(file.SizeBytes);
             var partUrls = new string[partCount];
             for (var i = 0; i < partCount; i++)

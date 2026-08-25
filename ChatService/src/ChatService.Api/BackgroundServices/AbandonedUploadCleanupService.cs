@@ -85,8 +85,8 @@ public class AbandonedUploadCleanupService(
                 .Add(Grace);
             if (now < deadline) continue; // van con co hoi hoan tat
 
-            var (id, provider, key, size, conversationId) =
-                (file.Id, file.StorageProvider, file.ObjectKey, file.SizeBytes, file.ConversationId);
+            var (id, provider, key, size, conversationId, uploadId) =
+                (file.Id, file.StorageProvider, file.ObjectKey, file.SizeBytes, file.ConversationId, file.UploadId);
 
             // Xoa hang TRUOC - trigger tu tra lai storage_used_bytes. Cung
             // thu tu voi ReleaseFileAsync: hong buoc kho luu tru thi chi con
@@ -96,10 +96,13 @@ public class AbandonedUploadCleanupService(
 
             try
             {
-                await storage.DeleteObjectAsync(provider, key, ct);
                 // File lon di duong nhieu phan: object chinh chua bao gio ton
-                // tai, cai an dia la cac PHAN da tai len. Phai huy rieng.
-                await storage.AbortIncompleteUploadsAsync(provider, key, DateTime.UtcNow, ct);
+                // tai, cai an dia la cac PHAN da tai len - phai huy DICH DANH
+                // bang uploadId da luu.
+                if (uploadId is not null)
+                    await storage.AbortMultipartAsync(provider, key, uploadId, ct);
+                else
+                    await storage.DeleteObjectAsync(provider, key, ct);
             }
             catch (Exception ex)
             {

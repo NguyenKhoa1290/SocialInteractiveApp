@@ -21,6 +21,10 @@ public class FileAttachment
     // Ten goc do nguoi dung dat, chi de HIEN THI. Khong dung lam duong dan:
     // object_key moi la thu tro toi file that tren kho luu tru.
     public string? FileName { get; set; }
+
+    // Ma lan tai len nhieu phan (NULL neu file nho, tai mot lan). Giu lai de
+    // huy dich danh khi lan tai len bi bo do - xem AbandonedUploadCleanupService.
+    public string? UploadId { get; set; }
     public FileType FileType { get; set; }
     public long SizeBytes { get; set; }
     public DateTimeOffset UploadedAt { get; set; }
