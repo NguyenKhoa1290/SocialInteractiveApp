@@ -121,5 +121,37 @@ public class AbandonedUploadCleanupService(
 
         if (cleaned > 0)
             logger.LogInformation("Da don {Count} lan tai len bo do", cleaned);
+
+        await SweepOrphanMultipartsAsync(ct);
+    }
+
+    // Luot quet thu hai: multipart do dang KHONG con hang `files` nao tro toi.
+    //
+    // Luot tren di theo hang trong CSDL nen khong the thay chung. Chung sinh
+    // ra khi hoi thoai bi xoa giua chung (cascade xoa hang files, con phan da
+    // tai len thi o lai), hoac tu nhung lan hong truoc khi co doan sua nay.
+    // Thay that: hoi thoai 29 va 38 khong con trong DB nhung multipart van
+    // con.
+    //
+    // Nguong 24 gio: dai hon han presign toi da (6 gio) mot khoang rong, nen
+    // khong the huy nham mot lan tai len dang thuc su chay.
+    private async Task SweepOrphanMultipartsAsync(CancellationToken ct)
+    {
+        var cutoff = DateTime.UtcNow.AddHours(-24);
+        foreach (var provider in storage.ProviderNames)
+        {
+            try
+            {
+                var aborted = await storage.AbortIncompleteUploadsAsync(provider, prefix: "", cutoff, ct);
+                if (aborted > 0)
+                    logger.LogInformation(
+                        "Da huy {Count} lan tai len nhieu phan mo coi (qua 24 gio) o kho {Provider}",
+                        aborted, provider);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Khong quet duoc multipart mo coi o kho {Provider}", provider);
+            }
+        }
     }
 }
