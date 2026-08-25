@@ -118,8 +118,7 @@ function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
     }
   };
 
-  // Tai lai trang / dong tab: bao huy NGAY thay vi de server ngoi doi het
-  // nhip dap.
+  // Tai lai trang / dong tab: thu bao huy NGAY.
   //
   // Phai la fetch(keepalive) chu khong phai axios: trang dang bi thao do nen
   // moi request thuong deu bi huy theo no. keepalive cho phep request song
@@ -129,7 +128,12 @@ function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
   //
   // TRUNG THUC: request nay co header Authorization nen bat buoc phai
   // preflight, va khong co gi bao dam preflight kip chay xong trong luc
-  // trang dang dong. Day chi la duong TAT; duong chac chan van la nhip dap.
+  // trang dang dong - chua do duoc dieu do nen khong dua vao no.
+  //
+  // BA LOP, tu nhanh den chac:
+  //   1. beacon nay              - tuc thi, nhung khong bao dam
+  //   2. recoverAbandonedUploads - luc trang khoi dong lai (F5): chac chan
+  //   3. nhip dap tat 3 phut     - phu not dong tab, mat mang, tat may
   const onPageHide = () => {
     if (!live) return;
     const token = useAuthStore.getState().accessToken;

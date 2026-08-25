@@ -5925,6 +5925,119 @@ chỉ cần bấm chọn file rồi đóng tab là đã để lại rác trên �
 
 ---
 
+## Phase 16 — Nhịp đập tải lên: làm sao server biết một lần tải đã chết
+
+Chủ dự án báo tiếp: *"Tôi đang up file lên dở xong reload lại trang, server phải nhận diện được
+upload failed để trả dung lượng cho người dùng và xoá file lỗi trong MinIO."*
+
+Phase 15 đã có bộ quét dọn tải lên bỏ dở, nhưng nó **chậm**. Đo trên CSDL sản xuất ngay lúc nhận
+báo lỗi:
+
+```
+files: id 59, conv 45, 905.709.598 byte, message_id NULL, đã 26 phút
+group_chat_settings: conv 45 → 905.709.598 byte bị trừ  (0,84 GB trên giao diện)
+```
+
+Mốc dọn của bản cũ = `uploaded_at + PresignExpiryFor(905.709.598) + 15 phút`
+= 28,8 phút + 15 phút = **43,8 phút**. Suốt gần ba phần tư tiếng đó nhóm mất 0,84 GB hạn mức cho
+một tệp không hề tồn tại.
+
+### 16.1 Vì sao server không tự biết
+
+Các phần bay **thẳng** tới kho lưu trữ bằng URL đã ký — server không nằm trên đường đi đó, không
+thấy một byte nào. Nên từ phía server, một lần đang chạy và một lần đã chết trông **y hệt** nhau:
+cùng là một hàng `files` chưa có `message_id`. Không có tín hiệu nào để phân biệt, nên bản cũ chỉ
+còn cách đoán theo đồng hồ — và phải đoán rất rộng để không giết nhầm.
+
+Cách chữa là **tạo ra tín hiệu sống** thay vì đoán giỏi hơn.
+
+### 16.2 Nhịp đập đi theo byte, không đi theo đồng hồ
+
+Thêm cột `files.last_heartbeat_at` và `POST /files/{id}/heartbeat` (đúng một câu UPDATE, không nạp
+thực thể). Client báo 15 giây một lần.
+
+Chi tiết quan trọng nhất của thiết kế: **nhịp đập được gọi từ sự kiện `progress` của XHR**, không
+phải từ một bộ đếm giờ.
+
+> Chrome hạ tần số `setInterval` của tab đang ẩn xuống còn 1 lần/phút. Một nhịp đập thuần tính giờ
+> sẽ bị kết luận là chết oan trong khi tệp vẫn đang lên bình thường ở tab nền. Sự kiện `progress`
+> thì do **mạng** đẩy chứ không phải bộ định giờ, không bị tiết chế — và "vẫn còn byte chạy" chính
+> là điều cần báo. Bộ đếm giờ vẫn giữ, nhưng chỉ làm nguồn phụ cho lúc đang đợi giữa hai lần thử
+> lại một phần hỏng.
+
+Bộ quét: **3 phút** không có nhịp thì dọn, vòng quét hạ từ 10 phút xuống **1 phút**.
+
+Hàng có `last_heartbeat_at` NULL vẫn đi đường cũ theo hạn URL. **Không được coi "NULL" là "đã
+chết"**: một tab mở từ trước khi triển khai bản này vẫn đang tải bình thường mà không hề gửi nhịp
+nào; giết nó là làm hỏng một việc đang chạy đúng.
+
+### 16.3 Ba lớp, từ nhanh đến chắc
+
+| Lớp | Phủ trường hợp | Độ trễ | Chắc chắn? |
+|---|---|---|---|
+| beacon `pagehide` | F5, đóng tab | tức thì | không — xem dưới |
+| `recoverAbandonedUploads` lúc trang khởi động | F5 | tức thì | **có** |
+| nhịp đập tắt 3 phút | đóng hẳn tab, mất mạng, tắt máy | ≤ 4 phút | **có** |
+
+Beacon ở `pagehide` dùng `fetch(keepalive)`. **Không dựa vào nó**: request có header
+`Authorization` nên bắt buộc phải preflight, và không có gì bảo đảm preflight kịp chạy xong trong
+lúc trang đang bị tháo dỡ. Chưa đo được điều đó thì không được ghi nó là cơ chế chính.
+
+Đường chắc chắn cho đúng cảnh F5 là lớp thứ hai: ghi `fileId` đang tải vào **`sessionStorage`**, và
+lúc trang khởi động lại thì đọc ra rồi gọi `abort-upload` như mọi request bình thường khác — trang
+đã sống đầy đủ, chắc chắn đến nơi.
+
+**Vì sao `sessionStorage` chứ không phải `localStorage`:** nó riêng cho *từng tab* và vẫn sống qua
+F5 — đúng hai tính chất cần. `localStorage` dùng chung mọi tab, nên một tab mới mở sẽ đọc thấy và
+huỷ mất lần tải lên **đang chạy bình thường** của tab kia.
+
+### 16.4 Tiện thể sửa một bug thật
+
+`abort-upload` bản cũ **chỉ huỷ multipart mà không xoá hàng `files`** — nghĩa là người dùng bấm huỷ
+xong vẫn bị trừ nguyên dung lượng. Đúng cái lỗi mà bước đó lẽ ra phải chữa. Giờ cả hai đường (người
+dùng huỷ, bộ quét tự phát hiện) đi chung `ReleasePendingAsync`; một hàm thì hai đường không thể
+lệch nhau.
+
+Phiên theo dõi phải phủ **cả ba bước** (tải lên → ghép phần → gửi tin nhắn), không chỉ bước tải
+lên: server trừ dung lượng ngay từ lúc cấp URL, và ghép hàng trăm phần có thể lâu hơn 3 phút —
+ngừng đập sớm là tự bày ra một cửa sổ mà bộ quét có thể xoá mất một lần tải lên đang hoàn tất bình
+thường.
+
+### 16.5 Verify — ba phép đo trên hệ thống thật
+
+Ba nhóm riêng, chạy đồng thời, theo dõi CSDL 30 giây một lần trong 10 phút.
+
+| Phép | Dựng cảnh | Kỳ vọng | Kết quả |
+|---|---|---|---|
+| **B** — báo huỷ ngay | xin URL 30 MB rồi gọi `abort-upload` | trả dung lượng tức thì | `HTTP 204`; nhóm 47 về **0 byte ngay**, multipart biến mất khỏi MinIO |
+| **A** — nhịp đập tắt | đập 1 nhịp, tải 1 phần, rồi im lặng | dọn sau ≤ 4 phút | nhịp cuối `08:21:35`, hàng biến mất trong khoảng `08:24:24–08:24:54` → **~3 phút 19 giây**; nhóm 46 về 0 |
+| **C** — đang chạy thật | đập đều 15 giây/lần suốt 7 phút | **không** được đụng tới | sống nguyên vẹn cả 7 phút (`08:21:50` → `08:28:21`), dù "tuổi" đã vượt xa 3 phút. Ngừng đập lúc `08:28:21` → bị dọn ngay sau đó |
+
+Phép **C** là phép quan trọng nhất: nó chứng minh bộ quét không giết nhầm một lần tải lên đang chạy
+bình thường. Một cơ chế dọn dẹp mà giết nhầm thì tệ hơn hẳn cơ chế chậm.
+
+Cả hai nhánh của mốc đều hiện ra trong log, đúng như thiết kế:
+
+```
+Don lan tai len bo do: file 59 (905709598 byte) cua hoi thoai 45 (het han URL)
+Don lan tai len bo do: file 62 (31457280 byte)  cua hoi thoai 48 (tat nhip dap)
+```
+
+File 59 chính là tệp 864 MB đang kẹt của chủ dự án lúc nhận báo lỗi — nó đi đường lùi (`het han URL`)
+vì được tạo bởi bản frontend cũ chưa biết gửi nhịp đập, đúng như quy tắc "không được coi NULL là đã
+chết". Sau khi dọn: nhóm 45 về **0 byte**.
+
+Trạng thái cuối: **0 hàng `files`, 0 object MinIO, 0 multipart dở dang**, cả 4 nhóm thật đều 0 byte
+và không nhóm nào bị khoá.
+
+### 16.6 Còn lại cho người dùng kiểm
+
+Lớp beacon `pagehide` và lớp dọn-lúc-khởi-động chỉ chạy được trong trình duyệt thật — không tự động
+hoá được ở đây, nên chưa đo. Cách kiểm: tải một tệp lớn, F5 giữa chừng, rồi nhìn con số dung lượng
+của nhóm.
+
+---
+
 ## Trạng thái khi kết thúc đợt Phase 7–11
 
 Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
