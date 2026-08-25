@@ -5846,6 +5846,85 @@ mới là bên thực sự phát.
 
 ---
 
+## Phase 15 — Ba lỗ rò file, và một lỗi trong chính bản vá đầu tiên
+
+Ba lỗi do chủ dự án báo, cả ba đều **đo trên CSDL sản xuất trước khi sửa**.
+
+### 15.1 Tải lên bỏ dở vẫn bị trừ dung lượng vĩnh viễn
+
+Hàng `files` được tạo ở `POST /files/upload-url` **trước** khi client tải lên, và trigger cộng
+`storage_used_bytes` ngay. Đó là **cố ý** — phải giữ chỗ trước, nếu không hai người tải cùng lúc sẽ
+cùng vượt qua được phép kiểm hạn mức. Nhưng chỗ đã giữ thì phải có lúc **trả lại**, và trước đây
+không có.
+
+Bằng chứng lúc phát hiện: một nhóm bị tính **1.811.419.196 byte cho đúng một file 864 MB** — gấp đôi,
+vì lần tải đứt giữa chừng (`message_id` NULL) cũng được cộng.
+
+Thêm `AbandonedUploadCleanupService` quét 10 phút/lần. **Tiêu chí bỏ cuộc là "URL đã ký hết hạn"** —
+qua mốc đó không ai tải tiếp được nữa. Dùng đúng công thức `PresignExpiryFor` (co giãn theo kích
+thước: file nhỏ vài phút, file rất lớn tới 6 tiếng) chứ không một con số chung, để không dọn nhầm một
+lần tải 900 MB đang chạy dở.
+
+### 15.2 Xoá nhóm để lại file trong MinIO
+
+`ON DELETE CASCADE` chỉ dọn trong CSDL. Bằng chứng: hội thoại 29 và 38 không còn trong DB nhưng
+multipart dở dang vẫn nằm trong MinIO.
+
+Dọn kho lưu trữ **trước** khi xoá hàng — phải làm trước vì sau khi cascade thì không còn hàng `files`
+nào để biết file nằm ở kho nào.
+
+### 15.3 Tải về ra file tên GUID, không đuôi mở rộng
+
+Presign GET không đặt `Content-Disposition` nên MinIO trả về object mang tên chính `object_key`
+(`{conversation_id}/{guid}`) — trông y hệt file hỏng hoặc đã mã hoá, mở bằng gì cũng không được.
+
+Vấn đề gốc sâu hơn: **bảng `files` không lưu tên**. Thêm cột `file_name`, client gửi `file.name` lúc
+xin URL, và presign kèm `Content-Disposition`.
+
+Tên tiếng Việt có dấu **không** nhét thẳng vào `filename="..."` được (header HTTP chỉ cho ASCII) nên
+gửi hai phần theo RFC 6266/5987 — đo thật:
+
+```
+attachment; filename="H_p __ng s_ 42 (b_n k_).pdf";
+            filename*=UTF-8''H%E1%BB%A3p%20%C4%91%E1%BB%93ng%20s%E1%BB%91%2042...
+```
+
+### 15.4 Bản vá đầu tiên có lỗi, và bài học rút ra
+
+Chạy thử lần đầu: xoá nhóm 41 cho ra *"đã dọn 1 object và **huỷ 0** lần tải lên dở dang"* — object
+biến mất đúng, nhưng multipart `41/40edeb…` vẫn nằm nguyên.
+
+Nguyên nhân: tôi dựa vào `ListMultipartUploads` rồi **lọc theo thời gian khởi tạo**. Có thể là múi giờ
+của trường `Initiated`, có thể là cách MinIO trả về danh sách — nhưng thay vì đào tìm, bỏ hẳn cách làm
+mong manh đó:
+
+- **Lưu `upload_id` vào hàng `files`** lúc khởi tạo multipart → huỷ **đích danh**, không liệt kê,
+  không so đồng hồ.
+- **Quét mồ côi đổi tiêu chí** từ *"quá 24 giờ"* sang ***"không còn hàng `files` nào trỏ tới"***. Hàng
+  `files` luôn được tạo **trước** khi khởi tạo multipart, nên một object key không còn hàng nào chỉ có
+  thể nghĩa là hàng đó đã bị xoá — tức lần tải đó chắc chắn đã chết. Tất định, không dính gì tới đồng
+  hồ, nên không thể huỷ nhầm một lần đang chạy.
+
+`StorageService` giờ **chỉ liệt kê**; việc quyết định huỷ cái nào chuyển ra ngoài cho nơi biết trạng
+thái CSDL. Đây là bài học chung: khi một phép kiểm phụ thuộc vào đồng hồ hoặc vào cách một dịch vụ
+ngoài trả lời, hãy tìm một bất biến trong dữ liệu của chính mình mà dựa vào.
+
+### 15.5 Một chi tiết đáng nhớ
+
+**Xin URL cho file > 8 MB là server đã khởi tạo multipart ngay**, dù người dùng chưa tải phần nào. Nên
+chỉ cần bấm chọn file rồi đóng tab là đã để lại rác trên đĩa — đúng cái mà chủ dự án gặp.
+
+### 15.6 Verify
+
+| Kiểm | Kết quả |
+|---|---|
+| Tên file khi tải về | `Content-Disposition` đúng hai phần, nội dung khớp checksum |
+| Xoá nhóm | `Xoa nhom 43: da don 1 object va huy 1 lan tai len do dang` — cả hai biến mất |
+| Bộ quét tải dở | `Don lan tai len bo do: file 57 (31457280 byte)`; dung lượng nhóm **33.554.432 → 2.097.152**, trả đúng 30 MB |
+| Multipart của file bỏ dở | Huỷ đích danh bằng `upload_id`, đã biến mất |
+
+---
+
 ## Trạng thái khi kết thúc đợt Phase 7–11
 
 Hệ thống đang chạy thật trên k3s, ra Internet qua cloudflared, CI/CD tự động (đẩy lên `main` →
