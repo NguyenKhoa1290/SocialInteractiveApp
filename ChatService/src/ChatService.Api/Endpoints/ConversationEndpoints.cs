@@ -58,7 +58,44 @@ public static class ConversationEndpoints
                 size, key, provider);
         }
 
+        await UnlockIfUnderQuotaAsync(db, file.ConversationId, logger);
         return id;
+    }
+
+    // Mo khoa nhom khi dung luong da tut xuong duoi han muc.
+    //
+    // Thieu buoc nay thi viec tra dung luong chi co tieng ma khong co mieng:
+    // nguoi dung thu hoi mot video 50MB, so byte tra ve dung, nhung nhom van
+    // khoa nen van khong gui duoc gi.
+    //
+    // Don luon HAI thu di kem, giong het nhanh tu mo khoa cua
+    // StorageWarningService khi het han:
+    //   - StorageExpiresAt: han chot "khong don thi he thong xoa file cu cua
+    //     ban". Da du cho roi thi khong con ly do treo ban an do.
+    //   - LastWarningStage: de lan sau neu lai day, chuoi canh bao 3d/2d/1d/10h
+    //     chay lai tu dau chu khong nhay coc vi tuong da bao roi.
+    private static async Task UnlockIfUnderQuotaAsync(ChatDbContext db, long conversationId, ILogger logger)
+    {
+        var settings = await db.GroupChatSettings.FindAsync(conversationId);
+        if (settings is null) return; // P2P khong co han muc
+
+        // BAT BUOC nap lai: trigger trg_files_delete_sync_storage vua tru
+        // storage_used_bytes THANG TRONG CSDL, EF khong he hay biet. Khong nap
+        // lai thi doc phai gia tri cu va khong bao gio mo khoa.
+        await db.Entry(settings).ReloadAsync();
+
+        if (!settings.IsLocked || settings.StorageUsedBytes >= settings.StorageQuotaBytes)
+            return;
+
+        settings.IsLocked = false;
+        settings.StorageExpiresAt = null;
+        settings.LastWarningStage = null;
+        settings.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+
+        logger.LogInformation(
+            "Mo khoa group conversation {ConversationId}: dung luong con {Used}/{Quota} byte",
+            conversationId, settings.StorageUsedBytes, settings.StorageQuotaBytes);
     }
 
     public static void MapConversationEndpoints(this WebApplication app)
