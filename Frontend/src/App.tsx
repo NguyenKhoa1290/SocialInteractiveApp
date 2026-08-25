@@ -31,6 +31,7 @@ import { useAuthStore } from "./store/authStore";
 import { useKeyStore } from "./store/keyStore";
 import { scheduleTokenRefresh } from "./lib/tokenScheduler";
 import { loadPersistedKey } from "./lib/crypto/keyPersistence";
+import { chatApi } from "./api/chatApi";
 
 export default function App() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -43,6 +44,13 @@ export default function App() {
   // lib/crypto/keyPersistence.ts.
   useEffect(() => {
     if (accessToken) scheduleTokenRefresh(accessToken);
+
+    // Vua F5 giua chung mot lan tai tep? Bao huy ngay de tra lai dung luong.
+    // Server tru han muc tu luc CAP URL chu khong phai luc tai xong, nen mot
+    // lan bo do ma khong bao la nguoi dung mat cho do toi khi bo quet phat
+    // hien. Xem chatApi.recoverAbandonedUploads.
+    if (accessToken) void chatApi.recoverAbandonedUploads();
+
     if (user) {
       const cached = loadPersistedKey(user.id);
       if (cached) useKeyStore.getState().setKeys(cached.privateKey, cached.publicKey);

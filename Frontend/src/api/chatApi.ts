@@ -26,6 +26,47 @@ export interface UploadTracker {
 // Toi da mot nhip dap moi 15 giay.
 const HEARTBEAT_MS = 15_000;
 
+// Danh sach cac lan tai len dang chay CUA CHINH TAB NAY.
+//
+// sessionStorage chu khong phai localStorage, va day la ca ly do dung no:
+// sessionStorage rieng cho TUNG TAB va SONG QUA F5. Nho vay khi nguoi dung
+// tai lai trang giua chung, trang moi doc duoc ngay minh vua bo do cai gi va
+// bao huy - tra lai dung luong trong tich tac thay vi doi bo quet ben server.
+// Con localStorage thi dung chung moi tab: mot tab moi mo se doc thay va
+// huy mat lan tai len DANG CHAY BINH THUONG cua tab kia.
+const PENDING_KEY = "chat.pendingUploads";
+
+type PendingUpload = { fileId: number; uploadId?: string | null };
+
+function readPending(): PendingUpload[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return []; // che do rieng tu, quota day, JSON hong - coi nhu khong co
+  }
+}
+
+function writePending(list: PendingUpload[]) {
+  try {
+    if (list.length === 0) sessionStorage.removeItem(PENDING_KEY);
+    else sessionStorage.setItem(PENDING_KEY, JSON.stringify(list));
+  } catch {
+    /* khong ghi duoc thi con nhip dap lo */
+  }
+}
+
+function rememberPending(slot: UploadUrlResponse) {
+  const list = readPending().filter((p) => p.fileId !== slot.fileId);
+  list.push({ fileId: slot.fileId, uploadId: slot.uploadId ?? null });
+  writePending(list);
+}
+
+function forgetPending(fileId: number) {
+  writePending(readPending().filter((p) => p.fileId !== fileId));
+}
+
 // Giu cho server biet lan tai len nay VAN DANG SONG.
 //
 // VAN DE: cac phan bay THANG toi kho luu tru bang URL da ky - server khong
@@ -44,6 +85,10 @@ const HEARTBEAT_MS = 15_000;
 function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
   let lastBeatAt = 0;
   let live = true;
+
+  // Ghi ngay, TRUOC khi tai mot byte nao: neu nguoi dung F5 o giay dau tien
+  // thi trang moi van phai biet ma don.
+  rememberPending(slot);
 
   const beat = () => {
     if (!live) return;
@@ -64,6 +109,7 @@ function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
 
   const abort = async () => {
     live = false;
+    forgetPending(slot.fileId);
     try {
       await chatHttp.post(`/files/${slot.fileId}/abort-upload`, { uploadId: slot.uploadId ?? null });
     } catch {
@@ -108,6 +154,7 @@ function createUploadTracker(slot: UploadUrlResponse): UploadTracker {
     abort,
     stop: () => {
       live = false;
+      forgetPending(slot.fileId);
       window.clearInterval(timer);
       window.removeEventListener("pagehide", onPageHide);
     },
@@ -233,6 +280,34 @@ export const chatApi = {
   // lau) va sendFileMessage; ngung dap som la tu bay ra mot cua so ma bo quet
   // co the xoa mat mot lan tai len dang hoan tat binh thuong.
   trackUpload: (slot: UploadUrlResponse): UploadTracker => createUploadTracker(slot),
+
+  // Don not nhung lan tai len ma CHINH TAB NAY bo do luc tai lai trang.
+  //
+  // Day moi la duong chinh cho canh "dang tai do thi F5", chu khong phai cai
+  // beacon o pagehide: luc trang dang bi thao do, request kem header
+  // Authorization bat buoc phai preflight va khong co gi bao dam no kip chay
+  // xong. Con o day thi trang da song lai day du, request di nhu moi request
+  // binh thuong khac - chac chan den noi.
+  //
+  // Chi don DUNG nhung fileId cua tab nay (sessionStorage), nen khong co
+  // chuyen tab moi mo lai di huy lan tai len dang chay cua tab khac.
+  recoverAbandonedUploads: async (): Promise<number> => {
+    const list = readPending();
+    if (list.length === 0) return 0;
+    writePending([]); // xoa truoc: hong request thi cung dung thu lai mai
+
+    let released = 0;
+    for (const p of list) {
+      try {
+        await chatApi.abortUpload(p.fileId, p.uploadId);
+        released++;
+      } catch {
+        // 403/409 (nguoi khac dang nhap, hoac tep da gui xong that) - bo qua.
+        // Truong hop that su bo do van con bo quet nhip dap lo trong 3 phut.
+      }
+    }
+    return released;
+  },
 
   // Tai file len thang MinIO bang URL da ky san.
   //
