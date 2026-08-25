@@ -17,6 +17,10 @@ public class FileAttachment
     public long? MessageId { get; set; }
     public long UploadedBy { get; set; }
     public string ObjectKey { get; set; } = string.Empty;
+
+    // Ten goc do nguoi dung dat, chi de HIEN THI. Khong dung lam duong dan:
+    // object_key moi la thu tro toi file that tren kho luu tru.
+    public string? FileName { get; set; }
     public FileType FileType { get; set; }
     public long SizeBytes { get; set; }
     public DateTimeOffset UploadedAt { get; set; }

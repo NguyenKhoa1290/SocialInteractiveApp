@@ -593,6 +593,8 @@ export function ChatRoomPage() {
         conversationId,
         type as "image" | "video" | "voice" | "file",
         file.size,
+        undefined,
+        file.name,
       );
       await chatApi.uploadFile(slot, file, (loaded, total) =>
         setUpload({ name: file.name, loaded, total }),

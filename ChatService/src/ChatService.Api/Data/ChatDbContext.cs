@@ -123,6 +123,7 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(f => f.FileType)
                 .HasColumnName("file_type")
                 .HasConversion(v => FileAttachment.TypeToString(v), v => FileAttachment.TypeFromString(v));
+            entity.Property(f => f.FileName).HasColumnName("file_name");
             entity.Property(f => f.SizeBytes).HasColumnName("size_bytes");
             entity.Property(f => f.UploadedAt).HasColumnName("uploaded_at");
             entity.Property(f => f.StorageProvider).HasColumnName("storage_provider");

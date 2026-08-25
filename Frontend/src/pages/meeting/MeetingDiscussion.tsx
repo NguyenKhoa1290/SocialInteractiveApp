@@ -108,7 +108,7 @@ export function MeetingDiscussion({
       // Truyen meetingId de server kiem tra quyen theo nhanh "dang o trong
       // cuoc hop" (khach vang lai khong thuoc nhom). File VAN tinh vao han
       // muc 2GB cua nhom.
-      const { data: urlRes } = await chatApi.requestUploadUrl(conversationId, type, file.size, meetingId);
+      const { data: urlRes } = await chatApi.requestUploadUrl(conversationId, type, file.size, meetingId, file.name);
       await chatApi.uploadFile(urlRes, file, (loaded, total) =>
         setUpload({ name: file.name, loaded, total }),
       );

@@ -16,6 +16,9 @@ export interface UploadUrlResponse {
   uploadUrl: string;
   // Co gia tri = file nay phai tai len theo NHIEU PHAN. Xem uploadFile().
   uploadId?: string | null;
+  // Chi co o duong TAI VE: ten goc va kich thuoc de hien duoi tin nhan.
+  fileName?: string | null;
+  sizeBytes?: number;
   partSizeBytes?: number;
   partUrls?: string[] | null;
   expiresInSeconds: number;
@@ -78,7 +81,15 @@ export const chatApi = {
     fileType: "image" | "video" | "voice" | "file",
     sizeBytes: number,
     meetingId?: number,
-  ) => chatHttp.post<UploadUrlResponse>("/files/upload-url", { conversationId, fileType, sizeBytes, meetingId }),
+    fileName?: string,
+  ) =>
+    chatHttp.post<UploadUrlResponse>("/files/upload-url", {
+      conversationId,
+      fileType,
+      sizeBytes,
+      meetingId,
+      fileName: fileName ?? null,
+    }),
 
   // --- Thao luan cua cuoc hop (KHONG ma hoa - xem MeetingDiscussionEndpoints.cs) ---
   listMeetingDiscussions: (conversationId: number) =>

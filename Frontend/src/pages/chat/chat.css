@@ -447,3 +447,36 @@
   background: var(--social-bg);
   color: var(--text-h);
 }
+
+/* Ten file + dung luong duoi tin nhan.
+   Ten file nguoi dung dat co the rat dai (va khong co dau cach de xuong
+   dong), nen phai cat bot chu KHONG duoc de no keo gian bong bong chat. */
+.chat-file-media {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-file-meta {
+  font-size: 12px;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.chat-file-link {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+  vertical-align: bottom;
+}
+
+.chat-file-size {
+  opacity: 0.75;
+  font-size: 12px;
+}

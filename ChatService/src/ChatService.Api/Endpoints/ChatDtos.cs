@@ -74,7 +74,8 @@ public record MessageLite(
 // hop do. Dung de kiem tra quyen theo nhanh "dang o trong cuoc hop" cho
 // khach vang lai. File van thuoc conversation nhu binh thuong nen VAN tinh
 // vao han muc luu tru cua nhom.
-public record UploadUrlRequest(long ConversationId, string FileType, long SizeBytes, long? MeetingId = null);
+public record UploadUrlRequest(
+    long ConversationId, string FileType, long SizeBytes, long? MeetingId = null, string? FileName = null);
 // UploadId != null nghia la file nay phai tai len theo NHIEU PHAN: client
 // PUT tung phan vao PartUrls[i] (phan i lay tu byte i*PartSizeBytes), roi goi
 // POST /files/{id}/complete-upload de ghep lai. Xem StorageService de biet vi
@@ -87,7 +88,13 @@ public record UploadUrlResponse(
     int ExpiresInSeconds,
     string? UploadId = null,
     int PartSizeBytes = 0,
-    string[]? PartUrls = null);
+    string[]? PartUrls = null,
+    // Chi co nghia o duong TAI VE (GET /files/{id}/download-url): ten goc va
+    // kich thuoc de client hien duoi tin nhan. Dat o day thay vi nhet vao DTO
+    // tin nhan de khoi phai doi ca hinh dang cache Redis - client da goi
+    // endpoint nay moi lan hien file roi.
+    string? FileName = null,
+    long SizeBytes = 0);
 
 public record CompleteUploadRequest(string UploadId);
 

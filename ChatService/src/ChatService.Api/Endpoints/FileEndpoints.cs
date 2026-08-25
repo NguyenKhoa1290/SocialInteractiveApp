@@ -77,6 +77,12 @@ public static class FileEndpoints
                 ConversationId = req.ConversationId,
                 UploadedBy = userId,
                 ObjectKey = $"{req.ConversationId}/{Guid.NewGuid():N}",
+                // Cat bot cho vua cot VARCHAR(255). Ten file dai bat thuong
+                // thi thu nhat la hiem, thu hai la chi de hien - cat con hon
+                // de ca lan upload hong vi mot chuoi qua dai.
+                FileName = string.IsNullOrWhiteSpace(req.FileName)
+                    ? null
+                    : req.FileName.Trim()[..Math.Min(req.FileName.Trim().Length, 255)],
                 FileType = fileType,
                 SizeBytes = req.SizeBytes,
                 UploadedAt = DateTimeOffset.UtcNow,
@@ -214,7 +220,9 @@ public static class FileEndpoints
                     new ErrorResponse("storage_unavailable", $"Kho luu tru '{ex.Provider}' chua duoc cau hinh"),
                     statusCode: 503);
             }
-            return Results.Ok(new UploadUrlResponse(file.Id, url, storage.PresignExpiryFor(file.SizeBytes)));
+            return Results.Ok(new UploadUrlResponse(
+                file.Id, url, storage.PresignExpiryFor(file.SizeBytes),
+                FileName: file.FileName, SizeBytes: file.SizeBytes));
         }).RequireAuthorization();
 
         var conv = app.MapGroup("/conversations").RequireAuthorization();

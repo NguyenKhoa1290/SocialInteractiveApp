@@ -193,6 +193,10 @@ CREATE TABLE files (
   file_type        VARCHAR(20) NOT NULL
                      CHECK (file_type IN ('image','video','voice','file')),
   size_bytes       BIGINT NOT NULL,
+  -- Ten goc do nguoi dung dat. object_key la "{conversation_id}/{guid}" nen
+  -- KHONG suy nguoc ra ten duoc - khong luu o day thi mat han. NULL cho cac
+  -- hang co truoc khi them cot: client tu lui ve chu "Tai file".
+  file_name        VARCHAR(255),
   -- Kho luu tru chua file: 'home' = MinIO may nha, 'cloud' = R2/S3.
   -- Chon theo dung luong luc upload (Storage:HomeMaxBytes) roi giu nguyen -
   -- file khong tu di chuyen, nen day la nguon su that duy nhat khi tai ve.
