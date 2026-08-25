@@ -51,17 +51,17 @@ public static class FileEndpoints
                     if (settings.IsLocked)
                         return Results.Json(new ErrorResponse(
                             "storage_locked",
-                            $"Nhom dang bi khoa vi het dung luong ({Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}). " +
-                            "Truong nhom can nap them, hoac thu hoi bot tep cu - dung luong tut xuong duoi han muc la nhom tu mo khoa."),
+                            $"Nhóm đang bị khoá vì hết dung lượng ({Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}). " +
+                            "Trưởng nhóm cần nạp thêm, hoặc thu hồi bớt tệp cũ — dung lượng tụt xuống dưới hạn mức là nhóm tự mở khoá."),
                             statusCode: 507);
 
                     var freeBytes = Math.Max(0, settings.StorageQuotaBytes - settings.StorageUsedBytes);
                     if (settings.StorageUsedBytes + req.SizeBytes > settings.StorageQuotaBytes)
                         return Results.Json(new ErrorResponse(
                             "storage_quota_exceeded",
-                            $"Tep {Human(req.SizeBytes)} lon hon cho trong cua nhom. " +
-                            $"Nhom da dung {Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}, chi con trong {Human(freeBytes)}. " +
-                            $"Hay thu hoi bot tep cu de lay lai cho, hoac nho Truong nhom nap them dung luong."),
+                            $"Tệp {Human(req.SizeBytes)} lớn hơn chỗ trống của nhóm. " +
+                            $"Nhóm đã dùng {Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}, chỉ còn trống {Human(freeBytes)}. " +
+                            $"Hãy thu hồi bớt tệp cũ để lấy lại chỗ, hoặc nhờ Trưởng nhóm nạp thêm dung lượng."),
                             statusCode: 507);
                 }
             }
