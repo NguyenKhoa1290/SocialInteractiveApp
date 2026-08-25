@@ -20,7 +20,7 @@ import {
 } from "../../lib/crypto/e2ee";
 import { computeQueryTokens } from "../../lib/crypto/searchTokens";
 import { publicKeyFromBase64 } from "../../lib/crypto/x25519";
-import { extractApiError } from "../../lib/apiError";
+import { extractApiError, apiErrorCode } from "../../lib/apiError";
 import { AppShell } from "../../components/AppShell";
 import { meetingApi } from "../../api/mediaApi";
 import type { Meeting } from "../../types/media";
@@ -29,6 +29,7 @@ import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import type { ConversationDetail } from "../../api/chatApi";
 import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
+import { AlertDialog } from "../../components/AlertDialog";
 import "./chat.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -57,6 +58,9 @@ export function ChatRoomPage() {
   // Tien do tai len. Tach khoi `uploading` vi hai thu tra loi hai cau hoi
   // khac nhau: `uploading` khoa cac nut lai, con cai nay ve thanh tien do.
   const [upload, setUpload] = useState<UploadState | null>(null);
+  // Loi ve dung luong nhom thi chan ngang bat doc, khong do vao dong loi nho
+  // o giua trang: no co con so va co viec phai lam theo.
+  const [quotaAlert, setQuotaAlert] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [sendingText, setSendingText] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -598,7 +602,12 @@ export function ChatRoomPage() {
       if (slot.uploadId) await chatApi.completeUpload(slot.fileId, slot.uploadId);
       await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, slot.fileId);
     } catch (err) {
-      setError(extractApiError(err, "Gửi file thất bại"));
+      const code = apiErrorCode(err);
+      const message = extractApiError(err, "Gửi file thất bại");
+      // Server tra kem con so (tep to bao nhieu, nhom con trong bao nhieu)
+      // nen dung thang message do lam noi dung popup.
+      if (code === "storage_quota_exceeded" || code === "storage_locked") setQuotaAlert(message);
+      else setError(message);
     } finally {
       setUploading(null);
       setUpload(null);
@@ -889,6 +898,14 @@ export function ChatRoomPage() {
             </>
           )}
         </E2eeGate>
+      )}
+
+      {quotaAlert && (
+        <AlertDialog
+          title="Không đủ dung lượng nhóm"
+          message={quotaAlert}
+          onClose={() => setQuotaAlert(null)}
+        />
       )}
     </AppShell>
   );

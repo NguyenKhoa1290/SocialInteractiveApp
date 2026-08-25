@@ -43,10 +43,26 @@ public static class FileEndpoints
                 settings = await db.GroupChatSettings.FindAsync(req.ConversationId);
                 if (settings is not null)
                 {
+                    // Kem CON SO vao thong bao. Truoc day chi noi "vuot qua
+                    // han muc" - nguoi dung khong biet tep cua minh to bao
+                    // nhieu, nhom con trong bao nhieu, phai xoa bot bao nhieu
+                    // thi moi gui duoc. Frontend dung nguyen chuoi nay lam noi
+                    // dung popup.
                     if (settings.IsLocked)
-                        return Results.Json(new ErrorResponse("storage_locked", "Nhom da bi khoa vi vuot han muc luu tru, can Truong nhom nap them/mo khoa"), statusCode: 507);
+                        return Results.Json(new ErrorResponse(
+                            "storage_locked",
+                            $"Nhom dang bi khoa vi het dung luong ({Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}). " +
+                            "Truong nhom can nap them, hoac thu hoi bot tep cu - dung luong tut xuong duoi han muc la nhom tu mo khoa."),
+                            statusCode: 507);
+
+                    var freeBytes = Math.Max(0, settings.StorageQuotaBytes - settings.StorageUsedBytes);
                     if (settings.StorageUsedBytes + req.SizeBytes > settings.StorageQuotaBytes)
-                        return Results.Json(new ErrorResponse("storage_quota_exceeded", "Vuot qua han muc luu tru cua nhom"), statusCode: 507);
+                        return Results.Json(new ErrorResponse(
+                            "storage_quota_exceeded",
+                            $"Tep {Human(req.SizeBytes)} lon hon cho trong cua nhom. " +
+                            $"Nhom da dung {Human(settings.StorageUsedBytes)}/{Human(settings.StorageQuotaBytes)}, chi con trong {Human(freeBytes)}. " +
+                            $"Hay thu hoi bot tep cu de lay lai cho, hoac nho Truong nhom nap them dung luong."),
+                            statusCode: 507);
                 }
             }
 
@@ -244,6 +260,14 @@ public static class FileEndpoints
             return Results.NoContent();
         });
     }
+
+    // Doi byte sang chuoi nguoi doc duoc. Dat o day chu khong dung mot thu
+    // vien: chi phuc vu thong bao loi, khong dang keo them phu thuoc.
+    private static string Human(long bytes) =>
+        bytes >= 1024L * 1024 * 1024 ? $"{bytes / 1024.0 / 1024 / 1024:0.##} GB"
+        : bytes >= 1024L * 1024 ? $"{bytes / 1024.0 / 1024:0.#} MB"
+        : bytes >= 1024 ? $"{bytes / 1024.0:0} KB"
+        : $"{bytes} B";
 
     private static long? GetUserId(ClaimsPrincipal principal)
     {
