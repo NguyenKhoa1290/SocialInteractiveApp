@@ -297,16 +297,21 @@ public class StorageService
         return deleted;
     }
 
-    // Huy cac lan tai len nhieu phan CON DO DANG duoi mot tien to.
+    // Liet ke cac lan tai len nhieu phan CON DO DANG.
     //
     // Chung khong hien ra nhu object binh thuong (ListObjects khong thay) ma
     // van an dia that. Mot lan tai 900MB dut giua chung de lai gan chung do
     // dung luong nam im khong ai biet.
-    public async Task<int> AbortIncompleteUploadsAsync(
-        string provider, string prefix, DateTime olderThanUtc, CancellationToken ct = default)
+    //
+    // CHI liet ke, KHONG tu quyet dinh cai nao dang huy. Ban truoc co loc
+    // theo thoi gian khoi tao ngay tai day va do that thi khong an - "huy 0
+    // lan" trong khi multipart van nam nguyen. Nen viec quyet dinh chuyen ra
+    // ngoai, doi chieu voi CSDL - tat dinh, khong dinh dang gi toi dong ho.
+    public async Task<List<(string Key, string UploadId)>> ListIncompleteUploadsAsync(
+        string provider, string prefix = "", CancellationToken ct = default)
     {
         var entry = ClientFor(provider);
-        var aborted = 0;
+        var result = new List<(string, string)>();
 
         var listed = await entry.Client.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
         {
@@ -315,25 +320,10 @@ public class StorageService
         }, ct);
 
         foreach (var up in listed.MultipartUploads ?? [])
-        {
-            if (up.Initiated > olderThanUtc) continue;
-            try
-            {
-                await entry.Client.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
-                {
-                    BucketName = entry.Opts.BucketName,
-                    Key = up.Key,
-                    UploadId = up.UploadId,
-                }, ct);
-                aborted++;
-            }
-            catch (Exception)
-            {
-                // Co the vua duoc ghep xong hoac vua bi huy - bo qua.
-            }
-        }
+            if (up.Key is not null && up.UploadId is not null)
+                result.Add((up.Key, up.UploadId));
 
-        return aborted;
+        return result;
     }
 
     public IReadOnlyCollection<string> ProviderNames => _clients.Keys;

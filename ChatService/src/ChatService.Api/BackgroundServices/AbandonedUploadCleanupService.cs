@@ -125,7 +125,7 @@ public class AbandonedUploadCleanupService(
         if (cleaned > 0)
             logger.LogInformation("Da don {Count} lan tai len bo do", cleaned);
 
-        await SweepOrphanMultipartsAsync(ct);
+        await SweepOrphanMultipartsAsync(db, ct);
     }
 
     // Luot quet thu hai: multipart do dang KHONG con hang `files` nao tro toi.
@@ -136,20 +136,44 @@ public class AbandonedUploadCleanupService(
     // Thay that: hoi thoai 29 va 38 khong con trong DB nhung multipart van
     // con.
     //
-    // Nguong 24 gio: dai hon han presign toi da (6 gio) mot khoang rong, nen
-    // khong the huy nham mot lan tai len dang thuc su chay.
-    private async Task SweepOrphanMultipartsAsync(CancellationToken ct)
+    // TIEU CHI LA "KHONG CON HANG NAO", KHONG PHAI "QUA BAO LAU".
+    //
+    // Ban truoc loc theo thoi gian khoi tao va do that thi khong an. Thay vi
+    // dao tim vi sao, bo han cach do: hang `files` LUON duoc tao TRUOC khi
+    // khoi tao multipart (xem FileEndpoints), nen mot object key khong con
+    // hang nao chi co the nghia la hang do da bi xoa - tuc lan tai len do
+    // chac chan da chet. Khong dinh dang gi toi dong ho nen khong the huy
+    // nham mot lan dang chay.
+    private async Task SweepOrphanMultipartsAsync(ChatDbContext db, CancellationToken ct)
     {
-        var cutoff = DateTime.UtcNow.AddHours(-24);
+        var known = (await db.Files.Select(f => f.ObjectKey).ToListAsync(ct))
+            .ToHashSet(StringComparer.Ordinal);
+
         foreach (var provider in storage.ProviderNames)
         {
             try
             {
-                var aborted = await storage.AbortIncompleteUploadsAsync(provider, prefix: "", cutoff, ct);
-                if (aborted > 0)
+                var listed = await storage.ListIncompleteUploadsAsync(provider, "", ct);
+                var aborted = 0;
+
+                foreach (var (key, uploadId) in listed)
+                {
+                    if (known.Contains(key)) continue; // van con hang - de yen
+                    try
+                    {
+                        await storage.AbortMultipartAsync(provider, key, uploadId, ct);
+                        aborted++;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Khong huy duoc multipart mo coi {Key}", key);
+                    }
+                }
+
+                if (listed.Count > 0)
                     logger.LogInformation(
-                        "Da huy {Count} lan tai len nhieu phan mo coi (qua 24 gio) o kho {Provider}",
-                        aborted, provider);
+                        "Quet multipart o kho {Provider}: thay {Found}, huy {Aborted} cai mo coi",
+                        provider, listed.Count, aborted);
             }
             catch (Exception ex)
             {
