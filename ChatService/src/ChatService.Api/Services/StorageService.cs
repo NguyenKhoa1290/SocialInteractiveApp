@@ -259,27 +259,132 @@ public class StorageService
         }, ct);
     }
 
+    // Xoa MOI object nam duoi mot tien to (dung cho "{conversationId}/").
+    //
+    // Can vi xoa nhom chi cascade trong CSDL - hang files bien mat nhung
+    // object thi nam lai tren dia mai mai. Da thay that: hoi thoai 29 va 38
+    // khong con trong DB nhung van con multipart do dang trong MinIO.
+    //
+    // Tra ve so object da xoa.
+    public async Task<int> DeleteByPrefixAsync(string provider, string prefix, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        var deleted = 0;
+        string? token = null;
+
+        do
+        {
+            var page = await entry.Client.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = entry.Opts.BucketName,
+                Prefix = prefix,
+                ContinuationToken = token,
+            }, ct);
+
+            foreach (var obj in page.S3Objects ?? [])
+            {
+                await entry.Client.DeleteObjectAsync(new DeleteObjectRequest
+                {
+                    BucketName = entry.Opts.BucketName,
+                    Key = obj.Key,
+                }, ct);
+                deleted++;
+            }
+
+            token = page.IsTruncated == true ? page.NextContinuationToken : null;
+        } while (token is not null);
+
+        return deleted;
+    }
+
+    // Huy cac lan tai len nhieu phan CON DO DANG duoi mot tien to.
+    //
+    // Chung khong hien ra nhu object binh thuong (ListObjects khong thay) ma
+    // van an dia that. Mot lan tai 900MB dut giua chung de lai gan chung do
+    // dung luong nam im khong ai biet.
+    public async Task<int> AbortIncompleteUploadsAsync(
+        string provider, string prefix, DateTime olderThanUtc, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        var aborted = 0;
+
+        var listed = await entry.Client.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Prefix = prefix,
+        }, ct);
+
+        foreach (var up in listed.MultipartUploads ?? [])
+        {
+            if (up.Initiated > olderThanUtc) continue;
+            try
+            {
+                await entry.Client.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+                {
+                    BucketName = entry.Opts.BucketName,
+                    Key = up.Key,
+                    UploadId = up.UploadId,
+                }, ct);
+                aborted++;
+            }
+            catch (Exception)
+            {
+                // Co the vua duoc ghep xong hoac vua bi huy - bo qua.
+            }
+        }
+
+        return aborted;
+    }
+
+    public IReadOnlyCollection<string> ProviderNames => _clients.Keys;
+
     private (AmazonS3Client Client, StorageProviderOptions Opts) ClientFor(string provider) =>
         _clients.TryGetValue(provider, out var entry) ? entry : throw new StorageProviderUnavailableException(provider);
 
     // Tu de xuat - thieu sot phat hien khi build Frontend F2: chi co presign
     // PUT (upload), khong co cach nao lay lai URL de XEM/TAI file da gui.
     // Xem GET /files/{fileId}/download-url o FileEndpoints.cs.
-    public string GeneratePresignedDownloadUrl(string provider, string objectKey, long sizeBytes) =>
-        Presign(provider, objectKey, HttpVerb.GET, PresignExpiryFor(sizeBytes));
+    //
+    // fileName: ten goc de trinh duyet luu dung ten.
+    //
+    // KHONG co tham so nay thi nguoi dung bam tai ve va nhan mot file ten
+    // "a6d3b19209a541448c573ac62f1795b0" khong duoi mo rong - trong y het
+    // file hong/da ma hoa, va mo bang gi cung khong duoc. object_key von la
+    // "{conversation_id}/{guid}" nen do dung la thu MinIO tra ve khi khong ai
+    // bao no phai dat ten khac.
+    public string GeneratePresignedDownloadUrl(string provider, string objectKey, long sizeBytes, string? fileName = null) =>
+        Presign(provider, objectKey, HttpVerb.GET, PresignExpiryFor(sizeBytes), fileName);
 
-    private string Presign(string provider, string objectKey, HttpVerb verb, int expirySeconds)
+    // Content-Disposition theo RFC 6266/5987.
+    //
+    // Ten file tieng Viet co dau KHONG bo vao filename="..." tran duoc: header
+    // HTTP chi cho ky tu ASCII. Nen gui hai phan - filename= ban ASCII de
+    // trinh duyet cu hieu, va filename*=UTF-8'' ban ma hoa phan tram cho
+    // trinh duyet hien dai (chung uu tien phan nay).
+    private static string ContentDispositionFor(string fileName)
+    {
+        var ascii = new string(fileName.Select(c => c < 128 && c != '"' && c != '\\' ? c : '_').ToArray());
+        var encoded = Uri.EscapeDataString(fileName);
+        return $"attachment; filename=\"{ascii}\"; filename*=UTF-8''{encoded}";
+    }
+
+    private string Presign(string provider, string objectKey, HttpVerb verb, int expirySeconds, string? fileName = null)
     {
         if (!_clients.TryGetValue(provider, out var entry))
             throw new StorageProviderUnavailableException(provider);
 
-        var url = entry.Client.GetPreSignedURL(new GetPreSignedUrlRequest
+        var req = new GetPreSignedUrlRequest
         {
             BucketName = entry.Opts.BucketName,
             Key = objectKey,
             Verb = verb,
             Expires = DateTime.UtcNow.AddSeconds(expirySeconds),
-        });
+        };
+
+        if (verb == HttpVerb.GET && !string.IsNullOrWhiteSpace(fileName))
+            req.ResponseHeaderOverrides.ContentDisposition = ContentDispositionFor(fileName);
+
+        var url = entry.Client.GetPreSignedURL(req);
 
         // AWSSDK.S3 luon sinh scheme "https://" trong URL presign bat ke
         // AmazonS3Config.UseHttp da bat - da xac nhan bang test thuc te voi

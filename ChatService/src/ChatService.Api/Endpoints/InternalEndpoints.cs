@@ -50,12 +50,55 @@ public static class InternalEndpoints
             return Results.Created($"/conversations/{conversation.Id}", ConversationResponse.FromEntity(conversation));
         });
 
-        app.MapDelete("/internal/conversations/by-workspace/{workspaceId:long}", async (long workspaceId, ChatDbContext db) =>
+        app.MapDelete("/internal/conversations/by-workspace/{workspaceId:long}", async (
+            long workspaceId, ChatDbContext db, StorageService storage, ILoggerFactory loggerFactory) =>
         {
             var conversation = await db.Conversations
                 .SingleOrDefaultAsync(c => c.Type == ConversationType.Group && c.WorkspaceId == workspaceId);
             if (conversation is null)
                 return Results.NoContent(); // khong co gi de don, khong phai loi
+
+            var logger = loggerFactory.CreateLogger(typeof(InternalEndpoints));
+
+            // DON KHO LUU TRU TRUOC khi xoa hang.
+            //
+            // FK ON DELETE CASCADE chi don trong CSDL - object tren MinIO thi
+            // nam lai MAI MAI vi khong ai bao no xoa. Da thay that: hoi thoai
+            // 29 va 38 khong con trong DB nhung multipart do dang van con.
+            //
+            // Phai lam TRUOC vi sau khi cascade thi khong con hang files nao
+            // de biet file nam o kho nao.
+            var prefix = $"{conversation.Id}/";
+            var providers = await db.Files
+                .Where(f => f.ConversationId == conversation.Id)
+                .Select(f => f.StorageProvider)
+                .Distinct()
+                .ToListAsync();
+
+            // Khong co hang files nao van phai quet: co the con multipart do
+            // dang cua nhung lan tai len chua bao gio hoan tat.
+            if (providers.Count == 0) providers = [StorageService.Home];
+
+            foreach (var provider in providers)
+            {
+                try
+                {
+                    var deleted = await storage.DeleteByPrefixAsync(provider, prefix);
+                    var aborted = await storage.AbortIncompleteUploadsAsync(provider, prefix, DateTime.UtcNow);
+                    logger.LogInformation(
+                        "Xoa nhom {ConversationId}: da don {Deleted} object va huy {Aborted} lan tai len do dang o kho {Provider}",
+                        conversation.Id, deleted, aborted, provider);
+                }
+                catch (Exception ex)
+                {
+                    // Van xoa tiep trong CSDL: giu lai hang chi de nguoi dung
+                    // thay mot nhom da xoa van hien ra. File mo coi thi con
+                    // dich vu quet dinh ky don sau.
+                    logger.LogWarning(ex,
+                        "Khong don duoc kho luu tru khi xoa nhom {ConversationId} (kho {Provider})",
+                        conversation.Id, provider);
+                }
+            }
 
             // Xoa conversation se cascade xoa messages/files/group_chat_settings/
             // muted_members lien quan qua FK ON DELETE CASCADE da khai bao

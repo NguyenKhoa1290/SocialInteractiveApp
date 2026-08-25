@@ -212,7 +212,11 @@ public static class FileEndpoints
             string url;
             try
             {
-                url = storage.GeneratePresignedDownloadUrl(file.StorageProvider, file.ObjectKey, file.SizeBytes);
+                // Truyen ten goc de trinh duyet luu dung ten. Khong truyen thi
+                // nguoi dung nhan mot file ten la GUID khong duoi mo rong -
+                // trong het nhu file hong.
+                url = storage.GeneratePresignedDownloadUrl(
+                    file.StorageProvider, file.ObjectKey, file.SizeBytes, file.FileName);
             }
             catch (StorageProviderUnavailableException ex)
             {

@@ -71,6 +71,10 @@ var storageWarningOptions = builder.Configuration.GetSection("StorageWarning").G
     ?? new StorageWarningOptions();
 builder.Services.AddSingleton(storageWarningOptions);
 builder.Services.AddHostedService<StorageWarningService>();
+// Don nhung lan tai len bo do (tai lai trang, mat mang, dong tab): tra lai
+// dung luong da giu cho va don cac phan nam trong MinIO. Xem
+// AbandonedUploadCleanupService.cs.
+builder.Services.AddHostedService<AbandonedUploadCleanupService>();
 
 var p2pCleanupOptions = builder.Configuration.GetSection("P2PCleanup").Get<P2PCleanupOptions>()
     ?? new P2PCleanupOptions();
