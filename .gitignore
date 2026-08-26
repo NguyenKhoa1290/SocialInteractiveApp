@@ -40,3 +40,9 @@ Tainguyen/infra/*-credentials.txt
 # Manifest k8s sinh ra tu gen-manifests.py - co chua Secret da giai ma.
 # Sinh lai bang: python3 Tainguyen/infra/k8s/gen-manifests.py > all.yaml
 Tainguyen/infra/k8s/all.yaml
+
+# Token Figma - de doc file thiet ke qua REST API.
+# Cho that su nam NGOAI cay git (C:\Users\NguyenKhoa\.figma-token); dong nay
+# chi la chot chan phong khi co file token nao lot vao repo.
+.figma-token
+*.figma-token

@@ -1,46 +1,132 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+/* ===========================================================================
+   Lop token cua Calli - lay thang tu ban thiet ke Figma
+   (file "Untitled", node 83:100 "Thanh phan trang web" la nguon mau dung chung)
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+   Moi file CSS khac trong app deu tham chieu vao cac bien o day, nen doi mot
+   ma mau tai day la doi ca app mot luot. Dung dat ma mau thang vao file khac.
+   =========================================================================== */
+
+:root {
+  /* --- Bang mau goc -------------------------------------------------------
+     Do duoc tu Figma, khong phai uoc luong tu anh chup. Chi dung lam nguyen
+     lieu cho cac bien VAI TRO ben duoi - dung goi thang tu file CSS khac,
+     vi ten mau khong noi len no dung de lam gi. */
+  --calli-teal:        #85aeb0; /* nhan chinh: nen nut, vien nut */
+  --calli-teal-dark:   #56959e; /* nhan dam: hover, chu lien ket */
+  --calli-navy:        #2f3c52; /* chu tieu de, vien dam */
+  --calli-navy-line:   #293546; /* vien the hoi thoai (2px trong thiet ke) */
+  --calli-navy-icon:   #233040; /* icon tren thanh doc */
+  --calli-navy-soft:   #2a3345; /* chu phu, vien nhe */
+  --calli-mint:        #d3efe8; /* nen thanh icon doc */
+  --calli-blue:        #99bfff; /* cham xanh tren logo */
+  --calli-page:        #f3f3f6; /* nen trang trong app */
+  --calli-surface:     #f2f2f7; /* nen khoi noi len tren trang */
+  --calli-surface-2:   #f3f7f8; /* nen nhat hon nua */
+  --calli-muted:       #b7b6ba; /* o tim kiem, hang dang chon, nut phu */
+  --calli-placeholder: #d9d9d9; /* o giu cho anh/media */
+
+  /* Thiet ke dung #FF0000 cho chu bao loi ("Dia chi email hoac Mat khau
+     khong dung", co 12px). Do that: #FF0000 tren nen trang chi dat do tuong
+     phan 4,0:1, duoi nguong WCAG AA 4,5:1 cho chu thuong - nguoi mat kem se
+     doc rat vat va dung luc dang can doc nhat. Toi dam mau xuong mot chut de
+     len 4,8:1; mat thuong gan nhu khong phan biet duoc voi mau goc. */
+  --calli-danger:      #e60000;
+  --calli-danger-soft: rgba(230, 0, 0, 0.1);
+
+  /* --- Bien vai tro -------------------------------------------------------
+     Day moi la thu cac file CSS khac dung. Ten noi len CONG DUNG chu khong
+     phai mau, nen doi bang mau khong lam ten sai nghia. */
+  --text:          #4a5568; /* chu thuong */
+  --text-h:        var(--calli-navy); /* tieu de, chu dam */
+  /* --text-m duoc dung 9 cho (thong bao, cuoc hop, toast) nhung TRUOC DAY
+     KHONG HE duoc dinh nghia o dau - `color: var(--text-m)` khong hop le nen
+     nhung chu do am tham ke thua mau cua the cha thay vi mo di. Dinh nghia
+     tai day la vua sua luon loi do. */
+  --text-m:        #6b7688; /* chu mo: thoi gian, chu thich, trang thai */
+  --bg:            var(--calli-page);
+  --surface:       #ffffff;
+  --surface-2:     var(--calli-surface);
+  --surface-muted: var(--calli-muted);
+  --border:        #d8dce4;
+  --border-strong: var(--calli-navy-line);
+  --code-bg:       var(--calli-surface-2);
+  --accent:        var(--calli-teal);
+  --accent-strong: var(--calli-teal-dark);
+  --accent-bg:     rgba(133, 174, 176, 0.12);
+  --accent-border: rgba(133, 174, 176, 0.55);
+  --on-accent:     #ffffff; /* chu nam tren nen mau nhan */
+  --danger:        var(--calli-danger);
+  --danger-bg:     var(--calli-danger-soft);
+  --social-bg:     rgba(242, 242, 247, 0.6);
+
+  /* Vo app: thanh icon doc + cac panel. Dung o buoc dung vo, de san day de
+     mau khong nam roi rac trong tung file. */
+  --rail-bg:       var(--calli-mint);
+  --rail-icon:     var(--calli-navy-icon);
+  --panel-bg:      #ffffff;
+  --panel-border:  var(--border);
+
+  /* --- Bo goc, do bong, khoang cach ---------------------------------------
+     Thiet ke dung 6px cho o tim kiem, 10px cho the hoi thoai, 17px cho nut
+     bau duc nho. Gom lai thanh ba bac cho khoi tan mac. */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 17px;
+  --r-pill: 999px;
+
+  --shadow-sm: rgba(47, 60, 82, 0.08) 0 1px 3px;
+  --shadow:
+    rgba(47, 60, 82, 0.1) 0 10px 15px -3px, rgba(47, 60, 82, 0.05) 0 4px 6px -2px;
+
+  /* --- Chu ------------------------------------------------------------
+     Ban thiet ke chi dung MOT kieu chu: Inter, tu do dam 100 den 700. Ban
+     variable nen mot file phu het ca 7 do dam thay vi tai 7 file rieng.
+     Van de day du chuoi du phong: font chua ve toi thi trang van doc duoc. */
+  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: var(--sans);
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  font: 16px/150% var(--sans);
+  letter-spacing: 0;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
+/* Ban thiet ke chi co giao dien SANG. Van giu mot ban toi suy ra tu chinh
+   bang mau do, vi app dang chay that co nguoi dung dat may o che do toi -
+   bo han di la ho dang dung nen toi bong nhien bi loa. Mau nhan giu nguyen
+   tong xanh bac ha, chi keo sang len cho du tuong phan tren nen toi. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
+    --text:          #a8b0bd;
+    --text-h:        #eef1f5;
+    --text-m:        #8792a3;
+    --bg:            #171b22;
+    --surface:       #1e232c;
+    --surface-2:     #232935;
+    --surface-muted: #333a47;
+    --border:        #2f3742;
+    --border-strong: #46505f;
+    --code-bg:       #232935;
+    --accent:        #9cc6c8;
+    --accent-strong: #7fb3bb;
+    --accent-bg:     rgba(156, 198, 200, 0.16);
+    --accent-border: rgba(156, 198, 200, 0.5);
+    --on-accent:     #14181e;
+    --danger:        #ff6b5e;
+    --danger-bg:     rgba(255, 107, 94, 0.15);
+    --social-bg:     rgba(35, 41, 53, 0.6);
+
+    --rail-bg:       #1d2a2b;
+    --rail-icon:     #b9d8d2;
+    --panel-bg:      #1e232c;
+    --panel-border:  #2f3742;
+
+    --shadow-sm: rgba(0, 0, 0, 0.35) 0 1px 3px;
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }
@@ -50,6 +136,10 @@
   }
 }
 
+/* Khung ngoai cung.
+   TAM THOI giu cot giua 1126px cua ban cu - ban thiet ke moi la vo tran
+   chieu rong 1920 co thanh icon doc, nhung doi cai do se lam xe dich ca 20
+   man cung luc. De rieng ra buoc dung vo, de neu hong con biet hong o dau. */
 #root {
   width: 1126px;
   max-width: 100%;
@@ -66,31 +156,31 @@ body {
   margin: 0;
 }
 
+/* Thang co chu cua thiet ke: 12 / 16 / 20 / 24 / 32 / 36 / 64.
+   Ban 64px chi hop voi man 1920; dung clamp() de no tu co lai tren man hep
+   thay vi tran ra ngoai. */
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
   color: var(--text-h);
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
+  font-size: clamp(32px, 4vw, 64px);
+  font-weight: 700;
+  line-height: 115%;
+  letter-spacing: -0.02em;
   margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
 }
+
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  font-size: clamp(20px, 2.2vw, 36px);
+  font-weight: 600;
+  line-height: 120%;
+  letter-spacing: -0.01em;
   margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
 }
+
 p {
   margin: 0;
 }
@@ -99,7 +189,7 @@ code,
 .counter {
   font-family: var(--mono);
   display: inline-flex;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   color: var(--text-h);
 }
 
