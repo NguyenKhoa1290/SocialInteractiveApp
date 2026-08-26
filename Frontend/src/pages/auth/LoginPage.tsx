@@ -7,7 +7,8 @@ import { scheduleTokenRefresh } from "../../lib/tokenScheduler";
 import { extractApiError } from "../../lib/apiError";
 import { getGoogleAccessToken, isGoogleConfigured } from "../../lib/googleAuth";
 import { getFacebookAccessToken, isFacebookConfigured } from "../../lib/facebookAuth";
-import { AuthLayout, ErrorText } from "./AuthLayout";
+import { AuthLayout, ErrorText, FieldGroupLabel } from "./AuthLayout";
+import { IconEye, IconFacebook, IconGoogle } from "./AuthIcons";
 import type { OAuthSuccessResponse } from "../../types/auth";
 
 export function LoginPage() {
@@ -15,6 +16,7 @@ export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +40,7 @@ export function LoginPage() {
         navigate("/account-locked");
         return;
       }
-      setError(extractApiError(err, "Sai email hoặc mật khẩu"));
+      setError(extractApiError(err, "Địa chỉ email hoặc Mật khẩu không đúng"));
     } finally {
       setLoading(false);
     }
@@ -67,59 +69,87 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Đăng nhập">
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="auth-input"
-        />
-        <input
-          type="password"
-          placeholder="Mật khẩu"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="auth-input"
-        />
+    <AuthLayout title="Đăng nhập vào Calli">
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div>
+          <FieldGroupLabel>Đăng nhập bằng email</FieldGroupLabel>
+          <label className="auth-field">
+            <input
+              type="email"
+              placeholder="Địa chỉ email"
+              aria-label="Địa chỉ email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="auth-input"
+            />
+          </label>
+        </div>
+
+        <label className="auth-field auth-field-has-eye">
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Mật khẩu"
+            aria-label="Mật khẩu"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="auth-input"
+          />
+          <button
+            type="button"
+            className="auth-eye"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+          >
+            <IconEye open={showPassword} />
+          </button>
+        </label>
+
+        <Link to="/forgot-password" className="auth-forgot">
+          Quên mật khẩu ?
+        </Link>
+
+        <div>
+          <FieldGroupLabel>Đăng nhập tài khoản mạng xã hội</FieldGroupLabel>
+          <div className="auth-social-row">
+            <button
+              type="button"
+              onClick={() => handleOAuth("google")}
+              disabled={loading}
+              className="auth-social-btn"
+              aria-label="Đăng nhập với Google"
+              title={isGoogleConfigured() ? "Đăng nhập với Google" : "Chưa cấu hình VITE_GOOGLE_CLIENT_ID trong .env"}
+            >
+              <IconGoogle />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOAuth("facebook")}
+              disabled={loading}
+              className="auth-social-btn"
+              aria-label="Đăng nhập với Facebook"
+              title={isFacebookConfigured() ? "Đăng nhập với Facebook" : "Chưa cấu hình VITE_FACEBOOK_APP_ID trong .env"}
+            >
+              <IconFacebook />
+            </button>
+          </div>
+        </div>
+
         <ErrorText message={error} />
+
         <button type="submit" disabled={loading} className="auth-btn-primary">
-          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+          {loading ? "Đang đăng nhập…" : "Đăng nhập"}
         </button>
       </form>
 
-      <div className="auth-divider">hoặc</div>
-
-      <button
-        type="button"
-        onClick={() => handleOAuth("google")}
-        disabled={loading}
-        title={isGoogleConfigured() ? undefined : "Chưa cấu hình VITE_GOOGLE_CLIENT_ID trong .env"}
-        className="auth-btn-secondary"
-      >
-        Đăng nhập với Google
-      </button>
-      <button
-        type="button"
-        onClick={() => handleOAuth("facebook")}
-        disabled={loading}
-        title={isFacebookConfigured() ? undefined : "Chưa cấu hình VITE_FACEBOOK_APP_ID trong .env"}
-        className="auth-btn-secondary"
-      >
-        Đăng nhập với Facebook
-      </button>
-      <button type="button" onClick={() => navigate("/guest")} disabled={loading} className="auth-btn-secondary">
-        Vào với tư cách Guest
-      </button>
-
       <p className="auth-footer">
-        Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
+        Chưa có tài khoản ? <Link to="/register">Đăng ký ngay</Link>
       </p>
-      <p className="auth-footer">
-        <Link to="/forgot-password">Quên mật khẩu?</Link>
+      <p className="auth-guest">
+        <Link to="/guest" className="auth-link">
+          Vào nhanh với tư cách khách
+        </Link>
       </p>
     </AuthLayout>
   );

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { LandingPage } from "./pages/landing/LandingPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { GuestPage } from "./pages/auth/GuestPage";
@@ -60,11 +61,15 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/guest" element={<GuestPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/account-locked" element={<AccountLockedPage />} />
+        {/* Ban thiet ke ve cac man xac thuc la POPUP chong len trang chu,
+            khong phai trang rieng. Nen moi duong dan o day van la duong dan
+            that (chia se duoc, F5 duoc) nhung dung trang chu lam nen, va nut
+            "Dong" tra ve "/". */}
+        <Route path="/login" element={<LandingPage overlay={<LoginPage />} />} />
+        <Route path="/register" element={<LandingPage overlay={<RegisterPage />} />} />
+        <Route path="/guest" element={<LandingPage overlay={<GuestPage />} />} />
+        <Route path="/forgot-password" element={<LandingPage overlay={<ForgotPasswordPage />} />} />
+        <Route path="/account-locked" element={<LandingPage overlay={<AccountLockedPage />} />} />
         <Route
           path="/complaints"
           element={
@@ -231,7 +236,7 @@ export default function App() {
             </AdminRoute>
           }
         />
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

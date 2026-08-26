@@ -1,0 +1,445 @@
+/* Trang chu Calli.
+   So do lay tu Figma (node 63:23, khung 1920x2946). Ban thiet ke la mot khung
+   co dinh 1920; o day quy ve mot cot noi dung rong toi da 1662px (dung bang
+   1920 - 129*2, tuc dung le trai/phai cua thiet ke) roi can giua, nen tren
+   man rong hon 1920 trang khong bi keo gian ra.
+
+   Ban thiet ke chi co giao dien SANG. Trang chu la bo mat san pham nen giu
+   dung mau do o CA hai che do - khong suy ra ban toi, vi mot bo mat "gan
+   dung" con te hon la nhat quan. */
+
+.lp {
+  --lp-max: 1662px;
+  --lp-gut: 32px;
+  background: #f4f8f9;
+  color: var(--calli-navy);
+  min-height: 100svh;
+  text-align: left;
+}
+
+/* --- Thanh dieu huong (0,0) 1920x166, nen #D2EFE6 ------------------------ */
+
+.lp-nav {
+  background: #d2efe6;
+  height: 166px;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 0 max(var(--lp-gut), calc((100% - var(--lp-max)) / 2 + 68px));
+  box-sizing: border-box;
+}
+
+.lp-logo img {
+  height: 80px;
+  width: auto;
+  display: block;
+}
+
+.lp-nav-menu {
+  display: flex;
+  gap: 46px;
+  margin-inline: auto;
+}
+
+.lp-nav-menu a {
+  font-size: 32px;
+  font-weight: 700;
+  color: #000;
+  text-decoration: none;
+}
+
+.lp-nav-menu a:hover {
+  color: var(--calli-teal-dark);
+}
+
+/* Nut vien (1733,54) 134x58, vien den 3px, bo 17 */
+.lp-btn-outline {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 134px;
+  height: 58px;
+  padding: 0 16px;
+  border: 3px solid #000;
+  border-radius: 17px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #000;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.lp-btn-outline:hover {
+  background: #fff;
+}
+
+/* --- Hero (0,253) 1920x709 ----------------------------------------------- */
+
+.lp-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 732px) minmax(0, 937px);
+  gap: 60px;
+  align-items: center;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding: 87px var(--lp-gut) 0;
+}
+
+.lp-hero-text h1 {
+  font-size: clamp(36px, 3.4vw, 64px);
+  font-weight: 700;
+  line-height: 120%;
+  color: var(--calli-navy-soft);
+  margin: 0 0 26px;
+  letter-spacing: -0.01em;
+}
+
+/* 36px w200 trong thiet ke. Inter w200 o co lon van doc tot va dung la net
+   manh ma ban thiet ke muon. */
+.lp-hero-sub {
+  font-size: clamp(18px, 1.9vw, 36px);
+  font-weight: 200;
+  line-height: 122%;
+  color: var(--calli-navy-soft);
+  margin: 0 0 40px;
+  max-width: 34ch;
+}
+
+.lp-hero-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* O nhap (126,687) 570x60, vien #2A3344 4px, bo 14 - dung khuon voi o nhap
+   trong popup dang nhap. */
+.lp-input {
+  width: min(570px, 100%);
+  height: 60px;
+  padding: 0 18px;
+  border: 4px solid #2a3344;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--calli-navy);
+  font: 400 16px/1 var(--sans);
+  box-sizing: border-box;
+}
+
+.lp-input::placeholder {
+  color: #8b93a1;
+  font-weight: 300;
+}
+
+.lp-input:focus {
+  outline: 3px solid var(--calli-teal);
+  outline-offset: 2px;
+}
+
+.lp-error {
+  color: var(--danger);
+  font-size: 16px;
+  margin: -4px 0 0;
+}
+
+/* Nut (126,798) 134x49, vien #2B3445 1px, bo 7 */
+.lp-btn-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 49px;
+  padding: 0 14px;
+  border: 1px solid #2b3445;
+  border-radius: 7px;
+  background: transparent;
+  color: #2b3445;
+  font: 700 16px/1 var(--sans);
+  cursor: pointer;
+}
+
+.lp-btn-arrow:hover:not(:disabled) {
+  background: #2b3445;
+  color: #fff;
+}
+
+.lp-btn-arrow:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lp-hero-art,
+.lp-biz-art {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* --- Tinh nang (0,1049) --------------------------------------------------- */
+
+.lp-features {
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding: 87px var(--lp-gut);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 60px;
+}
+
+.lp-features h2,
+.lp-biz-text h2 {
+  font-size: clamp(30px, 3.4vw, 64px);
+  font-weight: 700;
+  line-height: 120%;
+  color: var(--calli-navy);
+  margin: 0;
+  text-align: center;
+}
+
+.lp-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 443px));
+  gap: 34px;
+  justify-content: center;
+  width: 100%;
+}
+
+/* The (443x242) nen trang, vien #415161 4px, bo 27 */
+.lp-card {
+  background: #fff;
+  border: 4px solid #415161;
+  border-radius: 27px;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lp-card img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.lp-card h3 {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--calli-navy);
+  margin: 0;
+}
+
+.lp-card p {
+  font-size: 16px;
+  font-weight: 200;
+  line-height: 145%;
+  color: var(--calli-navy);
+  margin: 0;
+}
+
+/* Nut dac (198x65) #56959E bo 20, chu 24 w700 - dung khuon voi nut trong popup */
+.lp-btn-solid {
+  display: grid;
+  place-items: center;
+  min-width: 198px;
+  height: 65px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font: 700 24px/1 var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.lp-btn-solid:hover {
+  filter: brightness(1.08);
+}
+
+/* --- Doanh nghiep (0,1662) nen #F3F3F6 ----------------------------------- */
+
+.lp-biz {
+  background: #f3f3f6;
+  display: grid;
+  grid-template-columns: minmax(0, 756px) minmax(0, 830px);
+  gap: 60px;
+  align-items: center;
+  padding: 60px max(var(--lp-gut), calc((100% - var(--lp-max)) / 2 + 27px));
+  box-sizing: border-box;
+}
+
+.lp-biz-text h2 {
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.lp-biz-text p {
+  font-size: clamp(16px, 1.4vw, 24px);
+  font-weight: 300;
+  line-height: 140%;
+  color: var(--calli-navy);
+  margin: 0;
+}
+
+/* --- Mua tem phieu (804,2381) 312x68 nen #D2EFE6 bo 17 -------------------- */
+
+.lp-stamp-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 87px var(--lp-gut);
+}
+
+.lp-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 68px;
+  padding: 0 24px;
+  border-radius: 17px;
+  background: #d2efe6;
+  color: var(--calli-navy-soft);
+  font-size: clamp(20px, 2vw, 32px);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.lp-stamp:hover {
+  background: var(--calli-teal);
+}
+
+/* --- Chan trang (0,2536) 1920x410 nen #233040 ---------------------------- */
+
+.lp-footer {
+  background: var(--calli-navy-icon);
+  color: #fff;
+  padding: 40px max(var(--lp-gut), calc((100% - var(--lp-max)) / 2));
+  box-sizing: border-box;
+}
+
+.lp-footer-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 332px) minmax(0, 1fr);
+  gap: 40px;
+}
+
+.lp-footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.lp-footer h4 {
+  font-size: clamp(20px, 1.8vw, 32px);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.lp-footer a {
+  font-size: clamp(16px, 1.5vw, 32px);
+  font-weight: 300;
+  color: #fff;
+  text-decoration: none;
+}
+
+.lp-footer a:hover {
+  text-decoration: underline;
+}
+
+.lp-social-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 332px));
+  gap: 16px;
+  width: 100%;
+}
+
+.lp-social-row a {
+  font-size: clamp(16px, 1.2vw, 24px);
+}
+
+.lp-footer hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  margin: 32px 0 20px;
+}
+
+.lp-footer-domain {
+  text-align: right;
+  font-size: clamp(16px, 1.5vw, 32px);
+  font-weight: 400;
+  margin: 0;
+}
+
+/* --- Man hep -------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .lp-nav {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px var(--lp-gut);
+  }
+
+  .lp-logo img {
+    height: 48px;
+  }
+
+  /* Menu xuong hang rieng va cuon ngang - nhoi 4 muc 32px vao man 390px thi
+     chu se be den muc vo dung. */
+  .lp-nav-menu {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    gap: 24px;
+    overflow-x: auto;
+  }
+
+  .lp-nav-menu a {
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  .lp-btn-outline {
+    min-width: 0;
+    height: 44px;
+    border-width: 2px;
+    font-size: 16px;
+  }
+
+  .lp-hero,
+  .lp-biz {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  /* Tren dien thoai, tranh minh hoa nhuong cho cho chu va o nhap ten. */
+  .lp-hero-art {
+    order: -1;
+  }
+
+  .lp-features,
+  .lp-stamp-wrap {
+    padding-top: 48px;
+    padding-bottom: 48px;
+    gap: 32px;
+  }
+
+  .lp-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lp-footer-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lp-social-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lp-footer-domain {
+    text-align: left;
+  }
+}
