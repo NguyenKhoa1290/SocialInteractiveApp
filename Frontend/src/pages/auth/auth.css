@@ -20,7 +20,10 @@
   box-sizing: border-box;
 }
 
+/* Thu the popup, KHONG thu lop phu: lop phu la position:fixed phu kin man
+   hinh, zoom no se lam no thieu mot goc. */
 .auth-card {
+  zoom: var(--s);
   position: relative;
   width: 545px;
   max-width: 100%;

@@ -8,6 +8,13 @@
    dung mau do o CA hai che do - khong suy ra ban toi, vi mot bo mat "gan
    dung" con te hon la nhat quan. */
 
+/* `zoom` chu khong phai `transform: scale`: zoom THUC SU dan lai bo cuc (be
+   rong, xuong dong, diem ngat media deu tinh theo co moi), con transform chi
+   keo hinh anh cuoi cung nen chu se mo va chuot bam lech cho. */
+.lp-body {
+  zoom: var(--s);
+}
+
 .lp {
   --lp-max: 1662px;
   --lp-gut: 32px;

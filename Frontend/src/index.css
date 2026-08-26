@@ -82,12 +82,26 @@
      Ban thiet ke chi dung MOT kieu chu: Inter, tu do dam 100 den 700. Ban
      variable nen mot file phu het ca 7 do dam thay vi tai 7 file rieng.
      Van de day du chuoi du phong: font chua ve toi thi trang van doc duoc. */
+  /* --- Nut van chinh co giao dien ---------------------------------------
+     Ban thiet ke ve tren khung 1920px nen moi so do trong do (chu 64px, thanh
+     nav cao 166px, nut cao 65px...) la do THAT o be rong ay. Man hinh thuc te
+     phan lon la 1366-1536, nen dat nguyen xi vao thi moi thu to qua.
+
+     0.8 la mot chieu chinh CHU Y, khong phai sua tung con so: giu nguyen ty le
+     giua cac thanh phan nhu ban thiet ke, chi thu ca cum lai. Doi mot dong nay
+     la doi ca app. */
+  --s: 0.8;
+
   --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: var(--sans);
   --mono: ui-monospace, Consolas, monospace;
 
   font: 16px/150% var(--sans);
   letter-spacing: 0;
+  /* Chi SANG. Bao ro cho trinh duyet de o nhap, thanh cuon, lich chon ngay...
+     cua he thong cung ve theo giao dien sang - khong thi may dat che do toi se
+     cho ra o nhap nen den nam giua mot trang trang. */
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -96,45 +110,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ban thiet ke chi co giao dien SANG. Van giu mot ban toi suy ra tu chinh
-   bang mau do, vi app dang chay that co nguoi dung dat may o che do toi -
-   bo han di la ho dang dung nen toi bong nhien bi loa. Mau nhan giu nguyen
-   tong xanh bac ha, chi keo sang len cho du tuong phan tren nen toi. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text:          #a8b0bd;
-    --text-h:        #eef1f5;
-    --text-m:        #8792a3;
-    --bg:            #171b22;
-    --surface:       #1e232c;
-    --surface-2:     #232935;
-    --surface-muted: #333a47;
-    --border:        #2f3742;
-    --border-strong: #46505f;
-    --code-bg:       #232935;
-    --accent:        #9cc6c8;
-    --accent-strong: #7fb3bb;
-    --accent-bg:     rgba(156, 198, 200, 0.16);
-    --accent-border: rgba(156, 198, 200, 0.5);
-    --on-accent:     #14181e;
-    --danger:        #ff6b5e;
-    --danger-bg:     rgba(255, 107, 94, 0.15);
-    --social-bg:     rgba(35, 41, 53, 0.6);
-
-    --rail-bg:       #1d2a2b;
-    --rail-icon:     #b9d8d2;
-    --panel-bg:      #1e232c;
-    --panel-border:  #2f3742;
-
-    --shadow-sm: rgba(0, 0, 0, 0.35) 0 1px 3px;
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
+/* KHONG CO GIAO DIEN TOI.
+   Ban thiet ke chi ve ban sang, va chu du an chot dung ban sang cho ca app.
+   Truoc day o day co mot khoi @media (prefers-color-scheme: dark) suy ra tu
+   bang mau nay; da bo han. Neu sau nay can lai thi them lai dung mot khoi
+   @media o cho nay, ghi de dung cac bien vai tro - khong file nao khac phai
+   sua theo. */
 
 /* Khung ngoai cung - TRAN CHIEU RONG.
    Ban cu la mot cot giua 1126px co vien hai ben, sot lai tu khuon mau Vite.
@@ -165,7 +146,7 @@ h2 {
 }
 
 h1 {
-  font-size: clamp(32px, 4vw, 64px);
+  font-size: calc(clamp(32px, 4vw, 64px) * var(--s));
   font-weight: 700;
   line-height: 115%;
   letter-spacing: -0.02em;
@@ -173,7 +154,7 @@ h1 {
 }
 
 h2 {
-  font-size: clamp(20px, 2.2vw, 36px);
+  font-size: calc(clamp(20px, 2.2vw, 36px) * var(--s));
   font-weight: 600;
   line-height: 120%;
   letter-spacing: -0.01em;

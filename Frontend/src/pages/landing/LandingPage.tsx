@@ -85,6 +85,9 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
 
   return (
     <div className="lp">
+      {/* Chi phan noi dung trang moi bi thu theo --s. Popup nam ngoai vi no la
+          position:fixed - to tien co `zoom` se lam no khong phu kin man hinh. */}
+      <div className="lp-body">
       <header className="lp-nav">
         <Link to="/" className="lp-logo" aria-label="Calli">
           <img src={wordmark} alt="Calli" />
@@ -197,6 +200,7 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
         <hr />
         <p className="lp-footer-domain">www.calli.vn</p>
       </footer>
+      </div>
 
       {overlay}
     </div>

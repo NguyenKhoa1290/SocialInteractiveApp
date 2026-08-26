@@ -3,8 +3,8 @@
    phan lon man that la 1366-1536 - giu dung ty le do thi thanh se choan cho
    ma khong them thong tin nao. */
 :root {
-  --rail-w: 96px;
-  --rail-h: 64px; /* chieu cao khi nam ngang duoi day tren man hep */
+  --rail-w: calc(96px * var(--s));
+  --rail-h: calc(64px * var(--s)); /* khi nam ngang duoi day tren man hep */
 }
 
 .shell {
@@ -57,8 +57,8 @@
 
 
 .rail-avatar {
-  width: 48px;
-  height: 48px;
+  width: calc(48px * var(--s));
+  height: calc(48px * var(--s));
   border-radius: var(--r-pill);
   background: var(--accent);
   color: var(--on-accent);
@@ -77,8 +77,8 @@
 
 .rail-item {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: calc(52px * var(--s));
+  height: calc(52px * var(--s));
   border-radius: var(--r-md);
   display: grid;
   place-items: center;
@@ -221,14 +221,14 @@
 
 
   .rail-avatar {
-    width: 38px;
-    height: 38px;
+    width: calc(38px * var(--s));
+    height: calc(38px * var(--s));
     font-size: 16px;
   }
 
   .rail-item {
-    width: 46px;
-    height: 46px;
+    width: calc(46px * var(--s));
+    height: calc(46px * var(--s));
   }
 
   .rail-menu {
