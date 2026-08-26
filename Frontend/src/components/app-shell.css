@@ -1,97 +1,243 @@
+/* Vo chung cua Calli: thanh dieu huong doc ben trai + vung noi dung.
+   Ban thiet ke: thanh doc rong 129px tren khung 1920 (6,7%). Lay 96px vi
+   phan lon man that la 1366-1536 - giu dung ty le do thi thanh se choan cho
+   ma khong them thong tin nao. */
+:root {
+  --rail-w: 96px;
+  --rail-h: 64px; /* chieu cao khi nam ngang duoi day tren man hep */
+}
+
 .shell {
-  min-height: 100vh;
+  min-height: 100svh;
   background: var(--bg);
   color: var(--text);
-}
-
-.shell-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--code-bg);
 }
 
-.shell-brand {
+/* --- Thanh dieu huong ---------------------------------------------------- */
+
+.rail {
+  width: var(--rail-w);
+  flex: 0 0 var(--rail-w);
+  background: var(--rail-bg);
+  color: var(--rail-icon);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0 40px;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  box-sizing: border-box;
+  z-index: 30;
+}
+
+.rail-top,
+.rail-mid,
+.rail-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Do trong Figma: avatar o dinh (y~103), roi BON icon gian DEU nhau o nua
+   duoi (y~668 / 786 / 903 / 1019 tren khung cao 1080 - cach nhau ~117px).
+   Banh rang la mot phan cua cum do, KHONG ghim rieng xuong day. Nen chi mot
+   `margin-top: auto` duy nhat de day ca cum xuong. */
+.rail-mid {
+  margin-top: auto;
+}
+.rail-bottom {
+  margin-top: 0;
+  position: relative;
+}
+
+
+.rail-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  display: grid;
+  place-items: center;
   font-weight: 700;
-  font-size: 18px;
-  color: var(--text-h);
+  font-size: 20px;
   text-decoration: none;
+  border: 2px solid transparent;
 }
 
-.shell-user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: var(--text);
+.rail-avatar.active,
+.rail-avatar:hover {
+  border-color: var(--rail-icon);
 }
 
-.shell-admin-link {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--accent-bg);
-  color: var(--accent);
+.rail-item {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  color: inherit;
   text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.shell-logout-btn {
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--social-bg);
-  color: var(--text-h);
+  border: 0;
+  background: transparent;
   cursor: pointer;
-  font-size: 13px;
+  padding: 0;
 }
 
-.shell-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px;
-  padding-bottom: 88px;
+.rail-item:hover {
+  background: rgba(47, 60, 82, 0.08);
 }
 
-.bottom-dock {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  border-top: 1px solid var(--border);
-  background: var(--code-bg);
-  z-index: 40;
+.rail-item.active {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
-.bottom-dock-tab {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 13px;
-  text-decoration: none;
-  color: var(--text);
+.rail-item:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
-.bottom-dock-tab.active {
-  color: var(--accent);
-  font-weight: 700;
+/* Nhan chu: an tren thanh doc (thiet ke chi co icon) nhung VAN nam trong DOM
+   cho trinh doc man hinh, va hien lai khi thanh nam ngang duoi day tren dien
+   thoai - noi ma chi mot cai icon thi kho doan. */
+.rail-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-/* Huy hieu so chua doc tren tab dieu huong duoi. */
-.bottom-dock-badge {
-  display: inline-block;
-  min-width: 16px;
+.rail-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
-  margin-left: 4px;
-  border-radius: 999px;
-  background: #e5484d;
+  border-radius: var(--r-pill);
+  background: var(--danger);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 18px;
   text-align: center;
-  vertical-align: top;
+  box-sizing: border-box;
+}
+
+/* --- Menu banh rang ------------------------------------------------------ */
+
+.rail-menu {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 8px);
+  min-width: 180px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.rail-menu button {
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-sm);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.rail-menu button:hover {
+  background: var(--accent-bg);
+}
+
+.rail-menu-danger {
+  color: var(--danger) !important;
+}
+
+/* --- Vung noi dung ------------------------------------------------------- */
+
+.shell-main {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+/* --- Man hep: thanh doc nam ngang xuong day ------------------------------ */
+
+@media (max-width: 900px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .rail {
+    order: 2;
+    position: fixed;
+    /* PHAI go `top` ra. Rule goc dat `position: sticky; top: 0` de thanh doc
+       bam dinh khi cuon; o day doi sang `fixed` va chi dat `bottom: 0` thi
+       `top: 0` van con hieu luc - hai canh cung neo, `top` thang, va thanh
+       nhay len DINH man hinh che mat tieu de. Da dinh that, bat duoc luc chup
+       man hinh chu khong phai luc doc lai code. */
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    flex: none;
+    height: var(--rail-h);
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    gap: 0;
+    padding: 0 8px;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .rail-top,
+  .rail-mid,
+  .rail-bottom {
+    flex-direction: row;
+    width: auto;
+    margin: 0;
+    gap: 4px;
+  }
+
+
+  .rail-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+
+  .rail-item {
+    width: 46px;
+    height: 46px;
+  }
+
+  .rail-menu {
+    left: auto;
+    right: 0;
+    bottom: calc(100% + 8px);
+  }
+
+  .shell-main {
+    padding: 16px 16px calc(var(--rail-h) + 16px);
+  }
 }

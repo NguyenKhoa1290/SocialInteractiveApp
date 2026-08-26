@@ -7,7 +7,7 @@ import "./auth/auth.css";
 // Kenh khieu nai tach biet hoan toan khoi chat thong thuong - PHAI truy cap
 // duoc ke ca khi tai khoan dang bi khoa (xem ComplaintsEndpoints.cs: JWT van
 // hop le du status=locked, Chat Service khong kiem tra status). KHONG bao
-// trong AppShell/BottomDock vi tai khoan bi khoa khong nen thay duoc dieu
+// trong AppShell/NavRail vi tai khoan bi khoa khong nen thay duoc dieu
 // huong sang cac tinh nang chat binh thuong.
 export function ComplaintsPage() {
   const [messages, setMessages] = useState<{ senderRole: string; message: string; createdAt: string }[] | null>(null);

@@ -1,28 +1,23 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/authApi";
 import { useAuthStore } from "../store/authStore";
 import { useKeyStore } from "../store/keyStore";
 import { stopTokenRefresh } from "../lib/tokenScheduler";
-import { decodeJwtIsAdmin } from "../lib/jwt";
 import { clearPersistedKey } from "../lib/crypto/keyPersistence";
 import { onNotification, stopNotificationHub } from "../lib/notificationHub";
 import { notificationApi } from "../api/notificationApi";
 import { useNotificationStore } from "../store/notificationStore";
 import { URGENT_TYPES } from "../types/notification";
-import { BottomDock } from "./BottomDock";
+import { NavRail } from "./NavRail";
 import { NotificationToasts } from "./NotificationToast";
 import "./app-shell.css";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const clearAuth = useAuthStore((s) => s.clearAuth);
-  // Loi vao khu quan tri chi hien voi tai khoan co claim role=admin - de o
-  // header thay vi dock duoi, vi dock la dieu huong cua nguoi dung thuong.
-  const isAdmin = accessToken !== null && decodeJwtIsAdmin(accessToken);
 
   // Dat o AppShell chu khong o trang Thong bao: thong bao phai toi du dang o
   // man hinh nao, va con so chua doc hien tren thanh dieu huong o khap noi.
@@ -78,27 +73,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigate("/login");
   }
 
+  // Khong con thanh header rieng: ban thiet ke gom het thuong hieu, avatar
+  // va loi vao quan tri vao thanh doc ben trai, danh toan bo chieu cao con
+  // lai cho noi dung.
   return (
     <div className="shell">
-      <header className="shell-header">
-        <Link to="/app" className="shell-brand">
-          Chat App
-        </Link>
-        <div className="shell-user">
-          {isAdmin && (
-            <Link to="/admin/users" className="shell-admin-link">
-              Quản trị
-            </Link>
-          )}
-          <span>{user?.nickname}</span>
-          <button onClick={handleLogout} className="shell-logout-btn">
-            Đăng xuất
-          </button>
-        </div>
-      </header>
+      <NavRail onLogout={handleLogout} />
       <main className="shell-main">{children}</main>
       <NotificationToasts />
-      <BottomDock />
     </div>
   );
 }

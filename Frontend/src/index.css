@@ -136,16 +136,15 @@
   }
 }
 
-/* Khung ngoai cung.
-   TAM THOI giu cot giua 1126px cua ban cu - ban thiet ke moi la vo tran
-   chieu rong 1920 co thanh icon doc, nhung doi cai do se lam xe dich ca 20
-   man cung luc. De rieng ra buoc dung vo, de neu hong con biet hong o dau. */
+/* Khung ngoai cung - TRAN CHIEU RONG.
+   Ban cu la mot cot giua 1126px co vien hai ben, sot lai tu khuon mau Vite.
+   Ban thiet ke Calli la vo tran man co thanh icon doc ben trai, nen cot do
+   phai di. Bo luon `text-align: center` cua khuon mau: can giua la quyet
+   dinh cua tung khoi, khong phai mac dinh cua ca app - de mac dinh thi moi
+   khoi muon can trai lai phai tu go ra, va da co vai cho dang lam dung the.
+   Cac trang ngoai vo (dang nhap, dang ky) tu can giua bang flex trong
+   .auth-page nen khong anh huong. */
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
