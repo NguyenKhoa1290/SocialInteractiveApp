@@ -382,33 +382,55 @@
    Truoc day nhanh render cuoi cung la "[{type}]" nen tin he thong hien ra
    dung chu "[system]", noi dung khong bao gio duoc hien du no nam san trong
    content. Rieng su kien mo cuoc hop thi dung mot the co nut bam. */
+/* --- Tin he thong trong khung chat -------------------------------------
+   Ca hai loai deu duoc VAO KHUON: chung khong phai loi ai noi ra, nen de tran
+   giua cac bong bong thi trong nhu chu bi rot lai. Dung ban ban chung voi bong
+   bong (bo 13, cung co chu) nhung nen trang + vien teal - doc luot mot cai la
+   biet day la mot su kien cua nhom. */
+
+/* Tin he thong khong phai cuoc hop ("X da vao nhom"...): khuon nhe hon, khong
+   co nut nao nen khong can hut mat vao. */
 .chat-system-text {
-  color: var(--text);
-  font-style: italic;
+  display: inline-block;
+  padding: calc(7px * var(--s)) calc(12px * var(--s));
+  border-radius: calc(13px * var(--s));
+  background: var(--calli-surface);
+  color: var(--text-m);
+  font-size: calc(15px * var(--s));
+  font-weight: 400;
 }
 
 .chat-system-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 230px;
+  gap: calc(10px * var(--s));
+  min-width: calc(260px * var(--s));
+  max-width: 100%;
+  padding: calc(12px * var(--s)) calc(14px * var(--s));
+  border: calc(2px * var(--s)) solid var(--calli-teal);
+  border-radius: calc(13px * var(--s));
+  background: #fff;
+  box-sizing: border-box;
 }
 
 .chat-system-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-h);
+  gap: calc(10px * var(--s));
+  font-size: calc(16px * var(--s));
+  font-weight: 500;
+  color: var(--calli-navy);
 }
 
 .chat-system-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text);
+  flex: none;
+  font-size: calc(12px * var(--s));
+  font-weight: 500;
+  padding: calc(2px * var(--s)) calc(9px * var(--s));
+  border-radius: var(--r-pill);
+  border: 1px solid var(--calli-muted);
+  color: var(--text-m);
   white-space: nowrap;
 }
 
@@ -416,36 +438,49 @@
    can hut mat nguoi dung vao. */
 .chat-system-badge.open {
   border-color: transparent;
-  background: #2f9e44;
+  background: var(--calli-teal-dark);
   color: #fff;
 }
 
 .chat-system-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(10px * var(--s));
 }
 
 .chat-system-card-actions button,
 .chat-system-card-actions a {
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: calc(5px * var(--s)) calc(14px * var(--s));
+  border-radius: var(--r-pill);
+  font-family: var(--sans);
+  font-size: calc(13px * var(--s));
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   text-decoration: none;
 }
 
 .chat-system-card-actions button {
-  border: none;
-  background: var(--accent);
+  border: 0;
+  background: var(--calli-teal-dark);
   color: #fff;
-  font-weight: 600;
 }
 
+.chat-system-card-actions button:hover {
+  filter: brightness(1.08);
+}
+
+/* "Thao luan" mang khuon chip hanh dong ben canh bong bong (nen #D2EFE6,
+   vien teal) - cung mot ngon ngu, khac vai tro. */
 .chat-system-card-actions a {
-  border: 1px solid var(--border);
-  background: var(--social-bg);
-  color: var(--text-h);
+  border: 1px solid var(--calli-teal);
+  background: #d2efe6;
+  color: var(--calli-navy);
+}
+
+.chat-system-card-actions a:hover {
+  background: var(--calli-teal);
+  color: #fff;
 }
 
 /* Ten file + dung luong duoi tin nhan.

@@ -7,10 +7,15 @@ namespace ChatService.Api.Services;
 // SenderDisplayName/RecipientEncryptedKey - 2 truong do luon tinh "live" du
 // nguon la Redis hay Postgres, vi phu thuoc nguoi GOI hien tai, khong phai
 // thuoc tinh co dinh cua tin nhan).
+//
+// ReplyToId them sau, dat cuoi va cho phep khuyet: JSON trong Redis khop theo
+// TEN chu khong theo vi tri, nen cac ban ghi cu (khong co truong nay) van doc
+// duoc binh thuong va nhan null. Tin cu trong cache vi the mat trich dan cho
+// toi khi bi don, tin moi thi co ngay.
 public record CachedMessage(
     long Id, long ConversationId, long? SenderId, string Type, string? Content,
     long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce,
-    bool IsEdited, DateTimeOffset? EditedAt);
+    bool IsEdited, DateTimeOffset? EditedAt, long? ReplyToId = null);
 
 // Cache "nong" cho tin nhan gan day - dung theo tai lieu roadmap muc 6.1
 // (Search Chat Service: "Redis cho du lieu nong, Postgres cho du lieu

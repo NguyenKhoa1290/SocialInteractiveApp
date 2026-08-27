@@ -517,6 +517,10 @@ export function ChatRoomPage() {
                 recipientEncryptedKey: null,
                 isEdited: false,
                 editedAt: null,
+                // Phai gan o day: day la ban tin dung de VE NGAY, khong doi
+                // vong quay lai qua realtime/GET. Quen no thi nguoi vua bam
+                // "Tra loi" lai la nguoi duy nhat khong thay trich dan.
+                replyToId: replyTo?.id ?? null,
               },
             ],
       );
@@ -1079,9 +1083,14 @@ export function ChatRoomPage() {
 
         {searchResults === null && messages.map((m) => {
           const cuaMinh = m.senderId === currentUserId;
+          const laHeThong = m.type === "system";
           const suaDuoc = cuaMinh && m.type === "text" && !m.isDeleted;
           const thuHoiDuoc = cuaMinh && !m.isDeleted;
           const truongNhomXoaDuoc = isLeader && !cuaMinh && !m.isDeleted;
+          // Tin cuoc hop khong tra loi duoc: ban ve cuoc hop thi vao muc
+          // "Thao luan" cua chinh cuoc hop do, khong tra loi cai thong bao.
+          const traLoiDuoc = !laHeThong && !m.isDeleted;
+          const coChip = traLoiDuoc || suaDuoc || thuHoiDuoc || truongNhomXoaDuoc;
           return (
             <div key={m.id} id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
               <div className="cw-bubble-wrap">
@@ -1147,11 +1156,13 @@ export function ChatRoomPage() {
               {/* Chip hanh dong ben canh bong bong (Figma 111:391): 52x17, nen
                   #D2EFE6, vien #85AEB0. Chi hien khi re chuot vao hang - de
                   hien thuong truc thi moi tin deu keo theo hai cai nut. */}
-              {!m.isDeleted && editingId !== m.id && (
+              {coChip && editingId !== m.id && (
                 <div className="cw-acts cw-more">
-                  <button className="cw-act" onClick={() => setReplyTo(m)}>
-                    Trả lời
-                  </button>
+                  {traLoiDuoc && (
+                    <button className="cw-act" onClick={() => setReplyTo(m)}>
+                      Trả lời
+                    </button>
+                  )}
                   {suaDuoc && (
                     <button className="cw-act" onClick={() => startEdit(m)}>
                       Sửa

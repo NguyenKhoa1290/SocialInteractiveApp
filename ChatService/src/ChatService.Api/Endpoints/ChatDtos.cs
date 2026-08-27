@@ -57,13 +57,12 @@ public record MessageResponse(
         m.Id, m.ConversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, fileId,
         m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt, m.ReplyToId);
 
-    // MessageLite di qua cache Redis. KHONG them ReplyToId vao MessageLite:
-    // doi hinh dang do la moi ban ghi dang nam trong cache thanh doc sai. Tin
-    // doc tu cache tra ReplyToId = null, client se tu goi lay tin goc khi can -
-    // te nhat la mat cai trich dan tren vai tin gan nhat, tu lanh sau vai phut.
+    // MessageLite di qua cache Redis. ReplyToId PHAI di theo den day: day la
+    // duong duy nhat de client biet mot tin la tra loi cho tin nao khi nap lai
+    // lich su - thieu no thi khoi trich dan bien mat ngay sau khi tai lai trang.
     public static MessageResponse FromLite(MessageLite m, long conversationId, string? senderDisplayName = null, string? recipientEncryptedKey = null) => new(
         m.Id, conversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, m.FileId,
-        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt);
+        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt, m.ReplyToId);
 }
 
 // Hinh dang trung gian dung chung cho ca 2 nguon du lieu (Redis cache hoac
@@ -79,7 +78,7 @@ public record LastMessageResponse(
 public record MessageLite(
     long Id, long? SenderId, MessageType Type, string? Content, bool IsDeleted,
     DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, long? FileId,
-    bool IsEdited, DateTimeOffset? EditedAt);
+    bool IsEdited, DateTimeOffset? EditedAt, long? ReplyToId = null);
 
 // MeetingId (tu chon): co gia tri = file gui trong luong THAO LUAN cua cuoc
 // hop do. Dung de kiem tra quyen theo nhanh "dang o trong cuoc hop" cho

@@ -102,6 +102,6 @@ public class WriteChatConsumerService(
             message.Id, message.ConversationId, message.SenderId,
             Models.Message.TypeToString(message.Type), message.Content,
             fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
-            message.IsEdited, message.EditedAt));
+            message.IsEdited, message.EditedAt, message.ReplyToId));
     }
 }

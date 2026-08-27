@@ -249,7 +249,7 @@ public static class ConversationEndpoints
             {
                 items = [.. cached.Select(c => new MessageLite(
                     c.Id, c.SenderId, Message.TypeFromString(c.Type), c.Content, c.IsDeleted,
-                    c.CreatedAt, c.IsEncrypted, c.ContentNonce, c.FileId, c.IsEdited, c.EditedAt))];
+                    c.CreatedAt, c.IsEncrypted, c.ContentNonce, c.FileId, c.IsEdited, c.EditedAt, c.ReplyToId))];
             }
             else
             {
@@ -269,7 +269,7 @@ public static class ConversationEndpoints
 
                 items = [.. messages.Select(m => new MessageLite(
                     m.Id, m.SenderId, m.Type, m.Content, m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce,
-                    fileIds.TryGetValue(m.Id, out var fid) ? fid : null, m.IsEdited, m.EditedAt))];
+                    fileIds.TryGetValue(m.Id, out var fid) ? fid : null, m.IsEdited, m.EditedAt, m.ReplyToId))];
             }
 
             // E2EE Group: moi user chi duoc thay khoa phien DA MA HOA CHO
@@ -500,7 +500,7 @@ public static class ConversationEndpoints
             await cache.UpdateCachedMessageAsync(new CachedMessage(
                 message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
                 message.Content, null, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
-                message.IsEdited, message.EditedAt));
+                message.IsEdited, message.EditedAt, message.ReplyToId));
 
             await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
             return Results.NoContent();
@@ -546,7 +546,7 @@ public static class ConversationEndpoints
             await cache.UpdateCachedMessageAsync(new CachedMessage(
                 message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
                 message.Content, null, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
-                message.IsEdited, message.EditedAt));
+                message.IsEdited, message.EditedAt, message.ReplyToId));
 
             await hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageDeleted", messageId);
             return Results.NoContent();
@@ -602,7 +602,7 @@ public static class ConversationEndpoints
             await cache.UpdateCachedMessageAsync(new CachedMessage(
                 message.Id, message.ConversationId, message.SenderId, Message.TypeToString(message.Type),
                 message.Content, fileId, message.IsDeleted, message.CreatedAt, message.IsEncrypted, message.ContentNonce,
-                message.IsEdited, message.EditedAt));
+                message.IsEdited, message.EditedAt, message.ReplyToId));
 
             // RecipientEncryptedKey giu nguyen (khoa phien khong doi khi
             // sua), lay lai tu MessageRecipientKeys cho rieng sender de tra
