@@ -133,43 +133,6 @@
   box-sizing: border-box;
 }
 
-/* --- Menu banh rang ------------------------------------------------------ */
-
-.rail-menu {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + 8px);
-  min-width: 180px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  z-index: 50;
-}
-
-.rail-menu button {
-  text-align: left;
-  padding: 9px 12px;
-  border: 0;
-  background: transparent;
-  border-radius: var(--r-sm);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.rail-menu button:hover {
-  background: var(--accent-bg);
-}
-
-.rail-menu-danger {
-  color: var(--danger) !important;
-}
-
 /* --- Vung noi dung ------------------------------------------------------- */
 
 .shell-main {
@@ -229,12 +192,6 @@
   .rail-item {
     width: calc(46px * var(--s));
     height: calc(46px * var(--s));
-  }
-
-  .rail-menu {
-    left: auto;
-    right: 0;
-    bottom: calc(100% + 8px);
   }
 
   .shell-main {

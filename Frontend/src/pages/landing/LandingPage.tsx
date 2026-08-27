@@ -12,6 +12,7 @@ import bizArt from "../../assets/calli/minhhoa-doanhnghiep.webp";
 import icon1 from "../../assets/calli/icon-tinhnang-1.webp";
 import icon2 from "../../assets/calli/icon-tinhnang-2.webp";
 import icon3 from "../../assets/calli/icon-tinhnang-3.webp";
+import { IconFacebook, IconGitHub, IconInstagram, IconZalo } from "../auth/AuthIcons";
 import "./landing.css";
 
 // Ba the tinh nang. Chu lay nguyen van tu ban thiet ke, TRU cac loi chinh ta
@@ -41,11 +42,14 @@ const NAV = [
   { href: "#lien-he", label: "Liên hệ" },
 ];
 
+// Ban thiet ke de bon o giu cho logo o chan trang CON TRONG (xuat ra chi 723
+// byte, gan nhu trong suot). Ve theo dung triet ly cua ban thiet ke: mot mau,
+// di theo currentColor - o chan trang nen navy thi chung ra mau trang.
 const SOCIAL = [
-  { label: "Facebook", href: "https://facebook.com" },
-  { label: "Instagram", href: "https://instagram.com" },
-  { label: "GitHub", href: "https://github.com" },
-  { label: "Zalo", href: "https://zalo.me" },
+  { label: "Facebook", href: "https://facebook.com", Icon: IconFacebook },
+  { label: "Instagram", href: "https://instagram.com", Icon: IconInstagram },
+  { label: "GitHub", href: "https://github.com", Icon: IconGitHub },
+  { label: "Zalo", href: "https://zalo.me", Icon: IconZalo },
 ];
 
 // Trang chu. `overlay` la popup dang chong len (dang nhap / dang ky / quen mat
@@ -189,9 +193,10 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
           <div className="lp-footer-col lp-footer-social">
             <h4>Mạng xã hội cá nhân</h4>
             <div className="lp-social-row">
-              {SOCIAL.map((s) => (
-                <a key={s.label} href={s.href} target="_blank" rel="noreferrer noopener">
-                  {s.label}
+              {SOCIAL.map(({ label, href, Icon }) => (
+                <a key={label} href={href} target="_blank" rel="noreferrer noopener" className="lp-social">
+                  <Icon size={28} />
+                  {label}
                 </a>
               ))}
             </div>

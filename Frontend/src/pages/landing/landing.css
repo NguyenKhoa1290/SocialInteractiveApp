@@ -365,6 +365,14 @@
   font-size: clamp(16px, 1.2vw, 24px);
 }
 
+/* Icon + nhan tren mot hang. Icon thua huong `color` cua chan trang (trang)
+   nen khong phai dat mau rieng. */
+.lp-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .lp-footer hr {
   border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.35);

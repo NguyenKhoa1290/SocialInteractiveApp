@@ -1,0 +1,142 @@
+/* Man "Thong tin" - noi banh rang tren thanh dieu huong dan toi.
+   So do lay tu Figma node 111:589: anh dai dien 340x340; ten 36px w400;
+   hai nut 198x65 bo 20, bong DROP_SHADOW blur4 lech(4,4). */
+
+.st {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding-top: calc(36px * var(--s));
+}
+
+/* Anh dai dien 340x340. Chua co anh that: bang `users` khong co cot nao luu
+   anh dai dien, nen tam hien chu cai dau tren nen mau nhan - giong het cach
+   thanh dieu huong dang lam, de hai cho nhin nhat quan. */
+.st-avatar {
+  width: calc(340px * var(--s));
+  height: calc(340px * var(--s));
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  display: grid;
+  place-items: center;
+  font-size: calc(140px * var(--s));
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: rgba(47, 60, 82, 0.25) 2px 4px 4px;
+  user-select: none;
+}
+
+/* Ten 36px w400, can giua duoi anh */
+.st-name {
+  font-size: calc(36px * var(--s));
+  font-weight: 400;
+  color: var(--text-h);
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Doi ten: ban thiet ke khong ve nut sua rieng, nen chinh CAI TEN la cho bam.
+   Giu duoc chuc nang doi nickname ma khong them mot nut khong co trong thiet
+   ke. */
+.st-name-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--r-md);
+}
+
+.st-name-btn:hover {
+  background: var(--accent-bg);
+}
+
+.st-name-input {
+  font-size: calc(30px * var(--s));
+  font-weight: 400;
+  text-align: center;
+  height: calc(60px * var(--s));
+  padding: 0 18px;
+  border: 4px solid var(--calli-navy-soft);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text-h);
+  font-family: var(--sans);
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.st-name-input:focus {
+  outline: 3px solid var(--calli-teal);
+  outline-offset: 2px;
+}
+
+/* Hai nut 198x65 bo 20, bong lech (4,4) */
+.st-btn {
+  min-width: calc(198px * var(--s));
+  height: calc(65px * var(--s));
+  padding: 0 calc(24px * var(--s));
+  border: 0;
+  border-radius: 20px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(24px * var(--s));
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: rgba(47, 60, 82, 0.25) 4px 4px 4px;
+  text-decoration: none;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+}
+
+.st-btn:hover {
+  filter: brightness(1.08);
+}
+
+.st-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Ban thiet ke dung #FF0000. Chu 24px in dam nen theo WCAG chi can 3:1, ma
+   trang tren #FF0000 dat 4,0:1 - qua nguong, giu nguyen mau thiet ke. */
+.st-btn-logout {
+  background: #ff0000;
+}
+
+.st-btn-admin {
+  background: #000;
+}
+
+.st-msg {
+  font-size: calc(16px * var(--s));
+  margin: 0;
+}
+
+.st-msg-err {
+  color: var(--danger);
+}
+
+.st-msg-ok {
+  color: var(--accent-strong);
+}
+
+/* Loi vao QUAN LY NHOM.
+   KHONG co trong ban thiet ke. Ban thiet ke dat viec nay trong man "Danh sach
+   nhom" (node 100:22) - man do chua duoc dung, ma bo menu tha xuong cu thi
+   /workspaces mat loi vao. De tam o day lam duong phu, xoa di khi man danh
+   sach nhom xong. */
+.st-extra {
+  margin-top: 10px;
+  font-size: calc(15px * var(--s));
+}
+
+.st-extra a {
+  color: var(--accent-strong);
+}
