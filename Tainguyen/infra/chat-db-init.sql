@@ -56,6 +56,10 @@ CREATE TABLE messages (
   -- dung is_deleted=false, chi khac edited_at co gia tri hay khong.
   is_edited        BOOLEAN NOT NULL DEFAULT false,
   edited_at        TIMESTAMPTZ,
+  -- Tin nhan nay TRA LOI tin nao. ON DELETE SET NULL chu khong CASCADE: xoa
+  -- tin goc thi cau tra loi VAN CON, chi mat cai trich dan - cascade se lam
+  -- bay ca doan hoi thoai chi vi mot nguoi thu hoi mot cau.
+  reply_to_id      BIGINT REFERENCES messages(id) ON DELETE SET NULL,
   -- Them ngoai schema goc - luong THAO LUAN rieng cua tung cuoc hop
   -- (Media Service, meetings.id - logical FK, khac CSDL nen khong rang buoc
   -- duoc bang FK that). NULL = tin nhan cua luong chat CHINH cua nhom.

@@ -362,6 +362,19 @@ public static class ConversationEndpoints
                     return Results.Json(new ErrorResponse("voice_too_large", "Voice vuot qua 25MB"), statusCode: 413);
             }
 
+            // Tin duoc tra loi phai nam trong CHINH hoi thoai nay. Khong kiem
+            // thi mot request gia mao co the tro toi tin cua hoi thoai khac va
+            // lam lo mot doan trich dan cua cuoc tro chuyen nguoi khac.
+            long? replyToId = null;
+            if (req.ReplyToId is not null)
+            {
+                var hopLe = await db.Messages
+                    .AnyAsync(m => m.Id == req.ReplyToId && m.ConversationId == conversationId);
+                if (!hopLe)
+                    return Results.BadRequest(new ErrorResponse("invalid_reply", "Tin nhắn được trả lời không thuộc cuộc trò chuyện này"));
+                replyToId = req.ReplyToId;
+            }
+
             var message = new Message
             {
                 ConversationId = conversationId,
@@ -370,6 +383,7 @@ public static class ConversationEndpoints
                 Content = req.Content,
                 IsEncrypted = type == MessageType.Text,
                 ContentNonce = type == MessageType.Text ? req.ContentNonce : null,
+                ReplyToId = replyToId,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             db.Messages.Add(message);

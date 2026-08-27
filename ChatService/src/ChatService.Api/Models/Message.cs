@@ -35,6 +35,10 @@ public class Message
     public bool IsEdited { get; set; }
     public DateTimeOffset? EditedAt { get; set; }
 
+    // Tin nhan nay tra loi tin nao (NULL = khong tra loi ai). Xoa tin goc thi
+    // cot nay ve NULL - cau tra loi van con, chi mat trich dan.
+    public long? ReplyToId { get; set; }
+
     // Luong THAO LUAN rieng cua 1 cuoc hop (Media Service). NULL = tin nhan
     // cua luong chat CHINH. Xem ghi chu day du trong chat-db-init.sql.
     // Tin nhan co MeetingId LUON IsEncrypted=false (khach vang lai khong co

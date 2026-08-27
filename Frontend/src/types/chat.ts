@@ -37,6 +37,9 @@ export interface FileMeta {
 
 export interface Message {
   id: number;
+  // Tin nay tra loi tin nao (null = khong tra loi ai). Xoa tin goc thi ve
+  // null - cau tra loi van con, chi mat trich dan.
+  replyToId?: number | null;
   conversationId: number;
   senderId: number | null;
   senderDisplayName: string | null;

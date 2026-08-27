@@ -51,6 +51,7 @@ public class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbContext(
             entity.Property(m => m.ContentNonce).HasColumnName("content_nonce");
             entity.Property(m => m.IsDeleted).HasColumnName("is_deleted");
             entity.Property(m => m.IsEdited).HasColumnName("is_edited");
+            entity.Property(m => m.ReplyToId).HasColumnName("reply_to_id");
             entity.Property(m => m.EditedAt).HasColumnName("edited_at");
             entity.Property(m => m.MeetingId).HasColumnName("meeting_id");
             entity.Property(m => m.CreatedAt).HasColumnName("created_at");

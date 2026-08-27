@@ -199,6 +199,7 @@ export const chatApi = {
     contentNonce: string,
     recipientKeys?: { userId: number; encryptedKey: string }[],
     searchTokens?: string[],
+    replyToId?: number | null,
   ) =>
     chatHttp.post<Message>(`/conversations/${conversationId}/messages`, {
       type: "text",
@@ -206,6 +207,7 @@ export const chatApi = {
       contentNonce,
       recipientKeys,
       searchTokens,
+      replyToId: replyToId ?? null,
     }),
 
   editTextMessage: (conversationId: number, messageId: number, content: string, contentNonce: string, searchTokens?: string[]) =>

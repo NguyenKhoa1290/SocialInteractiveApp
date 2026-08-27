@@ -140,9 +140,14 @@
   text-align: left;
   font-family: var(--sans);
   color: inherit;
-  width: 100%;
   cursor: pointer;
 }
+
+/* KHONG dat `width: 100%` o day.
+   `.cw-head` co le trai/phai 25px; `width: 100%` tinh theo khung cha ROI MOI
+   cong them le, nen dau khung chat lo ra ngoai panel dung 50px - da thay tren
+   man that. Khung cha la flex-column nen mac dinh `align-items: stretch` da
+   keo cac the day chieu ngang roi, khong can ep 100%. */
 
 .cw-card:hover {
   background: var(--accent-bg);
@@ -253,6 +258,8 @@
 .cw-composer-input {
   flex: 1;
   min-width: 0;
+  /* Chieu cao do JS dat theo scrollHeight (xem ChatRoomPage) - o day chi chan
+     tren chan duoi, dung nhu Figma 111:380: 49 -> 173. */
   min-height: calc(49px * var(--s));
   max-height: calc(173px * var(--s));
   padding: calc(10px * var(--s)) calc(16px * var(--s));
@@ -620,4 +627,220 @@
   flex: none;
   font-size: calc(13px * var(--s));
   color: var(--text-m);
+}
+
+/* --- Phan tu tep / anh / video trong tin nhan --------------------------
+   Figma node 111:391: khung anh 388x226 vien #85AEB0 1px bo 7; the tep
+   442x92 vien #293546 2px bo 10, vong tron 68px #85AEB0, ten 20px w400,
+   dong duoi 20px w200.
+
+   KHONG dung mau/gach chan cua the <a> mac dinh: chu du an chi ro ten tep
+   khong duoc co gach mau xanh. Cac the o day la lien ket that (bam de mo/tai)
+   nhung phai trong nhu mot phan cua bong bong. */
+
+.fm-note {
+  font-size: calc(16px * var(--s));
+  color: var(--text-m);
+}
+
+.fm-media {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  max-width: calc(388px * var(--s));
+}
+
+/* Rong toi da 388, cao TU THEO TY LE anh - khong cat cung 388x226, vi anh doc
+   va anh chup man hinh se mat dau duoi. Chan tran chieu cao de mot anh rat
+   doc khong keo dai ca khung chat. */
+.fm-media img,
+.fm-media video {
+  display: block;
+  width: 100%;
+  max-height: calc(400px * var(--s));
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--calli-teal);
+  border-radius: calc(7px * var(--s));
+}
+
+.fm-media audio {
+  display: block;
+  width: calc(320px * var(--s));
+}
+
+.fm-media-name {
+  display: block;
+  margin-top: calc(6px * var(--s));
+  font-size: calc(15px * var(--s));
+  font-weight: 300;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.fm-file {
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+  min-width: calc(300px * var(--s));
+  max-width: calc(442px * var(--s));
+  padding: calc(12px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  background: transparent;
+  text-decoration: none;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.fm-file:hover {
+  background: var(--accent-bg);
+}
+
+.fm-file-icon {
+  flex: none;
+  width: calc(68px * var(--s));
+  height: calc(68px * var(--s));
+  border-radius: var(--r-pill);
+  background: var(--calli-teal);
+  color: var(--calli-navy-icon);
+  display: grid;
+  place-items: center;
+}
+
+.fm-file-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--s));
+}
+
+.fm-file-name {
+  font-size: calc(20px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-file-sub {
+  font-size: calc(20px * var(--s));
+  font-weight: 200;
+  color: #000;
+}
+
+.fm-file-uploading {
+  cursor: default;
+}
+
+.fm-cancel {
+  flex: none;
+  align-self: center;
+}
+
+/* Vong tron tien do: to dan theo % bang conic-gradient, khong can thu vien. */
+.fm-spin {
+  width: calc(44px * var(--s));
+  height: calc(44px * var(--s));
+  border-radius: var(--r-pill);
+  background: conic-gradient(var(--calli-navy-icon) var(--p, 0%), rgba(35, 48, 64, 0.2) 0);
+  mask: radial-gradient(circle, transparent 54%, #000 56%);
+}
+
+/* --- Tra loi tin nhan --------------------------------------------------- */
+
+/* Khoi trich dan trong bong bong: mot vach mau nhan ben trai + hai dong chu. */
+.cw-quote {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-left: calc(3px * var(--s)) solid var(--calli-teal-dark);
+  border-radius: calc(6px * var(--s));
+  background: rgba(133, 174, 176, 0.16);
+  padding: calc(6px * var(--s)) calc(10px * var(--s));
+  margin-bottom: calc(6px * var(--s));
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+.cw-quote:hover {
+  background: rgba(133, 174, 176, 0.3);
+}
+
+.cw-quote-who {
+  display: block;
+  font-size: calc(13px * var(--s));
+  font-weight: 600;
+  color: var(--calli-teal-dark);
+}
+
+.cw-quote-text {
+  display: block;
+  font-size: calc(15px * var(--s));
+  font-weight: 300;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nhay toi tin goc: nhap nhay mot cai de mat bat duoc no o dau. */
+.cw-flash .cw-bubble,
+.cw-flash .fm-file {
+  animation: cw-flash 1.2s ease-out;
+}
+
+@keyframes cw-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 calc(3px * var(--s)) var(--calli-teal-dark);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Thanh "dang tra loi" ngay tren khung soan */
+.cw-reply-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  margin: 0 calc(21px * var(--s)) calc(8px * var(--s));
+  padding: calc(8px * var(--s)) calc(14px * var(--s));
+  border-left: calc(3px * var(--s)) solid var(--calli-teal-dark);
+  border-radius: calc(8px * var(--s));
+  background: var(--calli-surface);
+}
+
+.cw-reply-label {
+  flex: none;
+  font-size: calc(13px * var(--s));
+  font-weight: 600;
+  color: var(--calli-teal-dark);
+}
+
+.cw-reply-text {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(15px * var(--s));
+  font-weight: 300;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cw-reply-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--calli-navy-icon);
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
 }

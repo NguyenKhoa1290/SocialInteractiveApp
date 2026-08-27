@@ -30,11 +30,11 @@ import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
 import type { Meeting } from "../../types/media";
-import { FileMessageContent } from "./FileMessageContent";
+import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import type { ConversationDetail } from "../../api/chatApi";
-import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
+import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
 import "./chat.css";
 
@@ -88,6 +88,12 @@ export function ChatRoomPage() {
   // khong phai hien "Nguoi dung 42". Chat Service khong resolve ten (xem
   // ConversationSummaryResponse) nen phai tu doi chieu nhu ChatListPage.
   const [peer, setPeer] = useState<{ ten: string; anh: string | null } | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
+  // ngay tren khung soan, bam X de bo.
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  // Ham huy lan tai len dang chay - do handleFileSelect gan vao.
+  const cancelUploadRef = useRef<(() => void) | null>(null);
 
   // Nguoi doi dien trong chat 1-1 (nhom thi khong co) - dung cho anh dai dien
   // o dau khung va o panel thong tin ben phai.
@@ -400,6 +406,59 @@ export function ChatRoomPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // O nhap CAO LEN theo so dong, dung nhu frame "Khung nhan tin khi go chu
+  // dai" (Figma 111:380: khung 83 -> 189, o nhap 49 -> 173).
+  //
+  // Phai dat height='auto' TRUOC khi doc scrollHeight: neu khong, scrollHeight
+  // van la chieu cao dang co nen o nhap chi phinh ra chu khong bao gio co lai
+  // duoc khi xoa bot chu.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+    // Bo goc thu lai khi da qua mot dong (Figma 111:380: bo 98 -> 22). Xet
+    // theo CHIEU CAO THAT chu khong dem so ky tu - dem ky tu thi mot cau dai
+    // van nam gon mot dong o man rong lai bi doi kieu oan.
+    el.classList.toggle("tall", el.scrollHeight > 70);
+  }, [textInput]);
+
+  // Mot dong tom tat cua tin duoc trich dan.
+  //
+  // Tin Text da giai ma roi thi lay ban ro dang co; chua giai ma xong thi noi
+  // that la dang giai ma, KHONG hien ma hoa - mot cuc base64 trong khoi trich
+  // dan chi lam nguoi doc hoang mang.
+  function tomTat(m: Message): string {
+    if (m.isDeleted) return "Tin nhắn đã được thu hồi";
+    switch (m.type) {
+      case "image":
+        return "Ảnh";
+      case "video":
+        return "Video";
+      case "voice":
+        return "Tin nhắn thoại";
+      case "file":
+        return "Tệp đính kèm";
+      case "system":
+        return "Thông báo hệ thống";
+      default:
+        return decrypted[m.id] ?? "Đang giải mã…";
+    }
+  }
+
+  // Cuon toi tin goc khi bam vao khoi trich dan. Tin qua cu (chua nap toi)
+  // thi khong co trong DOM - bao thay vi im lang khong phan hoi gi.
+  function nhayToi(id: number) {
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) {
+      setError("Tin nhắn gốc chưa được tải lên màn hình, hãy cuộn lên trước");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("cw-flash");
+    window.setTimeout(() => el.classList.remove("cw-flash"), 1200);
+  }
+
   async function handleSendText(e: React.FormEvent) {
     e.preventDefault();
     if (!textInput.trim() || !privateKey || !conversation || publicKeys.size === 0) return;
@@ -413,12 +472,12 @@ export function ChatRoomPage() {
         const theirKey = otherId ? publicKeys.get(otherId) : undefined;
         if (!theirKey) throw new Error("missing key");
         const { content, contentNonce, searchTokens } = await encryptTextP2P(privateKey, theirKey, plaintext);
-        const { data: sent } = await chatApi.sendTextMessage(conversationId, content, contentNonce, undefined, searchTokens);
+        const { data: sent } = await chatApi.sendTextMessage(conversationId, content, contentNonce, undefined, searchTokens, replyTo?.id);
         sentMessageId = sent.id;
       } else {
         const recipients = [...publicKeys.entries()].map(([userId, publicKey]) => ({ userId, publicKey }));
         const { content, contentNonce, recipientKeys, searchTokens } = await encryptTextGroup(privateKey, recipients, plaintext);
-        const { data: sent } = await chatApi.sendTextMessage(conversationId, content, contentNonce, recipientKeys, searchTokens);
+        const { data: sent } = await chatApi.sendTextMessage(conversationId, content, contentNonce, recipientKeys, searchTokens, replyTo?.id);
         sentMessageId = sent.id;
       }
 
@@ -449,6 +508,7 @@ export function ChatRoomPage() {
             ],
       );
       setTextInput("");
+      setReplyTo(null);
     } catch (err) {
       setError(extractApiError(err, "Gửi tin nhắn thất bại"));
     } finally {
@@ -647,6 +707,13 @@ export function ChatRoomPage() {
         file.name,
       );
       track = chatApi.trackUpload(slot);
+      // Nut "Huy" tren tin nhan dang tai len goi qua ref nay. Huy = bao server
+      // bo lan tai len -> tra lai dung luong ngay, khong doi bo quet.
+      cancelUploadRef.current = () => {
+        void track?.abort();
+        setUpload(null);
+        setUploading(null);
+      };
       await chatApi.uploadFile(
         slot,
         file,
@@ -670,6 +737,7 @@ export function ChatRoomPage() {
       if (code === "storage_quota_exceeded" || code === "storage_locked") setQuotaAlert(message);
       else setError(message);
     } finally {
+      cancelUploadRef.current = null;
       track?.stop();
       setUploading(null);
       setUpload(null);
@@ -962,9 +1030,30 @@ export function ChatRoomPage() {
           const thuHoiDuoc = cuaMinh && !m.isDeleted;
           const truongNhomXoaDuoc = isLeader && !cuaMinh && !m.isDeleted;
           return (
-            <div key={m.id} className={`cw-row${cuaMinh ? " mine" : ""}`}>
+            <div key={m.id} id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
               <div className="cw-bubble-wrap">
                 {m.senderDisplayName && !cuaMinh && <p className="cw-sender">{m.senderDisplayName}</p>}
+
+                {/* Khoi trich dan tin duoc tra loi. Tim trong danh sach dang
+                    co; tin qua cu (chua nap toi) thi hien chu chung thay vi
+                    goi them mot request cho MOI tin co tra loi. */}
+                {m.replyToId != null &&
+                  (() => {
+                    const goc = messages.find((x) => x.id === m.replyToId);
+                    return (
+                      <button
+                        type="button"
+                        className="cw-quote"
+                        onClick={() => nhayToi(m.replyToId!)}
+                        title="Tới tin nhắn gốc"
+                      >
+                        <span className="cw-quote-who">
+                          {goc?.senderDisplayName ?? (goc?.senderId === currentUserId ? "Bạn" : "Tin nhắn")}
+                        </span>
+                        <span className="cw-quote-text">{goc ? tomTat(goc) : "Tin nhắn cũ"}</span>
+                      </button>
+                    );
+                  })()}
 
                 {m.isDeleted ? (
                   <div className="cw-bubble cw-bubble-deleted">Tin nhắn đã được thu hồi</div>
@@ -993,9 +1082,10 @@ export function ChatRoomPage() {
                     onJoin={handleJoinMeeting}
                   />
                 ) : m.fileId ? (
-                  <div className="cw-bubble">
-                    <FileMessageContent fileId={m.fileId} type={m.type} />
-                  </div>
+                  // KHONG boc trong .cw-bubble: anh va the tep co khuon rieng
+                  // trong thiet ke (khung anh vien #85AEB0, the tep 442x92) -
+                  // long them mot nen mau nua thi thanh hai lop long nhau.
+                  <FileMessageContent fileId={m.fileId} type={m.type} />
                 ) : (
                   <div className="cw-bubble">[{m.type}]</div>
                 )}
@@ -1004,8 +1094,11 @@ export function ChatRoomPage() {
               {/* Chip hanh dong ben canh bong bong (Figma 111:391): 52x17, nen
                   #D2EFE6, vien #85AEB0. Chi hien khi re chuot vao hang - de
                   hien thuong truc thi moi tin deu keo theo hai cai nut. */}
-              {!m.isDeleted && editingId !== m.id && (thuHoiDuoc || suaDuoc || truongNhomXoaDuoc) && (
+              {!m.isDeleted && editingId !== m.id && (
                 <div className="cw-acts cw-more">
+                  <button className="cw-act" onClick={() => setReplyTo(m)}>
+                    Trả lời
+                  </button>
                   {suaDuoc && (
                     <button className="cw-act" onClick={() => startEdit(m)}>
                       Sửa
@@ -1026,12 +1119,24 @@ export function ChatRoomPage() {
             </div>
           );
         })}
+        {/* Tep dang tai len hien nhu MOT TIN NHAN trong mach hoi thoai
+            (Figma node 111:533) chu khong phai mot thanh rieng o duoi - kem
+            nut "Huy" de dung giua chung, bam la tra lai dung luong ngay. */}
+        {searchResults === null && upload && (
+          <div className="cw-row mine">
+            <div className="cw-bubble-wrap">
+              <UploadingMessage
+                name={upload.name}
+                loaded={upload.loaded}
+                total={upload.total}
+                onCancel={() => cancelUploadRef.current?.()}
+              />
+            </div>
+          </div>
+        )}
+
         {searchResults === null && <div ref={bottomRef} />}
       </div>
-
-      {/* Dat TREN thanh soan tin chu khong nhet vao trong: thanh do la flex
-          hang ngang, chen them vao se bop cac nut lai. */}
-      {upload && <UploadProgressBar state={upload} />}
 
       {error && <p className="chat-error">{error}</p>}
       {uploading && !upload && <p className="chat-text-note">Đang gửi {uploading}…</p>}
@@ -1058,6 +1163,24 @@ export function ChatRoomPage() {
 
               Cac nut dinh kem BIEN MAT khi dang go: thiet ke ve o nhap gian tu
               455 ra 761 khi co chu, tuc nhuong cho cho viec dang lam. */}
+          {/* Dang tra loi ai: hien ngay tren khung soan, bam X de bo. */}
+          {replyTo && (
+            <div className="cw-reply-bar">
+              <span className="cw-reply-label">Đang trả lời</span>
+              <span className="cw-reply-text">{tomTat(replyTo)}</span>
+              <button
+                type="button"
+                className="cw-reply-x"
+                onClick={() => setReplyTo(null)}
+                aria-label="Bỏ trả lời"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          )}
+
           <form
             className="cw-composer"
             onSubmit={(e) => {
@@ -1066,7 +1189,8 @@ export function ChatRoomPage() {
             }}
           >
             <textarea
-              className={`cw-composer-input${textInput.length > 60 ? " tall" : ""}`}
+              ref={composerRef}
+              className="cw-composer-input"
               placeholder={coTheGuiChu ? "Nhập tin nhắn" : "Cần mở khoá E2EE để gửi tin nhắn chữ"}
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}

@@ -40,7 +40,7 @@ public record RecipientKeyInput(long UserId, string EncryptedKey);
 // cung BAT BUOC (>= 1 phan tu, thuong la toan bo thanh vien tai thoi diem
 // gui). SearchTokens: danh sach token da bam (HMAC voi search-key rieng cua
 // client, xem MessageSearchToken.cs) - tuy chon, chi co y nghia voi Text.
-public record CreateMessageRequest(string Type, string? Content, long? FileId, string? ContentNonce, List<RecipientKeyInput>? RecipientKeys, List<string>? SearchTokens);
+public record CreateMessageRequest(string Type, string? Content, long? FileId, string? ContentNonce, List<RecipientKeyInput>? RecipientKeys, List<string>? SearchTokens, long? ReplyToId = null);
 
 // PATCH /messages/{id}: sua noi dung tin nhan Text da gui (client tu ma hoa
 // lai, gui ciphertext + nonce moi; TAI SU DUNG cung session key da fan-out
@@ -51,12 +51,16 @@ public record UpdateMessageRequest(string Content, string ContentNonce, List<str
 public record MessageResponse(
     long Id, long ConversationId, long? SenderId, string? SenderDisplayName, string Type, string? Content,
     long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, string? RecipientEncryptedKey,
-    bool IsEdited, DateTimeOffset? EditedAt)
+    bool IsEdited, DateTimeOffset? EditedAt, long? ReplyToId = null)
 {
     public static MessageResponse FromEntity(Message m, string? senderDisplayName = null, long? fileId = null, string? recipientEncryptedKey = null) => new(
         m.Id, m.ConversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, fileId,
-        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt);
+        m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt, m.ReplyToId);
 
+    // MessageLite di qua cache Redis. KHONG them ReplyToId vao MessageLite:
+    // doi hinh dang do la moi ban ghi dang nam trong cache thanh doc sai. Tin
+    // doc tu cache tra ReplyToId = null, client se tu goi lay tin goc khi can -
+    // te nhat la mat cai trich dan tren vai tin gan nhat, tu lanh sau vai phut.
     public static MessageResponse FromLite(MessageLite m, long conversationId, string? senderDisplayName = null, string? recipientEncryptedKey = null) => new(
         m.Id, conversationId, m.SenderId, senderDisplayName, Message.TypeToString(m.Type), m.Content, m.FileId,
         m.IsDeleted, m.CreatedAt, m.IsEncrypted, m.ContentNonce, recipientEncryptedKey, m.IsEdited, m.EditedAt);
