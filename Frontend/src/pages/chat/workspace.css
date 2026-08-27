@@ -1010,6 +1010,32 @@
   color: var(--calli-navy);
 }
 
+/* --- Loi moi ket ban den, nam dau panel "Danh sach ban be" -------------
+   Ban thiet ke khong ve muc nay (frame 111:391 chi co o tim + danh sach ban),
+   nhung gui duoc loi moi ma khong co cho nao dong y thi tinh nang ket ban
+   khong chay tron duoc. Dung dung khuon the va nut nho da co san, chi doi
+   nhan de doc ra ngay day la thu CAN TRA LOI. */
+
+.cw-invite-label {
+  margin-left: calc(10px * var(--s));
+  font-weight: 600;
+  color: var(--calli-teal-dark);
+}
+
+.cw-invite-acts {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(9px * var(--s));
+}
+
+/* Hang dang mo hoi thoai (lan dau bam vao mot nguoi ban, phai tao hoi thoai
+   truoc): bao la dang cho, khong lam mo den muc trong nhu hong. */
+.cw-card:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
 @media (max-width: 1200px) {
   .cw-info-group {
     align-items: center;
