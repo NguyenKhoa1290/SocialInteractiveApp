@@ -569,6 +569,57 @@ export function ChatRoomPage() {
     }
   }
 
+  // Xoa nhom: chi Truong nhom. Xoa la mat het tin nhan va tep cua ca nhom nen
+  // phai hoi lai - day la thao tac khong the hoan tac.
+  async function handleDeleteGroup() {
+    if (!conversation?.workspaceId) return;
+    if (!isLeader) {
+      setError("Chỉ Trưởng nhóm mới xoá được nhóm");
+      return;
+    }
+    if (!window.confirm("Xoá nhóm này? Toàn bộ tin nhắn và tệp sẽ mất vĩnh viễn.")) return;
+    try {
+      await workspaceApi.remove(conversation.workspaceId);
+      navigate("/app/groups");
+    } catch (err) {
+      setError(extractApiError(err, "Không xoá được nhóm"));
+    }
+  }
+
+  async function handleRemoveMember(userId: number) {
+    if (!conversation?.workspaceId) return;
+    if (!window.confirm("Xoá thành viên này khỏi nhóm?")) return;
+    try {
+      await workspaceApi.removeMember(conversation.workspaceId, userId);
+      setMembers((prev) => prev.filter((m) => m.userId !== userId));
+    } catch (err) {
+      setError(extractApiError(err, "Không xoá được thành viên"));
+    }
+  }
+
+  // Them thanh vien: nhap nickname roi tra ra userId. Man thiet ke chi ve mot
+  // nut "Them" ma khong ve hop thoai chon nguoi, nen tam dung o day - se thay
+  // bang mot popup chon tu danh sach ban be khi co thiet ke.
+  async function handleAddMember() {
+    if (!conversation?.workspaceId) return;
+    const ten = window.prompt("Nhập tên tài khoản cần thêm vào nhóm:")?.trim();
+    if (!ten) return;
+    try {
+      const { data } = await friendApi.searchUsers(ten);
+      const u = data.find((x) => x.nickname.toLowerCase() === ten.toLowerCase()) ?? data[0];
+      if (!u) {
+        setError(`Không tìm thấy tài khoản "${ten}"`);
+        return;
+      }
+      await workspaceApi.addMember(conversation.workspaceId, u.id);
+      setMembers((prev) =>
+        prev.some((m) => m.userId === u.id) ? prev : [...prev, { userId: u.id, nickname: u.nickname }],
+      );
+    } catch (err) {
+      setError(extractApiError(err, "Không thêm được thành viên"));
+    }
+  }
+
   async function handleToggleMute(userId: number) {
     try {
       if (mutedUserIds.has(userId)) {
@@ -777,13 +828,24 @@ export function ChatRoomPage() {
           meetingBusy={startingMeeting}
         />
       }
+      isGroup={conversation?.type === "group"}
       info={
         <ConversationInfo
           conversationId={conversationId}
           title={tenHoiThoai}
           peerUserId={peerUserId}
           peerAvatarUpdatedAt={peer?.anh}
-          dangerLabel={conversation?.type === "group" ? "Rời nhóm" : "Xóa bạn"}
+          dangerLabel={conversation?.type === "group" ? "Xóa nhóm" : "Xóa bạn"}
+          onDanger={conversation?.type === "group" ? handleDeleteGroup : undefined}
+          // `members` la co bao "day la nhom" - chi nhom moi co danh sach
+          // thanh vien trong ban thiet ke.
+          members={conversation?.type === "group" ? members : undefined}
+          mutedUserIds={mutedUserIds}
+          isLeader={isLeader}
+          currentUserId={currentUserId}
+          onToggleMute={handleToggleMute}
+          onRemoveMember={handleRemoveMember}
+          onAddMember={handleAddMember}
         />
       }
       chat={
@@ -980,25 +1042,6 @@ export function ChatRoomPage() {
             </>
           )}
         </Modal>
-      )}
-
-      {/* Cam chat thanh vien van o ngoai popup dung luong: day la viec quan ly
-          NGUOI, khong phai dung luong. Ban thiet ke dat no o panel phai
-          ("Danh sach nguoi trong nhom") - se chuyen sang do o buoc dung panel
-          phai cho nhom. */}
-      {showAdmin && conversation?.type === "group" && isLeader && members.length > 1 && (
-        <div className="chat-member-mute-list">
-          {members
-            .filter((m) => m.userId !== currentUserId)
-            .map((m) => (
-              <div key={m.userId} className="ws-member-row">
-                <span>{m.nickname}</span>
-                <button className="cw-act" onClick={() => handleToggleMute(m.userId)}>
-                  {mutedUserIds.has(m.userId) ? "Gỡ cấm chat" : "Cấm chat"}
-                </button>
-              </div>
-            ))}
-        </div>
       )}
 
       <div className="cw-msgs">

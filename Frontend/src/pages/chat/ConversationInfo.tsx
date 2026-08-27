@@ -3,8 +3,15 @@ import { chatApi } from "../../api/chatApi";
 import { Avatar } from "../../components/Avatar";
 import type { FileMeta } from "../../types/chat";
 
-// Panel phai cua man hinh chinh (Figma node 111:391, "Thanh menu" 416x1080):
-// anh dai dien lon, ten, luoi file media da gui, va nut xoa o duoi cung.
+export type ThanhVien = { userId: number; nickname: string; avatarUpdatedAt?: string | null };
+
+// Panel phai cua man hinh chinh.
+//
+// Hai bien the, dung theo Figma:
+//   - chat 1-1  (node 111:391, "Thanh menu" 416): anh + ten + luoi media + "Xoa ban"
+//   - chat nhom (node 122:1248, "Thanh menu" 462): them "Danh sach nguoi trong
+//     nhom" voi nut "Them", moi thanh vien mot the 440x101 co hai nut "Cam
+//     chat" / "Xoa", va nut cuoi la "Xoa nhom"
 export function ConversationInfo({
   conversationId,
   title,
@@ -12,18 +19,32 @@ export function ConversationInfo({
   peerAvatarUpdatedAt,
   dangerLabel,
   onDanger,
+  // --- rieng nhom ---
+  members,
+  mutedUserIds,
+  isLeader,
+  currentUserId,
+  onToggleMute,
+  onRemoveMember,
+  onAddMember,
 }: {
   conversationId: number;
   title: string;
-  // Chi co o chat 1-1. Nhom thi khong co "nguoi doi dien" nen hien chu cai
-  // dau cua ten nhom.
   peerUserId?: number | null;
   peerAvatarUpdatedAt?: string | null;
   dangerLabel: string;
   onDanger?: () => void;
+  members?: ThanhVien[];
+  mutedUserIds?: Set<number>;
+  isLeader?: boolean;
+  currentUserId?: number;
+  onToggleMute?: (userId: number) => void;
+  onRemoveMember?: (userId: number) => void;
+  onAddMember?: () => void;
 }) {
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
+  const laNhom = members !== undefined;
 
   useEffect(() => {
     let huy = false;
@@ -76,12 +97,50 @@ export function ConversationInfo({
 
   // Thiet ke ve luoi 3x3 = 9 o. Luon ve du 9 o de khung khong xo lech khi it
   // file; o thua la o giu cho xam nhu trong thiet ke.
-  const oTrong = Math.max(0, 9 - (media?.length ?? 0));
+  const oTrong = Math.max(0, 9 - Math.min(9, media?.length ?? 0));
 
   return (
-    <div className="cw-info">
+    <div className={`cw-info${laNhom ? " cw-info-group" : ""}`}>
       <Avatar userId={peerUserId ?? 0} nickname={title} avatarUpdatedAt={peerAvatarUpdatedAt} size={170} />
       <p className="cw-info-name">{title}</p>
+
+      {laNhom && (
+        <>
+          <div className="cw-info-head">
+            <span className="cw-info-label">Danh sách người trong nhóm</span>
+            {isLeader && onAddMember && (
+              <button className="cw-pill" onClick={onAddMember}>
+                Thêm
+              </button>
+            )}
+          </div>
+
+          <div className="cw-members">
+            {members!.length === 0 && <p className="cw-empty">Chưa có thành viên nào</p>}
+            {members!.map((m) => {
+              // Truong nhom khong tu cam chat / tu xoa chinh minh - hai nut do
+              // chi co nghia khi nham vao NGUOI KHAC.
+              const nguoiKhac = m.userId !== currentUserId;
+              return (
+                <div key={m.userId} className="cw-member">
+                  <Avatar userId={m.userId} nickname={m.nickname} avatarUpdatedAt={m.avatarUpdatedAt} size={68} />
+                  <span className="cw-member-name">{m.nickname}</span>
+                  {isLeader && nguoiKhac && (
+                    <span className="cw-member-acts">
+                      <button className="cw-pill cw-pill-sm" onClick={() => onToggleMute?.(m.userId)}>
+                        {mutedUserIds?.has(m.userId) ? "Gỡ cấm" : "Cấm chat"}
+                      </button>
+                      <button className="cw-pill cw-pill-sm cw-pill-ghost" onClick={() => onRemoveMember?.(m.userId)}>
+                        Xóa
+                      </button>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <p className="cw-info-label">Danh sách file media đã gửi</p>
       <div className="cw-media">

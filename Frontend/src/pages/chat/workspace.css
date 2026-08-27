@@ -10,7 +10,9 @@
 
 .cw {
   display: grid;
-  grid-template-columns: calc(482px * var(--s)) minmax(0, 1fr) calc(416px * var(--s));
+  /* Panel phai: 416 cho chat 1-1, 462 cho nhom (nhom co them danh sach thanh
+     vien). Hai con so nay lay tu hai frame khac nhau trong Figma. */
+  grid-template-columns: calc(482px * var(--s)) minmax(0, 1fr) var(--cw-info-w, calc(416px * var(--s)));
   height: 100svh;
   background: var(--bg);
 }
@@ -850,4 +852,90 @@
   cursor: pointer;
   padding: 0;
   line-height: 0;
+}
+
+/* --- Panel phai cho NHOM (Figma node 122:1248, "Thanh menu" 462) --------
+   Rong hon ban 1-1 (416) vi phai chua them danh sach thanh vien. */
+
+.cw-group {
+  --cw-info-w: calc(462px * var(--s));
+}
+
+.cw-info-group {
+  align-items: stretch;
+}
+
+.cw-info-group .avatar,
+.cw-info-group .cw-info-name {
+  align-self: center;
+}
+
+.cw-info-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--s));
+  margin: calc(20px * var(--s)) calc(10px * var(--s)) 0;
+}
+
+.cw-info-head .cw-info-label {
+  margin: 0;
+}
+
+.cw-members {
+  display: flex;
+  flex-direction: column;
+  gap: calc(15px * var(--s));
+  width: 100%;
+}
+
+/* The thanh vien 440x101, vien #293546 2px, bo 10 */
+.cw-member {
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+  min-height: calc(101px * var(--s));
+  padding: calc(12px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  box-sizing: border-box;
+}
+
+.cw-member-name {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hai nut xep DOC ben phai, dung nhu thiet ke (80x31 va 80x27). */
+.cw-member-acts {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(11px * var(--s));
+}
+
+.cw-pill-sm {
+  font-size: calc(12px * var(--s));
+  padding: calc(5px * var(--s)) calc(10px * var(--s));
+  min-width: calc(80px * var(--s));
+  text-align: center;
+}
+
+/* Nut "Xoa" dung nen xam nhu thiet ke - viec pha huy khong nen mang mau nhan
+   cua thuong hieu, de nguoi dung bam nham. */
+.cw-pill-ghost {
+  background: var(--calli-muted);
+  color: var(--calli-navy);
+}
+
+@media (max-width: 1200px) {
+  .cw-info-group {
+    align-items: center;
+  }
 }

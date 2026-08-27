@@ -13,6 +13,7 @@ export function ChatWorkspace({
   chat,
   info,
   hasActive,
+  isGroup,
 }: {
   list: ReactNode;
   chat: ReactNode;
@@ -20,10 +21,12 @@ export function ChatWorkspace({
   // Chi dung o man hep: chua chon gi thi hien danh sach, chon roi thi hien
   // khung chat. Man rong hien ca hai nen khong dinh gi toi.
   hasActive: boolean;
+  // Panel phai rong hon o nhom (462 so voi 416) - xem workspace.css.
+  isGroup?: boolean;
 }) {
   return (
     <AppShell>
-      <div className={`cw${hasActive ? "" : " cw-no-active"}`}>
+      <div className={`cw${hasActive ? "" : " cw-no-active"}${isGroup ? " cw-group" : ""}`}>
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>
         {info !== undefined && <div className="cw-col cw-col-info">{info}</div>}
