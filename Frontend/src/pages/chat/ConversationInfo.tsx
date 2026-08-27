@@ -23,6 +23,7 @@ export function ConversationInfo({
   onDanger?: () => void;
 }) {
   const [media, setMedia] = useState<FileMeta[] | null>(null);
+  const [urls, setUrls] = useState<Record<number, string>>({});
 
   useEffect(() => {
     let huy = false;
@@ -42,13 +43,35 @@ export function ConversationInfo({
     };
   }, [conversationId]);
 
-  async function mo(f: FileMeta) {
-    try {
-      const { data } = await chatApi.getDownloadUrl(f.id);
-      window.open(data.uploadUrl, "_blank", "noopener");
-    } catch {
-      // Khong mo duoc thi thoi - khong dang chen mot bao loi vao ca panel.
-    }
+  // Dia chi xem truoc cua tung o. Phai lay rieng vi anh nam trong MinIO va
+  // chi truy cap duoc qua URL da ky - khong doan duoc tu id.
+  //
+  // Lay MOT LAN cho ca luoi roi giu lai: moi lan mo panel ma goi lai chin
+  // request thi vua cham vua vo nghia, URL con han hang gio.
+  useEffect(() => {
+    if (!media || media.length === 0) return;
+    let huy = false;
+    void Promise.all(
+      media.slice(0, 9).map(async (f) => {
+        try {
+          const { data } = await chatApi.getDownloadUrl(f.id);
+          return [f.id, data.uploadUrl] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((cap) => {
+      if (huy) return;
+      setUrls(Object.fromEntries(cap.filter((x): x is readonly [number, string] => x !== null)));
+    });
+    return () => {
+      huy = true;
+    };
+  }, [media]);
+
+  function mo(f: FileMeta) {
+    const u = urls[f.id];
+    if (u) window.open(u, "_blank", "noopener");
   }
 
   // Thiet ke ve luoi 3x3 = 9 o. Luon ve du 9 o de khung khong xo lech khi it
@@ -63,8 +86,14 @@ export function ConversationInfo({
       <p className="cw-info-label">Danh sách file media đã gửi</p>
       <div className="cw-media">
         {media?.slice(0, 9).map((f) => (
-          <button key={f.id} className="cw-media-cell" onClick={() => void mo(f)} title={f.fileName ?? "Tệp"}>
-            {f.fileType === "image" ? <span aria-hidden="true" /> : <span aria-hidden="true" />}
+          <button key={f.id} className="cw-media-cell" onClick={() => mo(f)} title={f.fileName ?? "Tệp"}>
+            {/* Video cung hien duoc bang the <video> nhung chi de lay MOT
+                khung hinh dau - re hon nhieu so voi tai ca doan phim ve chi
+                de dung o mot o 100x100. */}
+            {urls[f.id] && f.fileType === "image" && <img src={urls[f.id]} alt={f.fileName ?? ""} loading="lazy" />}
+            {urls[f.id] && f.fileType === "video" && (
+              <video src={urls[f.id]} muted playsInline preload="metadata" />
+            )}
           </button>
         ))}
         {Array.from({ length: oTrong }, (_, i) => (

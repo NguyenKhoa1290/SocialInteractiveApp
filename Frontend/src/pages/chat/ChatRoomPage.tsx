@@ -703,6 +703,7 @@ export function ChatRoomPage() {
       hasActive
       list={
         <ConversationList
+          kind={conversation?.type === "group" ? "group" : "p2p"}
           activeId={conversationId}
           onStartMeeting={activeMeeting ? handleJoinMeeting : handleStartMeeting}
           meetingBusy={startingMeeting}
@@ -876,61 +877,76 @@ export function ChatRoomPage() {
       )}
 
       <div className="cw-msgs">
-        {messages.map((m) => (
-          <div key={m.id} className={`chat-bubble-row ${m.senderId === currentUserId ? "mine" : ""}`}>
-            <div className="chat-bubble">
-              {m.senderDisplayName && <div className="chat-bubble-sender">{m.senderDisplayName}</div>}
-              {m.isDeleted ? (
-                <em className="chat-msg-deleted">Tin nhắn đã bị xoá</em>
-              ) : editingId === m.id ? (
-                <div className="chat-edit-form">
-                  <input className="ws-input" style={{ marginBottom: 6 }} value={editText} onChange={(e) => setEditText(e.target.value)} />
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button className="ws-btn-primary" onClick={() => handleSaveEdit(m)}>
-                      Lưu
-                    </button>
-                    <button className="ws-btn-secondary" onClick={() => setEditingId(null)}>
-                      Huỷ
-                    </button>
+        {messages.map((m) => {
+          const cuaMinh = m.senderId === currentUserId;
+          const suaDuoc = cuaMinh && m.type === "text" && !m.isDeleted;
+          const thuHoiDuoc = cuaMinh && !m.isDeleted;
+          const truongNhomXoaDuoc = isLeader && !cuaMinh && !m.isDeleted;
+          return (
+            <div key={m.id} className={`cw-row${cuaMinh ? " mine" : ""}`}>
+              <div className="cw-bubble-wrap">
+                {m.senderDisplayName && !cuaMinh && <p className="cw-sender">{m.senderDisplayName}</p>}
+
+                {m.isDeleted ? (
+                  <div className="cw-bubble cw-bubble-deleted">Tin nhắn đã được thu hồi</div>
+                ) : editingId === m.id ? (
+                  <div className="cw-bubble">
+                    <input className="ws-input" style={{ marginBottom: 6 }} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="cw-act" onClick={() => handleSaveEdit(m)}>
+                        Lưu
+                      </button>
+                      <button className="cw-act" onClick={() => setEditingId(null)}>
+                        Huỷ
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : m.type === "text" ? (
-                <span>{decrypted[m.id] ?? "Đang giải mã..."}</span>
-              ) : m.type === "system" ? (
-                <SystemMessage
-                  content={m.content}
-                  conversationId={conversationId}
-                  activeMeetingId={activeMeeting?.id ?? null}
-                  onJoin={handleJoinMeeting}
-                />
-              ) : m.fileId ? (
-                <FileMessageContent fileId={m.fileId} type={m.type} />
-              ) : (
-                <span>[{m.type}]</span>
-              )}
-              {m.isEdited && !m.isDeleted && <span className="chat-msg-edited"> (đã sửa)</span>}
-              {!m.isDeleted && editingId !== m.id && (
-                <div className="chat-msg-actions">
-                  {m.senderId === currentUserId && (
-                    <button className="chat-recall-btn" onClick={() => handleRecall(m.id)}>
-                      Thu hồi
-                    </button>
-                  )}
-                  {m.senderId === currentUserId && m.type === "text" && (
-                    <button className="chat-recall-btn" onClick={() => startEdit(m)}>
+                ) : m.type === "text" ? (
+                  <div className="cw-bubble">
+                    {decrypted[m.id] ?? "Đang giải mã…"}
+                    {m.isEdited && <span className="chat-msg-edited"> (đã sửa)</span>}
+                  </div>
+                ) : m.type === "system" ? (
+                  <SystemMessage
+                    content={m.content}
+                    conversationId={conversationId}
+                    activeMeetingId={activeMeeting?.id ?? null}
+                    onJoin={handleJoinMeeting}
+                  />
+                ) : m.fileId ? (
+                  <div className="cw-bubble">
+                    <FileMessageContent fileId={m.fileId} type={m.type} />
+                  </div>
+                ) : (
+                  <div className="cw-bubble">[{m.type}]</div>
+                )}
+              </div>
+
+              {/* Chip hanh dong ben canh bong bong (Figma 111:391): 52x17, nen
+                  #D2EFE6, vien #85AEB0. Chi hien khi re chuot vao hang - de
+                  hien thuong truc thi moi tin deu keo theo hai cai nut. */}
+              {!m.isDeleted && editingId !== m.id && (thuHoiDuoc || suaDuoc || truongNhomXoaDuoc) && (
+                <div className="cw-acts cw-more">
+                  {suaDuoc && (
+                    <button className="cw-act" onClick={() => startEdit(m)}>
                       Sửa
                     </button>
                   )}
-                  {isLeader && m.senderId !== currentUserId && (
-                    <button className="chat-recall-btn" onClick={() => handleLeaderDelete(m.id)}>
-                      Xoá (Trưởng nhóm)
+                  {thuHoiDuoc && (
+                    <button className="cw-act" onClick={() => handleRecall(m.id)}>
+                      Thu hồi
+                    </button>
+                  )}
+                  {truongNhomXoaDuoc && (
+                    <button className="cw-act" onClick={() => handleLeaderDelete(m.id)}>
+                      Xoá
                     </button>
                   )}
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 

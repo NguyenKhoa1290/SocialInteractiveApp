@@ -34,7 +34,9 @@ export function NavRail() {
 
   const items: Item[] = [
     { to: "/app", label: "Chat", icon: <IconChat />, match: (p) => p === "/app" || p.startsWith("/app/chat") },
-    { to: "/app/friends", label: "Bạn bè", icon: <IconFriends />, match: (p) => p === "/app/friends" },
+    // Icon nay trong Figma TEN LA "Group" - la NHOM, khong phai Ban be. Viec
+    // ket ban nam ngay trong panel trai cua man chat ca nhan.
+    { to: "/app/groups", label: "Nhóm", icon: <IconFriends />, match: (p) => p.startsWith("/app/groups") },
     // Ban thiet ke goi day la "Mini App" va IPTV la mot muc BEN TRONG luoi do.
     // Man danh sach Mini App chua duoc dung nen tam tro thang toi IPTV - la
     // mini app duy nhat dang co that.

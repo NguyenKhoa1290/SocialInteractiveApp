@@ -16,6 +16,7 @@ import { FriendsPage } from "./pages/friends/FriendsPage";
 import { NotificationsPage } from "./pages/notifications/NotificationsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ChatListPage } from "./pages/chat/ChatListPage";
+import { GroupListPage } from "./pages/chat/GroupListPage";
 import { ChatRoomPage } from "./pages/chat/ChatRoomPage";
 import { MeetingRoomPage } from "./pages/meeting/MeetingRoomPage";
 import { JoinMeetingPage } from "./pages/meeting/JoinMeetingPage";
@@ -130,6 +131,16 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MeetingDiscussionPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Chat NHOM - muc rieng voi chat ca nhan (Figma "Danh sach nhom",
+            node 122:1248). Icon thu hai tren thanh dieu huong dan toi day. */}
+        <Route
+          path="/app/groups"
+          element={
+            <ProtectedRoute>
+              <GroupListPage />
             </ProtectedRoute>
           }
         />

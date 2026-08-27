@@ -28,8 +28,22 @@ function moTa(m: LastMessage): string | null {
       return "Đã gửi một tin nhắn thoại";
     case "file":
       return "Đã gửi một tệp";
-    case "system":
-      return m.content ?? "Thông báo hệ thống";
+    case "system": {
+      // Su kien "mo cuoc hop" duoc Media Service gui duoi dang JSON kem
+      // meetingId. Doi thang m.content ra doan xem truoc thi danh sach hien ra
+      // nguyen mot cuc {"kind":"meeting_started",...} - da thay tren man that.
+      const t = (m.content ?? "").trimStart();
+      if (t.startsWith("{")) {
+        try {
+          const j = JSON.parse(t) as { kind?: string; text?: string; host?: string };
+          if (j.kind === "meeting_started") return j.host ? `${j.host} đã mở cuộc họp` : "Đã mở cuộc họp";
+          return j.text ?? "Thông báo hệ thống";
+        } catch {
+          return "Thông báo hệ thống";
+        }
+      }
+      return m.content || "Thông báo hệ thống";
+    }
     default:
       return null; // text - phai giai ma
   }

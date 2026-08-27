@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
@@ -33,11 +33,15 @@ function batDau(iso: string | null): string {
   return new Date(iso).toLocaleDateString("vi-VN");
 }
 
+// `kind` tach hai muc rieng biet dung nhu chu du an chot: chat CA NHAN va chat
+// NHOM la hai man khac nhau, khong tron chung mot danh sach.
 export function ConversationList({
+  kind,
   activeId,
   onStartMeeting,
   meetingBusy,
 }: {
+  kind: "p2p" | "group";
   activeId?: number;
   // Nut "Khoi tao cuoc hop" nam o panel trai nhung cuoc hop lai thuoc ve mot
   // hoi thoai cu the, nen viec mo hop do panel giua lo - o day chi bam nut.
@@ -74,13 +78,13 @@ export function ConversationList({
         }
         for (const w of wsRes.data) map[`w${w.id}`] = { ten: w.name };
         setNames(map);
-        setItems(convRes.data);
+        setItems(convRes.data.filter((c) => c.type === kind));
       } catch (err) {
         setError(extractApiError(err, "Không tải được danh sách"));
       }
     }
     void load();
-  }, []);
+  }, [kind]);
 
   // Tim nguoi dung de ket ban. Cho go xong 350ms moi goi - go tung chu ma ban
   // nao cung goi thi vua ton request vua cho ra ket qua nhay lung tung.
@@ -126,14 +130,15 @@ export function ConversationList({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm kiếm người dùng"
-            aria-label="Tìm kiếm người dùng"
+            placeholder={kind === "group" ? "Tìm kiếm nhóm" : "Tìm kiếm người dùng"}
+            aria-label={kind === "group" ? "Tìm kiếm nhóm" : "Tìm kiếm người dùng"}
           />
         </div>
 
         {/* Ket qua tim kiem thay cho danh sach khi dang go - dung nhu the
-            "Ten nguoi dung / Ket ban +" trong ban thiet ke. */}
-        {ketQua?.map((u) => (
+            "Ten nguoi dung / Ket ban +" trong ban thiet ke. Chi o muc CA NHAN:
+            man nhom tim theo TEN NHOM trong danh sach da co, khong tim nguoi. */}
+        {kind === "p2p" && ketQua?.map((u) => (
           <div key={u.id} className="cw-card">
             <Avatar userId={u.id} nickname={u.nickname} avatarUpdatedAt={u.avatarUpdatedAt} size={68} />
             <div className="cw-card-body">
@@ -148,14 +153,20 @@ export function ConversationList({
             </button>
           </div>
         ))}
-        {dangTim && ketQua === null && <p className="cw-empty">Đang tìm…</p>}
-        {ketQua?.length === 0 && <p className="cw-empty">Không tìm thấy ai</p>}
+        {kind === "p2p" && dangTim && ketQua === null && <p className="cw-empty">Đang tìm…</p>}
+        {kind === "p2p" && ketQua?.length === 0 && <p className="cw-empty">Không tìm thấy ai</p>}
 
         <div className="cw-section">
-          <p className="cw-section-label">Danh sách bạn bè</p>
-          <button className="cw-pill" onClick={onStartMeeting} disabled={!onStartMeeting || meetingBusy}>
-            {meetingBusy ? "Đang mở…" : "Khởi tạo cuộc họp"}
-          </button>
+          <p className="cw-section-label">{kind === "group" ? "Danh sách nhóm" : "Danh sách bạn bè"}</p>
+          {kind === "group" ? (
+            <Link className="cw-pill" to="/workspaces/new">
+              Tạo nhóm mới
+            </Link>
+          ) : (
+            <button className="cw-pill" onClick={onStartMeeting} disabled={!onStartMeeting || meetingBusy}>
+              {meetingBusy ? "Đang mở…" : "Khởi tạo cuộc họp"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -164,7 +175,9 @@ export function ConversationList({
         {items === null && !error && <p className="cw-empty">Đang tải…</p>}
         {items?.length === 0 && <p className="cw-empty">Chưa có cuộc trò chuyện nào</p>}
 
-        {items?.map((c) => {
+        {items
+          ?.filter((c) => kind !== "group" || q.trim() === "" || tenCua(c).toLowerCase().includes(q.trim().toLowerCase()))
+          .map((c) => {
           const k = c.type === "p2p" ? `u${c.otherUserId}` : `w${c.workspaceId}`;
           const info = names[k];
           return (
