@@ -112,9 +112,16 @@ builder.Services.AddAuthorization();
 
 // CORS cho Frontend (tu de xuat, thieu sot phat hien khi test dang nhap
 // Guest tu Frontend chay o origin khac - localhost:5173 vs localhost:5194).
-// Chi allow origin cu the (khong dung AllowAnyOrigin) - token nam trong
-// header Authorization tu goi bang JS, khong phai cookie, nen khong can
-// AllowCredentials.
+// Chi allow origin cu the (khong dung AllowAnyOrigin) - va PHAI co
+// AllowCredentials du service nay khong dung cookie nao.
+//
+// Ly do: client SignalR luon gui request negotiate voi credentials mode
+// "include". Thieu Access-Control-Allow-Credentials: true thi trinh duyet vut
+// bo phan hoi, /hubs/notifications khong bao gio bat tay xong, va TOAN BO
+// thong bao thoi gian thuc chet cam - chuong tren thanh dieu huong khong bao
+// gio sang. Da xac nhan tren he thong that bang log trinh duyet.
+// Chat Service da vap va sua dung cho nay tu truoc (xem Program.cs ben do),
+// chi ben nay bi bo quen.
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173"];
 builder.Services.AddCors(options =>
@@ -122,7 +129,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy => policy
         .WithOrigins(corsOrigins)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
 var app = builder.Build();
