@@ -452,7 +452,8 @@
 .cw-row {
   display: flex;
   align-items: flex-end;
-  gap: calc(10px * var(--s));
+  /* 18 chu khong phai 10: ten tep dai keo the ra sat chip, nhin dinh vao nhau. */
+  gap: calc(18px * var(--s));
   max-width: 100%;
 }
 
@@ -460,11 +461,15 @@
   flex-direction: row-reverse;
 }
 
+/* Rong 442 = be rong THE TEP trong thiet ke, khong phai 377 cua bong bong
+   chu. Truoc day khung boc la 377 ma the tep lai max-width 442 - the lo ra
+   ngoai va DE LEN cac chip hanh dong, lam chu bi cat thanh "Tr" / "Thu ho".
+   Bong bong chu van tu gioi han o 377 qua .cw-bubble ben duoi. */
 .cw-bubble-wrap {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  max-width: calc(377px * var(--s));
+  max-width: calc(442px * var(--s));
 }
 
 .cw-row.mine .cw-bubble-wrap {
@@ -491,7 +496,7 @@
   /* Xuong dong giua tu, va giu nguyen cac dau xuong dong nguoi dung go. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  max-width: 100%;
+  max-width: calc(377px * var(--s));
   box-sizing: border-box;
 }
 
@@ -686,7 +691,9 @@
   align-items: center;
   gap: calc(16px * var(--s));
   min-width: calc(300px * var(--s));
-  max-width: calc(442px * var(--s));
+  /* 100% cua khung boc (da la 442) chu KHONG phai mot con so tuyet doi lon
+     hon khung boc - do dung la cai da lam the lo ra de len chip. */
+  max-width: 100%;
   padding: calc(12px * var(--s));
   border: 2px solid var(--calli-navy-line);
   border-radius: calc(10px * var(--s));
