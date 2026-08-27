@@ -24,7 +24,27 @@ function persistIfSessionKnown(privateKey: Uint8Array, publicKey: Uint8Array) {
 // bang khoa dan xuat tu PIN (PBKDF2 + salt ngau nhien), day ca vault
 // (ciphertext) va public key len server. Server chi thay ciphertext +
 // public key, KHONG BAO GIO thay PIN hay private key goc.
-export async function setupVault(pin: string): Promise<void> {
+// allowOverwrite=false la CHOT AN TOAN, khong phai tham so cho tien.
+//
+// Loi that da gap: hasVault() nuot moi loi va tra "chua co vault", nen mot
+// lan mang chap la man hinh chuyen sang che do THIET LAP. Nguoi dung go dung
+// mat khau cu cua minh, ham nay sinh CAP KHOA MOI va ghi de ca vault lan
+// public key - khong bao loi gi, chi la tu do moi tin nhan cu deu khong giai
+// ma duoc nua.
+//
+// Gio truoc khi ghi de, HOI LAI SERVER. Da co vault ma khong phai chu y dat
+// lai thi nem loi thay vi pha huy khoa.
+export async function setupVault(pin: string, allowOverwrite = false): Promise<void> {
+  if (!allowOverwrite) {
+    const trangThai = await vaultState();
+    if (trangThai === "yes") {
+      throw new Error("Tài khoản này đã có mật khẩu mã hoá — hãy nhập mật khẩu cũ, đừng đặt lại.");
+    }
+    if (trangThai === "unknown") {
+      throw new Error("Không kiểm tra được trạng thái mã hoá, thử lại khi mạng ổn định.");
+    }
+  }
+
   const { privateKey, publicKey } = generateKeyPair();
   const salt = randomBytes(SALT_BYTES);
   const pinKey = await deriveKeyFromPin(pin, salt);
@@ -83,7 +103,9 @@ async function ensurePublicKeyRegistered(publicKey: Uint8Array): Promise<void> {
 // cu, sau buoc nay se khong bao gio doc lai duoc nua. Noi goi BAT BUOC phai
 // canh bao ro va bat xac nhan truoc khi goi.
 export async function resetVault(newPin: string): Promise<void> {
-  await setupVault(newPin);
+  // Day la lan DUY NHAT duoc phep ghi de vault dang co - nguoi dung da chu y
+  // chon dat lai va da duoc canh bao mat toan bo tin nhan chu cu.
+  await setupVault(newPin, true);
 }
 
 // Khoi phuc tren thiet bi bat ky (hoac sau khi reload trang, vi private key
@@ -110,11 +132,22 @@ export async function unlockVault(pin: string): Promise<void> {
   await ensurePublicKeyRegistered(publicKey);
 }
 
-export async function hasVault(): Promise<boolean> {
+// Ba trang thai chu khong phai hai.
+//
+// Ban cu tra ve boolean va nuot moi loi thanh `false`. Nhung "server tra 404 -
+// nguoi nay chua dat mat khau" va "khong hoi duoc server" la HAI viec khac
+// han, ma hau qua thi mot troi mot vuc: cai dau dan toi man thiet lap (dung),
+// cai sau cung dan toi man thiet lap va PHA HUY khoa dang co (sai).
+export type VaultState = "yes" | "no" | "unknown";
+
+export async function vaultState(): Promise<VaultState> {
   try {
     await keysApi.getVault();
-    return true;
-  } catch {
-    return false;
+    return "yes";
+  } catch (err) {
+    const st = (err as { response?: { status?: number } })?.response?.status;
+    if (st === 404) return "no";
+    // 401/403/500/mat mang... - KHONG duoc doan la "chua co".
+    return "unknown";
   }
 }

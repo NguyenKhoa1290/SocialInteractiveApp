@@ -8,7 +8,6 @@ import { friendApi } from "../../api/friendApi";
 import { joinConversation, leaveConversation, onMessageDeleted, onMessageEdited, onMessageReceived } from "../../lib/chatHub";
 import { useAuthStore } from "../../store/authStore";
 import { useKeyStore } from "../../store/keyStore";
-import { E2eeGate } from "../../components/E2eeGate";
 import {
   encryptTextP2P,
   decryptTextP2P,
@@ -1041,13 +1040,8 @@ export function ChatRoomPage() {
         <p className="chat-text-note">Bạn đang bị cấm chat trong nhóm này.</p>
       ) : (
         <>
-          {/* E2eeGate CHI con boc man nhap PIN, KHONG boc khung soan tin nua.
-              Loi toi vua gay ra khi gop cac nut gui file vao khung soan: truoc
-              do chung nam NGOAI cong E2EE, gop vao thanh ra chua dat PIN la
-              khong gui duoc CA ANH LAN TEP - trong khi tep khong he duoc ma hoa
-              dau cuoi, chang co ly do gi phai chan. */}
-          <E2eeGate>{null}</E2eeGate>
-
+          {/* Man nhap mat khau ma hoa da chuyen len AppShell duoi dang popup,
+              hoi ngay sau khi dang nhap. O day chi con khung soan tin. */}
           {publicKeys.size === 0 && (
             <p className="chat-text-note">
               {conversation?.type === "p2p"

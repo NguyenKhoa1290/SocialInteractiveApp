@@ -16,7 +16,7 @@ const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 // rieng (mo tu phong chat) va panel ben trong phong hop.
 //
 // KHAC han chat nhom: KHONG ma hoa - noi dung gui/nhan thang, khong can
-// E2eeGate, khong can nhap PIN. Ly do: khach vang lai vao hop bang link
+// popup mat khau ma hoa, khong can nhap. Ly do: khach vang lai vao hop bang link
 // khong co cap khoa nao. Xem MeetingDiscussionEndpoints.cs.
 export function MeetingDiscussion({
   conversationId,

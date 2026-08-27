@@ -7,6 +7,7 @@ import { useNotificationStore } from "../store/notificationStore";
 import { URGENT_TYPES } from "../types/notification";
 import { NavRail } from "./NavRail";
 import { NotificationToasts } from "./NotificationToast";
+import { E2eePopup } from "./E2eePopup";
 import "./app-shell.css";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -54,6 +55,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <NavRail />
       <main className="shell-main">{children}</main>
       <NotificationToasts />
+      {/* Mat khau ma hoa hoi NGAY SAU KHI DANG NHAP, o dang popup - truoc day
+          la mot the chen giua khung chat, phai vao mot cuoc tro chuyen moi
+          thay va no day tin nhan xuong. */}
+      <E2eePopup />
     </div>
   );
 }
