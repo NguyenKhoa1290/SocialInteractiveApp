@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
 import { IconBell, IconChat, IconFriends, IconGear, IconGrid } from "./RailIcons";
+import { Avatar } from "./Avatar";
 
 // Thanh dieu huong doc - vo chung cua ban thiet ke Calli.
 //
@@ -40,8 +41,6 @@ export function NavRail() {
     { to: "/app/iptv", label: "Mini App", icon: <IconGrid />, match: (p) => p === "/app/iptv" },
   ];
 
-  const initial = (user?.nickname ?? "?").trim().charAt(0).toUpperCase();
-
   return (
     <nav className="rail" aria-label="Điều hướng chính">
       <div className="rail-top">
@@ -51,7 +50,12 @@ export function NavRail() {
           aria-label={`Trang cá nhân của ${user?.nickname ?? "bạn"}`}
           title={user?.nickname ?? "Cá nhân"}
         >
-          {initial}
+          <Avatar
+            userId={user?.id ?? 0}
+            nickname={user?.nickname}
+            avatarUpdatedAt={user?.avatarUpdatedAt}
+            size={48}
+          />
         </Link>
 
         <Link

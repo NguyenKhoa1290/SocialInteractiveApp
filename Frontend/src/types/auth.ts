@@ -8,6 +8,9 @@ export interface AuthUser {
   email: string | null;
   status: UserStatus;
   createdAt: string;
+  // NULL = chua dat anh dai dien. Vua la co "co anh hay khong", vua la ma
+  // chong cache gan vao URL anh - xem lib/avatarUrl.ts.
+  avatarUpdatedAt: string | null;
 }
 
 export interface AuthSuccessResponse {

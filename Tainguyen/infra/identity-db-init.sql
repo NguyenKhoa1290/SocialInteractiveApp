@@ -19,6 +19,21 @@ CREATE TABLE users (
   -- POST /internal/users/{userId}/promote-admin (chi dung noi bo/CLI, KHONG
   -- public) - xem InternalEndpoints.cs.
   is_admin        BOOLEAN NOT NULL DEFAULT false,
+  -- Anh dai dien luu THANG TRONG DB chu khong dua sang MinIO.
+  --
+  -- Vi sao: anh dai dien duoc cat con <=256KB ngay o trinh duyet truoc khi
+  -- gui, va he thong nay co vai chuc nguoi dung - tong cung lam vai MB, mot
+  -- con so Postgres khong hay biet. Doi lai duoc ba thu:
+  --   * Identity Service khong phai keo them mot client S3, mot bo khoa, mot
+  --     bucket va mot duong cau hinh nua;
+  --   * xoa nguoi dung la anh bien mat theo - KHONG the sinh ra file mo coi,
+  --     dung cai lop loi vua phai mat ca mot dot de don ben Chat Service;
+  --   * mat MinIO thi anh dai dien van hien binh thuong.
+  -- Hop dong HTTP (GET /users/{id}/avatar) khong he lo ra cho nay nam o dau,
+  -- nen sau nay muon chuyen sang MinIO that thi frontend khong phai sua gi.
+  avatar_bytes    BYTEA,
+  avatar_mime     VARCHAR(32),
+  avatar_updated_at TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_active_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT chk_guest_no_credentials

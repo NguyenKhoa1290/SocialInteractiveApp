@@ -21,6 +21,14 @@ public class User
     public string? PasswordHash { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;
     public bool IsAdmin { get; set; }
+
+    // Anh dai dien. Luu thang trong DB - xem ghi chu o identity-db-init.sql.
+    // AvatarBytes chi duoc nap khi that su can (endpoint tra anh); moi cho
+    // khac chi doc AvatarUpdatedAt de biet "co anh hay khong".
+    public byte[]? AvatarBytes { get; set; }
+    public string? AvatarMime { get; set; }
+    public DateTimeOffset? AvatarUpdatedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastActiveAt { get; set; }
 

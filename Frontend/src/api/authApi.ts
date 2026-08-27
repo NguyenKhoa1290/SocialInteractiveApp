@@ -1,5 +1,5 @@
 import { identityHttp } from "./httpClient";
-import type { AuthSuccessResponse, OAuthSuccessResponse } from "../types/auth";
+import type { AuthSuccessResponse, AuthUser, OAuthSuccessResponse } from "../types/auth";
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -28,6 +28,16 @@ export const authApi = {
   refresh: () => identityHttp.post<AuthSuccessResponse>("/auth/refresh"),
 
   logout: () => identityHttp.post<void>("/auth/logout"),
+
+  // Gui THANG byte anh, khong boc multipart: sau khi cat anh o trinh duyet ta
+  // da co san mot Blob, gui thang la xong. Server doc than request va tu nhan
+  // dang kieu anh bang chu ky byte.
+  uploadAvatar: (blob: Blob) =>
+    identityHttp.put<AuthUser>("/users/me/avatar", blob, {
+      headers: { "Content-Type": blob.type || "application/octet-stream" },
+    }),
+
+  deleteAvatar: () => identityHttp.delete<AuthUser>("/users/me/avatar"),
 
   updateNickname: (nickname: string) =>
     identityHttp.patch<void>("/users/me/nickname", { nickname }),

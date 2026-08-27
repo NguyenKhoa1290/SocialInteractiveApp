@@ -56,18 +56,14 @@
 }
 
 
+/* Vong tron do chinh component Avatar ve (xem components/Avatar.tsx); o day
+   chi lo phan vien danh dau dang o trang ca nhan. */
 .rail-avatar {
-  width: calc(48px * var(--s));
-  height: calc(48px * var(--s));
+  display: block;
+  line-height: 0;
   border-radius: var(--r-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 20px;
-  text-decoration: none;
   border: 2px solid transparent;
+  text-decoration: none;
 }
 
 .rail-avatar.active,
@@ -183,10 +179,10 @@
   }
 
 
-  .rail-avatar {
+  .rail-avatar .avatar {
     width: calc(38px * var(--s));
     height: calc(38px * var(--s));
-    font-size: 16px;
+    font-size: calc(16px * var(--s));
   }
 
   .rail-item {

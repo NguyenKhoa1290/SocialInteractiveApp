@@ -179,3 +179,19 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Anh dai dien dung chung - xem components/Avatar.tsx.
+   Kich thuoc do noi goi truyen vao (inline style) vi cung mot component phai
+   phuc vu tu 38px o thanh dieu huong den 340px o man thong tin. */
+.avatar {
+  border-radius: var(--r-pill);
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}

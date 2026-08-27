@@ -6,7 +6,14 @@ public record RegisterRequest(string Email, string Password, string Nickname);
 public record LoginRequest(string Email, string Password);
 public record GuestRequest(string Nickname);
 
-public record UserResponse(long Id, string UserType, string Nickname, string? Email, string Status, DateTimeOffset CreatedAt)
+// AvatarUpdatedAt vua la co "co anh dai dien hay khong" vua la ma chong cache:
+// client gan no vao URL anh, nen doi anh la trinh duyet lay ban moi ngay, con
+// khong doi thi no dung lai anh da tai - khong phai tai lai sau moi lan mo.
+// KHONG tra byte anh o day: DTO nay di kem moi lan dang nhap, moi lan lay
+// thong tin, keo theo vai tram KB moi lan thi qua phi.
+public record UserResponse(
+    long Id, string UserType, string Nickname, string? Email, string Status,
+    DateTimeOffset CreatedAt, DateTimeOffset? AvatarUpdatedAt)
 {
     public static UserResponse FromEntity(User u) => new(
         u.Id,
@@ -14,7 +21,8 @@ public record UserResponse(long Id, string UserType, string Nickname, string? Em
         u.Nickname,
         u.Email,
         u.Status == UserStatus.Active ? "active" : "locked",
-        u.CreatedAt);
+        u.CreatedAt,
+        u.AvatarUpdatedAt);
 }
 
 public record AuthSuccessResponse(string AccessToken, UserResponse User);

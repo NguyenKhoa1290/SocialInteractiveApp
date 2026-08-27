@@ -10,22 +10,63 @@
   padding-top: calc(36px * var(--s));
 }
 
-/* Anh dai dien 340x340. Chua co anh that: bang `users` khong co cot nao luu
-   anh dai dien, nen tam hien chu cai dau tren nen mau nhan - giong het cach
-   thanh dieu huong dang lam, de hai cho nhin nhat quan. */
+/* Anh dai dien 340x340 + huy hieu "+" o goc duoi ben phai (Figma 111:589).
+   Kich thuoc do component Avatar dat qua inline style; o day chi lo do bong
+   va cai huy hieu. */
+.st-avatar-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
 .st-avatar {
-  width: calc(340px * var(--s));
-  height: calc(340px * var(--s));
+  box-shadow: rgba(47, 60, 82, 0.25) 2px 4px 4px;
+}
+
+/* Huy hieu 40x40 nen #56959E, dat o goc 45 do cua hinh tron - tuc lech vao
+   trong mot khoang 1/2*(1 - 1/can2) so voi hinh vuong bao ngoai. */
+.st-avatar-add {
+  position: absolute;
+  right: 6%;
+  bottom: 6%;
+  width: calc(48px * var(--s));
+  height: calc(48px * var(--s));
   border-radius: var(--r-pill);
-  background: var(--accent);
-  color: var(--on-accent);
+  border: 3px solid var(--bg);
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(30px * var(--s));
+  font-weight: 600;
+  line-height: 1;
   display: grid;
   place-items: center;
-  font-size: calc(140px * var(--s));
-  font-weight: 700;
-  line-height: 1;
-  box-shadow: rgba(47, 60, 82, 0.25) 2px 4px 4px;
-  user-select: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.st-avatar-add:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.st-avatar-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.st-remove-avatar {
+  border: 0;
+  background: transparent;
+  color: var(--text-m);
+  font-family: var(--sans);
+  font-size: calc(15px * var(--s));
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.st-remove-avatar:hover {
+  color: var(--danger);
 }
 
 /* Ten 36px w400, can giua duoi anh */

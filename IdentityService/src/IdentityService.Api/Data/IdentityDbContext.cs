@@ -34,6 +34,9 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
                     v => v == UserStatus.Active ? "active" : "locked",
                     v => v == "active" ? UserStatus.Active : UserStatus.Locked);
             entity.Property(u => u.IsAdmin).HasColumnName("is_admin");
+            entity.Property(u => u.AvatarBytes).HasColumnName("avatar_bytes");
+            entity.Property(u => u.AvatarMime).HasColumnName("avatar_mime");
+            entity.Property(u => u.AvatarUpdatedAt).HasColumnName("avatar_updated_at");
             entity.Property(u => u.CreatedAt).HasColumnName("created_at");
             entity.Property(u => u.LastActiveAt).HasColumnName("last_active_at");
         });
