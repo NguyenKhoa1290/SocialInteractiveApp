@@ -329,6 +329,75 @@
   gap: calc(18px * var(--s));
 }
 
+/* Khung boc anh dai dien o dau panel - can co de neo huy hieu "+" vao goc
+   duoi phai cua hinh tron. line-height: 0 de khong sinh khoang trang chu duoi
+   the <img>. */
+.cw-info-avatar {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+/* Huy hieu "+" theo frame "Danh sach nhom" (node 122:1354): tron 30x30, nen
+   #56959E, dau cong Inter 32 SemiBold mau #2F3C52. Vi tri lay dung ty le do
+   duoc trong thiet ke tren hinh tron 170: canh phai lui vao 23px (13.5%), day
+   thua ra ngoai 3.5px (-2%) - dat bang % nen huy hieu bam dung goc du --s co
+   van co nao. */
+.cw-info-add {
+  position: absolute;
+  right: 13.5%;
+  bottom: -2%;
+  width: calc(30px * var(--s));
+  height: calc(30px * var(--s));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--calli-teal-dark);
+  color: var(--calli-navy);
+  font-family: var(--sans);
+  font-size: calc(32px * var(--s));
+  font-weight: 600;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cw-info-add:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.cw-info-add:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cw-info-note {
+  margin: 0;
+  font-size: calc(15px * var(--s));
+  color: var(--text-m);
+  text-align: center;
+}
+
+.cw-info-note-err {
+  color: var(--danger);
+}
+
+.cw-info-remove-avatar {
+  border: 0;
+  background: transparent;
+  color: var(--text-m);
+  font-family: var(--sans);
+  font-size: calc(15px * var(--s));
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cw-info-remove-avatar:hover {
+  color: var(--danger);
+}
+
 .cw-info-name {
   font-size: calc(36px * var(--s));
   font-weight: 600;
@@ -869,8 +938,10 @@
    ngang. Nhung no keo luon anh dai dien, ten va nut xoa - rieng ba thu do
    phai can giua nhu thiet ke (nut "Xoa nhom" la 166x55, khong phai mot thanh
    chay het panel). */
-.cw-info-group .avatar,
+.cw-info-group .cw-info-avatar,
 .cw-info-group .cw-info-name,
+.cw-info-group .cw-info-note,
+.cw-info-group .cw-info-remove-avatar,
 .cw-info-group .cw-danger {
   align-self: center;
 }

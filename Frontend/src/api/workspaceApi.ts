@@ -14,6 +14,17 @@ export const workspaceApi = {
 
   remove: (id: number) => workspaceHttp.delete<void>(`/workspaces/${id}`),
 
+  // Anh nhom: gui THANG byte trong than request, khong boc multipart - client
+  // da co san mot Blob sau khi cat/nen (lib/imageResize.ts). Chi Truong nhom
+  // va Pho nhom duoc goi, server tu chan bang 403.
+  uploadAvatar: (id: number, blob: Blob) =>
+    workspaceHttp.put<{ avatarUpdatedAt: string | null }>(`/workspaces/${id}/avatar`, blob, {
+      headers: { "Content-Type": blob.type || "application/octet-stream" },
+    }),
+
+  deleteAvatar: (id: number) =>
+    workspaceHttp.delete<{ avatarUpdatedAt: string | null }>(`/workspaces/${id}/avatar`),
+
   listMembers: (id: number) => workspaceHttp.get<WorkspaceMember[]>(`/workspaces/${id}/members`),
 
   addMember: (id: number, userId: number) =>

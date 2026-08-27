@@ -10,6 +10,8 @@ public static class WorkspaceEndpoints
 {
     public static void MapWorkspaceEndpoints(this WebApplication app)
     {
+        MapAvatarEndpoints(app);
+
         var ws = app.MapGroup("/workspaces").RequireAuthorization();
 
         // Danh sach nhom cua chinh nguoi goi - tu de xuat, thieu sot phat hien
@@ -20,16 +22,28 @@ public static class WorkspaceEndpoints
         ws.MapGet("", async (ClaimsPrincipal principal, WorkspaceDbContext db) =>
         {
             var userId = GetUserId(principal)!.Value;
+
+            // Chieu rieng tung cot thay vi Include ca dong workspaces: dong do
+            // co cot avatar_bytes nang toi 256KB, keo ve het chi de hien mot
+            // danh sach ten nhom la vo nghia. Anh di duong rieng qua
+            // GET /workspaces/{id}/avatar, trinh duyet tu cache theo ?v=.
             var rows = await db.WorkspaceMembers
                 .Where(m => m.UserId == userId)
-                .Include(m => m.Workspace)
+                .OrderByDescending(m => m.Workspace!.UpdatedAt)
+                .Select(m => new
+                {
+                    m.Workspace!.Id,
+                    m.Workspace.Name,
+                    m.Workspace.AvatarUrl,
+                    m.Workspace.AvatarUpdatedAt,
+                    m.Role,
+                    m.Workspace.UpdatedAt,
+                })
                 .ToListAsync();
 
-            var result = rows
-                .OrderByDescending(m => m.Workspace!.UpdatedAt)
-                .Select(m => new WorkspaceSummaryResponse(
-                    m.Workspace!.Id, m.Workspace.Name, m.Workspace.AvatarUrl,
-                    WorkspaceMember.RoleToString(m.Role), m.Workspace.UpdatedAt));
+            var result = rows.Select(r => new WorkspaceSummaryResponse(
+                r.Id, r.Name, r.AvatarUrl, r.AvatarUpdatedAt,
+                WorkspaceMember.RoleToString(r.Role), r.UpdatedAt));
 
             return Results.Ok(result);
         });
@@ -67,14 +81,26 @@ public static class WorkspaceEndpoints
         ws.MapGet("/{workspaceId:long}", async (long workspaceId, ClaimsPrincipal principal, WorkspaceDbContext db) =>
         {
             var userId = GetUserId(principal)!.Value;
-            var workspace = await db.Workspaces.Include(w => w.Members).SingleOrDefaultAsync(w => w.Id == workspaceId);
-            if (workspace is null)
+
+            // Chieu cot, khong nap ca thuc the: man chat goi endpoint nay moi
+            // lan mo mot nhom, ma dong workspaces co cot anh nang toi 256KB.
+            var row = await db.Workspaces
+                .Where(w => w.Id == workspaceId)
+                .Select(w => new
+                {
+                    w.Id, w.Name, w.AvatarUrl, w.AvatarUpdatedAt, w.CreatedBy, w.CreatedAt, w.UpdatedAt,
+                    MemberIds = w.Members.Select(m => m.UserId).ToList(),
+                })
+                .SingleOrDefaultAsync();
+            if (row is null)
                 return Results.NotFound();
 
-            if (!workspace.Members.Any(m => m.UserId == userId))
+            if (!row.MemberIds.Contains(userId))
                 return Results.Json(new ErrorResponse("not_a_member", "Ban khong phai thanh vien nhom nay"), statusCode: 403);
 
-            return Results.Ok(WorkspaceResponse.FromEntity(workspace));
+            return Results.Ok(new WorkspaceResponse(
+                row.Id, row.Name, row.AvatarUrl, row.AvatarUpdatedAt,
+                row.CreatedBy, row.CreatedAt, row.UpdatedAt, row.MemberIds));
         });
 
         // UC-18: Sua avatar/ten - Truong nhom hoac Pho nhom
@@ -246,6 +272,133 @@ public static class WorkspaceEndpoints
             await db.SaveChangesAsync();
 
             return Results.Ok(new WorkspaceMemberResponse(target.UserId, $"user_{target.UserId}", req.Role, target.JoinedAt));
+        });
+    }
+
+    // ---- Anh nhom ---------------------------------------------------------
+    //
+    // Cung khuon voi anh dai dien nguoi dung ben Identity Service
+    // (UsersEndpoints.cs): byte nam trong DB, client cat/nen truoc khi gui,
+    // server van tu kiem lai kich thuoc va chu ky byte.
+
+    private const int AvatarMaxBytes = 256 * 1024;
+
+    // Nhan dang anh bang CHU KY BYTE DAU FILE chu khong theo Content-Type -
+    // header do client dat nen no muon khai gi cung duoc. Ban sao co y cua ham
+    // cung ten ben Identity Service: hai service khong dung chung thu vien
+    // nao, va mot ham muoi dong khong dang de dung mot goi NuGet noi bo.
+    private static string? SniffImageMime(byte[] b)
+    {
+        if (b.Length >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47)
+            return "image/png";
+        if (b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF)
+            return "image/jpeg";
+        // WEBP: "RIFF" .... "WEBP"
+        if (b.Length >= 12 && b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46
+            && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50)
+            return "image/webp";
+        return null;
+    }
+
+    // Chi Truong nhom / Pho nhom duoc doi anh - cung quyen voi doi ten nhom
+    // (PATCH /workspaces/{id}, UC-18).
+    private static async Task<bool> CoQuyenSuaAsync(WorkspaceDbContext db, long workspaceId, long userId)
+    {
+        var role = await db.WorkspaceMembers
+            .Where(m => m.WorkspaceId == workspaceId && m.UserId == userId)
+            .Select(m => (MemberRole?)m.Role)
+            .SingleOrDefaultAsync();
+        return role is MemberRole.Leader or MemberRole.Deputy;
+    }
+
+    private static void MapAvatarEndpoints(WebApplication app)
+    {
+        // KHONG doi dang nhap, cung ly do voi anh dai dien nguoi dung: anh hien
+        // qua the img, ma the img khong gan duoc header Authorization.
+        app.MapGet("/workspaces/{workspaceId:long}/avatar", async (long workspaceId, HttpContext http, WorkspaceDbContext db) =>
+        {
+            var row = await db.Workspaces
+                .Where(w => w.Id == workspaceId)
+                .Select(w => new { w.AvatarBytes, w.AvatarMime })
+                .FirstOrDefaultAsync();
+
+            if (row?.AvatarBytes is null || row.AvatarMime is null)
+                return Results.NotFound();
+
+            var mime = row.AvatarMime is "image/png" or "image/jpeg" or "image/webp"
+                ? row.AvatarMime
+                : "application/octet-stream";
+            http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+            // Dia chi luon kem ?v=<AvatarUpdatedAt> nen mot dia chi cu the
+            // khong bao gio doi noi dung - cache duoc rat lau.
+            http.Response.Headers.CacheControl = "public, max-age=604800, immutable";
+            return Results.File(row.AvatarBytes, mime);
+        }).AllowAnonymous();
+
+        var avatar = app.MapGroup("/workspaces/{workspaceId:long}/avatar").RequireAuthorization();
+
+        // Nhan THANG byte anh trong than request (khong phai multipart): client
+        // da co san mot Blob sau khi cat anh, gui thang la xong.
+        avatar.MapPut("", async (long workspaceId, HttpContext http, ClaimsPrincipal principal, WorkspaceDbContext db) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            if (!await CoQuyenSuaAsync(db, workspaceId, userId))
+                return Results.Json(new ErrorResponse("forbidden", "Chi Truong nhom hoac Pho nhom duoc doi anh nhom"), statusCode: 403);
+
+            // Doc co gioi han: doc thang toi khi het luong thi mot request co
+            // tinh gui 2GB se lam sap ca tien trinh.
+            using var ms = new MemoryStream();
+            var buf = new byte[64 * 1024];
+            int read;
+            while ((read = await http.Request.Body.ReadAsync(buf)) > 0)
+            {
+                ms.Write(buf, 0, read);
+                if (ms.Length > AvatarMaxBytes)
+                    return Results.Json(
+                        new ErrorResponse("avatar_too_large", $"Anh nhom toi da {AvatarMaxBytes / 1024} KB"),
+                        statusCode: 413);
+            }
+
+            var bytes = ms.ToArray();
+            if (bytes.Length == 0)
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Khong nhan duoc du lieu anh"));
+
+            var mime = SniffImageMime(bytes);
+            if (mime is null)
+                return Results.BadRequest(new ErrorResponse("invalid_image", "Chi nhan anh PNG, JPEG hoac WebP"));
+
+            var workspace = await db.Workspaces.FindAsync(workspaceId);
+            if (workspace is null)
+                return Results.NotFound();
+
+            var now = DateTimeOffset.UtcNow;
+            workspace.AvatarBytes = bytes;
+            workspace.AvatarMime = mime;
+            workspace.AvatarUpdatedAt = now;
+            // KHONG dong vao UpdatedAt: cot do sap thu tu danh sach nhom theo
+            // "hoat dong gan day", doi anh khong phai mot hoat dong trong nhom.
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new WorkspaceAvatarResponse(now));
+        }).DisableAntiforgery();
+
+        avatar.MapDelete("", async (long workspaceId, ClaimsPrincipal principal, WorkspaceDbContext db) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            if (!await CoQuyenSuaAsync(db, workspaceId, userId))
+                return Results.Json(new ErrorResponse("forbidden", "Chi Truong nhom hoac Pho nhom duoc doi anh nhom"), statusCode: 403);
+
+            var workspace = await db.Workspaces.FindAsync(workspaceId);
+            if (workspace is null)
+                return Results.NotFound();
+
+            workspace.AvatarBytes = null;
+            workspace.AvatarMime = null;
+            workspace.AvatarUpdatedAt = null;
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new WorkspaceAvatarResponse(null));
         });
     }
 

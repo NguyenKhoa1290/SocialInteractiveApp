@@ -226,3 +226,63 @@
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+/* --- Chon anh nhom luc tao nhom ----------------------------------------
+   Cung khuon voi anh dai dien nguoi dung: hinh tron, huy hieu "+" o goc duoi
+   phai theo frame "Danh sach nhom" (node 122:1354). Chua chon anh thi hien
+   chu cai dau cua ten nhom dang go - de mot vong tron rong thi khong ro do la
+   cho anh hay mot loi hien thi. */
+
+.ws-avatar-pick {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  margin-bottom: 16px;
+}
+
+.ws-avatar-ring {
+  display: grid;
+  place-items: center;
+  width: calc(120px * var(--s));
+  height: calc(120px * var(--s));
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: calc(50px * var(--s));
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.ws-avatar-ring img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Cung ty le voi huy hieu o panel phai (30 tren hinh tron 170): canh phai lui
+   vao 13.5%, day thua ra ngoai 2%. */
+.ws-avatar-add {
+  position: absolute;
+  right: 13.5%;
+  bottom: -2%;
+  width: calc(34px * var(--s));
+  height: calc(34px * var(--s));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--calli-teal-dark);
+  color: var(--calli-navy);
+  font-family: var(--sans);
+  font-size: calc(26px * var(--s));
+  font-weight: 600;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.ws-avatar-add:hover {
+  filter: brightness(1.08);
+}

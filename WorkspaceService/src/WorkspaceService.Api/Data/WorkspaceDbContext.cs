@@ -20,6 +20,9 @@ public class WorkspaceDbContext(DbContextOptions<WorkspaceDbContext> options) : 
             entity.Property(w => w.Id).HasColumnName("id");
             entity.Property(w => w.Name).HasColumnName("name");
             entity.Property(w => w.AvatarUrl).HasColumnName("avatar_url");
+            entity.Property(w => w.AvatarBytes).HasColumnName("avatar_bytes");
+            entity.Property(w => w.AvatarMime).HasColumnName("avatar_mime");
+            entity.Property(w => w.AvatarUpdatedAt).HasColumnName("avatar_updated_at");
             entity.Property(w => w.CreatedBy).HasColumnName("created_by");
             entity.Property(w => w.CreatedAt).HasColumnName("created_at");
             entity.Property(w => w.UpdatedAt).HasColumnName("updated_at");

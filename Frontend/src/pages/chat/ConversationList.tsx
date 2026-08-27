@@ -40,6 +40,7 @@ export function ConversationList({
   activeId,
   onStartMeeting,
   meetingBusy,
+  reloadKey,
 }: {
   kind: "p2p" | "group";
   activeId?: number;
@@ -47,10 +48,18 @@ export function ConversationList({
   // hoi thoai cu the, nen viec mo hop do panel giua lo - o day chi bam nut.
   onStartMeeting?: () => void;
   meetingBusy?: boolean;
+  // Doi so nay de bat danh sach nap lai. Khung chat dung no sau khi doi anh
+  // nhom: khong co no thi panel phai da doi anh ma cai the ben trai van con
+  // anh cu cho toi luc chuyen trang - trong nhu mot loi.
+  reloadKey?: number;
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<ConversationSummary[] | null>(null);
-  const [names, setNames] = useState<Record<string, { ten: string; userId?: number; anh?: string | null }>>({});
+  // `userId` chi co o muc ca nhan, `wsId` chi co o muc nhom - anh cua hai loai
+  // nam o hai service khac nhau nen phai biet dang ve ai.
+  const [names, setNames] = useState<
+    Record<string, { ten: string; userId?: number; wsId?: number; anh?: string | null }>
+  >({});
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
@@ -72,11 +81,11 @@ export function ConversationList({
         ]);
         // Chat Service khong resolve ten (xem ConversationSummaryResponse) -
         // Frontend tu doi chieu voi hai danh sach da co san.
-        const map: Record<string, { ten: string; userId?: number; anh?: string | null }> = {};
+        const map: Record<string, { ten: string; userId?: number; wsId?: number; anh?: string | null }> = {};
         for (const f of friendsRes.data) {
           map[`u${f.userId}`] = { ten: f.nickname, userId: f.userId, anh: f.avatarUpdatedAt ?? null };
         }
-        for (const w of wsRes.data) map[`w${w.id}`] = { ten: w.name };
+        for (const w of wsRes.data) map[`w${w.id}`] = { ten: w.name, wsId: w.id, anh: w.avatarUpdatedAt };
         setNames(map);
         setItems(convRes.data.filter((c) => c.type === kind));
       } catch (err) {
@@ -84,7 +93,7 @@ export function ConversationList({
       }
     }
     void load();
-  }, [kind]);
+  }, [kind, reloadKey]);
 
   // Tim nguoi dung de ket ban. Cho go xong 350ms moi goi - go tung chu ma ban
   // nao cung goi thi vua ton request vua cho ra ket qua nhay lung tung.
@@ -115,6 +124,17 @@ export function ConversationList({
     } catch (err) {
       setError(extractApiError(err, "Không gửi được lời mời"));
     }
+  }
+
+  // Anh cua mot hang trong danh sach. Nhom lay anh nhom (WorkSpace Service),
+  // ca nhan lay anh nguoi (Identity Service) - xem lib/avatarUrl.ts.
+  function anhCua(c: ConversationSummary, info: { userId?: number; wsId?: number; anh?: string | null } | undefined) {
+    const chung = { nickname: tenCua(c), avatarUpdatedAt: info?.anh, size: 68 } as const;
+    return c.type === "group" && info?.wsId !== undefined ? (
+      <Avatar workspaceId={info.wsId} {...chung} />
+    ) : (
+      <Avatar userId={info?.userId ?? 0} {...chung} />
+    );
   }
 
   function tenCua(c: ConversationSummary) {
@@ -186,12 +206,7 @@ export function ConversationList({
               className={`cw-card${c.id === activeId ? " active" : ""}`}
               onClick={() => navigate(`/app/chat/${c.id}`)}
             >
-              <Avatar
-                userId={info?.userId ?? 0}
-                nickname={tenCua(c)}
-                avatarUpdatedAt={info?.anh}
-                size={68}
-              />
+              {anhCua(c, info)}
               <div className="cw-card-body">
                 <p className="cw-card-name">{tenCua(c)}</p>
                 <p className="cw-card-sub">{preview[c.id] ?? batDau(c.lastMessageAt)}</p>

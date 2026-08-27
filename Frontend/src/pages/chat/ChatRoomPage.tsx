@@ -58,6 +58,11 @@ export function ChatRoomPage() {
   const [publicKeys, setPublicKeys] = useState<Map<number, Uint8Array>>(new Map());
   const [missingKeyCount, setMissingKeyCount] = useState(0);
   const [isLeader, setIsLeader] = useState(false);
+  // Rong hon isLeader: doi ten va doi ANH nhom la quyen cua ca Pho nhom
+  // (UC-18), trong khi xoa nhom / duoi thanh vien thi chi Truong nhom.
+  const [canEditGroup, setCanEditGroup] = useState(false);
+  // Tang len de bao danh sach ben trai nap lai (dung sau khi doi anh nhom).
+  const [listReload, setListReload] = useState(0);
   const [mutedUserIds, setMutedUserIds] = useState<Set<number>>(new Set());
   const [members, setMembers] = useState<{ userId: number; nickname: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +93,10 @@ export function ChatRoomPage() {
   // Ten + anh cua doi phuong / cua nhom, de dau khung chat va panel thong tin
   // khong phai hien "Nguoi dung 42". Chat Service khong resolve ten (xem
   // ConversationSummaryResponse) nen phai tu doi chieu nhu ChatListPage.
+  //
+  // `anh` la moc thoi gian doi anh lan cuoi (khong phai dia chi): voi chat 1-1
+  // la anh cua nguoi kia, voi nhom la anh cua NHOM. Hai ben cung mot vai tro -
+  // ma chong cache gan vao dia chi anh - nen dung chung mot o.
   const [peer, setPeer] = useState<{ ten: string; anh: string | null } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
@@ -170,7 +179,7 @@ export function ChatRoomPage() {
       try {
         if (conversation.type === "group") {
           const { data } = await workspaceApi.get(conversation.workspaceId!);
-          if (!huy) setPeer({ ten: data.name, anh: null });
+          if (!huy) setPeer({ ten: data.name, anh: data.avatarUpdatedAt });
         } else if (peerUserId) {
           const { data } = await friendApi.list();
           const b = data.find((f) => f.userId === peerUserId);
@@ -350,7 +359,9 @@ export function ChatRoomPage() {
       ]);
       setMembers(membersRes.data.map((m) => ({ userId: m.userId, nickname: m.nickname })));
       setMutedUserIds(new Set(mutedRes.data));
-      setIsLeader(membersRes.data.some((m) => m.userId === currentUserId && m.role === "leader"));
+      const toi = membersRes.data.find((m) => m.userId === currentUserId);
+      setIsLeader(toi?.role === "leader");
+      setCanEditGroup(toi?.role === "leader" || toi?.role === "deputy");
 
       const memberIds = membersRes.data.map((m) => m.userId);
       const keysRes = await keysApi.getPublicKeysBatch(memberIds);
@@ -805,6 +816,7 @@ export function ChatRoomPage() {
           activeId={conversationId}
           onStartMeeting={activeMeeting ? handleJoinMeeting : handleStartMeeting}
           meetingBusy={startingMeeting}
+          reloadKey={listReload}
         />
       }
       isGroup={conversation?.type === "group"}
@@ -825,6 +837,16 @@ export function ChatRoomPage() {
           onToggleMute={handleToggleMute}
           onRemoveMember={handleRemoveMember}
           onAddMember={() => setShowAddMember(true)}
+          workspaceId={conversation?.type === "group" ? conversation.workspaceId : null}
+          groupAvatarUpdatedAt={peer?.anh}
+          canEditGroup={canEditGroup}
+          // Doi anh xong thi moc thoi gian doi -> dia chi anh doi -> trinh
+          // duyet nap ban moi. Cap nhat ngay tai day thay vi goi lai
+          // GET /workspaces/{id}: server vua tra ve dung moc do roi.
+          onGroupAvatarChanged={(v) => {
+            setPeer((truoc) => (truoc ? { ...truoc, anh: v } : truoc));
+            setListReload((n) => n + 1);
+          }}
         />
       }
       chat={
@@ -863,7 +885,16 @@ export function ChatRoomPage() {
           </form>
         ) : (
           <>
-            <Avatar userId={peerUserId ?? 0} nickname={tenHoiThoai} avatarUpdatedAt={peer?.anh} size={68} />
+            {conversation?.type === "group" && conversation.workspaceId ? (
+              <Avatar
+                workspaceId={conversation.workspaceId}
+                nickname={tenHoiThoai}
+                avatarUpdatedAt={peer?.anh}
+                size={68}
+              />
+            ) : (
+              <Avatar userId={peerUserId ?? 0} nickname={tenHoiThoai} avatarUpdatedAt={peer?.anh} size={68} />
+            )}
             <div className="cw-card-body">
               <p className="cw-card-name">{tenHoiThoai}</p>
             </div>

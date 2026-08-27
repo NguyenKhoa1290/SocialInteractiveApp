@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
+import { workspaceApi } from "../../api/workspaceApi";
+import { extractApiError } from "../../lib/apiError";
+import { resizeAvatar } from "../../lib/imageResize";
 import { Avatar } from "../../components/Avatar";
 import type { FileMeta } from "../../types/chat";
 
@@ -27,6 +30,10 @@ export function ConversationInfo({
   onToggleMute,
   onRemoveMember,
   onAddMember,
+  workspaceId,
+  groupAvatarUpdatedAt,
+  canEditGroup,
+  onGroupAvatarChanged,
 }: {
   conversationId: number;
   title: string;
@@ -41,10 +48,56 @@ export function ConversationInfo({
   onToggleMute?: (userId: number) => void;
   onRemoveMember?: (userId: number) => void;
   onAddMember?: () => void;
+  workspaceId?: number | null;
+  groupAvatarUpdatedAt?: string | null;
+  // Doi anh nhom la quyen cua Truong nhom / Pho nhom - cung quyen voi doi ten
+  // nhom. Server van chan bang 403; an nut o day chi de khong moi nguoi bam
+  // vao mot thu chac chan se bi tu choi.
+  canEditGroup?: boolean;
+  onGroupAvatarChanged?: (avatarUpdatedAt: string | null) => void;
 }) {
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
   const laNhom = members !== undefined;
+
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [anhBan, setAnhBan] = useState(false);
+  const [anhLoi, setAnhLoi] = useState<string | null>(null);
+  const doiDuocAnh = laNhom && canEditGroup === true && typeof workspaceId === "number";
+
+  async function doiAnhNhom(file: File) {
+    if (typeof workspaceId !== "number") return;
+    setAnhLoi(null);
+    setAnhBan(true);
+    try {
+      // Cat vuong + nen ngay tai trinh duyet, dung ham dung cho anh dai dien
+      // nguoi dung: cung mot khung tron, cung nguong 256KB ma server nhan.
+      const { blob } = await resizeAvatar(file);
+      const { data } = await workspaceApi.uploadAvatar(workspaceId, blob);
+      onGroupAvatarChanged?.(data.avatarUpdatedAt);
+    } catch (err) {
+      // resizeAvatar nem Error thuong (khong co `response`), loi mang thi co.
+      setAnhLoi(err instanceof Error && !("response" in err)
+        ? err.message
+        : extractApiError(err, "Không đổi được ảnh nhóm"));
+    } finally {
+      setAnhBan(false);
+    }
+  }
+
+  async function xoaAnhNhom() {
+    if (typeof workspaceId !== "number") return;
+    setAnhLoi(null);
+    setAnhBan(true);
+    try {
+      await workspaceApi.deleteAvatar(workspaceId);
+      onGroupAvatarChanged?.(null);
+    } catch (err) {
+      setAnhLoi(extractApiError(err, "Không xoá được ảnh nhóm"));
+    } finally {
+      setAnhBan(false);
+    }
+  }
 
   useEffect(() => {
     let huy = false;
@@ -101,7 +154,54 @@ export function ConversationInfo({
 
   return (
     <div className={`cw-info${laNhom ? " cw-info-group" : ""}`}>
-      <Avatar userId={peerUserId ?? 0} nickname={title} avatarUpdatedAt={peerAvatarUpdatedAt} size={170} />
+      <div className="cw-info-avatar">
+        {laNhom && typeof workspaceId === "number" ? (
+          <Avatar workspaceId={workspaceId} nickname={title} avatarUpdatedAt={groupAvatarUpdatedAt} size={170} />
+        ) : (
+          <Avatar userId={peerUserId ?? 0} nickname={title} avatarUpdatedAt={peerAvatarUpdatedAt} size={170} />
+        )}
+
+        {/* Huy hieu "+" dung nhu frame "Danh sach nhom" (node 122:1354): 30x30
+            tron, nen #56959E, dau cong #2F3C52, nam o goc duoi phai va thua ra
+            khoi vien anh mot chut. <input type="file"> that duoc giau di - no
+            khong the tao kieu duoc nen phai boc trong mot nut. */}
+        {doiDuocAnh && (
+          <>
+            <button
+              type="button"
+              className="cw-info-add"
+              onClick={() => fileRef.current?.click()}
+              disabled={anhBan}
+              aria-label={groupAvatarUpdatedAt ? "Đổi ảnh nhóm" : "Thêm ảnh nhóm"}
+              title={groupAvatarUpdatedAt ? "Đổi ảnh nhóm" : "Thêm ảnh nhóm"}
+            >
+              +
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                // Xoa gia tri de chon LAI DUNG tep vua roi van kich hoat
+                // onChange - neu khong, cat lai cung mot anh se khong thay gi.
+                e.target.value = "";
+                if (f) void doiAnhNhom(f);
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      {anhBan && <p className="cw-info-note">Đang xử lý ảnh…</p>}
+      {anhLoi && <p className="cw-info-note cw-info-note-err">{anhLoi}</p>}
+      {doiDuocAnh && groupAvatarUpdatedAt && !anhBan && (
+        <button type="button" className="cw-info-remove-avatar" onClick={() => void xoaAnhNhom()}>
+          Xoá ảnh nhóm
+        </button>
+      )}
+
       <p className="cw-info-name">{title}</p>
 
       {laNhom && (

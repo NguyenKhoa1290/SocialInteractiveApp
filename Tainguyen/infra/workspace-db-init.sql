@@ -4,7 +4,20 @@
 CREATE TABLE workspaces (
   id           BIGSERIAL PRIMARY KEY,
   name         VARCHAR(100) NOT NULL,
+  -- Duong dan anh do nguoi dung tu dan vao - co tu ban dac ta goc, giu lai
+  -- de khong pha hop dong API. Anh THAT do nhom tu tai len nam o ba cot duoi.
   avatar_url   VARCHAR(500),
+  -- Anh nhom: cung cach lam voi anh dai dien nguoi dung (xem ghi chu dai o
+  -- identity-db-init.sql) - luu thang trong DB thay vi MinIO. Anh da duoc
+  -- trinh duyet cat vuong <=512px va nen con <=256KB truoc khi gui, mot nhom
+  -- chi co mot anh, nen toan bo he thong cung chi them vai MB.
+  --
+  -- Ba cot nay KHONG bao gio duoc doc kem trong cac truy van danh sach: xem
+  -- WorkspaceEndpoints.MapGet("") - no chieu rieng tung cot can dung. Doc ca
+  -- dong o day nghia la keo ca anh cua moi nhom ve chi de hien mot cai ten.
+  avatar_bytes      BYTEA,
+  avatar_mime       VARCHAR(32),
+  avatar_updated_at TIMESTAMPTZ,
   created_by   BIGINT NOT NULL,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
