@@ -172,6 +172,66 @@ public static class ConversationEndpoints
         // WriteChatConsumerService (Kafka), CHI dung khi da co DU du lieu
         // cho ca trang hien tai; con lai (cache nguoi/qua han/phan trang sau
         // vao lich su cu) fallback toan bo ve Postgres de dam bao luon dung.
+        // Tin nhan CUOI CUNG cua tat ca hoi thoai cua minh, MOT request.
+        //
+        // Dung cho doan xem truoc duoi moi ten o danh sach ben trai. Server
+        // KHONG doc duoc noi dung (tin Text duoc ma hoa dau cuoi) nen chi tra
+        // ve nguyen ban ma hoa kem khoa rieng cua nguoi goi - client tu giai
+        // ma. Day la ly do khong the lam san doan xem truoc o phia server.
+        //
+        // Mot request chu khong phai moi hoi thoai mot cai: 30 hoi thoai la 30
+        // vong khu hoi qua Cloudflare, do tre cong don thay vi bang thong moi
+        // la cai dat.
+        conv.MapGet("/last-messages", async (ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+
+            // Chi nhung hoi thoai nguoi nay thuc su thuoc ve. Dung lai dung
+            // phep loc cua GET /conversations de hai cho khong the lech nhau.
+            var workspaceIds = await workspaceClient.GetMyWorkspaceIdsAsync(userId);
+            var conversations = await db.Conversations
+                .Where(c => (c.Type == ConversationType.P2P && (c.ParticipantAId == userId || c.ParticipantBId == userId))
+                         || (c.Type == ConversationType.Group && c.WorkspaceId != null && workspaceIds.Contains(c.WorkspaceId.Value)))
+                .Select(c => new { c.Id, c.Type })
+                .ToListAsync();
+
+            if (conversations.Count == 0)
+                return Results.Ok(Array.Empty<LastMessageResponse>());
+
+            var ids = conversations.Select(c => c.Id).ToList();
+
+            // Mot cau cho TAT CA hoi thoai: nhom theo conversation_id roi lay
+            // hang moi nhat moi nhom. Lam vong lap N cau thi voi 30 hoi thoai
+            // la 30 lan di ve CSDL.
+            var lastIds = await db.Messages
+                .Where(m => ids.Contains(m.ConversationId))
+                .GroupBy(m => m.ConversationId)
+                .Select(g => g.OrderByDescending(m => m.CreatedAt).Select(m => m.Id).First())
+                .ToListAsync();
+
+            var messages = await db.Messages.Where(m => lastIds.Contains(m.Id)).ToListAsync();
+
+            // Khoa rieng cua CHINH NGUOI GOI cho cac tin nhom - tin 1-1 khong
+            // dung bang nay (khoa suy ra tu cap khoa hai ben).
+            var groupIds = conversations.Where(c => c.Type == ConversationType.Group).Select(c => c.Id).ToHashSet();
+            var encryptedGroupMsgIds = messages
+                .Where(m => m.IsEncrypted && groupIds.Contains(m.ConversationId))
+                .Select(m => m.Id)
+                .ToList();
+
+            var ownKeys = encryptedGroupMsgIds.Count == 0
+                ? new Dictionary<long, string>()
+                : await db.MessageRecipientKeys
+                    .Where(k => encryptedGroupMsgIds.Contains(k.MessageId) && k.RecipientUserId == userId)
+                    .ToDictionaryAsync(k => k.MessageId, k => k.EncryptedKey);
+
+            var result = messages.Select(m => new LastMessageResponse(
+                m.ConversationId, m.Id, m.SenderId, Message.TypeToString(m.Type), m.Content,
+                m.ContentNonce, ownKeys.GetValueOrDefault(m.Id), m.IsEncrypted, m.IsDeleted, m.CreatedAt));
+
+            return Results.Ok(result);
+        });
+
         conv.MapGet("/{conversationId:long}/messages", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, ChatCacheService cache, DateTimeOffset? before, int? limit) =>
         {
             var userId = GetUserId(principal)!.Value;

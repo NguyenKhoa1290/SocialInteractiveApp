@@ -10,6 +10,20 @@ export interface ConversationSummary {
   createdAt: string;
 }
 
+// Tin nhan cuoi cua mot hoi thoai - chi du du lieu de CLIENT tu giai ma.
+export interface LastMessage {
+  conversationId: number;
+  messageId: number;
+  senderId: number | null;
+  type: MessageType;
+  content: string | null;
+  contentNonce: string | null;
+  recipientEncryptedKey: string | null;
+  isEncrypted: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+}
+
 // Mot tep da gui trong hoi thoai - dung cho luoi "file media da gui".
 export interface FileMeta {
   id: number;

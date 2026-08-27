@@ -65,6 +65,13 @@ public record MessageResponse(
 // Hinh dang trung gian dung chung cho ca 2 nguon du lieu (Redis cache hoac
 // Postgres) khi doc lich su tin nhan - xem ConversationEndpoints.cs GET
 // messages va ChatCacheService.cs.
+// Tin nhan cuoi cua mot hoi thoai, cho doan xem truoc o danh sach.
+// Chi mang du thu de CLIENT tu giai ma - server khong doc duoc noi dung.
+public record LastMessageResponse(
+    long ConversationId, long MessageId, long? SenderId, string Type, string? Content,
+    string? ContentNonce, string? RecipientEncryptedKey, bool IsEncrypted, bool IsDeleted,
+    DateTimeOffset CreatedAt);
+
 public record MessageLite(
     long Id, long? SenderId, MessageType Type, string? Content, bool IsDeleted,
     DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, long? FileId,

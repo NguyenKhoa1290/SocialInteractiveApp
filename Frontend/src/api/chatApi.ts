@@ -1,7 +1,7 @@
 import { chatHttp } from "./httpClient";
 import { CHAT_API_URL } from "../config";
 import { useAuthStore } from "../store/authStore";
-import type { ConversationSummary, ConversationType, FileMeta, Message, MessageType } from "../types/chat";
+import type { ConversationSummary, ConversationType, FileMeta, LastMessage, Message, MessageType } from "../types/chat";
 
 export interface ConversationDetail {
   id: number;
@@ -272,6 +272,10 @@ export const chatApi = {
   getDownloadUrl: (fileId: number) => chatHttp.get<UploadUrlResponse>(`/files/${fileId}/download-url`),
 
   listFiles: (conversationId: number) => chatHttp.get<FileMeta[]>(`/conversations/${conversationId}/files`),
+
+  // Tin cuoi cua TAT CA hoi thoai trong MOT request - dung cho doan xem truoc
+  // o danh sach. Tra ve nguyen ban ma hoa, client tu giai ma.
+  lastMessages: () => chatHttp.get<LastMessage[]>("/conversations/last-messages"),
 
   completeUpload: (fileId: number, uploadId: string) =>
     chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId }),

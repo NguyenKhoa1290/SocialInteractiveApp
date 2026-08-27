@@ -7,6 +7,7 @@ import { extractApiError } from "../../lib/apiError";
 import { Avatar } from "../../components/Avatar";
 import type { ConversationSummary } from "../../types/chat";
 import type { AuthUser } from "../../types/auth";
+import { useLastMessages } from "./useLastMessages";
 
 function IconSearch() {
   return (
@@ -17,13 +18,11 @@ function IconSearch() {
   );
 }
 
-// Bao lau truoc - dung thay cho doan chu cua tin nhan cuoi.
+// Bao lau truoc - DUONG LUI khi chua co doan xem truoc.
 //
-// Ban thiet ke hien mot doan tin nhan ("Toi nay di an ngo khoai san..."),
-// nhung tin nhan 1-1 duoc MA HOA DAU CUOI: server khong doc duoc noi dung nen
-// khong the gui kem doan xem truoc, va de client tu giai ma thi phai tai tin
-// cuoi cua TUNG hoi thoai - hang chuc request chi de lay vai chu. Tam hien
-// thoi diem, la thu server biet ma khong pha vo ma hoa.
+// Doan chu that lay tu useLastMessages: server khong doc duoc noi dung (ma hoa
+// dau cuoi) nen client tu giai ma. Ham nay dung cho luc chua giai ma xong,
+// hoi thoai chua co tin nao, hoac nguoi dung chua mo khoa E2EE.
 function batDau(iso: string | null): string {
   if (!iso) return "Chưa có tin nhắn";
   const giay = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -54,6 +53,10 @@ export function ConversationList({
   const [ketQua, setKetQua] = useState<AuthUser[] | null>(null);
   const [dangTim, setDangTim] = useState(false);
   const [daGui, setDaGui] = useState<Set<number>>(new Set());
+
+  // Doan xem truoc: tin cuoi cua tung hoi thoai, giai ma ngay tai client vi
+  // server khong doc duoc noi dung (ma hoa dau cuoi).
+  const preview = useLastMessages(items);
 
   useEffect(() => {
     async function load() {
@@ -178,7 +181,7 @@ export function ConversationList({
               />
               <div className="cw-card-body">
                 <p className="cw-card-name">{tenCua(c)}</p>
-                <p className="cw-card-sub">{batDau(c.lastMessageAt)}</p>
+                <p className="cw-card-sub">{preview[c.id] ?? batDau(c.lastMessageAt)}</p>
               </div>
             </button>
           );
