@@ -690,6 +690,10 @@ export function ChatRoomPage() {
   const storageNearExpiry =
     storage?.expiresAt && new Date(storage.expiresAt).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000;
 
+  // Gui duoc tin nhan CHU hay chua. Gui TEP thi khong dinh gi toi dieu nay -
+  // tep khong duoc ma hoa dau cuoi.
+  const coTheGuiChu = privateKey !== null && publicKeys.size > 0;
+
   const tenHoiThoai =
     peer?.ten ??
     (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
@@ -940,7 +944,14 @@ export function ChatRoomPage() {
       {conversation?.type === "group" && currentUserId && mutedUserIds.has(currentUserId) ? (
         <p className="chat-text-note">Bạn đang bị cấm chat trong nhóm này.</p>
       ) : (
-        <E2eeGate>
+        <>
+          {/* E2eeGate CHI con boc man nhap PIN, KHONG boc khung soan tin nua.
+              Loi toi vua gay ra khi gop cac nut gui file vao khung soan: truoc
+              do chung nam NGOAI cong E2EE, gop vao thanh ra chua dat PIN la
+              khong gui duoc CA ANH LAN TEP - trong khi tep khong he duoc ma hoa
+              dau cuoi, chang co ly do gi phai chan. */}
+          <E2eeGate>{null}</E2eeGate>
+
           {publicKeys.size === 0 && (
             <p className="chat-text-note">
               {conversation?.type === "p2p"
@@ -966,11 +977,11 @@ export function ChatRoomPage() {
           >
             <textarea
               className={`cw-composer-input${textInput.length > 60 ? " tall" : ""}`}
-              placeholder="Nhập tin nhắn"
+              placeholder={coTheGuiChu ? "Nhập tin nhắn" : "Cần mở khoá E2EE để gửi tin nhắn chữ"}
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               rows={1}
-              disabled={publicKeys.size === 0}
+              disabled={!coTheGuiChu}
               onKeyDown={(e) => {
                 // Enter gui, Shift+Enter xuong dong - quy uoc quen thuoc cua
                 // moi ung dung nhan tin. Khong co no thi Enter chi xuong dong
@@ -1003,11 +1014,11 @@ export function ChatRoomPage() {
               </div>
             )}
 
-            <button className="cw-send" type="submit" disabled={sendingText || textInput.trim() === ""} title="Gửi">
+            <button className="cw-send" type="submit" disabled={sendingText || textInput.trim() === "" || !coTheGuiChu} title="Gửi">
               <IconSend />
             </button>
           </form>
-        </E2eeGate>
+        </>
       )}
 
       {quotaAlert && (
