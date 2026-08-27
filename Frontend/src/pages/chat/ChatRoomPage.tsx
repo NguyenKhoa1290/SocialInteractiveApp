@@ -603,6 +603,22 @@ export function ChatRoomPage() {
     }
   }
 
+  // "Xoa ban" o panel phai cua chat 1-1 (Figma node 111:506, 150x55).
+  //
+  // CHI cat tinh ban - hoi thoai va tin nhan van con nguyen. Ket ban lai la
+  // doc duoc tiep tu cho cu; xoa het di thi mot cu bam nham la mat vinh vien
+  // ca doan tro chuyen, ma ban thiet ke khong he hua dieu do.
+  async function handleRemoveFriend() {
+    if (peerUserId == null) return;
+    if (!window.confirm(`Xoá ${tenHoiThoai} khỏi danh sách bạn bè?`)) return;
+    try {
+      await friendApi.remove(peerUserId);
+      navigate("/app");
+    } catch (err) {
+      setError(extractApiError(err, "Không xoá được bạn"));
+    }
+  }
+
   async function handleRemoveMember(userId: number) {
     if (!conversation?.workspaceId) return;
     if (!window.confirm("Xoá thành viên này khỏi nhóm?")) return;
@@ -831,7 +847,7 @@ export function ChatRoomPage() {
           peerUserId={peerUserId}
           peerAvatarUpdatedAt={peer?.anh}
           dangerLabel={conversation?.type === "group" ? "Xóa nhóm" : "Xóa bạn"}
-          onDanger={conversation?.type === "group" ? handleDeleteGroup : undefined}
+          onDanger={conversation?.type === "group" ? handleDeleteGroup : handleRemoveFriend}
           // `members` la co bao "day la nhom" - chi nhom moi co danh sach
           // thanh vien trong ban thiet ke.
           members={conversation?.type === "group" ? members : undefined}
