@@ -24,6 +24,7 @@ import { extractApiError, apiErrorCode } from "../../lib/apiError";
 import { ChatWorkspace } from "./ChatWorkspace";
 import { ConversationList } from "./ConversationList";
 import { ConversationInfo } from "./ConversationInfo";
+import { AddMemberDialog } from "./AddMemberDialog";
 import { Avatar } from "../../components/Avatar";
 import { IconAccount, IconAttach, IconImage, IconMic, IconSend, IconStorage, IconVideo } from "./ComposerIcons";
 import { Modal } from "../../components/Modal";
@@ -92,6 +93,7 @@ export function ChatRoomPage() {
   // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
   // ngay tren khung soan, bam X de bo.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [showAddMember, setShowAddMember] = useState(false);
   // Ham huy lan tai len dang chay - do handleFileSelect gan vao.
   const cancelUploadRef = useRef<(() => void) | null>(null);
 
@@ -597,29 +599,6 @@ export function ChatRoomPage() {
     }
   }
 
-  // Them thanh vien: nhap nickname roi tra ra userId. Man thiet ke chi ve mot
-  // nut "Them" ma khong ve hop thoai chon nguoi, nen tam dung o day - se thay
-  // bang mot popup chon tu danh sach ban be khi co thiet ke.
-  async function handleAddMember() {
-    if (!conversation?.workspaceId) return;
-    const ten = window.prompt("Nhập tên tài khoản cần thêm vào nhóm:")?.trim();
-    if (!ten) return;
-    try {
-      const { data } = await friendApi.searchUsers(ten);
-      const u = data.find((x) => x.nickname.toLowerCase() === ten.toLowerCase()) ?? data[0];
-      if (!u) {
-        setError(`Không tìm thấy tài khoản "${ten}"`);
-        return;
-      }
-      await workspaceApi.addMember(conversation.workspaceId, u.id);
-      setMembers((prev) =>
-        prev.some((m) => m.userId === u.id) ? prev : [...prev, { userId: u.id, nickname: u.nickname }],
-      );
-    } catch (err) {
-      setError(extractApiError(err, "Không thêm được thành viên"));
-    }
-  }
-
   async function handleToggleMute(userId: number) {
     try {
       if (mutedUserIds.has(userId)) {
@@ -845,7 +824,7 @@ export function ChatRoomPage() {
           currentUserId={currentUserId}
           onToggleMute={handleToggleMute}
           onRemoveMember={handleRemoveMember}
-          onAddMember={handleAddMember}
+          onAddMember={() => setShowAddMember(true)}
         />
       }
       chat={
@@ -1276,6 +1255,15 @@ export function ChatRoomPage() {
             </button>
           </form>
         </>
+      )}
+
+      {showAddMember && conversation?.workspaceId && (
+        <AddMemberDialog
+          workspaceId={conversation.workspaceId}
+          members={members}
+          onClose={() => setShowAddMember(false)}
+          onAdded={(m) => setMembers((prev) => (prev.some((x) => x.userId === m.userId) ? prev : [...prev, m]))}
+        />
       )}
 
       {quotaAlert && (

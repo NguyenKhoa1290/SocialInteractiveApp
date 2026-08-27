@@ -156,3 +156,70 @@
     font-size: 28px;
   }
 }
+
+/* --- Popup "Them thanh vien" -------------------------------------------
+   Tu suy theo he thong thiet ke: o tim kiem giong panel trai, hang nguoi
+   dung mang khuon the thanh vien o panel phai. */
+
+.am-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: var(--calli-muted);
+  color: var(--calli-navy-line);
+}
+
+.am-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 16px;
+  color: var(--calli-navy-line);
+}
+
+.am-search input:focus {
+  outline: none;
+}
+
+/* Cao co dinh + tu cuon: danh sach ban be co the rat dai, de no keo hop thoai
+   dai ra thi nut Dong troi khoi man hinh. */
+.am-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.am-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: 10px;
+}
+
+.am-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--calli-navy-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.am-in {
+  flex: none;
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--text-m);
+}
