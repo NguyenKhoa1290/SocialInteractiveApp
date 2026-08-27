@@ -1,7 +1,7 @@
 import { chatHttp } from "./httpClient";
 import { CHAT_API_URL } from "../config";
 import { useAuthStore } from "../store/authStore";
-import type { ConversationSummary, ConversationType, Message, MessageType } from "../types/chat";
+import type { ConversationSummary, ConversationType, FileMeta, Message, MessageType } from "../types/chat";
 
 export interface ConversationDetail {
   id: number;
@@ -270,6 +270,8 @@ export const chatApi = {
   ) => chatHttp.post<Message>(`/conversations/${conversationId}/meetings/${meetingId}/messages`, { type, fileId }),
 
   getDownloadUrl: (fileId: number) => chatHttp.get<UploadUrlResponse>(`/files/${fileId}/download-url`),
+
+  listFiles: (conversationId: number) => chatHttp.get<FileMeta[]>(`/conversations/${conversationId}/files`),
 
   completeUpload: (fileId: number, uploadId: string) =>
     chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId }),

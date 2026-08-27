@@ -44,7 +44,7 @@ public static class FriendsEndpoints
                     existing.Status = FriendshipStatus.Accepted;
                     existing.RespondedAt = DateTimeOffset.UtcNow;
                     await db.SaveChangesAsync();
-                    return Results.Ok(new FriendResponse(addressee.Id, addressee.Nickname, existing.RespondedAt.Value));
+                    return Results.Ok(new FriendResponse(addressee.Id, addressee.Nickname, existing.RespondedAt.Value, addressee.AvatarUpdatedAt));
                 }
 
                 return Results.Conflict(new ErrorResponse("request_already_sent", "Da gui loi moi ket ban truoc do, dang cho phan hoi"));
@@ -61,7 +61,7 @@ public static class FriendsEndpoints
             await db.SaveChangesAsync();
 
             return Results.Created($"/friends/requests/{friendship.Id}",
-                new FriendRequestResponse(friendship.Id, addressee.Id, addressee.Nickname, friendship.CreatedAt));
+                new FriendRequestResponse(friendship.Id, addressee.Id, addressee.Nickname, friendship.CreatedAt, addressee.AvatarUpdatedAt));
         });
 
         // Loi moi NGUOI KHAC gui cho minh, dang cho minh phan hoi.
@@ -73,10 +73,18 @@ public static class FriendsEndpoints
                 .ToListAsync();
 
             var requesterIds = rows.Select(r => r.RequesterId).ToList();
-            var nicknames = await db.Users.Where(u => requesterIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nickname);
+            // Chi ba cot: nap ca thuc the User se keo theo cot anh (avatar_bytes).
+            var users = await db.Users
+                .Where(u => requesterIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .ToDictionaryAsync(u => u.Id, u => u);
 
-            var result = rows.Select(r => new FriendRequestResponse(
-                r.Id, r.RequesterId, nicknames.GetValueOrDefault(r.RequesterId, $"user_{r.RequesterId}"), r.CreatedAt));
+            var result = rows.Select(r =>
+            {
+                var u = users.GetValueOrDefault(r.RequesterId);
+                return new FriendRequestResponse(
+                    r.Id, r.RequesterId, u?.Nickname ?? $"user_{r.RequesterId}", r.CreatedAt, u?.AvatarUpdatedAt);
+            });
             return Results.Ok(result);
         });
 
@@ -90,10 +98,18 @@ public static class FriendsEndpoints
                 .ToListAsync();
 
             var addresseeIds = rows.Select(r => r.AddresseeId).ToList();
-            var nicknames = await db.Users.Where(u => addresseeIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nickname);
+            // Chi ba cot: nap ca thuc the User se keo theo cot anh (avatar_bytes).
+            var users = await db.Users
+                .Where(u => addresseeIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .ToDictionaryAsync(u => u.Id, u => u);
 
-            var result = rows.Select(r => new FriendRequestResponse(
-                r.Id, r.AddresseeId, nicknames.GetValueOrDefault(r.AddresseeId, $"user_{r.AddresseeId}"), r.CreatedAt));
+            var result = rows.Select(r =>
+            {
+                var u = users.GetValueOrDefault(r.AddresseeId);
+                return new FriendRequestResponse(
+                    r.Id, r.AddresseeId, u?.Nickname ?? $"user_{r.AddresseeId}", r.CreatedAt, u?.AvatarUpdatedAt);
+            });
             return Results.Ok(result);
         });
 
@@ -109,7 +125,7 @@ public static class FriendsEndpoints
             await db.SaveChangesAsync();
 
             var requester = await db.Users.FindAsync(request.RequesterId);
-            return Results.Ok(new FriendResponse(request.RequesterId, requester?.Nickname ?? $"user_{request.RequesterId}", request.RespondedAt.Value));
+            return Results.Ok(new FriendResponse(request.RequesterId, requester?.Nickname ?? $"user_{request.RequesterId}", request.RespondedAt.Value, requester?.AvatarUpdatedAt));
         });
 
         // Dung chung cho "tu choi loi moi den" (nguoi nhan) va "huy loi moi
@@ -138,12 +154,19 @@ public static class FriendsEndpoints
                 .ToListAsync();
 
             var friendIds = rows.Select(r => r.RequesterId == userId ? r.AddresseeId : r.RequesterId).ToList();
-            var users = await db.Users.Where(u => friendIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nickname);
+            // Chi lay ba cot can dung: nap ca thuc the User se keo theo CA
+            // COT ANH (avatar_bytes) cua tung nguoi ban - hang tram KB cho mot
+            // danh sach chi can ten.
+            var users = await db.Users
+                .Where(u => friendIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .ToDictionaryAsync(u => u.Id, u => u);
 
             var result = rows.Select(r =>
             {
                 var friendId = r.RequesterId == userId ? r.AddresseeId : r.RequesterId;
-                return new FriendResponse(friendId, users.GetValueOrDefault(friendId, $"user_{friendId}"), r.RespondedAt ?? r.CreatedAt);
+                var u = users.GetValueOrDefault(friendId);
+                return new FriendResponse(friendId, u?.Nickname ?? $"user_{friendId}", r.RespondedAt ?? r.CreatedAt, u?.AvatarUpdatedAt);
             });
             return Results.Ok(result);
         });

@@ -10,6 +10,17 @@ export interface ConversationSummary {
   createdAt: string;
 }
 
+// Mot tep da gui trong hoi thoai - dung cho luoi "file media da gui".
+export interface FileMeta {
+  id: number;
+  conversationId: number;
+  uploadedBy: number;
+  fileType: "image" | "video" | "voice" | "file";
+  sizeBytes: number;
+  uploadedAt: string;
+  fileName: string | null;
+}
+
 export interface Message {
   id: number;
   conversationId: number;

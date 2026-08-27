@@ -103,10 +103,15 @@ public record CompleteUploadRequest(string UploadId);
 // files roi - khong bat client phai gui lai cho dung.
 public record AbortUploadRequest(string? UploadId);
 
-public record FileMetaResponse(long Id, long ConversationId, long UploadedBy, string FileType, long SizeBytes, DateTimeOffset UploadedAt)
+// FileName da co trong bang tu Phase 15 nhung chua duoc tra ra o day - luoi
+// "file media da gui" o panel phai can no de dat title cho tung o.
+public record FileMetaResponse(
+    long Id, long ConversationId, long UploadedBy, string FileType, long SizeBytes,
+    DateTimeOffset UploadedAt, string? FileName)
 {
     public static FileMetaResponse FromEntity(FileAttachment f) => new(
-        f.Id, f.ConversationId, f.UploadedBy, FileAttachment.TypeToString(f.FileType), f.SizeBytes, f.UploadedAt);
+        f.Id, f.ConversationId, f.UploadedBy, FileAttachment.TypeToString(f.FileType), f.SizeBytes,
+        f.UploadedAt, f.FileName);
 }
 
 public record MuteRequest(long UserId);

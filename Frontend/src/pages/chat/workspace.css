@@ -1,0 +1,438 @@
+/* Man hinh chinh = man nhan tin. Ba panel nam ngang.
+   So do tu Figma node 111:391 (khung 1920x1080, thanh dieu huong 129 da tru):
+     trai   x=129  rong 482
+     giua   x=611  rong 893
+     phai   x=1504 rong 416
+   Cong lai vua 1920. Quy ve ty le: 482 / 893 / 416.
+
+   Panel trai va phai giu be rong co dinh (da nhan --s), con panel giua an het
+   cho con lai - noi dung chat la thu duy nhat dang duoc gian ra khi man rong. */
+
+.cw {
+  display: grid;
+  grid-template-columns: calc(482px * var(--s)) minmax(0, 1fr) calc(416px * var(--s));
+  height: 100svh;
+  background: var(--bg);
+}
+
+.cw-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--panel-border);
+  box-sizing: border-box;
+}
+
+.cw-col:first-child {
+  border-left: 0;
+}
+
+/* Chi phan danh sach cuon, con o tim kiem va cac nut o tren dung yen. */
+.cw-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(12px * var(--s)) calc(20px * var(--s)) calc(20px * var(--s));
+  display: flex;
+  flex-direction: column;
+  gap: calc(19px * var(--s));
+}
+
+/* --- Panel trai: tim kiem, ket ban, danh sach --------------------------- */
+
+.cw-left-top {
+  padding: calc(36px * var(--s)) calc(21px * var(--s)) 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(19px * var(--s));
+}
+
+/* O tim kiem 440x37, nen #B7B6BA, bo 6 */
+.cw-search {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  height: calc(37px * var(--s));
+  padding: 0 calc(12px * var(--s));
+  border-radius: calc(6px * var(--s));
+  background: var(--calli-muted);
+  box-shadow: var(--shadow-sm);
+}
+
+.cw-search svg {
+  flex: none;
+  color: var(--calli-navy-line);
+}
+
+.cw-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: calc(12px * var(--s));
+  color: var(--calli-navy-line);
+}
+
+.cw-search input:focus {
+  outline: none;
+}
+
+.cw-search input::placeholder {
+  color: var(--calli-navy-line);
+  opacity: 0.75;
+}
+
+/* Nhan "Danh sach ban be" + nut ben phai */
+.cw-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--s));
+}
+
+.cw-section-label {
+  font-size: calc(16px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-soft);
+  margin: 0;
+}
+
+/* Nut bau duc nen #56959E, bo 20 - dung cho "Ket ban +", "Khoi tao cuoc hop" */
+.cw-pill {
+  border: 0;
+  border-radius: calc(20px * var(--s));
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(13px * var(--s));
+  font-weight: 500;
+  padding: calc(7px * var(--s)) calc(14px * var(--s));
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.cw-pill:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.cw-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- The mot hang (442x92, vien #293546 2px, bo 10) --------------------- */
+/* Dung chung cho: hang danh sach, the ket ban, dau trang chat, tin nhan file. */
+
+.cw-card {
+  display: flex;
+  align-items: center;
+  gap: calc(14px * var(--s));
+  min-height: calc(92px * var(--s));
+  padding: calc(12px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  background: transparent;
+  box-sizing: border-box;
+  text-align: left;
+  font-family: var(--sans);
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+}
+
+.cw-card:hover {
+  background: var(--accent-bg);
+}
+
+/* Hang dang chon: nen xam dac, dung nhu thiet ke. */
+.cw-card.active {
+  background: var(--calli-muted);
+}
+
+.cw-card-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.cw-card-name {
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-line);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cw-card-sub {
+  font-size: calc(20px * var(--s));
+  font-weight: 200;
+  color: var(--calli-navy-line);
+  margin: calc(4px * var(--s)) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cw-empty {
+  color: var(--text-m);
+  font-size: calc(16px * var(--s));
+  text-align: center;
+  padding: calc(24px * var(--s)) 0;
+  margin: 0;
+}
+
+/* --- Panel giua: dau trang, tin nhan, khung nhap ------------------------ */
+
+.cw-head {
+  margin: calc(32px * var(--s)) calc(25px * var(--s)) 0;
+  cursor: default;
+}
+
+.cw-head:hover {
+  background: transparent;
+}
+
+.cw-head-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+}
+
+.cw-icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--calli-navy-icon);
+  cursor: pointer;
+  padding: calc(6px * var(--s));
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.cw-icon-btn:hover {
+  background: var(--accent-bg);
+}
+
+.cw-msgs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(24px * var(--s)) calc(25px * var(--s));
+  display: flex;
+  flex-direction: column;
+  gap: calc(18px * var(--s));
+}
+
+/* --- Khung nhap tin ----------------------------------------------------- */
+/*
+   Ba trang thai trong thiet ke (node 111:364 va 111:380):
+     - chua go : o nhap 455 rong, DU BON icon dinh kem + nut gui
+     - dang go : o nhap gian ra 761, CAC ICON BIEN MAT, chi con nut gui
+     - go dai  : khung cao len 189, o nhap bo goc 22 thay vi 98
+   Cach nay danh cho khoang trong cho chinh viec dang lam, dung y do thiet ke.
+*/
+
+.cw-composer {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--s));
+  margin: 0 calc(21px * var(--s)) calc(34px * var(--s));
+  padding: calc(15px * var(--s)) calc(20px * var(--s));
+  border: 2px solid var(--calli-navy);
+  border-radius: calc(40px * var(--s));
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.cw-composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: calc(49px * var(--s));
+  max-height: calc(173px * var(--s));
+  padding: calc(10px * var(--s)) calc(16px * var(--s));
+  border: 0;
+  border-radius: calc(98px * var(--s));
+  background: var(--calli-muted);
+  color: var(--calli-navy);
+  font-family: var(--sans);
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+  line-height: 1.25;
+  resize: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Go dai: khung nhap cao len thi bo goc thu lai - hinh vien thuoc o co nay
+   trong xau. Dung nhu ban thiet ke: bo 98 -> 22. */
+.cw-composer-input.tall {
+  border-radius: calc(22px * var(--s));
+}
+
+.cw-composer-input:focus {
+  outline: 2px solid var(--calli-teal);
+  outline-offset: 2px;
+}
+
+.cw-composer-input::placeholder {
+  color: var(--calli-navy-line);
+  opacity: 0.8;
+}
+
+.cw-attach {
+  display: flex;
+  align-items: center;
+  gap: calc(32px * var(--s));
+  flex: none;
+}
+
+.cw-send {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--calli-teal-dark);
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+}
+
+.cw-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --- Panel phai: ho so, luoi media, xoa ban ---------------------------- */
+
+.cw-info {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(40px * var(--s)) calc(11px * var(--s)) calc(24px * var(--s));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(18px * var(--s));
+}
+
+.cw-info-name {
+  font-size: calc(36px * var(--s));
+  font-weight: 600;
+  color: var(--calli-navy);
+  margin: 0;
+  text-align: center;
+  word-break: break-word;
+}
+
+.cw-info-label {
+  align-self: flex-start;
+  margin: calc(20px * var(--s)) 0 0 calc(10px * var(--s));
+  font-size: calc(16px * var(--s));
+  font-weight: 600;
+  color: var(--calli-navy);
+}
+
+/* Luoi 3x3 anh 100x100, khe 21 */
+.cw-media {
+  display: grid;
+  grid-template-columns: repeat(3, calc(100px * var(--s)));
+  gap: calc(20px * var(--s));
+  justify-content: center;
+}
+
+.cw-media-cell {
+  width: calc(100px * var(--s));
+  height: calc(100px * var(--s));
+  background: var(--calli-placeholder);
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  display: block;
+}
+
+.cw-media-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Nut "Xoa ban" 150x55 nen #B7B6BA, chu 32 w600 do */
+.cw-danger {
+  margin-top: calc(20px * var(--s));
+  min-width: calc(150px * var(--s));
+  height: calc(55px * var(--s));
+  padding: 0 calc(14px * var(--s));
+  border: 1px solid #fff;
+  border-radius: calc(17px * var(--s));
+  background: var(--calli-muted);
+  color: #ff0000;
+  font-family: var(--sans);
+  font-size: calc(28px * var(--s));
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cw-danger:hover {
+  filter: brightness(1.05);
+}
+
+/* --- Man hep ------------------------------------------------------------ */
+/*
+   Duoi 1200px bo panel phai (thong tin xem qua nut o dau trang); duoi 900px
+   chi hien MOT panel mot luc - dang o hoi thoai thi hien khung chat, khong
+   thi hien danh sach. Nhoi ba cot vao man dien thoai thi cot nao cung vo dung.
+*/
+
+@media (max-width: 1200px) {
+  .cw {
+    grid-template-columns: calc(482px * var(--s)) minmax(0, 1fr);
+  }
+
+  .cw-col-info {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .cw {
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100svh - var(--rail-h));
+  }
+
+  .cw-col-list {
+    display: none;
+  }
+
+  .cw.cw-no-active .cw-col-list {
+    display: flex;
+  }
+
+  .cw.cw-no-active .cw-col-chat {
+    display: none;
+  }
+}
+
+/* Khung giua khi chua chon hoi thoai nao. */
+.cw-blank {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: calc(24px * var(--s));
+  color: var(--text-m);
+  font-size: calc(18px * var(--s));
+  text-align: center;
+}
+
+/* AppShell dat padding 24px cho noi dung - bo cuc ba panel phai tran vien va
+   cao dung bang man hinh, nen go padding rieng cho truong hop nay. */
+.shell-main:has(.cw) {
+  padding: 0;
+  overflow: hidden;
+}

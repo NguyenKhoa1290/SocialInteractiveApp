@@ -4,6 +4,7 @@ import { chatApi } from "../../api/chatApi";
 import type { StorageInfo, TopupRequestInfo, UploadTracker } from "../../api/chatApi";
 import { keysApi } from "../../api/keysApi";
 import { workspaceApi } from "../../api/workspaceApi";
+import { friendApi } from "../../api/friendApi";
 import { joinConversation, leaveConversation, onMessageDeleted, onMessageEdited, onMessageReceived } from "../../lib/chatHub";
 import { useAuthStore } from "../../store/authStore";
 import { useKeyStore } from "../../store/keyStore";
@@ -21,7 +22,12 @@ import {
 import { computeQueryTokens } from "../../lib/crypto/searchTokens";
 import { publicKeyFromBase64 } from "../../lib/crypto/x25519";
 import { extractApiError, apiErrorCode } from "../../lib/apiError";
-import { AppShell } from "../../components/AppShell";
+import { ChatWorkspace } from "./ChatWorkspace";
+import { ConversationList } from "./ConversationList";
+import { ConversationInfo } from "./ConversationInfo";
+import { Avatar } from "../../components/Avatar";
+import { IconAccount, IconAttach, IconImage, IconMic, IconSend, IconVideo } from "./ComposerIcons";
+import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
 import type { Meeting } from "../../types/media";
 import { FileMessageContent } from "./FileMessageContent";
@@ -78,6 +84,20 @@ export function ChatRoomPage() {
   // Cac cuoc hop DA CO thao luan (lay tu Chat Service, khong phai Media) -
   // de xem lai noi dung sau khi hop xong.
   const [pastMeetingIds, setPastMeetingIds] = useState<number[]>([]);
+  // Ten + anh cua doi phuong / cua nhom, de dau khung chat va panel thong tin
+  // khong phai hien "Nguoi dung 42". Chat Service khong resolve ten (xem
+  // ConversationSummaryResponse) nen phai tu doi chieu nhu ChatListPage.
+  const [peer, setPeer] = useState<{ ten: string; anh: string | null } | null>(null);
+
+  // Nguoi doi dien trong chat 1-1 (nhom thi khong co) - dung cho anh dai dien
+  // o dau khung va o panel thong tin ben phai.
+  const peerUserId =
+    conversation?.type === "p2p"
+      ? conversation.participantAId === currentUserId
+        ? conversation.participantBId
+        : conversation.participantAId
+      : null;
+
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Dung ref (khong phai state) de doc dung "conversation.type" ben trong
@@ -132,6 +152,31 @@ export function ChatRoomPage() {
       clearInterval(timer);
     };
   }, [conversationId]);
+
+  // Nap ten hien thi cua hoi thoai. Chay sau khi da co `conversation` vi phai
+  // biet la 1-1 hay nhom moi biet tra o dau.
+  useEffect(() => {
+    if (!conversation) return;
+    let huy = false;
+    void (async () => {
+      try {
+        if (conversation.type === "group") {
+          const { data } = await workspaceApi.get(conversation.workspaceId!);
+          if (!huy) setPeer({ ten: data.name, anh: null });
+        } else if (peerUserId) {
+          const { data } = await friendApi.list();
+          const b = data.find((f) => f.userId === peerUserId);
+          if (!huy && b) setPeer({ ten: b.nickname, anh: b.avatarUpdatedAt });
+        }
+      } catch {
+        // Khong lay duoc ten thi vẫn hien duong lui ("Nguoi dung 42") - khong
+        // dang chen mot bao loi vao ca man hinh vi mot cai ten.
+      }
+    })();
+    return () => {
+      huy = true;
+    };
+  }, [conversation, peerUserId]);
 
   async function handleStartMeeting() {
     setStartingMeeting(true);
@@ -645,26 +690,50 @@ export function ChatRoomPage() {
   const storageNearExpiry =
     storage?.expiresAt && new Date(storage.expiresAt).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000;
 
-  return (
-    <AppShell>
-      <Link to="/app" className="chat-back-link">
-        ← Về danh sách chat
-      </Link>
+  const tenHoiThoai =
+    peer?.ten ??
+    (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
 
-      <div className="chat-toolbar">
-        <button className="ws-btn-secondary" onClick={() => setShowSearch((v) => !v)}>
-          🔍 Tìm kiếm
-        </button>
-        {conversation?.type === "group" && (
-          <button className="ws-btn-secondary" onClick={toggleAdmin}>
-            ⚙️ {isLeader ? "Quản trị & Dung lượng" : "Dung lượng"}
+  return (
+    <ChatWorkspace
+      hasActive
+      list={
+        <ConversationList
+          activeId={conversationId}
+          onStartMeeting={activeMeeting ? handleJoinMeeting : handleStartMeeting}
+          meetingBusy={startingMeeting}
+        />
+      }
+      info={
+        <ConversationInfo
+          conversationId={conversationId}
+          title={tenHoiThoai}
+          peerUserId={peerUserId}
+          peerAvatarUpdatedAt={peer?.anh}
+          dangerLabel={conversation?.type === "group" ? "Rời nhóm" : "Xóa bạn"}
+        />
+      }
+      chat={
+        <>
+      {/* Dau khung chat: dung khuon the 442x92 nhu hang danh sach. */}
+      <div className="cw-card cw-head">
+        <Avatar userId={peerUserId ?? 0} nickname={tenHoiThoai} avatarUpdatedAt={peer?.anh} size={68} />
+        <div className="cw-card-body">
+          <p className="cw-card-name">{tenHoiThoai}</p>
+        </div>
+        <div className="cw-head-actions">
+          <button className="cw-icon-btn" onClick={() => setShowSearch((v) => !v)} title="Tìm trong hội thoại">
+            🔍
           </button>
-        )}
-        {!activeMeeting && (
-          <button className="ws-btn-secondary" onClick={handleStartMeeting} disabled={startingMeeting}>
-            📹 {startingMeeting ? "Đang mở…" : "Gọi video"}
+          {conversation?.type === "group" && (
+            <button className="cw-icon-btn" onClick={toggleAdmin} title={isLeader ? "Quản trị & Dung lượng" : "Dung lượng"}>
+              ⚙️
+            </button>
+          )}
+          <button className="cw-icon-btn" title="Thông tin">
+            <IconAccount />
           </button>
-        )}
+        </div>
       </div>
 
       {/* The cuoc hop - thay cho banner chu don thuan truoc day. Gom ca 2
@@ -802,7 +871,7 @@ export function ChatRoomPage() {
         </div>
       )}
 
-      <div className="chat-room-messages">
+      <div className="cw-msgs">
         {messages.map((m) => (
           <div key={m.id} className={`chat-bubble-row ${m.senderId === currentUserId ? "mine" : ""}`}>
             <div className="chat-bubble">
@@ -865,55 +934,79 @@ export function ChatRoomPage() {
           hang ngang, chen them vao se bop cac nut lai. */}
       {upload && <UploadProgressBar state={upload} />}
 
-      <div className="chat-compose-bar">
-        <button disabled={!!uploading} onClick={() => pickFile("image", "image/*")}>
-          🖼️ Ảnh
-        </button>
-        <button disabled={!!uploading} onClick={() => pickFile("video", "video/*")}>
-          🎬 Video
-        </button>
-        <button disabled={!!uploading} onClick={() => pickFile("voice", "audio/*")}>
-          🎤 Voice
-        </button>
-        {conversation?.type === "group" && (
-          <button disabled={!!uploading} onClick={() => pickFile("file", "*/*")}>
-            📎 File
-          </button>
-        )}
-        {uploading && !upload && <span className="chat-uploading">Đang gửi {uploading}...</span>}
-      </div>
-
       {error && <p className="chat-error">{error}</p>}
+      {uploading && !upload && <p className="chat-text-note">Đang gửi {uploading}…</p>}
 
       {conversation?.type === "group" && currentUserId && mutedUserIds.has(currentUserId) ? (
         <p className="chat-text-note">Bạn đang bị cấm chat trong nhóm này.</p>
       ) : (
         <E2eeGate>
-          {publicKeys.size === 0 ? (
+          {publicKeys.size === 0 && (
             <p className="chat-text-note">
               {conversation?.type === "p2p"
                 ? "Người này chưa thiết lập E2EE, chưa gửi được tin nhắn Text."
                 : "Chưa có thành viên nào (kể cả bạn) thiết lập E2EE trong nhóm này."}
             </p>
-          ) : (
-            <>
-              {missingKeyCount > 0 && conversation?.type === "group" && (
-                <p className="chat-text-note">{missingKeyCount} thành viên chưa thiết lập E2EE sẽ không nhận được tin nhắn Text.</p>
-              )}
-              <form onSubmit={handleSendText} className="chat-text-form">
-                <input
-                  className="ws-input"
-                  style={{ marginBottom: 0 }}
-                  placeholder="Nhập tin nhắn (đã mã hoá E2EE)..."
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                />
-                <button className="ws-btn-primary" disabled={sendingText} type="submit">
-                  Gửi
-                </button>
-              </form>
-            </>
           )}
+          {missingKeyCount > 0 && conversation?.type === "group" && (
+            <p className="chat-text-note">{missingKeyCount} thành viên chưa thiết lập E2EE sẽ không nhận được tin nhắn Text.</p>
+          )}
+
+          {/* MOT khung duy nhat chua ca o nhap lan cac nut dinh kem, dung nhu
+              ban thiet ke - truoc day la hai thanh roi nhau xep chong len.
+
+              Cac nut dinh kem BIEN MAT khi dang go: thiet ke ve o nhap gian tu
+              455 ra 761 khi co chu, tuc nhuong cho cho viec dang lam. */}
+          <form
+            className="cw-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSendText(e);
+            }}
+          >
+            <textarea
+              className={`cw-composer-input${textInput.length > 60 ? " tall" : ""}`}
+              placeholder="Nhập tin nhắn"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              rows={1}
+              disabled={publicKeys.size === 0}
+              onKeyDown={(e) => {
+                // Enter gui, Shift+Enter xuong dong - quy uoc quen thuoc cua
+                // moi ung dung nhan tin. Khong co no thi Enter chi xuong dong
+                // va nguoi dung phai voi chuot ra nut gui sau moi cau.
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (textInput.trim() && !sendingText) {
+                    void handleSendText(e as unknown as React.FormEvent);
+                  }
+                }
+              }}
+            />
+
+            {textInput.trim() === "" && (
+              <div className="cw-attach">
+                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("voice", "audio/*")} title="Ghi âm">
+                  <IconMic />
+                </button>
+                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("image", "image/*")} title="Ảnh">
+                  <IconImage />
+                </button>
+                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("video", "video/*")} title="Video">
+                  <IconVideo />
+                </button>
+                {conversation?.type === "group" && (
+                  <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("file", "*/*")} title="Tệp">
+                    <IconAttach />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button className="cw-send" type="submit" disabled={sendingText || textInput.trim() === ""} title="Gửi">
+              <IconSend />
+            </button>
+          </form>
         </E2eeGate>
       )}
 
@@ -924,6 +1017,8 @@ export function ChatRoomPage() {
           onClose={() => setQuotaAlert(null)}
         />
       )}
-    </AppShell>
+        </>
+      }
+    />
   );
 }
