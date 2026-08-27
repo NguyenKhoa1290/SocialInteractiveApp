@@ -865,8 +865,13 @@
   align-items: stretch;
 }
 
+/* `align-items: stretch` o .cw-info-group la de CAC THE THANH VIEN day chieu
+   ngang. Nhung no keo luon anh dai dien, ten va nut xoa - rieng ba thu do
+   phai can giua nhu thiet ke (nut "Xoa nhom" la 166x55, khong phai mot thanh
+   chay het panel). */
 .cw-info-group .avatar,
-.cw-info-group .cw-info-name {
+.cw-info-group .cw-info-name,
+.cw-info-group .cw-danger {
   align-self: center;
 }
 
