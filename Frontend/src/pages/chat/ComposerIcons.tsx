@@ -55,3 +55,14 @@ export function IconAccount({ size = 28 }: P) {
     </svg>
   );
 }
+
+// Bieu tuong kho luu tru o dau khung chat nhom (Figma 122:1248, 33x29).
+export function IconStorage({ size = 26 }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <ellipse cx="12" cy="5.4" rx="8.6" ry="3.2" />
+      <path d="M3.4 8.4v3.2c0 1.8 3.9 3.2 8.6 3.2s8.6-1.4 8.6-3.2V8.4c-1.7 1.3-5 2-8.6 2s-6.9-.7-8.6-2Z" />
+      <path d="M3.4 14.4v3.2c0 1.8 3.9 3.2 8.6 3.2s8.6-1.4 8.6-3.2v-3.2c-1.7 1.3-5 2-8.6 2s-6.9-.7-8.6-2Z" />
+    </svg>
+  );
+}

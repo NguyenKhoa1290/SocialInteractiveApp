@@ -26,7 +26,8 @@ import { ChatWorkspace } from "./ChatWorkspace";
 import { ConversationList } from "./ConversationList";
 import { ConversationInfo } from "./ConversationInfo";
 import { Avatar } from "../../components/Avatar";
-import { IconAccount, IconAttach, IconImage, IconMic, IconSend, IconVideo } from "./ComposerIcons";
+import { IconAccount, IconAttach, IconImage, IconMic, IconSend, IconStorage, IconVideo } from "./ComposerIcons";
+import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
 import type { Meeting } from "../../types/media";
@@ -720,21 +721,72 @@ export function ChatRoomPage() {
       }
       chat={
         <>
-      {/* Dau khung chat: dung khuon the 442x92 nhu hang danh sach. */}
+      {/* Dau khung chat (Figma node 122:1248, Frame 17).
+          Hai trang thai: binh thuong hien TEN, bam kinh lup thi o "Tim kiem
+          tin nhan" 503x37 CHIEM CHO cua ten, kem nut X de dong. */}
       <div className="cw-card cw-head">
-        <Avatar userId={peerUserId ?? 0} nickname={tenHoiThoai} avatarUpdatedAt={peer?.anh} size={68} />
-        <div className="cw-card-body">
-          <p className="cw-card-name">{tenHoiThoai}</p>
-        </div>
+        {showSearch ? (
+          <form className="cw-head-search" onSubmit={handleSearch}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
+              <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm kiếm tin nhắn"
+              aria-label="Tìm kiếm tin nhắn"
+              autoFocus
+            />
+            <button
+              type="button"
+              className="cw-head-search-x"
+              onClick={() => {
+                setShowSearch(false);
+                setSearchQuery("");
+                setSearchResults(null);
+              }}
+              aria-label="Đóng tìm kiếm"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          </form>
+        ) : (
+          <>
+            <Avatar userId={peerUserId ?? 0} nickname={tenHoiThoai} avatarUpdatedAt={peer?.anh} size={68} />
+            <div className="cw-card-body">
+              <p className="cw-card-name">{tenHoiThoai}</p>
+            </div>
+          </>
+        )}
+
         <div className="cw-head-actions">
-          <button className="cw-icon-btn" onClick={() => setShowSearch((v) => !v)} title="Tìm trong hội thoại">
-            🔍
-          </button>
-          {conversation?.type === "group" && (
-            <button className="cw-icon-btn" onClick={toggleAdmin} title={isLeader ? "Quản trị & Dung lượng" : "Dung lượng"}>
-              ⚙️
+          {!activeMeeting ? (
+            <button className="cw-pill" onClick={handleStartMeeting} disabled={startingMeeting}>
+              {startingMeeting ? "Đang mở…" : "Khởi tạo cuộc họp"}
+            </button>
+          ) : (
+            <button className="cw-pill" onClick={handleJoinMeeting}>
+              Vào cuộc họp
             </button>
           )}
+
+          <button className="cw-icon-btn" onClick={() => setShowSearch((v) => !v)} title="Tìm kiếm tin nhắn">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
+              <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </button>
+
+          {/* Chi nhom moi co han muc luu tru - chat 1-1 khong tinh dung luong. */}
+          {conversation?.type === "group" && (
+            <button className="cw-icon-btn" onClick={toggleAdmin} title="Dung lượng nhóm">
+              <IconStorage />
+            </button>
+          )}
+
           <button className="cw-icon-btn" title="Thông tin">
             <IconAccount />
           </button>
@@ -786,50 +838,44 @@ export function ChatRoomPage() {
         </p>
       )}
 
-      {showSearch && (
-        <div className="chat-panel">
-          <form onSubmit={handleSearch} className="chat-text-form">
-            <input
-              className="ws-input"
-              style={{ marginBottom: 0 }}
-              placeholder="Tìm trong hội thoại này..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <button className="ws-btn-primary" disabled={searching} type="submit">
-              Tìm
-            </button>
-          </form>
-          {searchResults !== null && (
-            <div className="chat-search-results">
-              {searchResults.length === 0 && <p className="chat-text-note">Không tìm thấy kết quả</p>}
-              {searchResults.map((r) => (
-                <div key={r.message.id} className="chat-search-result-item">
-                  <span>{r.text}</span>
-                  <span className="chat-search-result-date">{new Date(r.message.createdAt).toLocaleString("vi-VN")}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* Dung luong nhom o MOT POPUP RIENG - truoc day la mot bang nhet giua
+          dau khung va danh sach tin nhan, day tin nhan xuong moi lan mo. Chi
+          nhom moi co han muc; chat 1-1 khong tinh dung luong. */}
       {showAdmin && conversation?.type === "group" && (
-        <div className="chat-panel">
-          {storage && (
-            <div className="chat-storage-info">
-              <p>
-                Đã dùng {(storage.usedBytes / 1_073_741_824).toFixed(2)} GB / {(storage.quotaBytes / 1_073_741_824).toFixed(2)} GB (
-                {storage.plan})
-              </p>
-              {isLeader && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="ws-btn-secondary" disabled={requestingTopup} onClick={handleRequestTopup}>
-                    Yêu cầu nạp thêm 1GB (chờ Admin duyệt)
+        <Modal title="Dung lượng nhóm" onClose={() => setShowAdmin(false)}>
+          {!storage ? (
+            <p className="md-note">Đang tải…</p>
+          ) : (
+            <>
+              <div className={`md-gauge${storage.isLocked ? " danger" : ""}`}>
+                <span
+                  style={{
+                    width: `${Math.min(100, Math.round((storage.usedBytes / Math.max(1, storage.quotaBytes)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <div className="md-row">
+                <span>
+                  Đã dùng {(storage.usedBytes / 1_073_741_824).toFixed(2)} GB /{" "}
+                  {(storage.quotaBytes / 1_073_741_824).toFixed(2)} GB
+                </span>
+                <span>Gói {storage.plan}</span>
+              </div>
+
+              {storage.isLocked && (
+                <p className="md-note" style={{ color: "var(--danger)" }}>
+                  Nhóm đang bị khoá vì vượt hạn mức — thu hồi bớt tệp cũ hoặc nạp thêm để mở lại.
+                </p>
+              )}
+
+              {isLeader ? (
+                <div className="md-actions">
+                  <button className="md-btn" disabled={requestingTopup} onClick={handleRequestTopup}>
+                    {requestingTopup ? "Đang gửi…" : "Xin nạp thêm 1 GB"}
                   </button>
                   {storage.isLocked && (
                     <button
-                      className="ws-btn-secondary"
+                      className="md-btn md-btn-ghost"
                       onClick={async () => {
                         try {
                           const { data } = await chatApi.unlockStorage(conversationId, null);
@@ -843,41 +889,75 @@ export function ChatRoomPage() {
                     </button>
                   )}
                 </div>
+              ) : (
+                <p className="md-note">Chỉ Trưởng nhóm mới xin nạp thêm được dung lượng.</p>
               )}
+
               {topupRequests.length > 0 && (
-                <div style={{ marginTop: 10 }}>
+                <div>
+                  <p className="md-note">Yêu cầu đã gửi:</p>
                   {topupRequests.map((r) => (
-                    <div key={r.id} className="chat-search-result-item">
-                      <span>Yêu cầu nạp {r.amount} GB</span>
-                      <span className="chat-search-result-date">
-                        {r.status === "pending" ? "Đang chờ Admin duyệt" : r.status === "approved" ? "Đã duyệt" : "Đã từ chối"}
+                    <div key={r.id} className="md-row">
+                      <span>Nạp {r.amount} GB</span>
+                      <span className="md-note">
+                        {r.status === "pending"
+                          ? "Đang chờ Admin duyệt"
+                          : r.status === "approved"
+                            ? "Đã duyệt"
+                            : "Đã từ chối"}
                       </span>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </>
           )}
-          {isLeader && (
-            <div className="chat-member-mute-list">
-              <h3 style={{ fontSize: 14, margin: "12px 0 8px" }}>Cấm chat thành viên</h3>
-              {members
-                .filter((m) => m.userId !== currentUserId)
-                .map((m) => (
-                  <div key={m.userId} className="ws-member-row">
-                    <span>{m.nickname}</span>
-                    <button className="ws-btn-secondary" onClick={() => handleToggleMute(m.userId)}>
-                      {mutedUserIds.has(m.userId) ? "Gỡ mute" : "Mute"}
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
+        </Modal>
+      )}
+
+      {/* Cam chat thanh vien van o ngoai popup dung luong: day la viec quan ly
+          NGUOI, khong phai dung luong. Ban thiet ke dat no o panel phai
+          ("Danh sach nguoi trong nhom") - se chuyen sang do o buoc dung panel
+          phai cho nhom. */}
+      {showAdmin && conversation?.type === "group" && isLeader && members.length > 1 && (
+        <div className="chat-member-mute-list">
+          {members
+            .filter((m) => m.userId !== currentUserId)
+            .map((m) => (
+              <div key={m.userId} className="ws-member-row">
+                <span>{m.nickname}</span>
+                <button className="cw-act" onClick={() => handleToggleMute(m.userId)}>
+                  {mutedUserIds.has(m.userId) ? "Gỡ cấm chat" : "Cấm chat"}
+                </button>
+              </div>
+            ))}
         </div>
       )}
 
       <div className="cw-msgs">
-        {messages.map((m) => {
+        {/* Dang tim thi khung tin nhan hien KET QUA thay vi lich su - khong
+            chen them mot bang nua day tin nhan xuong nhu ban truoc. */}
+        {searchResults !== null && (
+          <div className="cw-search-results">
+            <p className="cw-search-count">
+              {searching
+                ? "Đang tìm…"
+                : searchResults.length === 0
+                  ? "Không tìm thấy tin nhắn nào"
+                  : `${searchResults.length} kết quả`}
+            </p>
+            {searchResults.map((r) => (
+              <div key={r.message.id} className="cw-search-item">
+                <span className="cw-search-text">{r.text}</span>
+                <span className="cw-search-date">
+                  {new Date(r.message.createdAt).toLocaleString("vi-VN")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {searchResults === null && messages.map((m) => {
           const cuaMinh = m.senderId === currentUserId;
           const suaDuoc = cuaMinh && m.type === "text" && !m.isDeleted;
           const thuHoiDuoc = cuaMinh && !m.isDeleted;
@@ -947,7 +1027,7 @@ export function ChatRoomPage() {
             </div>
           );
         })}
-        <div ref={bottomRef} />
+        {searchResults === null && <div ref={bottomRef} />}
       </div>
 
       {/* Dat TREN thanh soan tin chu khong nhet vao trong: thanh do la flex

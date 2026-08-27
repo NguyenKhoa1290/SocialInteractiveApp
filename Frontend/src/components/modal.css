@@ -1,0 +1,158 @@
+/* Hop thoai trong app - Figma node 111:307.
+   Nen trang, bo 37, "X Dong" goc tren phai, tieu de 36px w700 #2F3C52. */
+
+.md-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(35, 48, 64, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Zoom cai THE chu khong zoom lop phu: lop phu la position:fixed phu kin man
+   hinh, zoom no se lam no thieu mot goc. */
+.md-card {
+  zoom: var(--s);
+  position: relative;
+  max-width: 100%;
+  margin: auto;
+  background: #fff;
+  border-radius: 37px;
+  padding: 56px 48px 40px;
+  box-sizing: border-box;
+  box-shadow: rgba(35, 48, 64, 0.28) 0 24px 60px -12px;
+  color: var(--calli-navy);
+  text-align: left;
+}
+
+.md-close {
+  position: absolute;
+  top: 30px;
+  right: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #000;
+  font: 200 20px/1 var(--sans);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--r-sm);
+}
+
+.md-close:hover {
+  background: var(--calli-surface);
+}
+
+.md-title {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 122%;
+  color: var(--calli-navy);
+  margin: 24px 0 20px;
+}
+
+.md-body {
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Thanh do dung luong */
+.md-gauge {
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--calli-surface);
+  overflow: hidden;
+}
+
+.md-gauge span {
+  display: block;
+  height: 100%;
+  background: var(--calli-teal-dark);
+}
+
+.md-gauge.danger span {
+  background: var(--danger);
+}
+
+.md-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 18px;
+}
+
+.md-note {
+  font-size: 16px;
+  color: var(--text-m);
+  margin: 0;
+}
+
+.md-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* Nut dac 198x65 #56959E bo 20 - dung khuon voi cac nut chinh khac. */
+.md-btn {
+  min-width: 198px;
+  height: 65px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.md-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.md-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.md-btn-ghost {
+  background: var(--calli-muted);
+  color: var(--calli-navy);
+}
+
+@media (max-width: 620px) {
+  .md-overlay {
+    padding: 0;
+  }
+
+  .md-card {
+    border-radius: 0;
+    min-height: 100svh;
+    width: 100% !important;
+    padding: 48px 24px 32px;
+  }
+
+  .md-close {
+    top: 14px;
+    right: 16px;
+  }
+
+  .md-title {
+    font-size: 28px;
+  }
+}

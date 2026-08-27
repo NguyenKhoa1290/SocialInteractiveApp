@@ -548,3 +548,76 @@
   object-fit: cover;
   display: block;
 }
+
+/* --- O tim kiem tin nhan o dau khung (Figma 122:1394, 503x37) ---------- */
+
+.cw-head-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  height: calc(37px * var(--s));
+  padding: 0 calc(12px * var(--s));
+  border-radius: calc(6px * var(--s));
+  background: var(--calli-muted);
+  color: var(--calli-navy-icon);
+}
+
+.cw-head-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: calc(14px * var(--s));
+  color: var(--calli-navy-line);
+}
+
+.cw-head-search input:focus {
+  outline: none;
+}
+
+.cw-head-search-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--calli-navy-icon);
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+}
+
+.cw-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: calc(10px * var(--s));
+}
+
+.cw-search-count {
+  margin: 0;
+  font-size: calc(15px * var(--s));
+  color: var(--text-m);
+}
+
+.cw-search-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(16px * var(--s));
+  padding: calc(12px * var(--s)) calc(14px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+}
+
+.cw-search-text {
+  font-size: calc(18px * var(--s));
+  color: var(--calli-navy);
+  overflow-wrap: anywhere;
+}
+
+.cw-search-date {
+  flex: none;
+  font-size: calc(13px * var(--s));
+  color: var(--text-m);
+}
