@@ -77,6 +77,10 @@ public class MeetingSweeperService(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MediaDbContext>();
 
+        // Luon chay truoc: don du lieu tam cua nhung cuoc hop DA ket thuc roi
+        // ma hoi thoai van con. Xem ghi chu o DonHoiThoaiTamAsync.
+        await DonHoiThoaiTamAsync(scope, db, ct);
+
         var cutoff = DateTimeOffset.UtcNow - MinAge;
         var candidates = await db.Meetings
             .Where(m => m.Status == MeetingStatus.Active && m.CreatedAt < cutoff)
@@ -141,5 +145,44 @@ public class MeetingSweeperService(
         logger.LogInformation(
             "Da dong {Count} cuoc hop khong con ai (phong LiveKit da tan): {Ids}",
             deadIds.Count, string.Join(",", deadIds));
+
+        // Cuoc hop vua bi dong o tren cung phai don du lieu tam - lam ngay o
+        // vong nay chu khong doi vong sau.
+        await DonHoiThoaiTamAsync(scope, db, ct);
+    }
+
+    // Xoa hoi thoai tam cua cac phong tuy chinh DA ket thuc.
+    //
+    // VI SAO KHONG DU khi chi don o nut "Ket thuc" va o vong quet phong chet:
+    // co mot duong thu ba khong di qua ma nguon C# nao ca - trigger CSDL
+    // trg_close_meeting_if_empty tu dong dat status='ended' khi nguoi cuoi
+    // cung roi phong. Do la duong HAY DI NHAT (ai cung bam "Roi phong" chu it
+    // ai bam "Ket thuc cho tat ca"), va mot cau UPDATE trong Postgres thi
+    // khong the goi sang Chat Service duoc. Da thay that tren he thong dang
+    // chay: cuoc hop 45 ket thuc luc 03:10:53 nhung hoi thoai 64 cua no nam
+    // lai - va vong quet cu chi nhin cuoc hop dang ACTIVE nen khong bao gio
+    // cham toi no nua.
+    //
+    // Dat ConversationId = null sau khi xoa lam dau "da don roi": khong co no
+    // thi vong sau lai goi xoa mot hoi thoai khong con ton tai, mai mai.
+    private async Task DonHoiThoaiTamAsync(IServiceScope scope, MediaDbContext db, CancellationToken ct)
+    {
+        var conSot = await db.Meetings
+            .Where(m => m.IsTemporary && m.Status == MeetingStatus.Ended && m.ConversationId != null)
+            .ToListAsync(ct);
+        if (conSot.Count == 0)
+            return;
+
+        var chat = scope.ServiceProvider.GetRequiredService<ChatServiceClient>();
+        foreach (var m in conSot)
+        {
+            await chat.DeleteMeetingConversationAsync(m.ConversationId!.Value);
+            m.ConversationId = null;
+        }
+        await db.SaveChangesAsync(ct);
+
+        logger.LogInformation(
+            "Da don du lieu tam cua {Count} cuoc hop tuy chinh da ket thuc: {Ids}",
+            conSot.Count, string.Join(",", conSot.Select(m => m.Id)));
     }
 }

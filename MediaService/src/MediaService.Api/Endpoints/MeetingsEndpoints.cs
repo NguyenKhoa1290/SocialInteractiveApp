@@ -330,7 +330,13 @@ public static class MeetingsEndpoints
             // phai kieu 'meeting' la lop thu hai: xoa nham hoi thoai cua mot
             // nhom that thi khong co duong hoan tac.
             if (meeting.IsTemporary && meeting.ConversationId is not null)
+            {
                 await chat.DeleteMeetingConversationAsync(meeting.ConversationId.Value);
+                // Danh dau da don, de vong quet khong goi xoa lai mot hoi thoai
+                // khong con ton tai o moi vong.
+                meeting.ConversationId = null;
+                await db.SaveChangesAsync();
+            }
 
             await waiting.ClearMeetingAsync(meetingId);
             // Trang thai trinh bay nam o Redis co TTL 12 gio - het hop thi xoa
