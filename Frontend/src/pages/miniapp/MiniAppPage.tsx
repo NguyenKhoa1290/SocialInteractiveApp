@@ -161,6 +161,21 @@ export function MiniAppPage() {
     }
   }
 
+  async function xoaNhom(g: IptvChannelGroup) {
+    if (dangChon === null) return;
+    // Hoi lai vi keo theo ca kenh ben trong - khac han xoa mot kenh le.
+    const them = g.channels.length > 0 ? ` cùng ${g.channels.length} kênh trong đó` : "";
+    if (!window.confirm(`Xoá playlist con “${g.groupName}”${them}?`)) return;
+    setError(null);
+    try {
+      await iptvApi.deleteGroup(dangChon, g.id);
+      setGroups((truoc) => (truoc ?? []).filter((x) => x.id !== g.id));
+      if (themKenhVao === g.id) setThemKenhVao(null);
+    } catch (err) {
+      setError(extractApiError(err, "Không xoá được playlist con"));
+    }
+  }
+
   async function xoaKenh(groupId: number, channelId: number) {
     if (dangChon === null) return;
     setError(null);
@@ -306,17 +321,27 @@ export function MiniAppPage() {
               {nhomHienThi?.map((g) => (
                 <div key={g.id}>
                   <div className="ma-section ma-section-row">
-                    <span>{g.groupName}</span>
+                    <span className="ma-group-name">{g.groupName}</span>
                     {chon.canEdit && (
-                      <button
-                        className="ma-pill ma-pill-sm"
-                        onClick={() => {
-                          setThemKenhVao((truoc) => (truoc === g.id ? null : g.id));
-                          setKenhMoi({ ten: "", url: "" });
-                        }}
-                      >
-                        Thêm kênh
-                      </button>
+                      <span className="ma-group-acts">
+                        <button
+                          className="ma-pill ma-pill-sm"
+                          onClick={() => {
+                            setThemKenhVao((truoc) => (truoc === g.id ? null : g.id));
+                            setKenhMoi({ ten: "", url: "" });
+                          }}
+                        >
+                          Thêm kênh
+                        </button>
+                        <button
+                          className="ma-row-x"
+                          onClick={() => void xoaNhom(g)}
+                          title="Xoá playlist con"
+                          aria-label={`Xoá playlist con ${g.groupName}`}
+                        >
+                          ×
+                        </button>
+                      </span>
                     )}
                   </div>
 

@@ -78,6 +78,22 @@
   color: var(--calli-teal-dark);
 }
 
+/* Ten nhom co the rat dai (nhap tu M3U thi group-title muon dai bao nhieu
+   cung duoc) - cat bot chu khong day cac nut ra khoi khung. */
+.ma-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ma-group-acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--s));
+}
+
 .ma-section-row {
   display: flex;
   align-items: center;

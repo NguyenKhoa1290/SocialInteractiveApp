@@ -278,6 +278,31 @@ public static class MiniAppEndpoints
             return Results.NoContent();
         });
 
+        // Xoa mot playlist con. Kenh ben trong di theo qua FK ON DELETE CASCADE
+        // khai bao o miniapp-db-init.sql.
+        group.MapDelete("/channel-lists/{listId:long}/groups/{groupId:long}", async (
+            long listId, long groupId, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+        {
+            var userId = principal.GetUserId()!.Value;
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
+                return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
+
+            // Rang buoc groupId PHAI thuoc dung listId vua kiem quyen - khong
+            // thi mot groupId cua playlist nguoi khac ghep vao listId cua minh
+            // se xoa duoc.
+            var channelGroup = await db.IptvChannelGroups
+                .FirstOrDefaultAsync(g => g.Id == groupId && g.ListId == listId);
+            if (channelGroup is null)
+                return Results.NotFound();
+
+            db.IptvChannelGroups.Remove(channelGroup);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
         group.MapDelete("/channel-lists/{listId:long}/groups/{groupId:long}/channels/{channelId:long}", async (
             long listId, long groupId, long channelId,
             System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>

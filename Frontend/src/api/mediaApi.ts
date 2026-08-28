@@ -125,6 +125,10 @@ export const iptvApi = {
       audioTrack: audioTrack || null,
     }),
 
+  // Xoa ca playlist con - kenh ben trong di theo.
+  deleteGroup: (listId: number, groupId: number) =>
+    mediaHttp.delete<void>(`/miniapps/iptv/channel-lists/${listId}/groups/${groupId}`),
+
   deleteChannel: (listId: number, groupId: number, channelId: number) =>
     mediaHttp.delete<void>(`/miniapps/iptv/channel-lists/${listId}/groups/${groupId}/channels/${channelId}`),
 
