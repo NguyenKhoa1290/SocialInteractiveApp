@@ -3,10 +3,14 @@
    hướng 129). Dùng chung lớp token với màn chat: ô tìm nền #B7B6BA, thẻ viền
    #293546 bo 10, nút bầu dục #56959E. */
 
+/* Cao DUNG BANG man hinh, khong phai 100% cua mot khung cao tu dong: co the
+   thi ba cot moi cuon rieng duoc. Truoc day `height: 100%` do vao mot cha cao
+   `auto` nen khong rang buoc gi ca - cac cot dai ra va nguoi dung phai keo CA
+   TRANG, tim mot kenh o cot ba thi cot mot va hai troi mat. */
 .ma {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  height: 100%;
+  height: 100svh;
   min-height: 0;
 }
 
@@ -385,4 +389,11 @@
     border-right: 0;
     border-bottom: 1px solid var(--calli-surface);
   }
+}
+
+/* AppShell dat padding 24px cho noi dung - man ba panel phai tran vien va cao
+   dung bang man hinh, giong man chat (xem .shell-main:has(.cw)). */
+.shell-main:has(.ma) {
+  padding: 0;
+  overflow: hidden;
 }

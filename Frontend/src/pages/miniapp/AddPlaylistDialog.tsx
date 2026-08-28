@@ -20,7 +20,9 @@ export function AddPlaylistDialog({
   // người. Người thường không thấy công tắc đó (server vẫn chặn bằng 403).
   laAdmin: boolean;
   onClose: () => void;
-  onCreated: (listId: number) => void;
+  // `loi` khac null nghia la playlist DA TAO nhung buoc nhap link khong tron
+  // ven - noi goi phai mo playlist do ra va noi ro, khong duoc im lang.
+  onCreated: (listId: number, loi?: string) => void;
 }) {
   const [ten, setTen] = useState("");
   const [link, setLink] = useState("");
@@ -40,9 +42,6 @@ export function AddPlaylistDialog({
       const { data } = await iptvApi.createChannelList(ten.trim(), dungChung);
 
       if (link.trim()) {
-        // Playlist đã tạo xong rồi. Nhập link hỏng thì KHÔNG coi là cả việc
-        // hỏng - playlist có thật, chỉ là chưa có kênh nào; báo rõ rồi vẫn
-        // đưa người dùng sang nó để thêm tay.
         try {
           const { data: kq } = await iptvApi.importPlaylist(data.id, link.trim(), tuTachNhom);
           if (!kq.isPlaylist) {
@@ -51,8 +50,11 @@ export function AddPlaylistDialog({
             return;
           }
         } catch (err) {
-          setLoi(extractApiError(err, "Kênh không hợp lệ"));
-          setDangLam(false);
+          // Playlist ĐÃ TẠO rồi, và bước nhập có thể đã ghi được một phần
+          // trước khi hỏng. Đóng lại rồi im lặng là nói dối: người dùng thấy
+          // báo lỗi nhưng mở ra vẫn có cả danh sách kênh. Mở thẳng playlist
+          // đó ra kèm lời giải thích.
+          onCreated(data.id, extractApiError(err, "Không nhập được hết playlist — hãy kiểm tra lại danh sách kênh."));
           return;
         }
       }

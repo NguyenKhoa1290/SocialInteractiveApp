@@ -392,9 +392,17 @@ export function MiniAppPage() {
         <AddPlaylistDialog
           laAdmin={laAdmin}
           onClose={() => setHienThemPlaylist(false)}
-          onCreated={(listId) => {
+          onCreated={(listId, loi) => {
             setHienThemPlaylist(false);
-            setGhiChu("Đã thêm playlist.");
+            // Nhap khong tron ven thi mo thang playlist do ra kem loi - nguoi
+            // dung nhin duoc ngay phan da vao va phan con thieu.
+            if (loi) {
+              setGhiChu(null);
+              setError(loi);
+            } else {
+              setError(null);
+              setGhiChu("Đã thêm playlist.");
+            }
             void napDanhSach(listId);
           }}
         />

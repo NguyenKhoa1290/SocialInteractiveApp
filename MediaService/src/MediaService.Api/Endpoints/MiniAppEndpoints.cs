@@ -11,6 +11,22 @@ namespace MediaService.Api.Endpoints;
 // 1 phien hop cu the).
 public static class MiniAppEndpoints
 {
+    // Do dai toi da cua cac cot VARCHAR trong miniapp-db-init.sql. Phai khop -
+    // lech mot chu la Postgres nem 22001 va ca lan nhap vo giua chung.
+    private const int MaxTen = 100;
+    private const int MaxUrl = 500;
+
+    // Cat cho vua cot thay vi de CSDL nem loi.
+    //
+    // LOI THAT DA GAP: mot playlist M3U cong khai co ten kenh dai hon 100 ky
+    // tu -> "22001: value too long for type character varying(100)" -> ca
+    // request tra 500. Te hon la lan nhap KHONG sach: vong lap goi
+    // SaveChangesAsync moi khi gap nhom moi, ma moi lan luu la ghi luon cac
+    // kenh dang cho, nen nguoi dung nhan bao loi trong khi 352 kenh da nam
+    // trong CSDL. Ten bi cat con 100 chu van dung duoc; vo ca lan nhap thi
+    // khong.
+    private static string Cat(string s, int max) => s.Length <= max ? s : s[..max];
+
     // Ai DOC duoc playlist nay, va co SUA duoc khong.
     //
     // Hai cau hoi khac nhau va truoc day khong ai tach ra: moi cho deu viet
@@ -63,6 +79,8 @@ public static class MiniAppEndpoints
         {
             if (string.IsNullOrWhiteSpace(req.Name))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "name khong duoc trong"));
+            if (req.Name.Length > MaxTen)
+                return Results.BadRequest(new ErrorResponse("invalid_request", $"Ten playlist toi da {MaxTen} ky tu"));
 
             var userId = principal.GetUserId()!.Value;
             var laAdmin = principal.IsAdmin();
@@ -117,6 +135,8 @@ public static class MiniAppEndpoints
         {
             if (string.IsNullOrWhiteSpace(req.GroupName))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "groupName khong duoc trong"));
+            if (req.GroupName.Length > MaxTen)
+                return Results.BadRequest(new ErrorResponse("invalid_request", $"Ten playlist con toi da {MaxTen} ky tu"));
 
             var userId = principal.GetUserId()!.Value;
             var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
@@ -204,9 +224,19 @@ public static class MiniAppEndpoints
                 // Tat "tu dong nhan dien playlist con" thi do het vao mot nhom
                 // mang ten playlist - nhieu nguon chia group-title rat lung
                 // tung, nguoi dung chi muon mot danh sach phang.
-                var groupName = req.AutoGroups == false
-                    ? list.Name
-                    : string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!;
+                // URL khong cat duoc - cat la hong luon duong dan. Dai qua cot
+                // thi bo qua kenh do va tinh vao so bi bo.
+                if (entry.Url.Length > MaxUrl)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var groupName = Cat(
+                    req.AutoGroups == false
+                        ? list.Name
+                        : string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!,
+                    MaxTen);
                 if (!existingGroups.TryGetValue(groupName, out var channelGroup))
                 {
                     channelGroup = new IptvChannelGroup { ListId = listId, GroupName = groupName };
@@ -220,7 +250,7 @@ public static class MiniAppEndpoints
                 db.IptvChannels.Add(new IptvChannel
                 {
                     GroupId = channelGroup.Id,
-                    ChannelName = entry.Name,
+                    ChannelName = Cat(entry.Name, MaxTen),
                     StreamUrl = entry.Url,
                 });
                 imported++;
@@ -235,6 +265,10 @@ public static class MiniAppEndpoints
         {
             if (string.IsNullOrWhiteSpace(req.ChannelName) || string.IsNullOrWhiteSpace(req.StreamUrl))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "channelName va streamUrl khong duoc trong"));
+            if (req.ChannelName.Length > MaxTen)
+                return Results.BadRequest(new ErrorResponse("invalid_request", $"Ten kenh toi da {MaxTen} ky tu"));
+            if (req.StreamUrl.Length > MaxUrl)
+                return Results.BadRequest(new ErrorResponse("invalid_request", $"Link luong toi da {MaxUrl} ky tu"));
 
             var userId = principal.GetUserId()!.Value;
             var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());

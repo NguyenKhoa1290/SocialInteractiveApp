@@ -38,10 +38,19 @@ export function IconGrid({ size = 26 }: P) {
 }
 
 export function IconGear({ size = 26 }: P) {
+  // MOT path duy nhat voi fill-rule="evenodd" - lo o giua la LO THAT.
+  //
+  // Truoc day day la HAI path cung mau: mot vong tron va mot than banh rang.
+  // Vong tron nam TREN than, nen cai "lo" cua no chi lo ra... chinh mau cua
+  // than ben duoi. Nhin ra la mot cuc dac. Cung cai bay da mac voi logo
+  // Facebook o chan trang.
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 6a2.2 2.2 0 1 1 0-4.4 2.2 2.2 0 0 1 0 4.4Z" />
-      <path d="m20.6 13.6-.1-1.6.1-1.6 1.7-1.3a.8.8 0 0 0 .2-1l-1.8-3a.8.8 0 0 0-1-.3l-2 .8a7.7 7.7 0 0 0-2.7-1.6l-.3-2.1a.8.8 0 0 0-.8-.7h-3.6a.8.8 0 0 0-.8.7l-.3 2.1a7.7 7.7 0 0 0-2.7 1.6l-2-.8a.8.8 0 0 0-1 .3l-1.8 3a.8.8 0 0 0 .2 1l1.7 1.3-.1 1.6.1 1.6-1.7 1.3a.8.8 0 0 0-.2 1l1.8 3a.8.8 0 0 0 1 .3l2-.8a7.7 7.7 0 0 0 2.7 1.6l.3 2.1c.05.4.4.7.8.7h3.6c.4 0 .75-.3.8-.7l.3-2.1a7.7 7.7 0 0 0 2.7-1.6l2 .8a.8.8 0 0 0 1-.3l1.8-3a.8.8 0 0 0-.2-1l-1.7-1.3Z" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="m20.6 13.6-.1-1.6.1-1.6 1.7-1.3a.8.8 0 0 0 .2-1l-1.8-3a.8.8 0 0 0-1-.3l-2 .8a7.7 7.7 0 0 0-2.7-1.6l-.3-2.1a.8.8 0 0 0-.8-.7h-3.6a.8.8 0 0 0-.8.7l-.3 2.1a7.7 7.7 0 0 0-2.7 1.6l-2-.8a.8.8 0 0 0-1 .3l-1.8 3a.8.8 0 0 0 .2 1l1.7 1.3-.1 1.6.1 1.6-1.7 1.3a.8.8 0 0 0-.2 1l1.8 3a.8.8 0 0 0 1 .3l2-.8a7.7 7.7 0 0 0 2.7 1.6l.3 2.1c.05.4.4.7.8.7h3.6c.4 0 .75-.3.8-.7l.3-2.1a7.7 7.7 0 0 0 2.7-1.6l2 .8a.8.8 0 0 0 1-.3l1.8-3a.8.8 0 0 0-.2-1l-1.7-1.3ZM12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Z"
+      />
     </svg>
   );
 }
