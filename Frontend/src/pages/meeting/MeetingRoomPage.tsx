@@ -147,8 +147,14 @@ export function MeetingRoomPage() {
   // Bao mot lan luc vao phong. Dat o day chu khong o trang truoc: bam xong la
   // roi trang do ngay, thong bao hien ben do thi khong ai kip doc.
   useEffect(() => {
+    // Bao trong CA HAI truong hop. Neu chep hong (trinh duyet chan quyen,
+    // hoac trang khong duoc focus) ma im lang thi nguoi dung vua bam mot cai
+    // ra thang phong hop, khong biet co link nao ton tai - luong "ba cu bam"
+    // chet ngay o day.
     if (initialToken?.linkDaChep) {
       setNotice("Đã chép link mời vào clipboard — dán cho người bạn muốn mời là họ vào thẳng.");
+    } else if (initialToken?.inviteLink) {
+      setNotice("Chưa chép được link tự động — mở “Người tham gia” để lấy link mời.");
     }
     // Chi chay mot lan luc mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
