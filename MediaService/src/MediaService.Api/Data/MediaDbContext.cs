@@ -29,6 +29,8 @@ public class MediaDbContext(DbContextOptions<MediaDbContext> options) : DbContex
                     v => v == MeetingStatus.Active ? "active" : "ended",
                     v => v == "active" ? MeetingStatus.Active : MeetingStatus.Ended);
             entity.Property(m => m.MaxParticipants).HasColumnName("max_participants");
+            entity.Property(m => m.IsTemporary).HasColumnName("is_temporary");
+            entity.Property(m => m.RequiresApproval).HasColumnName("requires_approval");
             entity.Property(m => m.CreatedAt).HasColumnName("created_at");
             entity.Property(m => m.EndedAt).HasColumnName("ended_at");
 

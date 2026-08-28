@@ -73,7 +73,9 @@ export function MeetingRoomPage() {
 
   // Token LiveKit co the da duoc trang truoc (tao hop / vao bang link) lay
   // san va truyen qua router state - dung lai de khoi goi thua 1 vong.
-  const initialToken = (location.state as { livekitToken?: string; livekitUrl?: string } | null) ?? null;
+  const initialToken = (location.state as
+    | { livekitToken?: string; livekitUrl?: string; inviteLink?: string; linkDaChep?: boolean }
+    | null) ?? null;
 
   const roomRef = useRef<Room | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
@@ -88,7 +90,10 @@ export function MeetingRoomPage() {
   const [meeting, setMeeting] = useState<MeetingWithCallerStatus | null>(null);
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [waiting, setWaiting] = useState<WaitingParticipant[]>([]);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  // Phong hop tuy chinh duoc tao kem link ngay tu cu bam o danh sach ban be,
+  // nen link co san tu day - khong bat host phai bam "Tao link" lan nua.
+  const [inviteLink, setInviteLink] = useState<string | null>(initialToken?.inviteLink ?? null);
+  const [dangDoiDuyet, setDangDoiDuyet] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<number>>(new Set());
   const [invitingId, setInvitingId] = useState<number | null>(null);
@@ -138,6 +143,32 @@ export function MeetingRoomPage() {
   }, []);
 
   const isHost = meeting !== null && currentUserId === meeting.hostId;
+
+  // Bao mot lan luc vao phong. Dat o day chu khong o trang truoc: bam xong la
+  // roi trang do ngay, thong bao hien ben do thi khong ai kip doc.
+  useEffect(() => {
+    if (initialToken?.linkDaChep) {
+      setNotice("Đã chép link mời vào clipboard — dán cho người bạn muốn mời là họ vào thẳng.");
+    }
+    // Chi chay mot lan luc mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bat/tat phong cho giua chung. Cap nhat tai cho thay vi doi vong poll sau:
+  // host vua bam thi phai thay ngay minh vua bat cai gi.
+  async function handleToggleApproval(bat: boolean) {
+    if (!meeting) return;
+    setDangDoiDuyet(true);
+    setError(null);
+    try {
+      await meetingApi.update(meeting.id, { requiresApproval: bat });
+      setMeeting((truoc) => (truoc ? { ...truoc, requiresApproval: bat } : truoc));
+    } catch (err) {
+      setError(extractApiError(err, "Không đổi được chế độ duyệt"));
+    } finally {
+      setDangDoiDuyet(false);
+    }
+  }
   // LUU Y - hai danh sach, dung sai cho la sinh loi:
   //
   //   participants        = bang meeting_participants tu API. La SO SACH:
@@ -589,6 +620,18 @@ export function MeetingRoomPage() {
       setInviteLink(`${window.location.origin}/meetings/join/${res.data.inviteToken}`);
     } catch (err) {
       setError(extractApiError(err, "Không tạo được link mời"));
+    }
+  }
+
+  async function handleCopyInviteLink() {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setNotice("Đã chép link mời.");
+    } catch {
+      // Trinh duyet tu choi quyen ghi clipboard - o link van hien de chep tay,
+      // khong can bao loi do.
+      setNotice("Trình duyệt không cho chép tự động — bạn bôi đen ô link rồi chép nhé.");
     }
   }
 
@@ -1052,6 +1095,11 @@ export function MeetingRoomPage() {
                 <h3>Thảo luận</h3>
                 <button onClick={() => setShowDiscussion(false)}>Đóng</button>
               </div>
+              {meeting.isTemporary && (
+                <p className="meet-note">
+                  Phòng tuỳ chỉnh: tin nhắn và tệp trong đây sẽ bị xoá khi cuộc họp kết thúc.
+                </p>
+              )}
               <MeetingDiscussion conversationId={meeting.conversationId} meetingId={meetingId} compact />
             </aside>
           )}
@@ -1061,7 +1109,9 @@ export function MeetingRoomPage() {
                 <h3>Thảo luận</h3>
                 <button onClick={() => setShowDiscussion(false)}>Đóng</button>
               </div>
-              <p className="meet-empty">Cuộc họp này không mở từ nhóm chat nào nên không có luồng thảo luận.</p>
+              <p className="meet-empty">
+                Cuộc họp này chưa có luồng thảo luận (mở trước khi tính năng chat trong phòng tuỳ chỉnh có mặt).
+              </p>
             </aside>
           )}
 
@@ -1182,9 +1232,34 @@ export function MeetingRoomPage() {
                   <p className="meet-note">Bạn được mời nhận link ngay trong khung chat riêng và vào thẳng, không qua Phòng chờ.</p>
 
                   <h3>Mời bằng link</h3>
-                  <button onClick={handleCreateInviteLink}>Tạo link mời (24 giờ)</button>
-                  {inviteLink && <input className="meet-invite-link" readOnly value={inviteLink} onFocus={(e) => e.target.select()} />}
-                  <p className="meet-note">Người vào bằng link phải được bạn duyệt ở Phòng chờ.</p>
+                  <button onClick={handleCreateInviteLink}>
+                    {inviteLink ? "Tạo link mới (24 giờ)" : "Tạo link mời (24 giờ)"}
+                  </button>
+                  {inviteLink && (
+                    <>
+                      <input className="meet-invite-link" readOnly value={inviteLink} onFocus={(e) => e.target.select()} />
+                      <button onClick={() => void handleCopyInviteLink()}>Chép link</button>
+                    </>
+                  )}
+
+                  {/* Cong tac phong cho. Truoc day "phai duyet" la luat cung
+                      cua loi moi bang link, host khong doi y duoc giua chung.
+                      Phong tuy chinh mac dinh TAT de vao cho nhanh; thay nguoi
+                      la bam link thi bat len, nhung nguoi sau do phai xep hang. */}
+                  <label className="meet-toggle">
+                    <input
+                      type="checkbox"
+                      checked={meeting?.requiresApproval ?? true}
+                      disabled={!isHost || dangDoiDuyet}
+                      onChange={(e) => void handleToggleApproval(e.target.checked)}
+                    />
+                    <span>Duyệt người vào bằng link</span>
+                  </label>
+                  <p className="meet-note">
+                    {meeting?.requiresApproval
+                      ? "Người bấm link sẽ nằm ở Phòng chờ tới khi bạn duyệt."
+                      : "Người bấm link vào thẳng phòng, không phải chờ duyệt."}
+                  </p>
                 </>
               )}
             </aside>

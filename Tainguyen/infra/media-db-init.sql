@@ -11,6 +11,18 @@ CREATE TABLE meetings (
   status            VARCHAR(10) NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active','ended')),
   max_participants  INT NOT NULL DEFAULT 100,
+  -- Phong hop TUY CHINH: khong mo tu nhom nao, chi vao duoc bang link, va
+  -- toan bo du lieu trong do (hoi thoai tam + tep) bi xoa khi hop ket thuc.
+  -- Cuoc hop mo tu nhom chat thi = false: thao luan cua no thuoc ve nhom va
+  -- duoc giu lai.
+  is_temporary      BOOLEAN NOT NULL DEFAULT false,
+  -- Co bat phong cho hay khong. Truoc day dieu nay bi suy ra cung nhac tu
+  -- kieu loi moi (link thi luon phai duyet), nen host khong the doi y. Gio la
+  -- mot cong tac host bat/tat ngay trong phong.
+  --
+  -- Mac dinh cua phong tuy chinh la FALSE - muc tieu la chu tri duoc mot cuoc
+  -- hop trong ba cu bam, ma ngoi canh phong cho thi khong con la ba cu bam.
+  requires_approval BOOLEAN NOT NULL DEFAULT true,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   ended_at          TIMESTAMPTZ
 );

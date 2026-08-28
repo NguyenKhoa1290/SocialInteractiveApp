@@ -6,10 +6,17 @@ public record ErrorResponse(string Error, string Message);
 
 public record CreateMeetingRequest(string Mode, long? ConversationId);
 
-public record MeetingResponse(long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt)
+// Doi cau hinh phong khi dang hop - hien chi co cong tac phong cho. Dung
+// nullable de sau nay them truong khac ma khong bat client phai gui lai het.
+public record UpdateMeetingRequest(bool? RequiresApproval);
+
+public record MeetingResponse(
+    long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    bool IsTemporary, bool RequiresApproval)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
-        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt);
+        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.IsTemporary, m.RequiresApproval);
 }
 
 // Mo rong so voi schema "Meeting" trong OpenAPI spec goc - CAN mo rong vi
@@ -20,12 +27,13 @@ public record MeetingResponse(long Id, long HostId, long? ConversationId, string
 // cuoc hop.
 public record MeetingWithCallerStatusResponse(
     long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
-    string CallerStatus, string? LivekitToken, string? LivekitUrl)
+    string CallerStatus, string? LivekitToken, string? LivekitUrl,
+    bool IsTemporary, bool RequiresApproval)
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
         m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
-        callerStatus, livekitToken, livekitUrl);
+        callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval);
 }
 
 public record MeetingPreviewResponse(long MeetingId, string HostNickname, int ParticipantCount, bool RequiresApproval);

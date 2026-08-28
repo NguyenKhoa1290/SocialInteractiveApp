@@ -34,6 +34,12 @@ export const meetingApi = {
   joinInChat: (meetingId: number, nickname?: string) =>
     mediaHttp.post<JoinResult>(`/meetings/${meetingId}/join`, { nickname: nickname ?? null }),
 
+  // Chi chu phong goi duoc. Hien chi dung de bat/tat phong cho giua chung.
+  update: (meetingId: number, patch: { requiresApproval?: boolean }) =>
+    mediaHttp.patch<Meeting>(`/meetings/${meetingId}`, {
+      requiresApproval: patch.requiresApproval ?? null,
+    }),
+
   leave: (meetingId: number) => mediaHttp.post<void>(`/meetings/${meetingId}/leave`),
 
   end: (meetingId: number) => mediaHttp.post<void>(`/meetings/${meetingId}/end`),

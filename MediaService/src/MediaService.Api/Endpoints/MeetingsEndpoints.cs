@@ -24,12 +24,31 @@ public static class MeetingsEndpoints
             if (req.Mode == "in_chat" && req.ConversationId is null)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "conversationId bat buoc khi mode=in_chat"));
 
+            var laTuyChinh = req.Mode != "in_chat";
+
+            // Phong TUY CHINH tu xin mot hoi thoai TAM ben Chat Service.
+            //
+            // Tai lieu goc chi cho hop trong nhom, nen cuoc hop khong gan nhom
+            // truoc day khong co cho nhan tin nao ca. Mot hoi thoai kieu
+            // 'meeting' cho no dung lai toan bo luong thao luan da co ma khong
+            // phai dung them mot he thong chat thu hai - va vi hoi thoai do
+            // thuoc ve chinh cuoc hop, xoa no khi hop xong la dung nghia "du
+            // lieu trong phong tam bien mat".
+            long? hoiThoai = laTuyChinh
+                ? await chat.CreateMeetingConversationAsync()
+                : req.ConversationId;
+
             var meeting = new Meeting
             {
                 HostId = hostId,
-                ConversationId = req.Mode == "in_chat" ? req.ConversationId : null,
+                ConversationId = hoiThoai,
                 Status = MeetingStatus.Active,
                 MaxParticipants = 100,
+                IsTemporary = laTuyChinh && hoiThoai is not null,
+                // Phong cho MAC DINH TAT o phong tuy chinh: muc tieu la chu tri
+                // duoc mot cuoc hop trong ba cu bam, ma ngoi canh phong cho thi
+                // khong con la ba cu bam. Host bat lai duoc ngay trong phong.
+                RequiresApproval = !laTuyChinh,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             db.Meetings.Add(meeting);
@@ -55,6 +74,10 @@ public static class MeetingsEndpoints
                 // co room LiveKit tuong ung.
                 db.Meetings.Remove(meeting);
                 await db.SaveChangesAsync();
+                // Don luon hoi thoai tam vua xin: khong co cuoc hop nao dung
+                // toi no nua, de lai la mot hoi thoai mo coi khong ai vao duoc.
+                if (meeting.IsTemporary && meeting.ConversationId is not null)
+                    await chat.DeleteMeetingConversationAsync(meeting.ConversationId.Value);
                 return Results.Json(
                     new ErrorResponse("livekit_unavailable", "Cum LiveKit hien da dat gioi han, thu lai sau"),
                     statusCode: 503);
@@ -277,7 +300,7 @@ public static class MeetingsEndpoints
         group.MapPost("/{meetingId:long}/end", async (
             long meetingId, System.Security.Claims.ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit, WaitingRoomStore waiting, PresentationStore presentation,
-            RoomLivenessCache liveness) =>
+            RoomLivenessCache liveness, ChatServiceClient chat) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
@@ -300,6 +323,15 @@ public static class MeetingsEndpoints
             await db.SaveChangesAsync();
 
             try { await liveKit.DeleteRoomAsync(meetingId); } catch (Exception) { /* room co the da tu don vi het nguoi */ }
+
+            // Phong tuy chinh: xoa han hoi thoai tam (tin nhan + tep) - dung
+            // nhu da hua, du lieu trong phong tam bien mat khi hop xong.
+            // IsTemporary la lop khoa thu nhat, Chat Service tu choi id khong
+            // phai kieu 'meeting' la lop thu hai: xoa nham hoi thoai cua mot
+            // nhom that thi khong co duong hoan tac.
+            if (meeting.IsTemporary && meeting.ConversationId is not null)
+                await chat.DeleteMeetingConversationAsync(meeting.ConversationId.Value);
+
             await waiting.ClearMeetingAsync(meetingId);
             // Trang thai trinh bay nam o Redis co TTL 12 gio - het hop thi xoa
             // luon, khong de treo lai lam nguoi mo hop moi tuong co ai dang
@@ -308,6 +340,30 @@ public static class MeetingsEndpoints
             await liveness.ClearAsync(meetingId);
 
             return Results.NoContent();
+        });
+        // Bat/tat phong cho ngay trong luc dang hop - chi host.
+        //
+        // Truoc day "co phai duyet khong" bi suy ra cung nhac tu kieu loi moi
+        // (link thi luon phai duyet), nen host khong co cach nao doi y giua
+        // chung. Phong tuy chinh mac dinh TAT de vao nhanh; thay nguoi la bam
+        // link thi bat len mot cai la nhung nguoi sau do phai xep hang.
+        group.MapPatch("/{meetingId:long}", async (
+            long meetingId, UpdateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
+            MediaDbContext db) =>
+        {
+            var meeting = await db.Meetings.FindAsync(meetingId);
+            if (meeting is null)
+                return Results.NotFound();
+            if (meeting.HostId != principal.GetUserId()!.Value)
+                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hop duoc doi cai dat"), statusCode: 403);
+            if (meeting.Status != MeetingStatus.Active)
+                return Results.Json(new ErrorResponse("meeting_ended", "Cuoc hop da ket thuc"), statusCode: 409);
+
+            if (req.RequiresApproval is not null)
+                meeting.RequiresApproval = req.RequiresApproval.Value;
+            await db.SaveChangesAsync();
+
+            return Results.Ok(MeetingResponse.FromEntity(meeting));
         });
     }
 }

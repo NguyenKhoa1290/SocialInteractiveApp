@@ -118,13 +118,24 @@ public class MeetingSweeperService(
             .Where(p => deadIds.Contains(p.MeetingId) && p.LeftAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.LeftAt, now), ct);
 
-        foreach (var id in deadIds)
+        // ChatServiceClient dang ky qua AddHttpClient nen KHONG tiem thang vao
+        // BackgroundService (singleton) duoc - phai lay tu scope cua vong quet.
+        var chat = scope.ServiceProvider.GetRequiredService<ChatServiceClient>();
+
+        foreach (var m in dead)
         {
-            await waiting.ClearMeetingAsync(id);
+            await waiting.ClearMeetingAsync(m.Id);
             // Trang thai trinh bay co TTL 12 gio - khong xoa thi nguoi mo hop
             // sau tuong con ai dang trinh bay.
-            await presentation.ClearAsync(id);
-            await liveness.ClearAsync(id);
+            await presentation.ClearAsync(m.Id);
+            await liveness.ClearAsync(m.Id);
+
+            // Phong TUY CHINH bi don o day chinh la truong hop hay gap nhat:
+            // host dong tab ma khong bam "Ket thuc". Du lieu tam cua no phai
+            // bien mat y het nhu khi bam nut - neu khong thi loi hua "hop xong
+            // la sach" chi dung voi nguoi chiu kho bam dung nut.
+            if (m.IsTemporary && m.ConversationId is not null)
+                await chat.DeleteMeetingConversationAsync(m.ConversationId.Value);
         }
 
         logger.LogInformation(

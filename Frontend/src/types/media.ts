@@ -12,6 +12,11 @@ export interface Meeting {
   status: MeetingStatus;
   maxParticipants: number;
   createdAt: string;
+  /** Phòng tuỳ chỉnh: không mở từ nhóm nào, và toàn bộ hội thoại + tệp bên
+   *  trong bị xoá khi cuộc họp kết thúc. */
+  isTemporary: boolean;
+  /** Có bật phòng chờ hay không - chủ phòng bật/tắt được ngay trong phòng. */
+  requiresApproval: boolean;
 }
 
 export interface MeetingWithCallerStatus extends Meeting {

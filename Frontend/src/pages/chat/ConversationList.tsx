@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
+import { meetingApi } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
 import { Avatar } from "../../components/Avatar";
 import type { ConversationSummary } from "../../types/chat";
@@ -39,16 +40,10 @@ function batDau(iso: string | null): string {
 export function ConversationList({
   kind,
   activeId,
-  onStartMeeting,
-  meetingBusy,
   reloadKey,
 }: {
   kind: "p2p" | "group";
   activeId?: number;
-  // Nut "Khoi tao cuoc hop" nam o panel trai nhung cuoc hop lai thuoc ve mot
-  // hoi thoai cu the, nen viec mo hop do panel giua lo - o day chi bam nut.
-  onStartMeeting?: () => void;
-  meetingBusy?: boolean;
   // Doi so nay de bat danh sach nap lai. Khung chat dung no sau khi doi anh
   // nhom: khong co no thi panel phai da doi anh ma cai the ben trai van con
   // anh cu cho toi luc chuyen trang - trong nhu mot loi.
@@ -75,6 +70,7 @@ export function ConversationList({
   // moi thi duoc, nhung khong ai co duong nao de bam dong y.
   const [loiMoi, setLoiMoi] = useState<FriendRequest[]>([]);
   const [dangTraLoi, setDangTraLoi] = useState<number | null>(null);
+  const [dangMoHop, setDangMoHop] = useState(false);
 
   const [q, setQ] = useState("");
   const [ketQua, setKetQua] = useState<AuthUser[] | null>(null);
@@ -158,6 +154,52 @@ export function ConversationList({
     const ten = q.trim().toLowerCase();
     return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten));
   }, [friends, q]);
+
+  // MOT cu bam ra ca cuoc hop: tao phong tam, sinh link moi, chep link vao
+  // clipboard, roi vao thang phong.
+  //
+  // Vi sao khong hoi han gi truoc: tai lieu goc bat phai co nhom moi hop
+  // duoc, nhung yeu cau cua chu du an la chu tri duoc mot cuoc hop trong ba
+  // cu bam. Mot popup dat ten phong la mot cu bam khong mua lai duoc gi -
+  // phong nay song vai chuc phut roi bien mat cung du lieu cua no.
+  async function moPhongHopTuyChinh() {
+    setDangMoHop(true);
+    setError(null);
+    try {
+      const { data: hop } = await meetingApi.create("standalone");
+      const { data: moi } = await meetingApi.createInvite(hop.id, "link");
+      const link = `${window.location.origin}/meetings/join/${moi.inviteToken}`;
+
+      // Chep TRUOC khi roi trang: o mot so trinh duyet, quyen ghi clipboard
+      // gan voi chinh cu bam vua roi.
+      let daChep = false;
+      try {
+        await navigator.clipboard.writeText(link);
+        daChep = true;
+      } catch {
+        // Trinh duyet tu choi (khong phai ngu canh an toan, hoac nguoi dung
+        // chan quyen). Van vao phong - link hien san trong do de chep tay.
+      }
+
+      const { data: vao } = await meetingApi.joinInChat(hop.id);
+      // Bao "da chep" o TRONG PHONG chu khong o day: bam xong la roi trang
+      // nay ngay, mot thong bao hien o day thi khong ai kip doc.
+      navigate(`/meetings/${hop.id}`, {
+        state: {
+          livekitToken: vao.livekitToken,
+          livekitUrl: vao.livekitUrl,
+          // Truyen luon link sang: phong vua tao da co link roi, bat host bam
+          // "Tao link moi" mot lan nua chi de nhin thay no la thua.
+          inviteLink: link,
+          linkDaChep: daChep,
+        },
+      });
+    } catch (err) {
+      setError(extractApiError(err, "Không mở được cuộc họp"));
+    } finally {
+      setDangMoHop(false);
+    }
+  }
 
   async function traLoiMoi(req: FriendRequest, dongY: boolean) {
     setDangTraLoi(req.id);
@@ -264,8 +306,10 @@ export function ConversationList({
               Tạo nhóm mới
             </Link>
           ) : (
-            <button className="cw-pill" onClick={onStartMeeting} disabled={!onStartMeeting || meetingBusy}>
-              {meetingBusy ? "Đang mở…" : "Khởi tạo cuộc họp"}
+            /* KHONG phai cuoc hop cua mot cuoc tro chuyen nao - day la phong
+               hop TUY CHINH, moi nguoi vao bang link. */
+            <button className="cw-pill" onClick={() => void moPhongHopTuyChinh()} disabled={dangMoHop}>
+              {dangMoHop ? "Đang mở…" : "Khởi tạo cuộc họp"}
             </button>
           )}
         </div>

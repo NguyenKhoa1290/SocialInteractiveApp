@@ -858,3 +858,26 @@
   font-size: 11px;
   gap: 6px;
 }
+
+/* Cong tac trong panel moi nguoi - vd "Duyet nguoi vao bang link". */
+.meet-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.meet-toggle input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.meet-toggle input:disabled,
+.meet-toggle:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

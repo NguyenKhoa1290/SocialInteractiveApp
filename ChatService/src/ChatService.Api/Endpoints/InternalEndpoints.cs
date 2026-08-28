@@ -13,9 +13,65 @@ public record NotifyRecipientsResponse(List<long> UserIds);
 public record ConversationMembershipResponse(bool IsMember, bool IsLeader);
 
 // KHONG di qua API Gateway public - dung boi WorkSpace Service (xem
-// WorkSpaceService/Services/ChatServiceClient.cs).
+// WorkSpaceService/Services/ChatServiceClient.cs) va Media Service.
 public static class InternalEndpoints
 {
+    // DON KHO LUU TRU TRUOC khi xoa hang conversation.
+    //
+    // FK ON DELETE CASCADE chi don trong CSDL - object tren MinIO thi nam lai
+    // MAI MAI vi khong ai bao no xoa. Da thay that: hoi thoai 29 va 38 khong
+    // con trong DB nhung multipart do dang van con.
+    //
+    // Phai lam TRUOC vi sau khi cascade thi khong con hang files nao de biet
+    // file nam o kho nao.
+    private static async Task DonKhoLuuTruAsync(
+        ChatDbContext db, StorageService storage, ILogger logger, long conversationId)
+    {
+        var prefix = $"{conversationId}/";
+
+        // Huy cac lan tai len do dang bang uploadId DA LUU - dich danh, khong
+        // phu thuoc vao ListMultipartUploads. Ban dau dua vao liet ke va loc
+        // theo thoi gian, do that thi ra "huy 0 lan" trong khi multipart van
+        // con nam do.
+        var pending = await db.Files
+            .Where(f => f.ConversationId == conversationId && f.UploadId != null)
+            .Select(f => new { f.StorageProvider, f.ObjectKey, f.UploadId })
+            .ToListAsync();
+
+        foreach (var p in pending)
+        {
+            try { await storage.AbortMultipartAsync(p.StorageProvider, p.ObjectKey, p.UploadId!); }
+            catch (Exception ex) { logger.LogWarning(ex, "Khong huy duoc lan tai len {Key}", p.ObjectKey); }
+        }
+
+        var providers = await db.Files
+            .Where(f => f.ConversationId == conversationId)
+            .Select(f => f.StorageProvider)
+            .Distinct()
+            .ToListAsync();
+        if (providers.Count == 0) providers = [StorageService.Home];
+
+        foreach (var provider in providers)
+        {
+            try
+            {
+                var deleted = await storage.DeleteByPrefixAsync(provider, prefix);
+                logger.LogInformation(
+                    "Xoa hoi thoai {ConversationId}: da don {Deleted} object va huy {Aborted} lan tai len do dang o kho {Provider}",
+                    conversationId, deleted, pending.Count, provider);
+            }
+            catch (Exception ex)
+            {
+                // Van xoa tiep trong CSDL: giu lai hang chi de nguoi dung thay
+                // mot thu da xoa van hien ra. File mo coi thi con dich vu quet
+                // dinh ky don sau.
+                logger.LogWarning(ex,
+                    "Khong don duoc kho luu tru khi xoa hoi thoai {ConversationId} (kho {Provider})",
+                    conversationId, provider);
+            }
+        }
+    }
+
     public static void MapInternalEndpoints(this WebApplication app)
     {
         // Goi ngay sau khi WorkSpace Service tao workspace moi - dam bao 1
@@ -59,62 +115,57 @@ public static class InternalEndpoints
                 return Results.NoContent(); // khong co gi de don, khong phai loi
 
             var logger = loggerFactory.CreateLogger(typeof(InternalEndpoints));
-
-            // DON KHO LUU TRU TRUOC khi xoa hang.
-            //
-            // FK ON DELETE CASCADE chi don trong CSDL - object tren MinIO thi
-            // nam lai MAI MAI vi khong ai bao no xoa. Da thay that: hoi thoai
-            // 29 va 38 khong con trong DB nhung multipart do dang van con.
-            //
-            // Phai lam TRUOC vi sau khi cascade thi khong con hang files nao
-            // de biet file nam o kho nao.
-            var prefix = $"{conversation.Id}/";
-
-            // Huy cac lan tai len do dang bang uploadId DA LUU - dich danh,
-            // khong phu thuoc vao ListMultipartUploads. Ban dau dua vao liet
-            // ke va loc theo thoi gian, do that thi ra "huy 0 lan" trong khi
-            // multipart van con nam do.
-            var pending = await db.Files
-                .Where(f => f.ConversationId == conversation.Id && f.UploadId != null)
-                .Select(f => new { f.StorageProvider, f.ObjectKey, f.UploadId })
-                .ToListAsync();
-
-            foreach (var p in pending)
-            {
-                try { await storage.AbortMultipartAsync(p.StorageProvider, p.ObjectKey, p.UploadId!); }
-                catch (Exception ex) { logger.LogWarning(ex, "Khong huy duoc lan tai len {Key}", p.ObjectKey); }
-            }
-
-            var providers = await db.Files
-                .Where(f => f.ConversationId == conversation.Id)
-                .Select(f => f.StorageProvider)
-                .Distinct()
-                .ToListAsync();
-            if (providers.Count == 0) providers = [StorageService.Home];
-
-            foreach (var provider in providers)
-            {
-                try
-                {
-                    var deleted = await storage.DeleteByPrefixAsync(provider, prefix);
-                    logger.LogInformation(
-                        "Xoa nhom {ConversationId}: da don {Deleted} object va huy {Aborted} lan tai len do dang o kho {Provider}",
-                        conversation.Id, deleted, pending.Count, provider);
-                }
-                catch (Exception ex)
-                {
-                    // Van xoa tiep trong CSDL: giu lai hang chi de nguoi dung
-                    // thay mot nhom da xoa van hien ra. File mo coi thi con
-                    // dich vu quet dinh ky don sau.
-                    logger.LogWarning(ex,
-                        "Khong don duoc kho luu tru khi xoa nhom {ConversationId} (kho {Provider})",
-                        conversation.Id, provider);
-                }
-            }
+            await DonKhoLuuTruAsync(db, storage, logger, conversation.Id);
 
             // Xoa conversation se cascade xoa messages/files/group_chat_settings/
             // muted_members lien quan qua FK ON DELETE CASCADE da khai bao
             // trong chat-db-init.sql.
+            db.Conversations.Remove(conversation);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // ---- Hoi thoai TAM cua phong hop tuy chinh --------------------------
+        //
+        // Phong hop tuy chinh khong gan vao nhom nao, nen truoc day no khong co
+        // cho nhan tin. Mot hoi thoai kieu 'meeting' cho no dung lai TOAN BO
+        // luong thao luan da co (MeetingDiscussionEndpoints) ma khong phai viet
+        // them mot he thong chat thu hai.
+        //
+        // Khong tao group_chat_settings: hoi thoai nay khong co han muc luu tru
+        // vi no bien mat cung cuoc hop, khong co gi de ke toan lau dai.
+        app.MapPost("/internal/conversations/meeting", async (ChatDbContext db) =>
+        {
+            var conversation = new Conversation
+            {
+                Type = ConversationType.Meeting,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Conversations.Add(conversation);
+            await db.SaveChangesAsync();
+            return Results.Created($"/conversations/{conversation.Id}", ConversationResponse.FromEntity(conversation));
+        });
+
+        // Goi khi cuoc hop tuy chinh ket thuc. Xoa THAT - dung nhu da hua voi
+        // nguoi dung: du lieu trong phong hop tam bien mat khi hop xong.
+        //
+        // CHI xoa duoc hoi thoai kieu 'meeting'. Neu Media Service goi nham id
+        // cua mot nhom, o day tu choi thay vi xoa ca nhom that.
+        app.MapDelete("/internal/conversations/meeting/{conversationId:long}", async (
+            long conversationId, ChatDbContext db, StorageService storage, ILoggerFactory loggerFactory) =>
+        {
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NoContent(); // da don roi, khong phai loi
+
+            if (conversation.Type != ConversationType.Meeting)
+                return Results.BadRequest(new ErrorResponse(
+                    "not_a_meeting_conversation",
+                    "Chi xoa duoc hoi thoai tam cua cuoc hop, khong xoa duoc hoi thoai that"));
+
+            var logger = loggerFactory.CreateLogger(typeof(InternalEndpoints));
+            await DonKhoLuuTruAsync(db, storage, logger, conversation.Id);
+
             db.Conversations.Remove(conversation);
             await db.SaveChangesAsync();
             return Results.NoContent();

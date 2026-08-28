@@ -4,9 +4,18 @@
 -- cac bang group_chat_settings/muted_members danh cho Phase 3 nhung tao san
 -- vi cung 1 schema thong nhat, khong tach rieng theo phase).
 
+-- Kieu 'meeting' la hoi thoai TAM cua mot phong hop tuy chinh: khong thuoc
+-- nhom nao, khong co hai ben nao, va bi XOA HAN khi cuoc hop ket thuc (xem
+-- DELETE /internal/conversations/meeting/{id}). No ton tai chi de phong hop
+-- tuy chinh co cho nhan tin - truoc day cuoc hop khong gan nhom thi khong co
+-- luong thao luan nao ca.
+--
+-- Quyen doc/ghi cua no KHONG di qua thanh vien nhom hay hai ben P2P (khong co
+-- gi de doi chieu) ma qua Media Service: "dang thuc su o trong cuoc hop do".
+-- Xem MeetingDiscussionEndpoints.CanAccessAsync.
 CREATE TABLE conversations (
   id                 BIGSERIAL PRIMARY KEY,
-  type               VARCHAR(10) NOT NULL CHECK (type IN ('p2p','group')),
+  type               VARCHAR(10) NOT NULL CHECK (type IN ('p2p','group','meeting')),
   workspace_id       BIGINT,
   participant_a_id   BIGINT,
   participant_b_id   BIGINT,
@@ -20,6 +29,10 @@ CREATE TABLE conversations (
     (type = 'group' AND workspace_id IS NOT NULL
                     AND participant_a_id IS NULL
                     AND participant_b_id IS NULL)
+    OR
+    (type = 'meeting' AND workspace_id IS NULL
+                      AND participant_a_id IS NULL
+                      AND participant_b_id IS NULL)
   )
 );
 

@@ -83,11 +83,11 @@ public static class InvitesEndpoints
             var host = await identity.ResolveUserAsync(meeting.HostId);
             var activeCount = meeting.Participants.Count(p => p.LeftAt == null);
 
-            // Quyet dinh tu thiet ke (khong co cot rieng trong schema
-            // "meetings" cho requiresApproval): link invite luon can duyet
-            // (host chua biet truoc ai se bam vao link), direct invite thi
-            // KHONG can duyet vi host da chu dong chon dung nguoi do roi.
-            var requiresApproval = invite.InviteType == InviteType.Link;
+            // Loi moi TRUC TIEP van khong bao gio phai duyet - host da chu
+            // dong chon dung nguoi do roi. Loi moi bang LINK thi hoi cong tac
+            // cua chinh cuoc hop (meetings.requires_approval) chu khong con
+            // suy ra cung nhac tu kieu loi moi: host bat/tat duoc giua chung.
+            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval;
 
             return Results.Ok(new MeetingPreviewResponse(
                 meeting.Id, host?.Nickname ?? $"user_{meeting.HostId}", activeCount, requiresApproval));
@@ -126,7 +126,9 @@ public static class InvitesEndpoints
                 return Results.Json(new ErrorResponse("room_full", "Phong da dat gioi han so nguoi"), statusCode: 409);
 
             var nickname = req?.Nickname ?? principal.GetNickname();
-            var requiresApproval = invite.InviteType == InviteType.Link;
+            // Cung quy tac voi phan xem truoc o tren - phai giong nhau, khong
+            // thi nguoi dung thay "vao thang duoc" roi lai bi day vao phong cho.
+            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval;
 
             if (requiresApproval)
             {

@@ -834,8 +834,6 @@ export function ChatRoomPage() {
         <ConversationList
           kind={conversation?.type === "group" ? "group" : "p2p"}
           activeId={conversationId}
-          onStartMeeting={activeMeeting ? handleJoinMeeting : handleStartMeeting}
-          meetingBusy={startingMeeting}
           reloadKey={listReload}
         />
       }
@@ -922,15 +920,20 @@ export function ChatRoomPage() {
         )}
 
         <div className="cw-head-actions">
-          {!activeMeeting ? (
-            <button className="cw-pill" onClick={handleStartMeeting} disabled={startingMeeting}>
-              {startingMeeting ? "Đang mở…" : "Khởi tạo cuộc họp"}
-            </button>
-          ) : (
-            <button className="cw-pill" onClick={handleJoinMeeting}>
-              Vào cuộc họp
-            </button>
-          )}
+          {/* Cuoc hop la viec CUA NHOM. Dau khung chat 1-1 trong ban thiet ke
+              (frame 111:475) chi co anh dai dien va ten - khong nut nao ca.
+              Muon hop nhanh voi mot nguoi ban thi dung "Khoi tao cuoc hop" o
+              panel trai: do la phong hop TUY CHINH, khong gan vao nhom nao. */}
+          {conversation?.type === "group" &&
+            (!activeMeeting ? (
+              <button className="cw-pill" onClick={handleStartMeeting} disabled={startingMeeting}>
+                {startingMeeting ? "Đang mở…" : "Khởi tạo cuộc họp"}
+              </button>
+            ) : (
+              <button className="cw-pill" onClick={handleJoinMeeting}>
+                Vào cuộc họp
+              </button>
+            ))}
 
           <button className="cw-icon-btn" onClick={() => setShowSearch((v) => !v)} title="Tìm kiếm tin nhắn">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
