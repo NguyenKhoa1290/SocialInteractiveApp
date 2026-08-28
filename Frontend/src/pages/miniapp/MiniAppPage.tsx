@@ -43,6 +43,7 @@ export function MiniAppPage() {
   const [hienThongTin, setHienThongTin] = useState(false);
   const [themKenhVao, setThemKenhVao] = useState<number | null>(null);
   const [kenhMoi, setKenhMoi] = useState({ ten: "", url: "" });
+  const [nhomMoi, setNhomMoi] = useState<string | null>(null);
   const [dangLam, setDangLam] = useState(false);
 
   async function napDanhSach(chon?: number) {
@@ -67,6 +68,8 @@ export function MiniAppPage() {
     }
     let huy = false;
     setGroups(null);
+    setNhomMoi(null);
+    setThemKenhVao(null);
     iptvApi
       .listGroups(dangChon)
       .then((r) => {
@@ -116,6 +119,26 @@ export function MiniAppPage() {
       await napDanhSach(giuLai);
     } catch (err) {
       setError(extractApiError(err, "Không xoá được playlist"));
+    }
+  }
+
+  // Playlist tao tay thi KHONG co nhom nao ca, ma them kenh lai bat buoc phai
+  // co nhom truoc - thieu duong nay thi mot playlist rong la ngo cut. Nhom chi
+  // tu sinh khi nhap tu link M3U (theo group-title cua nguon).
+  async function themNhom(e: React.FormEvent) {
+    e.preventDefault();
+    if (dangChon === null || !nhomMoi?.trim()) return;
+    setDangLam(true);
+    setError(null);
+    try {
+      await iptvApi.createGroup(dangChon, nhomMoi.trim());
+      const { data } = await iptvApi.listGroups(dangChon);
+      setGroups(data);
+      setNhomMoi(null);
+    } catch (err) {
+      setError(extractApiError(err, "Không thêm được playlist con"));
+    } finally {
+      setDangLam(false);
     }
   }
 
@@ -243,9 +266,38 @@ export function MiniAppPage() {
               {chon.isShared && !chon.canEdit && (
                 <p className="ma-note">Playlist dùng chung của quản trị viên — bạn xem được nhưng không sửa.</p>
               )}
+              {chon.canEdit && (
+                <div className="ma-section ma-section-row">
+                  <span>Playlist con</span>
+                  <button
+                    className="ma-pill ma-pill-sm"
+                    onClick={() => setNhomMoi((truoc) => (truoc === null ? "" : null))}
+                  >
+                    {nhomMoi === null ? "Thêm playlist con" : "Huỷ"}
+                  </button>
+                </div>
+              )}
+
+              {nhomMoi !== null && (
+                <form className="ma-add-channel" onSubmit={themNhom}>
+                  <input
+                    className="ma-input"
+                    value={nhomMoi}
+                    onChange={(e) => setNhomMoi(e.target.value)}
+                    placeholder="Tên playlist con (ví dụ: Thời sự)"
+                    autoFocus
+                  />
+                  <button className="ma-pill" type="submit" disabled={dangLam || !nhomMoi.trim()}>
+                    {dangLam ? "Đang thêm…" : "Lưu playlist con"}
+                  </button>
+                </form>
+              )}
+
               {groups === null && <p className="ma-empty">Đang tải…</p>}
               {groups?.length === 0 && (
-                <p className="ma-empty">Playlist này chưa có kênh nào. Thêm một nhóm rồi thêm kênh vào đó.</p>
+                <p className="ma-empty">
+                  Playlist này chưa có kênh nào. Thêm một playlist con ở trên rồi thêm kênh vào đó.
+                </p>
               )}
               {nhomHienThi?.length === 0 && (groups?.length ?? 0) > 0 && (
                 <p className="ma-empty">Không có kênh nào khớp “{timKenh.trim()}”.</p>
