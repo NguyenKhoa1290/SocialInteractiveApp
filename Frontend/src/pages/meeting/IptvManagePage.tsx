@@ -125,7 +125,7 @@ export function IptvManagePage() {
   }
 
   return (
-    <AppShell>
+    <AppShell activeTab="miniapp">
       <h2>Mini App · Danh sách kênh IPTV</h2>
       <p className="meet-note">
         Danh sách kênh là của riêng bạn. Khi đang trong cuộc họp, mở Mini App IPTV để chọn kênh xem.

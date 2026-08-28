@@ -6,11 +6,12 @@ import { notificationApi } from "../api/notificationApi";
 import { useNotificationStore } from "../store/notificationStore";
 import { URGENT_TYPES } from "../types/notification";
 import { NavRail } from "./NavRail";
+import type { RailTab } from "./NavRail";
 import { NotificationToasts } from "./NotificationToast";
 import { E2eePopup } from "./E2eePopup";
 import "./app-shell.css";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, activeTab }: { children: ReactNode; activeTab?: RailTab }) {
   const accessToken = useAuthStore((s) => s.accessToken);
 
   // Dat o AppShell chu khong o trang Thong bao: thong bao phai toi du dang o
@@ -52,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="shell">
-      <NavRail />
+      <NavRail activeTab={activeTab} />
       <main className="shell-main">{children}</main>
       <NotificationToasts />
       {/* Mat khau ma hoa hoi NGAY SAU KHI DANG NHAP, o dang popup - truoc day

@@ -67,7 +67,7 @@ export function WorkspaceSettingsPage() {
 
   if (!workspace) {
     return (
-      <AppShell>
+      <AppShell activeTab="groups">
         {error ? <p className="ws-error">{error}</p> : <p>Đang tải...</p>}
       </AppShell>
     );

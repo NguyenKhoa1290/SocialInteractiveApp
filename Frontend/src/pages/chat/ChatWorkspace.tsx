@@ -21,11 +21,13 @@ export function ChatWorkspace({
   // Chi dung o man hep: chua chon gi thi hien danh sach, chon roi thi hien
   // khung chat. Man rong hien ca hai nen khong dinh gi toi.
   hasActive: boolean;
-  // Panel phai rong hon o nhom (462 so voi 416) - xem workspace.css.
+  // Panel phai rong hon o nhom (462 so voi 416) - xem workspace.css. Va cung
+  // la cau tra loi cho thanh dieu huong: /app/chat/:id dung cho ca hai muc
+  // nen chi trang nay biet dang mo nhom hay mo chat ca nhan.
   isGroup?: boolean;
 }) {
   return (
-    <AppShell>
+    <AppShell activeTab={isGroup ? "groups" : "chat"}>
       <div className={`cw${hasActive ? "" : " cw-no-active"}${isGroup ? " cw-group" : ""}`}>
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import type { StorageInfo, TopupRequestInfo, UploadTracker } from "../../api/chatApi";
 import { keysApi } from "../../api/keysApi";
@@ -45,6 +45,11 @@ const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 export function ChatRoomPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Danh sach ben trai bao truoc day la nhom hay chat ca nhan. Chi dung cho
+  // toi khi `conversation` ve - luc do lay theo du lieu that. Thieu no thi
+  // thanh dieu huong sang muc "Chat" mot nhip roi moi nhay ve "Nhom".
+  const kindGoi = (location.state as { kind?: "p2p" | "group" } | null)?.kind ?? null;
   const conversationId = Number(id);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const privateKey = useKeyStore((s) => s.privateKey);
@@ -837,7 +842,7 @@ export function ChatRoomPage() {
           reloadKey={listReload}
         />
       }
-      isGroup={conversation?.type === "group"}
+      isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
       info={
         <ConversationInfo
           conversationId={conversationId}

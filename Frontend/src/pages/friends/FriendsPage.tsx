@@ -106,7 +106,7 @@ export function FriendsPage() {
   const outgoingIds = new Set(outgoing.map((r) => r.userId));
 
   return (
-    <AppShell>
+    <AppShell activeTab="chat">
       <h1>Bạn bè</h1>
 
       <form onSubmit={handleSearch} className="friend-search-form">

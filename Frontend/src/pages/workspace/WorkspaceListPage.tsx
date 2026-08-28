@@ -24,7 +24,7 @@ export function WorkspaceListPage() {
   }, []);
 
   return (
-    <AppShell>
+    <AppShell activeTab="groups">
       <div className="ws-page-header">
         <h1>Nhóm của tôi</h1>
         <Link to="/workspaces/new" className="ws-btn-primary" style={{ textDecoration: "none" }}>

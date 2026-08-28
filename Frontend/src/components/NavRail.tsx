@@ -25,23 +25,35 @@ type Item = {
   label: string;
   icon: React.ReactNode;
   match: (p: string) => boolean;
+  key: RailTab;
 };
 
-export function NavRail() {
+// Muc dang mo, khi duong dan KHONG du de suy ra.
+//
+// Chat nhom va chat ca nhan dung chung mot duong dan (/app/chat/:id) - nhin
+// vao duong dan thi khong the biet dang o muc nao, va truoc day thanh dieu
+// huong doan la "Chat", nen mo mot nhom la den sang nhay tu Nhom sang Chat.
+// Trang nao biet cau tra loi thi tu khai ra.
+export type RailTab = "chat" | "groups" | "miniapp";
+
+export function NavRail({ activeTab }: { activeTab?: RailTab }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   const items: Item[] = [
-    { to: "/app", label: "Chat", icon: <IconChat />, match: (p) => p === "/app" || p.startsWith("/app/chat") },
+    { key: "chat", to: "/app", label: "Chat", icon: <IconChat />, match: (p) => p === "/app" || p.startsWith("/app/chat") },
     // Icon nay trong Figma TEN LA "Group" - la NHOM, khong phai Ban be. Viec
     // ket ban nam ngay trong panel trai cua man chat ca nhan.
-    { to: "/app/groups", label: "Nhóm", icon: <IconFriends />, match: (p) => p.startsWith("/app/groups") },
+    { key: "groups", to: "/app/groups", label: "Nhóm", icon: <IconFriends />, match: (p) => p.startsWith("/app/groups") },
     // Ban thiet ke goi day la "Mini App" va IPTV la mot muc BEN TRONG luoi do.
     // Man danh sach Mini App chua duoc dung nen tam tro thang toi IPTV - la
     // mini app duy nhat dang co that.
-    { to: "/app/iptv", label: "Mini App", icon: <IconGrid />, match: (p) => p === "/app/iptv" },
+    { key: "miniapp", to: "/app/iptv", label: "Mini App", icon: <IconGrid />, match: (p) => p === "/app/iptv" },
   ];
+
+  // Trang tu khai thi tin trang; khong khai thi moi suy tu duong dan.
+  const dangMo = (it: Item) => (activeTab ? it.key === activeTab : it.match(location.pathname));
 
   return (
     <nav className="rail" aria-label="Điều hướng chính">
@@ -79,9 +91,9 @@ export function NavRail() {
           <Link
             key={it.to}
             to={it.to}
-            className={`rail-item${it.match(location.pathname) ? " active" : ""}`}
+            className={`rail-item${dangMo(it) ? " active" : ""}`}
             aria-label={it.label}
-            aria-current={it.match(location.pathname) ? "page" : undefined}
+            aria-current={dangMo(it) ? "page" : undefined}
           >
             {it.icon}
             <span className="rail-label">{it.label}</span>

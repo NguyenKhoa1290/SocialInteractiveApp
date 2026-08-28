@@ -119,7 +119,7 @@ export function WorkspaceMembersPage() {
 
   if (!workspace || !members) {
     return (
-      <AppShell>
+      <AppShell activeTab="groups">
         <Link to="/workspaces" className="ws-back-link">
           ← Về danh sách nhóm
         </Link>

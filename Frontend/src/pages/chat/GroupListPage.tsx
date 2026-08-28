@@ -11,6 +11,7 @@ export function GroupListPage() {
   return (
     <ChatWorkspace
       hasActive={false}
+      isGroup
       list={<ConversationList kind="group" />}
       chat={
         <div className="cw-blank">

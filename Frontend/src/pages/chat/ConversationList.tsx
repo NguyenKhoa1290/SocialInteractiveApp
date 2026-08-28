@@ -226,7 +226,7 @@ export function ConversationList({
   async function moChat(userId: number) {
     const co = hoiThoaiCua.get(userId);
     if (co) {
-      navigate(`/app/chat/${co.id}`);
+      navigate(`/app/chat/${co.id}`, { state: { kind: "p2p" } });
       return;
     }
     setDangMo(userId);
@@ -234,7 +234,7 @@ export function ConversationList({
     try {
       // Endpoint nay LAY-HOAC-TAO: bam hai lan khong sinh ra hai hoi thoai.
       const { data } = await chatApi.createOrGetP2P(userId);
-      navigate(`/app/chat/${data.id}`);
+      navigate(`/app/chat/${data.id}`, { state: { kind: "p2p" } });
     } catch (err) {
       setError(extractApiError(err, "Không mở được cuộc trò chuyện"));
     } finally {
@@ -400,7 +400,10 @@ export function ConversationList({
                   <button
                     key={c.id}
                     className={`cw-card${c.id === activeId ? " active" : ""}`}
-                    onClick={() => navigate(`/app/chat/${c.id}`)}
+                    // Bao truoc day la NHOM: /app/chat/:id dung chung cho ca
+                    // hai muc, thieu cai nay thi thanh dieu huong sang muc
+                    // "Chat" mot nhip roi moi nhay ve "Nhom" luc tai xong.
+                    onClick={() => navigate(`/app/chat/${c.id}`, { state: { kind: "group" } })}
                   >
                     {anhCua(c, info)}
                     <div className="cw-card-body">

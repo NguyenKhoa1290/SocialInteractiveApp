@@ -66,7 +66,7 @@ export function CreateWorkspacePage() {
   const chuDau = name.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <AppShell>
+    <AppShell activeTab="groups">
       <div className="ws-page-header">
         <h1>Tạo nhóm mới</h1>
       </div>
