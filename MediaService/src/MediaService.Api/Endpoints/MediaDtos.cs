@@ -59,11 +59,16 @@ public record MeetingParticipantResponse(
 
 public record GrantPermissionRequest(string PermissionType);
 
-public record CreateChannelListRequest(string Name);
+// Shared = true chi admin goi duoc: playlist do se hien cho MOI nguoi.
+public record CreateChannelListRequest(string Name, bool? Shared);
 
-public record IptvChannelListResponse(long Id, string Name, DateTimeOffset CreatedAt)
+// CanEdit tinh RIENG cho nguoi dang goi - playlist dung chung thi ai cung
+// thay nhung chi admin sua duoc, nen day khong phai thuoc tinh co dinh cua
+// playlist ma la cau tra loi cho "toi lam gi duoc voi no".
+public record IptvChannelListResponse(long Id, string Name, DateTimeOffset CreatedAt, bool IsShared, bool CanEdit)
 {
-    public static IptvChannelListResponse FromEntity(IptvChannelList l) => new(l.Id, l.Name, l.CreatedAt);
+    public static IptvChannelListResponse FromEntity(IptvChannelList l, bool canEdit) =>
+        new(l.Id, l.Name, l.CreatedAt, l.IsShared, canEdit);
 }
 
 public record CreateChannelGroupRequest(string GroupName);
@@ -75,7 +80,10 @@ public record CreateChannelRequest(string ChannelName, string StreamUrl, string?
 
 // isPlaylist = false nghia la URL do la MOT luong HLS binh thuong, khong co
 // gi de tach - noi goi nen bao nguoi dung them no nhu mot kenh don.
-public record ImportPlaylistRequest(string Url);
+// AutoGroups = false: do het kenh vao MOT nhom mang ten playlist, thay vi
+// tach theo thuoc tinh group-title. Dung khi playlist nguon chia nhom lung
+// tung ma nguoi dung chi muon mot danh sach phang.
+public record ImportPlaylistRequest(string Url, bool? AutoGroups);
 public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Skipped, int NewGroups);
 
 public record MiniAppStartRequest(string? AppId);

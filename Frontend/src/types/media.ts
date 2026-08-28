@@ -93,6 +93,12 @@ export interface IptvChannelList {
   id: number;
   name: string;
   createdAt: string;
+  /** Playlist dùng chung do quản trị viên đặt sẵn: ai cũng thấy và xem được. */
+  isShared: boolean;
+  /** Người đang gọi có sửa được playlist này không — playlist dùng chung thì
+   *  ai cũng thấy nhưng chỉ admin sửa. Không phải thuộc tính cố định của
+   *  playlist mà là câu trả lời cho "tôi làm gì được với nó". */
+  canEdit: boolean;
 }
 
 export interface IptvChannel {

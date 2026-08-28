@@ -20,7 +20,7 @@ import { GroupListPage } from "./pages/chat/GroupListPage";
 import { ChatRoomPage } from "./pages/chat/ChatRoomPage";
 import { MeetingRoomPage } from "./pages/meeting/MeetingRoomPage";
 import { JoinMeetingPage } from "./pages/meeting/JoinMeetingPage";
-import { IptvManagePage } from "./pages/meeting/IptvManagePage";
+import { MiniAppPage } from "./pages/miniapp/MiniAppPage";
 import { MeetingDiscussionPage } from "./pages/meeting/MeetingDiscussionPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminViolationsPage } from "./pages/admin/AdminViolationsPage";
@@ -122,7 +122,7 @@ export default function App() {
           path="/app/iptv"
           element={
             <ProtectedRoute>
-              <IptvManagePage />
+              <MiniAppPage />
             </ProtectedRoute>
           }
         />

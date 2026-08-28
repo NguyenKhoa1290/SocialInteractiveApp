@@ -5,6 +5,9 @@ public class IptvChannelList
     public long Id { get; set; }
     public long UserId { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    // Playlist dung chung do admin dat san - xem ghi chu o miniapp-db-init.sql.
+    public bool IsShared { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

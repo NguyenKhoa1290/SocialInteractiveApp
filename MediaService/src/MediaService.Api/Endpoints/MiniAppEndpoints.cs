@@ -11,6 +11,32 @@ namespace MediaService.Api.Endpoints;
 // 1 phien hop cu the).
 public static class MiniAppEndpoints
 {
+    // Ai DOC duoc playlist nay, va co SUA duoc khong.
+    //
+    // Hai cau hoi khac nhau va truoc day khong ai tach ra: moi cho deu viet
+    // `list.UserId != userId` roi tra 404. Voi playlist dung chung thi luat do
+    // sai ca hai dau - moi nguoi phai doc duoc, con sua thi chi admin.
+    //
+    // Tra null khi khong duoc doc - CO Y tra "khong thay" thay vi "bi cam":
+    // mot playlist rieng cua nguoi khac thi su ton tai cua no cung khong phai
+    // viec cua nguoi dang hoi.
+    private static async Task<(IptvChannelList? DanhSach, bool SuaDuoc)> TimAsync(
+        MiniAppDbContext db, long listId, long userId, bool laAdmin, CancellationToken ct = default)
+    {
+        var list = await db.IptvChannelLists.FindAsync([listId], ct);
+        if (list is null)
+            return (null, false);
+
+        var laCuaMinh = list.UserId == userId;
+        if (!laCuaMinh && !list.IsShared)
+            return (null, false);
+
+        // Playlist dung chung: chi admin sua, ke ca admin khac da tao ra no.
+        // Playlist rieng: chi chu no.
+        var suaDuoc = list.IsShared ? laAdmin : laCuaMinh;
+        return (list, suaDuoc);
+    }
+
     public static void MapMiniAppEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/miniapps/iptv").RequireAuthorization();
@@ -18,8 +44,19 @@ public static class MiniAppEndpoints
         group.MapGet("/channel-lists", async (System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
         {
             var userId = principal.GetUserId()!.Value;
-            var lists = await db.IptvChannelLists.Where(l => l.UserId == userId).ToListAsync();
-            return Results.Ok(lists.Select(IptvChannelListResponse.FromEntity));
+            var laAdmin = principal.IsAdmin();
+
+            // Playlist cua chinh minh + moi playlist dung chung do admin dat
+            // san. Sap dung chung xuong duoi de danh sach rieng - thu nguoi
+            // dung tu them - luon nam tren.
+            var lists = await db.IptvChannelLists
+                .Where(l => l.UserId == userId || l.IsShared)
+                .OrderBy(l => l.IsShared)
+                .ThenBy(l => l.Id)
+                .ToListAsync();
+
+            return Results.Ok(lists.Select(l => IptvChannelListResponse.FromEntity(
+                l, l.IsShared ? laAdmin : l.UserId == userId)));
         });
 
         group.MapPost("/channel-lists", async (CreateChannelListRequest req, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
@@ -28,11 +65,27 @@ public static class MiniAppEndpoints
                 return Results.BadRequest(new ErrorResponse("invalid_request", "name khong duoc trong"));
 
             var userId = principal.GetUserId()!.Value;
-            var list = new IptvChannelList { UserId = userId, Name = req.Name, CreatedAt = DateTimeOffset.UtcNow };
+            var laAdmin = principal.IsAdmin();
+            var dungChung = req.Shared == true;
+
+            if (dungChung && !laAdmin)
+                return Results.Json(
+                    new ErrorResponse("forbidden", "Chi quan tri vien duoc dat playlist dung chung"),
+                    statusCode: 403);
+
+            var list = new IptvChannelList
+            {
+                UserId = userId,
+                Name = req.Name,
+                IsShared = dungChung,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
             db.IptvChannelLists.Add(list);
             await db.SaveChangesAsync();
 
-            return Results.Created($"/miniapps/iptv/channel-lists/{list.Id}", IptvChannelListResponse.FromEntity(list));
+            return Results.Created(
+                $"/miniapps/iptv/channel-lists/{list.Id}",
+                IptvChannelListResponse.FromEntity(list, true));
         });
 
         // Thieu sot phat hien khi build Frontend F5: co POST tao group/channel
@@ -44,8 +97,8 @@ public static class MiniAppEndpoints
             long listId, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
         {
             var userId = principal.GetUserId()!.Value;
-            var list = await db.IptvChannelLists.FindAsync(listId);
-            if (list is null || list.UserId != userId)
+            var (list, _) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
                 return Results.NotFound();
 
             var groups = await db.IptvChannelGroups.Where(g => g.ListId == listId).ToListAsync();
@@ -66,9 +119,11 @@ public static class MiniAppEndpoints
                 return Results.BadRequest(new ErrorResponse("invalid_request", "groupName khong duoc trong"));
 
             var userId = principal.GetUserId()!.Value;
-            var list = await db.IptvChannelLists.FindAsync(listId);
-            if (list is null || list.UserId != userId)
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
                 return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
 
             var channelGroup = new IptvChannelGroup { ListId = listId, GroupName = req.GroupName };
             db.IptvChannelGroups.Add(channelGroup);
@@ -96,9 +151,11 @@ public static class MiniAppEndpoints
                 return Results.BadRequest(new ErrorResponse("invalid_request", "url khong duoc trong"));
 
             var userId = principal.GetUserId()!.Value;
-            var list = await db.IptvChannelLists.FindAsync([listId], ct);
-            if (list is null || list.UserId != userId)
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin(), ct);
+            if (list is null)
                 return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
 
             var fetched = await fetcher.FetchAsync(req.Url, ct);
             if (!fetched.Ok)
@@ -144,7 +201,12 @@ public static class MiniAppEndpoints
                     continue;
                 }
 
-                var groupName = string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!;
+                // Tat "tu dong nhan dien playlist con" thi do het vao mot nhom
+                // mang ten playlist - nhieu nguon chia group-title rat lung
+                // tung, nguoi dung chi muon mot danh sach phang.
+                var groupName = req.AutoGroups == false
+                    ? list.Name
+                    : string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!;
                 if (!existingGroups.TryGetValue(groupName, out var channelGroup))
                 {
                     channelGroup = new IptvChannelGroup { ListId = listId, GroupName = groupName };
@@ -175,9 +237,11 @@ public static class MiniAppEndpoints
                 return Results.BadRequest(new ErrorResponse("invalid_request", "channelName va streamUrl khong duoc trong"));
 
             var userId = principal.GetUserId()!.Value;
-            var list = await db.IptvChannelLists.FindAsync(listId);
-            if (list is null || list.UserId != userId)
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
                 return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
 
             var channelGroup = await db.IptvChannelGroups.FirstOrDefaultAsync(g => g.Id == groupId && g.ListId == listId);
             if (channelGroup is null)
@@ -194,6 +258,50 @@ public static class MiniAppEndpoints
             await db.SaveChangesAsync();
 
             return Results.Created($"/miniapps/iptv/channel-lists/{listId}/groups/{groupId}/channels/{channel.Id}", null);
+        });
+
+        // Xoa ca playlist. Truoc day KHONG co duong xoa nao ca - dan nham mot
+        // link hong la no nam do vinh vien, va man quan ly chi day len mai.
+        // Cac bang con di theo qua FK ON DELETE CASCADE.
+        group.MapDelete("/channel-lists/{listId:long}", async (
+            long listId, System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+        {
+            var userId = principal.GetUserId()!.Value;
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
+                return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
+
+            db.IptvChannelLists.Remove(list);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        group.MapDelete("/channel-lists/{listId:long}/groups/{groupId:long}/channels/{channelId:long}", async (
+            long listId, long groupId, long channelId,
+            System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+        {
+            var userId = principal.GetUserId()!.Value;
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
+                return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
+
+            // Rang buoc ca ba tang: kenh phai thuoc dung nhom, va nhom phai
+            // thuoc dung playlist vua kiem quyen - khong thi mot id kenh cua
+            // nguoi khac ghep vao mot listId cua minh se xoa duoc.
+            var channel = await db.IptvChannels
+                .Where(c => c.Id == channelId && c.GroupId == groupId)
+                .Join(db.IptvChannelGroups.Where(g => g.ListId == listId), c => c.GroupId, g => g.Id, (c, _) => c)
+                .FirstOrDefaultAsync();
+            if (channel is null)
+                return Results.NotFound();
+
+            db.IptvChannels.Remove(channel);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
     }
 }

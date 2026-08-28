@@ -7,12 +7,21 @@
 
 CREATE TABLE iptv_channel_lists (
   id           BIGSERIAL PRIMARY KEY,
+  -- Nguoi tao. Voi playlist dung chung thi day la admin da dat no len.
   user_id      BIGINT NOT NULL,
   name         VARCHAR(100) NOT NULL,
+  -- Playlist DUNG CHUNG do admin dat san: MOI nguoi deu thay va xem duoc,
+  -- nhung chi admin sua/xoa duoc. Nguoi dung van tu them playlist rieng nhu
+  -- cu - hai loai nam chung mot bang vi chung y het nhau ve cau truc, chi
+  -- khac ai duoc doc va ai duoc sua.
+  is_shared    BOOLEAN NOT NULL DEFAULT false,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_channel_lists_user ON iptv_channel_lists(user_id);
+-- Ai mo Mini App cung phai liet ke playlist dung chung, nen truy van nay
+-- chay nhieu hon han truy van theo user.
+CREATE INDEX idx_channel_lists_shared ON iptv_channel_lists(is_shared) WHERE is_shared;
 
 CREATE TABLE iptv_channel_groups (
   id           BIGSERIAL PRIMARY KEY,

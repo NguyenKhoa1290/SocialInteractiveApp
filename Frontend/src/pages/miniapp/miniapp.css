@@ -1,0 +1,372 @@
+/* Màn Mini App - Figma node 90:173.
+   Ba cột 482 (thiết kế vẽ 482 / 482 / 482 trên nền 1920, trừ thanh điều
+   hướng 129). Dùng chung lớp token với màn chat: ô tìm nền #B7B6BA, thẻ viền
+   #293546 bo 10, nút bầu dục #56959E. */
+
+.ma {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: 100%;
+  min-height: 0;
+}
+
+.ma-col {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(36px * var(--s)) calc(21px * var(--s)) calc(24px * var(--s));
+  display: flex;
+  flex-direction: column;
+  gap: calc(14px * var(--s));
+  border-right: 1px solid var(--calli-surface);
+}
+
+.ma-col:last-child {
+  border-right: 0;
+}
+
+/* Ô tìm 440x37, nền #B7B6BA bo 6 - cùng khuôn với ô tìm ở màn chat. */
+.ma-search {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  height: calc(37px * var(--s));
+  padding: 0 calc(14px * var(--s));
+  border-radius: calc(6px * var(--s));
+  background: var(--calli-muted);
+  color: var(--calli-navy-line);
+  flex: none;
+}
+
+.ma-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: calc(15px * var(--s));
+  color: var(--calli-navy-line);
+}
+
+.ma-search input::placeholder {
+  color: var(--calli-navy-line);
+  opacity: 0.75;
+}
+
+.ma-search input:focus {
+  outline: none;
+}
+
+.ma-search input:disabled {
+  cursor: not-allowed;
+}
+
+.ma-section {
+  margin: calc(10px * var(--s)) 0 0 calc(10px * var(--s));
+  font-size: calc(16px * var(--s));
+  font-weight: 600;
+  color: var(--calli-navy);
+  flex: none;
+}
+
+/* "Admin Playlist" là một mục khác hẳn về nguồn gốc, không phải một nhóm con
+   của danh sách trên - tách bằng một đường kẻ chứ không chỉ bằng khoảng cách. */
+.ma-section-admin {
+  margin-top: calc(22px * var(--s));
+  padding-top: calc(14px * var(--s));
+  border-top: 1px solid var(--calli-muted);
+  color: var(--calli-teal-dark);
+}
+
+.ma-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(10px * var(--s));
+  margin-right: calc(10px * var(--s));
+}
+
+/* Thẻ Mini App 442x92: biểu tượng 70 + tên + dòng mô tả. */
+.ma-app {
+  display: flex;
+  align-items: center;
+  gap: calc(14px * var(--s));
+  padding: calc(12px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  flex: none;
+}
+
+.ma-app.active {
+  background: var(--calli-muted);
+}
+
+.ma-app-body {
+  min-width: 0;
+}
+
+.ma-app-name {
+  margin: 0;
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-line);
+}
+
+.ma-app-sub {
+  margin: calc(4px * var(--s)) 0 0;
+  font-size: calc(15px * var(--s));
+  font-weight: 300;
+  color: var(--text-m);
+}
+
+/* Hàng playlist / kênh 442x53 - thấp hơn thẻ app vì chỉ có một dòng chữ. */
+.ma-row {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  flex: none;
+}
+
+.ma-row.active {
+  background: var(--calli-muted);
+}
+
+.ma-row-main {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: calc(11px * var(--s)) calc(14px * var(--s));
+  font-family: var(--sans);
+  font-size: calc(20px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy-line);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hàng kênh không bấm được (chưa có trang xem riêng) - đừng để con trỏ hứa
+   một việc không xảy ra. */
+.ma-row-static {
+  cursor: default;
+}
+
+.ma-row-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-m);
+  font-size: calc(24px * var(--s));
+  line-height: 1;
+  padding: 0 calc(12px * var(--s));
+  cursor: pointer;
+}
+
+.ma-row-x:hover {
+  color: var(--danger);
+}
+
+.ma-col-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(10px * var(--s));
+  margin-top: calc(18px * var(--s));
+}
+
+.ma-pill {
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(14px * var(--s));
+  font-weight: 500;
+  padding: calc(8px * var(--s)) calc(16px * var(--s));
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ma-pill:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ma-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ma-pill-ghost {
+  background: #d2efe6;
+  color: var(--calli-navy);
+  border: 1px solid var(--calli-teal);
+}
+
+.ma-pill-sm {
+  font-size: calc(12px * var(--s));
+  padding: calc(5px * var(--s)) calc(12px * var(--s));
+}
+
+.ma-empty {
+  margin: calc(6px * var(--s)) calc(10px * var(--s));
+  font-size: calc(15px * var(--s));
+  color: var(--text-m);
+}
+
+.ma-note {
+  margin: calc(6px * var(--s)) calc(10px * var(--s));
+  font-size: calc(14px * var(--s));
+  color: var(--calli-teal-dark);
+}
+
+.ma-err {
+  margin: calc(6px * var(--s)) 0;
+  font-size: calc(15px * var(--s));
+  color: var(--danger);
+}
+
+/* Băng báo dưới đáy - lỗi/ghi chú của cả màn, không thuộc cột nào. */
+.ma-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px * var(--s));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: calc(10px * var(--s)) calc(18px * var(--s));
+  border-radius: var(--r-pill);
+  background: var(--calli-navy);
+  color: #fff;
+  font-size: calc(15px * var(--s));
+  z-index: 90;
+}
+
+.ma-banner-err {
+  background: var(--danger);
+}
+
+.ma-add-channel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--s));
+  margin: calc(4px * var(--s)) 0 calc(10px * var(--s));
+}
+
+.ma-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: calc(44px * var(--s));
+  padding: 0 calc(14px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  background: #fff;
+  font-family: var(--sans);
+  font-size: calc(16px * var(--s));
+  color: var(--calli-navy-line);
+}
+
+.ma-input:focus {
+  outline: none;
+  border-color: var(--calli-teal-dark);
+}
+
+.ma-input-lg {
+  height: calc(60px * var(--s));
+}
+
+/* --- Hai popup Mini App (node 111:307 va 112:695) --------------------- */
+
+.ma-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: calc(16px * var(--s));
+}
+
+.ma-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+}
+
+.ma-dialog-app {
+  font-size: calc(32px * var(--s));
+  font-weight: 600;
+  color: var(--calli-navy);
+}
+
+.ma-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--s));
+  font-size: calc(16px * var(--s));
+  font-weight: 600;
+  color: var(--calli-navy);
+}
+
+/* Tên playlist và công tắc nằm cùng một hàng như thiết kế; màn hẹp thì xuống
+   dòng chứ không ép cái ô nhập bé lại. */
+.ma-row-2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: calc(18px * var(--s));
+}
+
+.ma-row-2 .ma-field {
+  flex: 1 1 calc(240px * var(--s));
+}
+
+.ma-switch {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  font-size: calc(16px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ma-switch input {
+  width: calc(20px * var(--s));
+  height: calc(20px * var(--s));
+  cursor: pointer;
+}
+
+.ma-info-line {
+  margin: 0;
+  font-size: calc(22px * var(--s));
+  font-weight: 400;
+  color: var(--calli-navy);
+}
+
+.ma-info-desc {
+  margin: 0;
+  font-size: calc(18px * var(--s));
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--calli-navy-line);
+}
+
+.ma-dialog-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: calc(8px * var(--s));
+}
+
+/* Màn hẹp: ba cột xếp dọc thay vì bóp cho vừa. */
+@media (max-width: 1100px) {
+  .ma {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .ma-col {
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--calli-surface);
+  }
+}

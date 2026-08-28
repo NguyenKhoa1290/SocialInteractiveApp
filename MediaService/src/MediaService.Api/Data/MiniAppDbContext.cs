@@ -20,6 +20,7 @@ public class MiniAppDbContext(DbContextOptions<MiniAppDbContext> options) : DbCo
             entity.Property(l => l.Id).HasColumnName("id");
             entity.Property(l => l.UserId).HasColumnName("user_id");
             entity.Property(l => l.Name).HasColumnName("name");
+            entity.Property(l => l.IsShared).HasColumnName("is_shared");
             entity.Property(l => l.CreatedAt).HasColumnName("created_at");
         });
 

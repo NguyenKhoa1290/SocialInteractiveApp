@@ -12,4 +12,11 @@ public static class AuthHelpers
 
     public static string GetNickname(this ClaimsPrincipal principal) =>
         principal.FindFirstValue("nickname") ?? "user";
+
+    // Claim "role" chi duoc Identity Service gan khi User.IsAdmin = true (xem
+    // JwtTokenService.cs). Doc THANG ten claim chu khong dung IsInRole: o day
+    // MapInboundClaims = false nen khong co anh xa ten claim mac dinh, va
+    // RoleClaimType khong duoc cau hinh - IsInRole se luon tra false.
+    public static bool IsAdmin(this ClaimsPrincipal principal) =>
+        principal.FindFirstValue("role") == "admin";
 }

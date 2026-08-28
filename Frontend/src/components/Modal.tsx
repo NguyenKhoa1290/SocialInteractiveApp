@@ -12,11 +12,18 @@ export function Modal({
   onClose,
   children,
   width = 589,
+  ariaLabel,
 }: {
+  // Chuoi rong = KHONG co dong tieu de. Hai popup Mini App (node 111:307 va
+  // 112:695) mo dau bang bieu tuong app chu khong bang mot dong chu 36px -
+  // de o tieu de rong van chiem cho thi popup thut xuong mot khoang trong.
   title: string;
   onClose: () => void;
   children: ReactNode;
   width?: number;
+  // Bat buoc khi title rong: hop thoai nao cung phai co mot cai ten cho trinh
+  // doc man hinh.
+  ariaLabel?: string;
 }) {
   // Boc useCallback: neu khong, `close` la ham moi sau moi lan render nen
   // useEffect ben duoi go rooi gan lai bat su kien lien tuc.
@@ -48,7 +55,7 @@ export function Modal({
         className="md-card"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={ariaLabel ?? title}
         style={{ width: `calc(${width}px * var(--s))` }}
       >
         <button type="button" className="md-close" onClick={close}>
@@ -58,7 +65,7 @@ export function Modal({
           Đóng
         </button>
 
-        <h2 className="md-title">{title}</h2>
+        {title !== "" && <h2 className="md-title">{title}</h2>}
         <div className="md-body">{children}</div>
       </div>
     </div>

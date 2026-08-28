@@ -95,7 +95,12 @@ export const meetingApi = {
 export const iptvApi = {
   listChannelLists: () => mediaHttp.get<IptvChannelList[]>("/miniapps/iptv/channel-lists"),
 
-  createChannelList: (name: string) => mediaHttp.post<IptvChannelList>("/miniapps/iptv/channel-lists", { name }),
+  // shared = true chi admin goi duoc - server tra 403 cho nguoi khac.
+  createChannelList: (name: string, shared = false) =>
+    mediaHttp.post<IptvChannelList>("/miniapps/iptv/channel-lists", { name, shared }),
+
+  deleteChannelList: (listId: number) =>
+    mediaHttp.delete<void>(`/miniapps/iptv/channel-lists/${listId}`),
 
   listGroups: (listId: number) =>
     mediaHttp.get<IptvChannelGroup[]>(`/miniapps/iptv/channel-lists/${listId}/groups`),
@@ -105,10 +110,12 @@ export const iptvApi = {
 
   // Nhap ca mot playlist M3U. Server tu tai va tach - trinh duyet khong tai
   // truc tiep duoc vi may chu IPTV gan nhu khong bao gio gui header CORS.
-  importPlaylist: (listId: number, url: string) =>
+  // autoGroups = false: do het kenh vao MOT nhom mang ten playlist thay vi
+  // tach theo group-title cua nguon.
+  importPlaylist: (listId: number, url: string, autoGroups = true) =>
     mediaHttp.post<{ isPlaylist: boolean; imported: number; skipped: number; newGroups: number }>(
       `/miniapps/iptv/channel-lists/${listId}/import`,
-      { url },
+      { url, autoGroups },
     ),
 
   createChannel: (listId: number, groupId: number, channelName: string, streamUrl: string, audioTrack?: string) =>
@@ -117,6 +124,9 @@ export const iptvApi = {
       streamUrl,
       audioTrack: audioTrack || null,
     }),
+
+  deleteChannel: (listId: number, groupId: number, channelId: number) =>
+    mediaHttp.delete<void>(`/miniapps/iptv/channel-lists/${listId}/groups/${groupId}/channels/${channelId}`),
 
   // Trong 1 phien hop: bao "toi mo mini app" (chi kiem tra quyen - chua
   // broadcast thuc su duoc vi Media Service chua co tang WebSocket).
