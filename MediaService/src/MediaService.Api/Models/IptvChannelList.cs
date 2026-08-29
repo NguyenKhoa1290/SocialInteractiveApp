@@ -23,6 +23,10 @@ public class IptvChannelGroup
     public long Id { get; set; }
     public long ListId { get; set; }
     public string GroupName { get; set; } = string.Empty;
+
+    // Do lan nhap link M3U tao ra (true) hay nguoi dung tu tao (false) - xem
+    // ghi chu o miniapp-db-init.sql.
+    public bool FromImport { get; set; }
 }
 
 public class IptvChannel
@@ -32,4 +36,8 @@ public class IptvChannel
     public string ChannelName { get; set; } = string.Empty;
     public string StreamUrl { get; set; } = string.Empty;
     public string? AudioTrack { get; set; }
+
+    // Den tu link M3U (true) hay nguoi dung tu go tay (false). Chi bo lam moi
+    // dung toi: no chi duoc xoa kenh from_import bien mat khoi nguon.
+    public bool FromImport { get; set; }
 }

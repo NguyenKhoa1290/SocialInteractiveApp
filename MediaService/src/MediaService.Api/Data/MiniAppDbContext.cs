@@ -34,6 +34,7 @@ public class MiniAppDbContext(DbContextOptions<MiniAppDbContext> options) : DbCo
             entity.Property(g => g.Id).HasColumnName("id");
             entity.Property(g => g.ListId).HasColumnName("list_id");
             entity.Property(g => g.GroupName).HasColumnName("group_name");
+            entity.Property(g => g.FromImport).HasColumnName("from_import");
         });
 
         modelBuilder.Entity<IptvChannel>(entity =>
@@ -45,6 +46,7 @@ public class MiniAppDbContext(DbContextOptions<MiniAppDbContext> options) : DbCo
             entity.Property(c => c.ChannelName).HasColumnName("channel_name");
             entity.Property(c => c.StreamUrl).HasColumnName("stream_url");
             entity.Property(c => c.AudioTrack).HasColumnName("audio_track");
+            entity.Property(c => c.FromImport).HasColumnName("from_import");
         });
     }
 }

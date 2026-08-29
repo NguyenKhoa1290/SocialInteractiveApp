@@ -187,11 +187,9 @@ public static class MiniAppEndpoints
             if (kq.Loi is not null)
                 return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", kq.Loi));
             if (!kq.LaPlaylist)
-                return Results.Ok(new ImportPlaylistResponse(false, 0, 0, 0));
+                return Results.Ok(new ImportPlaylistResponse(false, 0, 0, 0, 0));
 
-            // `skipped` gio mang nghia "kenh da co, chi doi lai duong dan
-            // luong" - so cu la so kenh bi bo qua vi trung URL.
-            return Results.Ok(new ImportPlaylistResponse(true, kq.Them, kq.CapNhat, kq.NhomMoi));
+            return Results.Ok(new ImportPlaylistResponse(true, kq.Them, kq.CapNhat, kq.Xoa, kq.NhomMoi));
         });
 
         group.MapPost("/channel-lists/{listId:long}/groups/{groupId:long}/channels", async (

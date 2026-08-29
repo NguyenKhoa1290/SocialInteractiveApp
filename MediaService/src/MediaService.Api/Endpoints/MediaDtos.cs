@@ -104,7 +104,9 @@ public record ImportPlaylistRequest(string Url, bool? AutoGroups);
 // `Updated` = kenh DA CO trong danh sach, lan nhap nay chi doi lai duong dan
 // luong. Truoc day cho nay ten la `Skipped` (so kenh bo qua vi trung URL) -
 // tu khi co bo lam moi tu dong thi "da co roi" khong con nghia la bo qua nua.
-public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Updated, int NewGroups);
+// `Removed` = kenh do lan nhap TRUOC tao ra nhung nay khong con trong nguon
+// - da duoc go di. Kenh nguoi dung tu them tay khong bao gio nam trong so nay.
+public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Updated, int Removed, int NewGroups);
 
 public record MiniAppStartRequest(string? AppId);
 

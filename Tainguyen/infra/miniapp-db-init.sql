@@ -37,13 +37,24 @@ CREATE INDEX idx_channel_lists_shared ON iptv_channel_lists(is_shared) WHERE is_
 CREATE TABLE iptv_channel_groups (
   id           BIGSERIAL PRIMARY KEY,
   list_id      BIGINT NOT NULL REFERENCES iptv_channel_lists(id) ON DELETE CASCADE,
-  group_name   VARCHAR(100) NOT NULL
+  group_name   VARCHAR(100) NOT NULL,
+  -- Nhu iptv_channels.from_import: nhom do lan nhap tao ra thi khi khong con
+  -- kenh nao se duoc don di, con nhom nguoi dung tu tao thi de nguyen.
+  from_import  BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE iptv_channels (
   id             BIGSERIAL PRIMARY KEY,
   group_id       BIGINT NOT NULL REFERENCES iptv_channel_groups(id) ON DELETE CASCADE,
   channel_name   VARCHAR(100) NOT NULL,
+  -- Kenh nay den tu link M3U (true) hay do nguoi dung tu go tay (false).
+  --
+  -- Chi de bo lam moi biet cai gi DUOC PHEP XOA: kenh bien mat khoi nguon thi
+  -- go di, con kenh nguoi dung tu them thi khong bao gio dong toi du no khong
+  -- co trong playlist. Mac dinh false - hang cu co truoc cot nay duoc coi la
+  -- go tay, tuc la an toan; lan nhap sau se tu danh dau lai nhung kenh nao
+  -- that su co trong nguon.
+  from_import    BOOLEAN NOT NULL DEFAULT false,
   -- TEXT chu khong phai VARCHAR(500): link luong cua nhieu nha cung cap co
   -- token ky rat dai. Cat mot URL la hong han duong dan, con bo qua kenh do
   -- thi nguoi dung mat kenh ma khong hieu vi sao - ca hai deu te hon la cho

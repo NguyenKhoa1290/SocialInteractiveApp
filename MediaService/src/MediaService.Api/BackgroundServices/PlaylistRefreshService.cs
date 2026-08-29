@@ -83,11 +83,11 @@ public sealed class PlaylistRefreshService(
                     continue;
                 }
 
-                if (kq.Them > 0 || kq.CapNhat > 0 || kq.NhomMoi > 0)
+                if (kq.Them > 0 || kq.CapNhat > 0 || kq.Xoa > 0 || kq.NhomMoi > 0)
                 {
                     logger.LogInformation(
-                        "Playlist {Id}: them {Them} kenh, doi link {CapNhat} kenh, {Nhom} nhom moi",
-                        list.Id, kq.Them, kq.CapNhat, kq.NhomMoi);
+                        "Playlist {Id}: them {Them} kenh, doi link {CapNhat}, go {Xoa} kenh da bien mat, {Nhom} nhom moi",
+                        list.Id, kq.Them, kq.CapNhat, kq.Xoa, kq.NhomMoi);
                 }
             }
             catch (Exception ex)

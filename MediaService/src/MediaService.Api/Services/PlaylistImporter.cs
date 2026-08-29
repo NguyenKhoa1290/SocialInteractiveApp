@@ -17,23 +17,23 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
 
     private static string Cat(string s, int max) => s.Length <= max ? s : s[..max];
 
-    public sealed record KetQua(bool LaPlaylist, string? Loi, int Them, int CapNhat, int NhomMoi);
+    public sealed record KetQua(bool LaPlaylist, string? Loi, int Them, int CapNhat, int Xoa, int NhomMoi);
 
     public async Task<KetQua> NhapAsync(
         MiniAppDbContext db, IptvChannelList list, string url, bool autoGroups, CancellationToken ct)
     {
         var fetched = await fetcher.FetchAsync(url, ct);
         if (!fetched.Ok)
-            return new KetQua(false, fetched.Error, 0, 0, 0);
+            return new KetQua(false, fetched.Error, 0, 0, 0, 0);
 
         var kind = M3uPlaylist.Detect(fetched.Content!);
         if (kind == M3uKind.Unknown)
-            return new KetQua(false, "Nội dung tải về không phải playlist M3U", 0, 0, 0);
+            return new KetQua(false, "Nội dung tải về không phải playlist M3U", 0, 0, 0, 0);
 
         // Mot luong HLS binh thuong thi khong co gi de tach - noi goi bao cho
         // nguoi dung them no nhu mot kenh binh thuong.
         if (kind == M3uKind.SingleStream)
-            return new KetQua(false, null, 0, 0, 0);
+            return new KetQua(false, null, 0, 0, 0, 0);
 
         var entries = M3uPlaylist.Parse(fetched.Content!, url);
         if (entries.Count > M3uPlaylist.MaxChannels)
@@ -64,6 +64,10 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
         var capNhat = 0;
         var nhomMoi = 0;
 
+        // Nhung kenh LAN NAY con thay trong nguon. Cai gi do lan nhap truoc
+        // tao ra ma lan nay khong con thi la kenh da bien mat khoi nguon.
+        var conThay = new HashSet<long>();
+
         foreach (var entry in entries)
         {
             // Tat "tu dong nhan dien playlist con" thi do het vao mot nhom
@@ -77,7 +81,7 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
 
             if (!nhomCu.TryGetValue(tenNhom, out var nhom))
             {
-                nhom = new IptvChannelGroup { ListId = list.Id, GroupName = tenNhom };
+                nhom = new IptvChannelGroup { ListId = list.Id, GroupName = tenNhom, FromImport = true };
                 db.IptvChannelGroups.Add(nhom);
                 // Phai luu ngay de co Id gan cho kenh ben duoi.
                 await db.SaveChangesAsync(ct);
@@ -95,13 +99,43 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
                     daCo.StreamUrl = entry.Url;
                     capNhat++;
                 }
+                // Danh dau lai: kenh nay CO trong nguon. Lam vay thi nhung
+                // hang co truoc khi cot from_import ra doi (mac dinh false) tu
+                // duoc gan dung sau lan nhap dau tien.
+                daCo.FromImport = true;
+                conThay.Add(daCo.Id);
                 continue;
             }
 
-            var moi = new IptvChannel { GroupId = nhom.Id, ChannelName = tenKenh, StreamUrl = entry.Url };
+            var moi = new IptvChannel
+            {
+                GroupId = nhom.Id,
+                ChannelName = tenKenh,
+                StreamUrl = entry.Url,
+                FromImport = true,
+            };
             db.IptvChannels.Add(moi);
             theoTen[khoa] = moi;
             them++;
+        }
+
+        // Kenh DA BIEN MAT khoi nguon thi go di - nhung CHI kenh from_import.
+        // Kenh nguoi dung tu them tay khong bao gio bi dong toi du no khong co
+        // trong playlist.
+        //
+        // Chan mot truong hop nguy hiem: nguon tra ve playlist RONG (may chu
+        // loi, tra ve mot tep cut). Luc do "khong con thay kenh nao" khong co
+        // nghia la nha dai bo het kenh - xoa sach la mat trang danh sach cua
+        // nguoi dung vi mot loi nhat thoi ben kia. Rong thi khong xoa gi.
+        var xoa = 0;
+        if (entries.Count > 0)
+        {
+            var caiPhaiGo = kenhCu.Where(c => c.FromImport && !conThay.Contains(c.Id)).ToList();
+            if (caiPhaiGo.Count > 0)
+            {
+                db.IptvChannels.RemoveRange(caiPhaiGo);
+                xoa = caiPhaiGo.Count;
+            }
         }
 
         list.SourceUrl = url;
@@ -109,6 +143,23 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
         list.RefreshedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
-        return new KetQua(true, null, them, capNhat, nhomMoi);
+
+        // Nhom DO LAN NHAP TAO RA ma khong con kenh nao thi don luon - de lai
+        // mot cai tieu de nhom trong khong khong noi len dieu gi. Nhom nguoi
+        // dung tu tao thi giu, ke ca khi rong.
+        if (entries.Count > 0)
+        {
+            var nhomRong = await db.IptvChannelGroups
+                .Where(g => g.ListId == list.Id && g.FromImport
+                            && !db.IptvChannels.Any(c => c.GroupId == g.Id))
+                .ToListAsync(ct);
+            if (nhomRong.Count > 0)
+            {
+                db.IptvChannelGroups.RemoveRange(nhomRong);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        return new KetQua(true, null, them, capNhat, xoa, nhomMoi);
     }
 }
