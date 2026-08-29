@@ -415,6 +415,59 @@
   color: var(--calli-navy);
 }
 
+/* Dau moi muc trong panel: nhan ben trai, mui ten (va nut "Them" o nhom)
+   ben phai. Dung o CA HAI bien the nen `align-self: stretch` la bat buoc -
+   .cw-info can giua cac con, khong keo thi hang nay co dung be rong chu. */
+.cw-info-head {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--s));
+  margin: calc(20px * var(--s)) calc(10px * var(--s)) 0;
+}
+
+/* .cw-info-label tu no la `align-self: flex-start` (de nhan bam le trai
+   trong mot cot can giua). Trong hang nay truc do la truc DOC, nen no keo
+   nhan len dinh hang thay vi ngang voi mui ten - tra ve mac dinh. */
+.cw-info-head .cw-info-label {
+  align-self: center;
+  margin: 0;
+}
+
+.cw-info-head-acts {
+  display: flex;
+  align-items: center;
+  gap: calc(4px * var(--s));
+}
+
+/* Mui ten gap/mo mot muc (Figma "Keyboard arrow down": khung 32x32, net mau
+   #85AEB0). Hinh luon ve huong xuong; gap lai thi xoay -90 do thanh chi sang
+   phai - dung quy uoc cua <details>, va la HINH DUY NHAT nen hai trang thai
+   khong bao gio lech nhau. */
+.cw-caret {
+  width: calc(32px * var(--s));
+  height: calc(32px * var(--s));
+  flex: none;
+  border: 0;
+  padding: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--calli-teal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.cw-caret:hover {
+  background: var(--accent-bg);
+}
+
+.cw-caret-gap {
+  transform: rotate(-90deg);
+}
+
 /* Luoi 3x3 anh 100x100, khe 21 */
 .cw-media {
   display: grid;
@@ -441,24 +494,50 @@
   display: block;
 }
 
-/* Nut "Xoa ban" 150x55 nen #B7B6BA, chu 32 w600 do */
+/* Nut "Xoa nhom" / "Xoa ban" - Figma "Frame 30" (co trong ca 100:22,
+   122:1248 lan 111:391): 97x32, bo 17, nen #B7B6BA, vien trang 1px, chu do
+   14px do dam 200. Mot nut pha huy thi khong can to: no chi can tim duoc va
+   doc duoc, con lai da co hop xac nhan. */
 .cw-danger {
   margin-top: calc(20px * var(--s));
-  min-width: calc(150px * var(--s));
-  height: calc(55px * var(--s));
-  padding: 0 calc(14px * var(--s));
+  min-width: calc(97px * var(--s));
+  height: calc(32px * var(--s));
+  padding: 0 calc(16px * var(--s));
   border: 1px solid #fff;
   border-radius: calc(17px * var(--s));
   background: var(--calli-muted);
   color: #ff0000;
   font-family: var(--sans);
-  font-size: calc(28px * var(--s));
-  font-weight: 600;
+  font-size: calc(14px * var(--s));
+  font-weight: 200;
   cursor: pointer;
 }
 
 .cw-danger:hover {
   filter: brightness(1.05);
+}
+
+/* Gap ca thanh thong tin (Figma frame 138:80 "Danh sach nhom An thanh thong
+   tin"): cot thu ba thu ve 0, khung chat an het cho vua trong ra. Doi bien
+   --cw-info-w chu khong viet lai `grid-template-columns` - lam vay thi cac
+   media query ben duoi van con nguyen tac dung. */
+.cw.cw-info-off {
+  --cw-info-w: 0px;
+}
+
+.cw.cw-info-off .cw-col-info {
+  display: none;
+}
+
+/* Mui ten gap thanh thong tin nam o dau khung chat. Cung hinh chevron nhung
+   xoay ngang: chi sang phai = day panel di, chi sang trai = keo no ve. */
+.cw-caret-info {
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.cw-caret-info-an {
+  transform: rotate(90deg);
 }
 
 /* --- Man hep ------------------------------------------------------------ */
@@ -474,6 +553,11 @@
   }
 
   .cw-col-info {
+    display: none;
+  }
+
+  /* Panel phai da bi bo o be rong nay, nen nut gap no chang con gi de gap. */
+  .cw-caret-info {
     display: none;
   }
 }
@@ -944,18 +1028,6 @@
 .cw-info-group .cw-info-remove-avatar,
 .cw-info-group .cw-danger {
   align-self: center;
-}
-
-.cw-info-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: calc(12px * var(--s));
-  margin: calc(20px * var(--s)) calc(10px * var(--s)) 0;
-}
-
-.cw-info-head .cw-info-label {
-  margin: 0;
 }
 
 .cw-members {

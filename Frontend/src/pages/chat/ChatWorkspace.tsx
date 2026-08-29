@@ -14,6 +14,7 @@ export function ChatWorkspace({
   info,
   hasActive,
   isGroup,
+  infoHidden,
 }: {
   list: ReactNode;
   chat: ReactNode;
@@ -25,10 +26,17 @@ export function ChatWorkspace({
   // la cau tra loi cho thanh dieu huong: /app/chat/:id dung cho ca hai muc
   // nen chi trang nay biet dang mo nhom hay mo chat ca nhan.
   isGroup?: boolean;
+  // Da gap thanh thong tin ben phai lai (Figma frame 138:80 "Danh sach nhom
+  // An thanh thong tin"). Cot thu ba thu ve 0 va khung chat an het cho trong.
+  infoHidden?: boolean;
 }) {
   return (
     <AppShell activeTab={isGroup ? "groups" : "chat"}>
-      <div className={`cw${hasActive ? "" : " cw-no-active"}${isGroup ? " cw-group" : ""}`}>
+      <div
+        className={`cw${hasActive ? "" : " cw-no-active"}${isGroup ? " cw-group" : ""}${
+          infoHidden ? " cw-info-off" : ""
+        }`}
+      >
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>
         {info !== undefined && <div className="cw-col cw-col-info">{info}</div>}

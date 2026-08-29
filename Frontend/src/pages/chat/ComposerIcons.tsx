@@ -66,3 +66,20 @@ export function IconStorage({ size = 26 }: P) {
     </svg>
   );
 }
+
+// Mui ten gap/mo (Figma "Keyboard arrow down": khung 32x32, net 16x10 mau
+// #85AEB0). Luon ve HUONG XUONG, noi goi tu xoay bang CSS - mot hinh duy nhat
+// cho moi huong thi hai trang thai khong bao gio lech nhau.
+export function IconCaret({ size = 24 }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="m4.6 8.6 7.4 7.4 7.4-7.4"
+        stroke="currentColor"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

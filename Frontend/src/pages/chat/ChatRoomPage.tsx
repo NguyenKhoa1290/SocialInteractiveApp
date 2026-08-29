@@ -26,7 +26,7 @@ import { ConversationList } from "./ConversationList";
 import { ConversationInfo } from "./ConversationInfo";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { Avatar } from "../../components/Avatar";
-import { IconAccount, IconAttach, IconImage, IconMic, IconSend, IconStorage, IconVideo } from "./ComposerIcons";
+import { IconAttach, IconCaret, IconImage, IconMic, IconSend, IconStorage, IconVideo } from "./ComposerIcons";
 import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
@@ -38,6 +38,10 @@ import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
 import "./chat.css";
+
+// Khoa localStorage nho trang thai gap thanh thong tin - dat ten mot cho de
+// khong go lech chuoi o hai noi doc/ghi.
+const KHOA_AN_THONG_TIN = "cw-an-thong-tin";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
@@ -84,6 +88,10 @@ export function ChatRoomPage() {
   const [editText, setEditText] = useState("");
   const [showAdmin, setShowAdmin] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  // Gap thanh thong tin ben phai lai (Figma frame 138:80). Nho qua
+  // localStorage vi day la thoi quen chu khong phai trang thai cua mot hoi
+  // thoai: ai thich khung chat rong thi thich o moi phong, va o ca lan sau.
+  const [anThongTin, setAnThongTin] = useState(() => localStorage.getItem(KHOA_AN_THONG_TIN) === "1");
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<{ message: Message; text: string }[] | null>(null);
@@ -843,6 +851,7 @@ export function ChatRoomPage() {
         />
       }
       isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
+      infoHidden={anThongTin}
       info={
         <ConversationInfo
           conversationId={conversationId}
@@ -954,8 +963,22 @@ export function ChatRoomPage() {
             </button>
           )}
 
-          <button className="cw-icon-btn" title="Thông tin">
-            <IconAccount />
+          {/* Mui ten gap thanh thong tin - Figma de no o cuoi hang nut trong
+              ca hai frame 122:1248 (hien) va 138:80 (an). Hinh ve huong xuong
+              nen xoay 90 do de thanh mui ten ngang: chi sang phai = day panel
+              di, chi sang trai = keo no ve. */}
+          <button
+            className={`cw-icon-btn cw-caret-info${anThongTin ? " cw-caret-info-an" : ""}`}
+            onClick={() => {
+              const moi = !anThongTin;
+              setAnThongTin(moi);
+              localStorage.setItem(KHOA_AN_THONG_TIN, moi ? "1" : "0");
+            }}
+            aria-expanded={!anThongTin}
+            title={anThongTin ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
+            aria-label={anThongTin ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
+          >
+            <IconCaret />
           </button>
         </div>
       </div>

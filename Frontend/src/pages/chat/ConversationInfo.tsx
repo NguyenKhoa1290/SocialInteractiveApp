@@ -4,9 +4,28 @@ import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
 import { resizeAvatar } from "../../lib/imageResize";
 import { Avatar } from "../../components/Avatar";
+import { IconCaret } from "./ComposerIcons";
 import type { FileMeta } from "../../types/chat";
 
 export type ThanhVien = { userId: number; nickname: string; avatarUpdatedAt?: string | null };
+
+// Mui ten gap/mo mot muc trong panel. Hinh luon ve huong xuong, trang thai
+// "dang gap" xoay no bang CSS - xem .cw-caret trong workspace.css.
+function NutGap({ mo, doi, ten }: { mo: boolean; doi: () => void; ten: string }) {
+  const nhan = `${mo ? "Ẩn" : "Hiện"} ${ten}`;
+  return (
+    <button
+      type="button"
+      className={`cw-caret${mo ? "" : " cw-caret-gap"}`}
+      onClick={doi}
+      aria-expanded={mo}
+      title={nhan}
+      aria-label={nhan}
+    >
+      <IconCaret />
+    </button>
+  );
+}
 
 // Panel phai cua man hinh chinh.
 //
@@ -15,6 +34,10 @@ export type ThanhVien = { userId: number; nickname: string; avatarUpdatedAt?: st
 //   - chat nhom (node 122:1248, "Thanh menu" 462): them "Danh sach nguoi trong
 //     nhom" voi nut "Them", moi thanh vien mot the 440x101 co hai nut "Cam
 //     chat" / "Xoa", va nut cuoi la "Xoa nhom"
+//
+// Moi muc trong panel co MOT MUI TEN de gap lai (Figma "Keyboard arrow down"
+// 32x32, co trong ca frame 100:22 lan 122:1248). Gap la viec cua rieng may
+// nay - no chi doi cai gi dang chiem cho tren man hinh, khong luu len server.
 export function ConversationInfo({
   conversationId,
   title,
@@ -56,6 +79,10 @@ export function ConversationInfo({
   canEditGroup?: boolean;
   onGroupAvatarChanged?: (avatarUpdatedAt: string | null) => void;
 }) {
+  // Mac dinh MO ca hai muc - dung nhu frame 100:22. Gap lai chi co hieu luc
+  // trong lan mo nay: sang hoi thoai khac la mot panel khac.
+  const [hienThanhVien, setHienThanhVien] = useState(true);
+  const [hienMedia, setHienMedia] = useState(true);
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
   const laNhom = members !== undefined;
@@ -208,57 +235,74 @@ export function ConversationInfo({
         <>
           <div className="cw-info-head">
             <span className="cw-info-label">Danh sách người trong nhóm</span>
-            {isLeader && onAddMember && (
-              <button className="cw-pill" onClick={onAddMember}>
-                Thêm
-              </button>
-            )}
+            {/* Thu tu lay dung tu thiet ke: mui ten truoc, nut "Them" sau. */}
+            <span className="cw-info-head-acts">
+              <NutGap mo={hienThanhVien} doi={() => setHienThanhVien((v) => !v)} ten="danh sách người trong nhóm" />
+              {isLeader && onAddMember && (
+                <button className="cw-pill" onClick={onAddMember}>
+                  Thêm
+                </button>
+              )}
+            </span>
           </div>
 
-          <div className="cw-members">
-            {members!.length === 0 && <p className="cw-empty">Chưa có thành viên nào</p>}
-            {members!.map((m) => {
-              // Truong nhom khong tu cam chat / tu xoa chinh minh - hai nut do
-              // chi co nghia khi nham vao NGUOI KHAC.
-              const nguoiKhac = m.userId !== currentUserId;
-              return (
-                <div key={m.userId} className="cw-member">
-                  <Avatar userId={m.userId} nickname={m.nickname} avatarUpdatedAt={m.avatarUpdatedAt} size={68} />
-                  <span className="cw-member-name">{m.nickname}</span>
-                  {isLeader && nguoiKhac && (
-                    <span className="cw-member-acts">
-                      <button className="cw-pill cw-pill-sm" onClick={() => onToggleMute?.(m.userId)}>
-                        {mutedUserIds?.has(m.userId) ? "Gỡ cấm" : "Cấm chat"}
-                      </button>
-                      <button className="cw-pill cw-pill-sm cw-pill-ghost" onClick={() => onRemoveMember?.(m.userId)}>
-                        Xóa
-                      </button>
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {/* Bo han khoi cay DOM chu khong dat `hidden`: .cw-members co
+              `display` rieng trong CSS, ma quy tac cua tac gia de bep
+              `display: none` cua trinh duyet - dat `hidden` se khong an gi. */}
+          {hienThanhVien && (
+            <div className="cw-members">
+              {members!.length === 0 && <p className="cw-empty">Chưa có thành viên nào</p>}
+              {members!.map((m) => {
+                // Truong nhom khong tu cam chat / tu xoa chinh minh - hai nut
+                // do chi co nghia khi nham vao NGUOI KHAC.
+                const nguoiKhac = m.userId !== currentUserId;
+                return (
+                  <div key={m.userId} className="cw-member">
+                    <Avatar userId={m.userId} nickname={m.nickname} avatarUpdatedAt={m.avatarUpdatedAt} size={68} />
+                    <span className="cw-member-name">{m.nickname}</span>
+                    {isLeader && nguoiKhac && (
+                      <span className="cw-member-acts">
+                        <button className="cw-pill cw-pill-sm" onClick={() => onToggleMute?.(m.userId)}>
+                          {mutedUserIds?.has(m.userId) ? "Gỡ cấm" : "Cấm chat"}
+                        </button>
+                        <button className="cw-pill cw-pill-sm cw-pill-ghost" onClick={() => onRemoveMember?.(m.userId)}>
+                          Xóa
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      <p className="cw-info-label">Danh sách file media đã gửi</p>
-      <div className="cw-media">
-        {media?.slice(0, 9).map((f) => (
-          <button key={f.id} className="cw-media-cell" onClick={() => mo(f)} title={f.fileName ?? "Tệp"}>
-            {/* Video cung hien duoc bang the <video> nhung chi de lay MOT
-                khung hinh dau - re hon nhieu so voi tai ca doan phim ve chi
-                de dung o mot o 100x100. */}
-            {urls[f.id] && f.fileType === "image" && <img src={urls[f.id]} alt={f.fileName ?? ""} loading="lazy" />}
-            {urls[f.id] && f.fileType === "video" && (
-              <video src={urls[f.id]} muted playsInline preload="metadata" />
-            )}
-          </button>
-        ))}
-        {Array.from({ length: oTrong }, (_, i) => (
-          <span key={`trong-${i}`} className="cw-media-cell" aria-hidden="true" />
-        ))}
+      {/* Muc nay co o CA HAI bien the, nen mui ten gap cung vay - chat ca
+          nhan khong phai ngoai le. */}
+      <div className="cw-info-head">
+        <span className="cw-info-label">Danh sách file media đã gửi</span>
+        <NutGap mo={hienMedia} doi={() => setHienMedia((v) => !v)} ten="danh sách file media đã gửi" />
       </div>
+
+      {hienMedia && (
+        <div className="cw-media">
+          {media?.slice(0, 9).map((f) => (
+            <button key={f.id} className="cw-media-cell" onClick={() => mo(f)} title={f.fileName ?? "Tệp"}>
+              {/* Video cung hien duoc bang the <video> nhung chi de lay MOT
+                  khung hinh dau - re hon nhieu so voi tai ca doan phim ve chi
+                  de dung o mot o 100x100. */}
+              {urls[f.id] && f.fileType === "image" && <img src={urls[f.id]} alt={f.fileName ?? ""} loading="lazy" />}
+              {urls[f.id] && f.fileType === "video" && (
+                <video src={urls[f.id]} muted playsInline preload="metadata" />
+              )}
+            </button>
+          ))}
+          {Array.from({ length: oTrong }, (_, i) => (
+            <span key={`trong-${i}`} className="cw-media-cell" aria-hidden="true" />
+          ))}
+        </div>
+      )}
 
       {onDanger && (
         <button className="cw-danger" onClick={onDanger}>
