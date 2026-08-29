@@ -131,8 +131,13 @@ export function ParticipantTile({
           )}
           <span className="meet-tile-ten">
             {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
-            {label}
-            {source === "camera" && isLocal && " (bạn)"}
+            {/* Ten phai nam trong mot the RIENG: text-overflow: ellipsis khong
+                an vao mot text node tran trong flex container, nen truoc day
+                ten dai bi cat cut giua chung thay vi co dau ba cham. */}
+            <span className="meet-tile-ten-chu">
+              {label}
+              {source === "camera" && isLocal && " (bạn)"}
+            </span>
           </span>
         </div>
       )}

@@ -2020,3 +2020,17 @@
 .mroom .meet-tile-stage {
   background: transparent;
 }
+
+.meet-tile-ten-chu {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* O trong dai nho cua focus mode chi rong 281 - ten 24px o do thi chu nao
+   cung phai cat. Thu chu lai cho vua mot ten binh thuong. */
+.mroom-grid-dai .meet-tile-ten {
+  font-size: calc(15px * var(--s));
+  gap: calc(5px * var(--s));
+}
