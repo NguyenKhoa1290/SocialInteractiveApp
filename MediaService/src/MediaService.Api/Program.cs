@@ -42,6 +42,10 @@ builder.Services.AddHttpClient<ChatServiceClient>();
 // Tai playlist IPTV o phia server (may chu IPTV khong gui CORS) - co chan
 // SSRF ben trong, xem PlaylistFetcher.cs.
 builder.Services.AddHttpClient<PlaylistFetcher>();
+builder.Services.AddScoped<PlaylistImporter>();
+// Cu 10 phut nhap lai nhung playlist duoc tao tu mot link M3U - nguon IPTV
+// doi duong dan luong lien tuc, xem PlaylistRefreshService.cs.
+builder.Services.AddHostedService<MediaService.Api.BackgroundServices.PlaylistRefreshService>();
 
 var liveKitOptions = builder.Configuration.GetSection("LiveKit").Get<LiveKitOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh LiveKit trong appsettings");

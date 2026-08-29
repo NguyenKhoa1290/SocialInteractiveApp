@@ -15,6 +15,17 @@ CREATE TABLE iptv_channel_lists (
   -- cu - hai loai nam chung mot bang vi chung y het nhau ve cau truc, chi
   -- khac ai duoc doc va ai duoc sua.
   is_shared    BOOLEAN NOT NULL DEFAULT false,
+
+  -- Link M3U da nhap playlist nay. Co gia tri = danh sach kenh duoc TU DONG
+  -- nhap lai moi 10 phut (xem PlaylistRefreshService), vi nguon IPTV hay doi
+  -- duong dan luong va them/bot kenh. NULL = playlist tu go tay, khong dong
+  -- vao.
+  source_url   TEXT,
+  -- Nho lai lua chon "tu dong nhan dien playlist con" cua lan nhap dau, de
+  -- lan lam moi sau khong xep kenh vao nhom khac han.
+  auto_groups  BOOLEAN NOT NULL DEFAULT true,
+  refreshed_at TIMESTAMPTZ,
+
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -33,6 +44,10 @@ CREATE TABLE iptv_channels (
   id             BIGSERIAL PRIMARY KEY,
   group_id       BIGINT NOT NULL REFERENCES iptv_channel_groups(id) ON DELETE CASCADE,
   channel_name   VARCHAR(100) NOT NULL,
-  stream_url     VARCHAR(500) NOT NULL,
+  -- TEXT chu khong phai VARCHAR(500): link luong cua nhieu nha cung cap co
+  -- token ky rat dai. Cat mot URL la hong han duong dan, con bo qua kenh do
+  -- thi nguoi dung mat kenh ma khong hieu vi sao - ca hai deu te hon la cho
+  -- cot dai tuy y.
+  stream_url     TEXT NOT NULL,
   audio_track    VARCHAR(100)
 );

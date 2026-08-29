@@ -2092,11 +2092,16 @@
   scrollbar-gutter: stable;
 }
 
-/* O tim kiem keo sat hai mep popup (bo le 25 cua than popup) - chu du an muon
-   no rong het muc co the ma khong noi popup ra. */
-.mpop-tim {
-  margin-inline: calc(-25px * var(--s));
-  width: auto;
+/* Phan KHONG CUON ngay duoi dau popup: tieu de muc + o tim kiem.
+   De chung trong vung cuon thi khi danh sach dai ra, thanh cuon xuat hien va
+   an mat mot khoanh be ngang - o tim kiem thu hep lai dung luc co nhieu thu
+   de tim nhat. Tach ra la be rong khong bao gio doi nua. */
+.mpop-dau-cd {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(10px * var(--s));
+  padding: calc(18px * var(--s)) calc(34px * var(--s)) calc(4px * var(--s));
 }
 
 /* --- Popup nhan tin (Figma Page 3, 149:940) ----------------------------- */

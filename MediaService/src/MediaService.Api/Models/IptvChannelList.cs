@@ -8,6 +8,13 @@ public class IptvChannelList
 
     // Playlist dung chung do admin dat san - xem ghi chu o miniapp-db-init.sql.
     public bool IsShared { get; set; }
+
+    // Link M3U da nhap playlist nay. Co gia tri = tu dong nhap lai moi 10
+    // phut (PlaylistRefreshService). NULL = playlist go tay, khong dong vao.
+    public string? SourceUrl { get; set; }
+    public bool AutoGroups { get; set; } = true;
+    public DateTimeOffset? RefreshedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -132,7 +132,7 @@ export const iptvApi = {
   // autoGroups = false: do het kenh vao MOT nhom mang ten playlist thay vi
   // tach theo group-title cua nguon.
   importPlaylist: (listId: number, url: string, autoGroups = true) =>
-    mediaHttp.post<{ isPlaylist: boolean; imported: number; skipped: number; newGroups: number }>(
+    mediaHttp.post<{ isPlaylist: boolean; imported: number; updated: number; newGroups: number }>(
       `/miniapps/iptv/channel-lists/${listId}/import`,
       { url, autoGroups },
     ),

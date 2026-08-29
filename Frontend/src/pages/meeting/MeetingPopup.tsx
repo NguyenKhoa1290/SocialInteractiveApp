@@ -10,6 +10,7 @@ export function MeetingPopup({
   title,
   onClose,
   width = 825,
+  dauCoDinh,
   children,
 }: {
   title: string;
@@ -17,6 +18,12 @@ export function MeetingPopup({
   // Be rong theo thiet ke, TRUOC khi nhan --s. 825 cho Cai dat, 893 cho
   // Quan ly thanh vien (no co them cot nut ben phai moi hang).
   width?: number;
+  // Phan KHONG CUON, nam ngay duoi dau popup: tieu de muc va o tim kiem.
+  //
+  // Vi sao tach ra: de chung trong vung cuon thi khi danh sach dai ra, thanh
+  // cuon xuat hien va an mat mot khoanh be ngang - o tim kiem thu hep lai dung
+  // luc co nhieu thu de tim nhat. Tach ra la be rong cua no khong bao gio doi.
+  dauCoDinh?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -30,6 +37,7 @@ export function MeetingPopup({
           Đóng
         </button>
       </header>
+      {dauCoDinh && <div className="mpop-dau-cd">{dauCoDinh}</div>}
       <div className="mpop-than">{children}</div>
     </aside>
   );

@@ -14,7 +14,9 @@ public static class MiniAppEndpoints
     // Do dai toi da cua cac cot VARCHAR trong miniapp-db-init.sql. Phai khop -
     // lech mot chu la Postgres nem 22001 va ca lan nhap vo giua chung.
     private const int MaxTen = 100;
-    private const int MaxUrl = 500;
+    // KHONG con gioi han do dai URL: cot stream_url da doi sang TEXT. Link
+    // luong cua nhieu nha cung cap co token ky rat dai - cat la hong han
+    // duong dan, ma bo qua kenh do thi nguoi dung mat kenh khong hieu vi sao.
 
     // Cat cho vua cot thay vi de CSDL nem loi.
     //
@@ -165,7 +167,7 @@ public static class MiniAppEndpoints
         // loat nhom trung.
         group.MapPost("/channel-lists/{listId:long}/import", async (
             long listId, ImportPlaylistRequest req, System.Security.Claims.ClaimsPrincipal principal,
-            MiniAppDbContext db, PlaylistFetcher fetcher, CancellationToken ct) =>
+            MiniAppDbContext db, PlaylistImporter importer, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(req.Url))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "url khong duoc trong"));
@@ -177,87 +179,19 @@ public static class MiniAppEndpoints
             if (!suaDuoc)
                 return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
 
-            var fetched = await fetcher.FetchAsync(req.Url, ct);
-            if (!fetched.Ok)
-                return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", fetched.Error!));
+            // Toan bo viec nhap nam trong PlaylistImporter vi bo lam moi tu
+            // dong (moi 10 phut) cung goi dung ham do - hai duong phai hanh xu
+            // y het nhau.
+            var kq = await importer.NhapAsync(db, list, req.Url, req.AutoGroups != false, ct);
 
-            var kind = M3uPlaylist.Detect(fetched.Content!);
-            if (kind == M3uKind.Unknown)
-                return Results.UnprocessableEntity(
-                    new ErrorResponse("not_a_playlist", "Nội dung tải về không phải playlist M3U"));
-
-            // Mot luong HLS binh thuong (co #EXT-X-STREAM-INF hoac
-            // #EXT-X-TARGETDURATION) thi khong co gi de tach - bao cho nguoi
-            // dung them no nhu mot kenh binh thuong.
-            if (kind == M3uKind.SingleStream)
+            if (kq.Loi is not null)
+                return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", kq.Loi));
+            if (!kq.LaPlaylist)
                 return Results.Ok(new ImportPlaylistResponse(false, 0, 0, 0));
 
-            var entries = M3uPlaylist.Parse(fetched.Content!, req.Url);
-            if (entries.Count > M3uPlaylist.MaxChannels)
-                entries = entries.Take(M3uPlaylist.MaxChannels).ToList();
-
-            // Tai san nhung gi da co de khong tao trung - mot lan doc thay vi
-            // hoi lai CSDL cho tung kenh trong hang nghin kenh.
-            var existingGroups = await db.IptvChannelGroups
-                .Where(g => g.ListId == listId)
-                .ToDictionaryAsync(g => g.GroupName, g => g, StringComparer.OrdinalIgnoreCase, ct);
-
-            var groupIds = existingGroups.Values.Select(g => g.Id).ToList();
-            var existingUrls = await db.IptvChannels
-                .Where(c => groupIds.Contains(c.GroupId))
-                .Select(c => c.StreamUrl)
-                .ToListAsync(ct);
-            var seenUrls = new HashSet<string>(existingUrls, StringComparer.OrdinalIgnoreCase);
-
-            var newGroups = 0;
-            var imported = 0;
-            var skipped = 0;
-
-            foreach (var entry in entries)
-            {
-                if (!seenUrls.Add(entry.Url))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                // Tat "tu dong nhan dien playlist con" thi do het vao mot nhom
-                // mang ten playlist - nhieu nguon chia group-title rat lung
-                // tung, nguoi dung chi muon mot danh sach phang.
-                // URL khong cat duoc - cat la hong luon duong dan. Dai qua cot
-                // thi bo qua kenh do va tinh vao so bi bo.
-                if (entry.Url.Length > MaxUrl)
-                {
-                    skipped++;
-                    continue;
-                }
-
-                var groupName = Cat(
-                    req.AutoGroups == false
-                        ? list.Name
-                        : string.IsNullOrWhiteSpace(entry.GroupTitle) ? "Chua phan nhom" : entry.GroupTitle!,
-                    MaxTen);
-                if (!existingGroups.TryGetValue(groupName, out var channelGroup))
-                {
-                    channelGroup = new IptvChannelGroup { ListId = listId, GroupName = groupName };
-                    db.IptvChannelGroups.Add(channelGroup);
-                    // Phai luu ngay de co Id gan cho kenh ben duoi.
-                    await db.SaveChangesAsync(ct);
-                    existingGroups[groupName] = channelGroup;
-                    newGroups++;
-                }
-
-                db.IptvChannels.Add(new IptvChannel
-                {
-                    GroupId = channelGroup.Id,
-                    ChannelName = Cat(entry.Name, MaxTen),
-                    StreamUrl = entry.Url,
-                });
-                imported++;
-            }
-
-            await db.SaveChangesAsync(ct);
-            return Results.Ok(new ImportPlaylistResponse(true, imported, skipped, newGroups));
+            // `skipped` gio mang nghia "kenh da co, chi doi lai duong dan
+            // luong" - so cu la so kenh bi bo qua vi trung URL.
+            return Results.Ok(new ImportPlaylistResponse(true, kq.Them, kq.CapNhat, kq.NhomMoi));
         });
 
         group.MapPost("/channel-lists/{listId:long}/groups/{groupId:long}/channels", async (
@@ -267,8 +201,6 @@ public static class MiniAppEndpoints
                 return Results.BadRequest(new ErrorResponse("invalid_request", "channelName va streamUrl khong duoc trong"));
             if (req.ChannelName.Length > MaxTen)
                 return Results.BadRequest(new ErrorResponse("invalid_request", $"Ten kenh toi da {MaxTen} ky tu"));
-            if (req.StreamUrl.Length > MaxUrl)
-                return Results.BadRequest(new ErrorResponse("invalid_request", $"Link luong toi da {MaxUrl} ky tu"));
 
             var userId = principal.GetUserId()!.Value;
             var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());

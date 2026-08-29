@@ -101,7 +101,10 @@ public record CreateChannelRequest(string ChannelName, string StreamUrl, string?
 // tach theo thuoc tinh group-title. Dung khi playlist nguon chia nhom lung
 // tung ma nguoi dung chi muon mot danh sach phang.
 public record ImportPlaylistRequest(string Url, bool? AutoGroups);
-public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Skipped, int NewGroups);
+// `Updated` = kenh DA CO trong danh sach, lan nhap nay chi doi lai duong dan
+// luong. Truoc day cho nay ten la `Skipped` (so kenh bo qua vi trung URL) -
+// tu khi co bo lam moi tu dong thi "da co roi" khong con nghia la bo qua nua.
+public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Updated, int NewGroups);
 
 public record MiniAppStartRequest(string? AppId);
 

@@ -265,7 +265,25 @@ export function IptvChannelPicker({
 
   return (
     <>
-      <MeetingPopup title="Bắt đầu khởi tạo ứng dụng" onClose={onClose} width={826}>
+      <MeetingPopup
+        title="Bắt đầu khởi tạo ứng dụng"
+        onClose={onClose}
+        width={826}
+        dauCoDinh={
+          buoc === "kenh" ? (
+            <>
+              <h3 className="mpop-nhan">Danh sách Kênh</h3>
+              <label className="mpop-tim">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
+                  <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+                <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm kiếm Kênh" />
+              </label>
+            </>
+          ) : undefined
+        }
+      >
         <p className="mpop-nhan">Tên App: IPTV</p>
         {loi && <p className="mpop-loi">{loi}</p>}
 
@@ -305,18 +323,9 @@ export function IptvChannelPicker({
         {/* ---------------------------------------------------- 140:321 --- */}
         {buoc === "kenh" && (
           <>
-            {/* Khong co nut quay lai - da co nut Dong o dau popup, va thiet
-                ke (frame 149:1253) cung khong ve nut nao ca. */}
-            <h3 className="mpop-nhan">Danh sách Kênh</h3>
-
-            <label className="mpop-tim">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
-                <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-              <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm kiếm Kênh" />
-            </label>
-
+            {/* Tieu de va o tim kiem da len phan KHONG CUON o tren - xem
+                dauCoDinh. Khong co nut quay lai: da co nut Dong o dau popup,
+                va frame 149:1253 cung khong ve nut nao ca. */}
             {nhomHienThi.length === 0 && <p className="mpop-ghi-chu">Không có kênh nào.</p>}
 
             {nhomHienThi.map((g) => (
@@ -337,7 +346,9 @@ export function IptvChannelPicker({
                 {nhomThemKenh === g.id && (
                   <form className="mpop-them-kenh" onSubmit={(e) => void themKenh(e, g.id)}>
                     <input className="mpop-o-nhap" name="ten" placeholder="Tên kênh" maxLength={100} />
-                    <input className="mpop-o-nhap" name="url" placeholder="https://…/stream.m3u8" maxLength={500} />
+                    {/* Khong dat maxLength: link luong cua nhieu nha cung cap
+                        co token ky rat dai, cot da doi sang TEXT. */}
+                    <input className="mpop-o-nhap" name="url" placeholder="https://…/stream.m3u8" />
                     <button type="submit" className="mpop-pill mpop-pill-teal">
                       Lưu
                     </button>
