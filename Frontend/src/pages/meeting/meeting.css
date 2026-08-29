@@ -942,7 +942,33 @@
   grid-template-columns: repeat(4, minmax(0, calc(281px * var(--s))));
   grid-auto-rows: 100%;
   gap: calc(28px * var(--s));
-  justify-content: start;
+  /* Thiet ke dat dai o CANH GIUA khung lon chu khong dat le trai: frame
+     118:1080 co bon o nam tu 382 den 1590 tren mot khung bat dau o 70. */
+  justify-content: center;
+}
+
+/* Dai bao "ai dang trinh bay / dang ghim ai". Ban cu son mau ho phach cua mot
+   bang canh bao - do len nen phong toi thi trong nhu mot loi he thong chu
+   khong phai mot dong tin. */
+.mroom .meet-focus-bar {
+  padding: calc(10px * var(--s)) calc(18px * var(--s));
+  border: 1px solid rgba(133, 174, 176, 0.45);
+  border-radius: calc(13px * var(--s));
+  background: rgba(183, 182, 186, 0.23);
+  color: #fff;
+  font-size: calc(16px * var(--s));
+}
+
+.mroom .meet-focus-bar button {
+  padding: calc(5px * var(--s)) calc(14px * var(--s));
+  border: 1px solid var(--calli-teal);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--calli-teal);
+}
+
+.mroom .meet-focus-bar button:hover {
+  background: rgba(133, 174, 176, 0.16);
 }
 
 /* --- O nguoi hop -------------------------------------------------------- */
