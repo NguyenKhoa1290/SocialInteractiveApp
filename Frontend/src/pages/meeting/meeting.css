@@ -89,11 +89,11 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  background: #0f1115;
-  border: 1px solid #2b2f36;
-  border-radius: 8px;
+  border: 0;
+  border-radius: calc(25px * var(--s));
+  background: rgba(183, 182, 186, 0.23);
   overflow: hidden;
 }
 
@@ -112,16 +112,50 @@
 
 .meet-stage-app {
   align-items: stretch;
-  padding: 10px;
+  padding: calc(14px * var(--s));
 }
 
+/* Noi dung Mini App phai VUA KHUNG.
+   Truoc day o day la `overflow-y: auto` va the <video> chi dat `width: 100%`
+   - nen video cao theo ty le goc, tran ra ngoai khung, sinh mot thanh cuon
+     doc va bi cat mat phan duoi. Nay ca chuoi tu .meet-app-stage xuong toi
+   the <video> deu la flex co `min-height: 0`, va video `object-fit: contain`
+   - thua cho thi vien den, khong bao gio tran. */
 .meet-app-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: calc(10px * var(--s));
   width: 100%;
-  overflow-y: auto;
-  color: #e9ecef;
+  overflow: hidden;
+  color: #fff;
+}
+
+/* .iptv-player-slot va .iptv-player-holder deu la display:contents, nen
+   .iptv-player la o flex THAT SU cua .meet-app-stage. */
+.meet-app-stage .iptv-player {
+  flex: 1;
+  min-height: 0;
+}
+
+.meet-app-stage .iptv-player-frame {
+  flex: 1;
+  min-height: 0;
+}
+
+.meet-app-stage .iptv-player-controls {
+  flex: none;
+}
+
+/* Dau khung app (ten kenh + nut doi kenh) khong duoc an cho cua video. */
+.meet-app-stage > .meet-side-head {
+  flex: none;
+}
+
+.meet-app-stage > .meet-side-head h3 {
+  font-size: calc(20px * var(--s));
 }
 
 /* Chon camera/micro/loa ngay trong cuoc hop. */
@@ -491,7 +525,11 @@
 
 .meet-iptv-video {
   width: 100%;
-  border-radius: 6px;
+  height: 100%;
+  /* contain chu khong phai cover: cat vien mot kenh truyen hinh la mat chu
+     chay, mat logo, mat ca khung hinh nguoi ta dung cong. */
+  object-fit: contain;
+  border-radius: calc(13px * var(--s));
   background: #000;
 }
 
@@ -981,13 +1019,21 @@
 /* Dai bao "ai dang trinh bay / dang ghim ai". Ban cu son mau ho phach cua mot
    bang canh bao - do len nen phong toi thi trong nhu mot loi he thong chu
    khong phai mot dong tin. */
+/* Thiet ke khong ve dai nay (frame 118:1080 chi co khung lon + dai o nho).
+   Nhung no la duong DUY NHAT de quay ve dang luoi, bo di la nguoi dung ket
+   trong focus mode. Nen giu, chi lam mong het muc de khung lon duoc rong. */
 .mroom .meet-focus-bar {
-  padding: calc(10px * var(--s)) calc(18px * var(--s));
-  border: 1px solid rgba(133, 174, 176, 0.45);
-  border-radius: calc(13px * var(--s));
-  background: rgba(183, 182, 186, 0.23);
+  flex: none;
+  padding: calc(6px * var(--s)) calc(14px * var(--s));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(183, 182, 186, 0.18);
   color: #fff;
-  font-size: calc(16px * var(--s));
+  font-size: calc(14px * var(--s));
+}
+
+.mroom .meet-focus-bar button {
+  font-size: calc(13px * var(--s));
 }
 
 .mroom .meet-focus-bar button {
@@ -1161,6 +1207,14 @@
   display: grid;
   place-items: center;
   cursor: pointer;
+}
+
+/* Hinh trong nut phai CO THEO NUT. Cac component icon nhan `size` co dinh
+   (30-34px), ma nut thi thu nho theo --sr tren man thap - de nguyen thi hinh
+   chat cung vien, nhin nhu mot cuc dac. */
+.mroom-btn svg {
+  width: calc(34px * var(--sr));
+  height: calc(34px * var(--sr));
 }
 
 .mroom-btn:hover:not(:disabled) {
@@ -1951,4 +2005,18 @@
   .mpop-doi {
     grid-template-columns: 1fr;
   }
+}
+
+/* Focus mode co le rieng, dung theo frame 118:1080: khung lon cach thanh tren
+   49 va cach day 16 (khac le 65/71 cua luoi thuong) - de khung lon giu dung
+   ty le 742/1080 cua thiet ke. */
+.mroom-body:has(.mroom-focus) {
+  padding-top: calc(49px * var(--s));
+  padding-bottom: calc(16px * var(--s));
+}
+
+/* .meet-stage da co nen mo cua thiet ke roi - o ben trong khong to lai mot
+   lop nua, khong thi hai lop chong nhau thanh dam hon han cac o khac. */
+.mroom .meet-tile-stage {
+  background: transparent;
 }
