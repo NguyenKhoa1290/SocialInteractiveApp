@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { MeetingDiscussion } from "./MeetingDiscussion";
 
@@ -32,6 +33,11 @@ export function MeetingChatDialog({
   anhChuPhong: string | null;
   onClose: () => void;
 }) {
+  // O tim kiem tren dau popup (Figma 149:940 co bieu tuong kinh lup o goc
+  // phai). Loc THAT tren danh sach tin da tai - khong dung nut chet.
+  const [moTim, setMoTim] = useState(false);
+  const [tim, setTim] = useState("");
+
   return (
     <aside className="mpop mpop-chat" style={{ width: "min(calc(847px * var(--s)), 96vw)" }}>
       <header className="mpop-head mpop-head-chat">
@@ -52,6 +58,21 @@ export function MeetingChatDialog({
           )}
         </span>
 
+        <button
+          type="button"
+          className={`disc-icon${moTim ? " disc-icon-bat" : ""}`}
+          onClick={() => {
+            setMoTim((v) => !v);
+            if (moTim) setTim("");
+          }}
+          title="Tìm trong thảo luận"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
+            <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+        </button>
+
         <button type="button" className="mpop-close" onClick={onClose}>
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
@@ -59,6 +80,16 @@ export function MeetingChatDialog({
           Đóng
         </button>
       </header>
+
+      {moTim && (
+        <label className="mpop-tim mpop-tim-chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
+            <path d="m15.6 15.6 4.6 4.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+          <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm trong thảo luận" autoFocus />
+        </label>
+      )}
 
       {conversationId === null ? (
         <p className="mpop-ghi-chu mpop-chat-trong">
@@ -69,7 +100,13 @@ export function MeetingChatDialog({
           <div className="mpop-chat-than">
             {/* tuVaoNhom={false}: trang phong giu viec vao/roi nhom SignalR de
                 dem tin chua doc - xem ghi chu o MeetingRoomPage. */}
-            <MeetingDiscussion conversationId={conversationId} meetingId={meetingId} compact tuVaoNhom={false} />
+            <MeetingDiscussion
+              conversationId={conversationId}
+              meetingId={meetingId}
+              compact
+              tuVaoNhom={false}
+              loc={tim}
+            />
           </div>
           <p className="mpop-chat-nhac">
             {laPhongTam

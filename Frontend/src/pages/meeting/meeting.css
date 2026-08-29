@@ -2074,3 +2074,52 @@
   font-size: calc(15px * var(--s));
   gap: calc(5px * var(--s));
 }
+
+/* box-sizing: border-box KHONG duoc dat toan cuc trong du an nay - chi #root
+   co. Nen moi o `width: 100%` co padding deu tran ra ngoai dung bang
+   padding + vien: o "Ten kenh"/link trong form them kenh va o dien khoa
+   ClearKey deu bi cat mat ben phai. Dat cho ca cay phong hop. */
+.mroom,
+.mroom *,
+.mroom *::before,
+.mroom *::after {
+  box-sizing: border-box;
+}
+
+/* Danh cho san cho thanh cuon de no khong an vao be ngang cua noi dung khi
+   danh sach dai ra - truoc day o tim kiem hep di ~19px dung luc co thanh cuon. */
+.mpop-than {
+  scrollbar-gutter: stable;
+}
+
+/* O tim kiem keo sat hai mep popup (bo le 25 cua than popup) - chu du an muon
+   no rong het muc co the ma khong noi popup ra. */
+.mpop-tim {
+  margin-inline: calc(-25px * var(--s));
+  width: auto;
+}
+
+/* --- Popup nhan tin (Figma Page 3, 149:940) ----------------------------- */
+
+.mpop-tim-chat {
+  flex: none;
+  margin: calc(10px * var(--s)) calc(25px * var(--s)) 0;
+}
+
+.mpop-head-chat .disc-icon {
+  margin-left: auto;
+  color: var(--calli-navy-icon);
+}
+
+.mpop-head-chat .mpop-close {
+  margin-left: 0;
+}
+
+.disc-icon-bat {
+  background: rgba(133, 174, 176, 0.28);
+}
+
+/* Khung chat trong popup: khoang le rieng, va o soan tin khong bi bop. */
+.mpop-chat-than {
+  padding-bottom: calc(4px * var(--s));
+}

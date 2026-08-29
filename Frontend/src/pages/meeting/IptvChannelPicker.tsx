@@ -305,12 +305,9 @@ export function IptvChannelPicker({
         {/* ---------------------------------------------------- 140:321 --- */}
         {buoc === "kenh" && (
           <>
-            <div className="mpop-dau">
-              <h3 className="mpop-nhan">Danh sách Kênh</h3>
-              <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => setBuoc("playlist")}>
-                ‹ Playlist
-              </button>
-            </div>
+            {/* Khong co nut quay lai - da co nut Dong o dau popup, va thiet
+                ke (frame 149:1253) cung khong ve nut nao ca. */}
+            <h3 className="mpop-nhan">Danh sách Kênh</h3>
 
             <label className="mpop-tim">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -367,9 +364,6 @@ export function IptvChannelPicker({
           <>
             {khoiTuyChinh}
             <div className="mpop-hang-nut">
-              <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => setBuoc("kenh")}>
-                ‹ Quay lại
-              </button>
               <button
                 type="button"
                 className="mpop-pill mpop-pill-teal"

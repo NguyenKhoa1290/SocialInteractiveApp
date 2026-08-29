@@ -1,163 +1,166 @@
+/* Luong thao luan cua cuoc hop - Figma Page 3, frame 149:940 ("Nhan tin cuoc
+   hop (Popup)") va 149:985 (ban an danh).
+   Popup nen SANG #F2F2F7, nen o day khong con mau toi nao ca. */
+
 .disc {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  min-height: 0;
+  gap: calc(10px * var(--s));
 }
 
 .disc-messages {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(14px * var(--s));
+  min-height: 0;
   overflow-y: auto;
-  min-height: 200px;
-  max-height: 55vh;
-  padding: 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f9fafb;
+  padding: calc(4px * var(--s));
 }
 
 .disc-row {
   display: flex;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(4px * var(--s));
 }
 
 .disc-row.mine {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
+/* Bong bong 377 tren popup 847 = 44%. CO GIAN THEO NOI DUNG: cau ngan thi be
+   lai, khong keo thanh mot dai rong 44% cho mot chu. */
 .disc-bubble {
-  max-width: 78%;
-  padding: 7px 10px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
+  max-width: 44%;
+  padding: calc(10px * var(--s)) calc(14px * var(--s));
+  border-radius: calc(13px * var(--s));
+  background: rgba(183, 182, 186, 0.65);
+  color: rgba(42, 51, 68, 0.85);
+  font-size: calc(20px * var(--s));
+  font-weight: 500;
+  line-height: 1.35;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .disc-row.mine .disc-bubble {
-  background: #dbeafe;
-  border-color: #bfdbfe;
+  background: var(--calli-teal);
+  color: var(--calli-navy-line);
 }
 
 .disc-sender {
-  font-size: 12px;
-  font-weight: 600;
-  color: #4b5563;
-  margin-bottom: 2px;
+  margin-left: calc(4px * var(--s));
+  font-size: calc(13px * var(--s));
+  font-weight: 400;
+  color: rgba(0, 0, 0, 0.38);
 }
 
 .disc-time {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 3px;
+  margin-top: calc(4px * var(--s));
+  font-size: calc(12px * var(--s));
+  font-weight: 400;
+  color: rgba(42, 51, 68, 0.45);
+}
+
+.disc-row.mine .disc-time {
+  color: rgba(41, 53, 70, 0.6);
 }
 
 .disc-deleted {
-  color: #9ca3af;
+  color: rgba(42, 51, 68, 0.45);
 }
 
 .disc-empty,
 .disc-note {
-  font-size: 13px;
-  color: #6b7280;
   margin: 0;
+  font-size: calc(14px * var(--s));
+  font-weight: 200;
+  color: rgba(0, 0, 0, 0.72);
+  text-align: center;
 }
 
 .disc-error {
   margin: 0;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: calc(8px * var(--s)) calc(12px * var(--s));
+  border-radius: calc(8px * var(--s));
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
-  font-size: 13px;
+  font-size: calc(15px * var(--s));
 }
+
+/* --- Khung soan (Frame 38: 813x83, vien #2F3C52 2px, bo 40) -------------- */
 
 .disc-compose {
+  flex: none;
   display: flex;
-  gap: 8px;
-}
-
-.disc-compose input {
-  flex: 1;
-  padding: 8px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.disc-compose button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.disc-compose button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.disc-attach {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: calc(14px * var(--s));
+  min-height: calc(83px * var(--s));
+  padding: 0 calc(18px * var(--s));
+  border: 2px solid var(--calli-navy);
+  border-radius: calc(40px * var(--s));
 }
 
-.disc-attach label {
-  padding: 5px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
+/* O nhap 361x49 nen #B7B6BA bo 98 - vien tron han. */
+.disc-compose input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  height: calc(49px * var(--s));
+  padding: 0 calc(18px * var(--s));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--calli-muted);
+  color: var(--calli-navy);
+  font-family: var(--sans);
+  font-size: calc(20px * var(--s));
+}
+
+.disc-compose input[type="text"]:focus {
+  outline: 2px solid var(--calli-teal-dark);
+  outline-offset: 1px;
+}
+
+.disc-icon {
+  flex: none;
+  width: calc(43px * var(--s));
+  height: calc(43px * var(--s));
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--calli-navy-icon);
   cursor: pointer;
-  font-size: 13px;
 }
 
-.disc-attach label:hover {
-  background: #f3f4f6;
+.disc-icon:hover {
+  background: rgba(133, 174, 176, 0.2);
 }
 
-/* Ban rut gon dat trong phong hop (nen toi) - doi mau cho khop, khong
-   dung mau sang cua man hinh chat. */
+.disc-icon svg {
+  width: calc(34px * var(--s));
+  height: calc(34px * var(--s));
+}
+
+.disc-gui {
+  color: var(--calli-teal-dark);
+}
+
+.disc-gui:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.disc-tien {
+  flex: none;
+}
+
+/* Ban rut gon (trong popup phong hop): cao het cho con lai thay vi mot chieu
+   cao co dinh - popup da lo viec gioi han roi. */
 .disc-compact .disc-messages {
-  background: #16181d;
-  border-color: #2b2f36;
-  max-height: 42vh;
-}
-
-.disc-compact .disc-bubble {
-  background: #22262d;
-  border-color: #3a3f47;
-  color: #e9ecef;
-}
-
-.disc-compact .disc-row.mine .disc-bubble {
-  background: #1e3a5f;
-  border-color: #2c5282;
-}
-
-.disc-compact .disc-sender {
-  color: #9aa1ab;
-}
-
-.disc-compact .disc-compose input,
-.disc-compact .disc-attach label {
-  background: #22262d;
-  border-color: #3a3f47;
-  color: #e9ecef;
-}
-
-.disc-compact .disc-attach label:hover {
-  background: #2c313a;
-}
-
-.disc-compact .disc-empty,
-.disc-compact .disc-note {
-  color: #9aa1ab;
+  max-height: none;
 }

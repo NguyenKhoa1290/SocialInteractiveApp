@@ -7,6 +7,7 @@ import { extractApiError } from "../../lib/apiError";
 import { FileMessageContent } from "../chat/FileMessageContent";
 import type { Message, MessageType } from "../../types/chat";
 import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
+import { IconAttach, IconImage, IconMic, IconSend, IconVideo } from "../chat/ComposerIcons";
 import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -23,10 +24,14 @@ export function MeetingDiscussion({
   meetingId,
   compact = false,
   tuVaoNhom = true,
+  loc = "",
 }: {
   conversationId: number;
   meetingId: number;
   compact?: boolean;
+  // Chuoi loc tin nhan - o tim kiem nam tren dau popup (Figma 149:940), con
+  // danh sach tin thi o day, nen loc truyen xuong duoi dang mot prop.
+  loc?: string;
   // Co tu vao/roi nhom SignalR cua cuoc hop nay khong.
   //
   // Trang thao luan rieng thi CO - no la thu duy nhat dang mo. Panel trong
@@ -146,7 +151,14 @@ export function MeetingDiscussion({
         {loading && <p className="disc-empty">Đang tải…</p>}
         {!loading && messages.length === 0 && <p className="disc-empty">Chưa có nội dung nào trong thảo luận.</p>}
 
-        {messages.map((m) => {
+        {messages
+          .filter((m) => {
+            const q = loc.trim().toLowerCase();
+            if (!q) return true;
+            return (m.content ?? "").toLowerCase().includes(q) ||
+              (m.senderDisplayName ?? "").toLowerCase().includes(q);
+          })
+          .map((m) => {
           const mine = m.senderId === currentUserId;
           return (
             <div key={m.id} className={`disc-row${mine ? " mine" : ""}`}>
@@ -171,41 +183,45 @@ export function MeetingDiscussion({
 
       {error && <p className="disc-error">{error}</p>}
 
+      {/* MOT dai duy nhat: o nhap + bon nut dinh kem + nut gui, dung theo
+          Frame 38 cua thiet ke. Ban cu la mot form rieng cong mot hang nhan
+          emoji rieng ben duoi - hai tang chiem gap doi chieu cao. */}
       <form className="disc-compose" onSubmit={handleSend}>
         <input
-          placeholder="Nhắn trong thảo luận…"
+          type="text"
+          placeholder="Nhập tin nhắn"
           value={text}
           onChange={(e) => setText(e.target.value)}
           disabled={sending}
         />
-        <button type="submit" disabled={sending || !text.trim()}>
-          Gửi
+
+        <label className="disc-icon" title="Ghi âm">
+          <IconMic />
+          <input type="file" accept="audio/*" hidden onChange={(e) => handleUpload(e, "voice")} />
+        </label>
+        <label className="disc-icon" title="Ảnh">
+          <IconImage />
+          <input type="file" accept="image/*" hidden onChange={(e) => handleUpload(e, "image")} />
+        </label>
+        <label className="disc-icon" title="Video">
+          <IconVideo />
+          <input type="file" accept="video/*" hidden onChange={(e) => handleUpload(e, "video")} />
+        </label>
+        <label className="disc-icon" title="Tệp">
+          <IconAttach />
+          <input type="file" hidden onChange={(e) => handleUpload(e, "file")} />
+        </label>
+
+        <button type="submit" className="disc-icon disc-gui" disabled={sending || !text.trim()} title="Gửi">
+          <IconSend />
         </button>
       </form>
 
-      <div className="disc-attach">
-        <label>
-          🖼 Ảnh
-          <input type="file" accept="image/*" hidden onChange={(e) => handleUpload(e, "image")} />
-        </label>
-        <label>
-          🎬 Video
-          <input type="file" accept="video/*" hidden onChange={(e) => handleUpload(e, "video")} />
-        </label>
-        <label>
-          🎤 Ghi âm
-          <input type="file" accept="audio/*" hidden onChange={(e) => handleUpload(e, "voice")} />
-        </label>
-        <label>
-          📎 Tệp
-          <input type="file" hidden onChange={(e) => handleUpload(e, "file")} />
-        </label>
-        {upload ? (
-          <UploadProgressBar state={upload} />
-        ) : (
-          uploading && <span className="disc-empty">Đang tải lên…</span>
-        )}
-      </div>
+      {(upload || uploading) && (
+        <div className="disc-tien">
+          {upload ? <UploadProgressBar state={upload} /> : <span className="disc-empty">Đang tải lên…</span>}
+        </div>
+      )}
       <p className="disc-note">
         Thảo luận không mã hoá đầu cuối (để khách mời tham gia được). Tệp đính kèm tính vào dung lượng của nhóm.
       </p>
