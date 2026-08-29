@@ -19,6 +19,18 @@ import { IptvStage } from "./IptvStage";
 import { IptvChannelPicker } from "./IptvChannelPicker";
 import { IptvPlayerHost } from "./IptvPlayerHost";
 import { MeetingDiscussion } from "./MeetingDiscussion";
+import {
+  IconCallEnd,
+  IconCamera,
+  IconChatBubble,
+  IconMedia,
+  IconMicrophone,
+  IconPagerArrow,
+  IconPeople,
+  IconScreenShare,
+} from "./MeetingIcons";
+import { IconGear } from "../../components/RailIcons";
+import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageReceived } from "../../lib/chatHub";
 import type {
   MeetingParticipant,
   MeetingWithCallerStatus,
@@ -103,6 +115,10 @@ export function MeetingRoomPage() {
   // cuc hay dong popup deu khong lam mat no.
   const [showIptvPicker, setShowIptvPicker] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  // So tin nhan den TRONG LUC panel thao luan dang dong - cham do tren nut
+  // chat o thanh doc (Figma goi frame do la "khi co thong bao").
+  const [chuaDocChat, setChuaDocChat] = useState(0);
 
   // Vao phong la TAT san mic va camera - nguoi dung tu bat khi muon noi.
   // Ngoai chuyen te nhi, no con bo luon canh trinh duyet hoi quyen thiet bi
@@ -141,6 +157,21 @@ export function MeetingRoomPage() {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
+  // Dong ho o thanh tren dem THOI GIAN DA HOP, khong phai gio treo tuong.
+  // Moc la luc cuoc hop mo (meeting.createdAt) chu khong phai luc toi vao:
+  // ai vao muon cung phai thay cuoc hop da chay bao lau roi.
+  const [nhipGiay, setNhipGiay] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNhipGiay(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const daHop = (() => {
+    if (!meeting?.createdAt) return "00:00:00";
+    const giay = Math.max(0, Math.floor((nhipGiay - new Date(meeting.createdAt).getTime()) / 1000));
+    const hai = (n: number) => String(n).padStart(2, "0");
+    return `${hai(Math.floor(giay / 3600))}:${hai(Math.floor(giay / 60) % 60)}:${hai(giay % 60)}`;
+  })();
 
   const isHost = meeting !== null && currentUserId === meeting.hostId;
 
@@ -824,8 +855,10 @@ export function MeetingRoomPage() {
     return !(t.kind === "participant" && t.participant === stageParticipant);
   });
 
-  // Focus mode: cot ben phai hep nen it o hon. Man hinh hep: it hon nua.
-  const perPage = inFocusLayout ? (isNarrow ? 2 : 6) : isNarrow ? 4 : 9;
+  // So o moi trang lay tu thiet ke: luoi thuong 3x3 = 9 (frame 116:773),
+  // focus mode la dai bon o duoi khung lon (frame 118:1080). Man hinh hep
+  // thi it hon nua.
+  const perPage = inFocusLayout ? (isNarrow ? 2 : 4) : isNarrow ? 4 : 9;
   const totalPages = Math.max(1, Math.ceil(gridTiles.length / perPage));
   const safePage = Math.min(page, totalPages - 1);
   const visibleTiles = gridTiles.slice(safePage * perPage, safePage * perPage + perPage);
@@ -840,6 +873,23 @@ export function MeetingRoomPage() {
   useEffect(() => {
     if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
   }, [page, totalPages]);
+
+  // Bo cuc luoi doi theo SO O, dung nhu cac frame rieng trong thiet ke:
+  //   1 -> mot o to     2 -> hai cot      3 -> hai tren, mot duoi canh giua
+  //   4 -> luoi 2x2     >=5 -> luoi 3 cot, o co ty le 440x256
+  // Lay theo TONG so o chu khong phai so o dang hien: neu khong, trang cuoi
+  // cua mot phong dong (con 3 o) se phong to len roi trang truoc lai thu
+  // nho - lat trang mot cai la ca man nhay kich thuoc.
+  const kieuLuoi =
+    gridTiles.length <= 1
+      ? "mroom-grid-1"
+      : gridTiles.length === 2
+        ? "mroom-grid-2"
+        : gridTiles.length === 3
+          ? "mroom-grid-3"
+          : gridTiles.length === 4
+            ? "mroom-grid-4"
+            : "mroom-grid-nhieu";
 
   const visibleKey = visibleTiles
     .filter((t) => t.kind === "participant" && !t.isLocal)
@@ -887,6 +937,45 @@ export function MeetingRoomPage() {
     }
   }, [room, remotes, visibleKey, visibleScreenKey, hiddenVideos, stageParticipant, stageIsScreen]);
 
+  // Dem tin nhan chua doc cho cham do tren nut chat.
+  //
+  // Phai NGHE O DAY chu khong o trong MeetingDiscussion: panel do bi thao ra
+  // khi dong, ma tin den luc panel dong moi la tin can dem. Vi trang nay giu
+  // viec vao/roi nhom SignalR, MeetingDiscussion trong phong duoc goi voi
+  // tuVaoNhom={false} - hai ben cung goi thi luc panel dong se roi nhom va
+  // trang mat luon duong nghe.
+  const chatDangMoRef = useRef(false);
+  chatDangMoRef.current = showDiscussion;
+  useEffect(() => {
+    const convId = meeting?.conversationId;
+    if (convId == null) return;
+    let huy = false;
+    let boNghe: (() => void) | undefined;
+    void (async () => {
+      try {
+        await joinMeetingDiscussion(convId, meetingId);
+        const off = await onMeetingMessageReceived((msg) => {
+          if (chatDangMoRef.current) return;
+          if (msg.senderId === currentUserId) return;
+          setChuaDocChat((n) => n + 1);
+        });
+        if (huy) off();
+        else boNghe = off;
+      } catch {
+        // Mat cham do con hon chan ca phong hop lai vi mot con so nho.
+      }
+    })();
+    return () => {
+      huy = true;
+      boNghe?.();
+      leaveMeetingDiscussion(meetingId).catch(() => {});
+    };
+  }, [meeting?.conversationId, meetingId, currentUserId]);
+
+  useEffect(() => {
+    if (showDiscussion) setChuaDocChat(0);
+  }, [showDiscussion]);
+
   // Danh sach ban be chi can khi chu phong that su mo bang dieu khien de
   // moi - tai san luc vao phong la mot request thua cho phan lon phien hop.
   useEffect(() => {
@@ -932,17 +1021,38 @@ export function MeetingRoomPage() {
     );
   };
 
+  // Cot lat trang - Figma "Frame 60" ben trai thanh doc: mot cot cao mo,
+  // so trang o dinh, hai mui ten o giua.
+  function moPanel(ten: "chat" | "nguoi" | "caidat") {
+    setShowDiscussion(ten === "chat" ? !showDiscussion : false);
+    setShowPeople(ten === "nguoi" ? !showPeople : false);
+    setShowSettings(ten === "caidat" ? !showSettings : false);
+  }
+
   const pager = totalPages > 1 && (
-    <div className="meet-pager">
-      <button disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
-        ‹
-      </button>
-      <span>
-        {safePage + 1}/{totalPages} · {gridTiles.length} ô
+    <div className="mroom-pager">
+      <span className="mroom-pager-so">
+        {safePage + 1}/{totalPages}
       </span>
-      <button disabled={safePage >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
-        ›
-      </button>
+      <div className="mroom-pager-nut">
+        <button
+          disabled={safePage === 0}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          aria-label="Trang trước"
+          title="Trang trước"
+        >
+          <IconPagerArrow />
+        </button>
+        <button
+          className="mroom-pager-phai"
+          disabled={safePage >= totalPages - 1}
+          onClick={() => setPage((p) => p + 1)}
+          aria-label="Trang sau"
+          title="Trang sau"
+        >
+          <IconPagerArrow />
+        </button>
+      </div>
     </div>
   );
 
@@ -983,16 +1093,20 @@ export function MeetingRoomPage() {
       channelId={presentation?.kind === "mini_app" ? (presentation.channelId ?? null) : null}
       channelUrl={presentation?.kind === "mini_app" ? (presentation.channelUrl ?? null) : null}
     >
-    <div className="meet-page">
-      <header className="meet-header">
-        <span>Cuộc họp #{meetingId}</span>
-        <div className="meet-header-actions">
-          <button onClick={() => setShowPeople((v) => !v)}>
-            Người tham gia ({presentParticipants.length}){waiting.length > 0 && ` · ${waiting.length} chờ`}
-          </button>
-          <button onClick={() => setShowDiscussion((v) => !v)}>💬 Thảo luận</button>
-          {canUseMiniApp && <button onClick={handleOpenMiniApp}>Mini App IPTV</button>}
-        </div>
+    <div className="mroom">
+      {/* Thanh tren - Figma "Frame 57": cao 96, nen #293546. Dong ho trai,
+          ten cuoc hop giua, nut do "Roi khoi" phai.
+
+          "Roi khoi" o day chi dua RIENG TOI ra khoi phong. Viec ket thuc ca
+          cuoc hop nam o nut tron do dau thanh doc va chi chu phong thay. */}
+      <header className="mroom-top">
+        <span className="mroom-clock" title="Thời gian đã họp">
+          {daHop}
+        </span>
+        <span className="mroom-title">Cuộc họp #{meetingId}</span>
+        <button className="mroom-leave" onClick={handleLeave}>
+          Rời khỏi
+        </button>
       </header>
 
       {error && <p className="meet-error">{error}</p>}
@@ -1006,11 +1120,11 @@ export function MeetingRoomPage() {
       )}
 
       {status === "connecting" ? (
-        <div className="meet-center">
+        <div className="mroom-center">
           <p>Đang kết nối phòng họp…</p>
         </div>
       ) : (
-        <div className="meet-body">
+        <div className="mroom-body">
           <div className="meet-stage-wrap">
             {/* FOCUS MODE: co nguoi dang trinh bay -> khung trinh bay chiem
                 trung tam, moi nguoi thu nho thanh dai ben duoi. Khong ai
@@ -1050,7 +1164,10 @@ export function MeetingRoomPage() {
                 phai (giong Teams). Man hinh hep thi cot nay tu xuong duoi
                 thanh mot dai ngang - xem meeting.css. */}
             {inFocusLayout ? (
-              <div className="meet-stage-row">
+              /* Focus mode (frame 118:1080): khung lon chiem gan het man,
+                 moi nguoi thu thanh MOT DAI NGANG ben duoi, cot lat trang
+                 nam ngay ben phai dai do. */
+              <div className="mroom-focus">
                 {stageParticipant && (
                   <div className="meet-stage">
                     <ParticipantTile
@@ -1079,17 +1196,17 @@ export function MeetingRoomPage() {
                 )}
 
                 {gridTiles.length > 0 && (
-                  <div className="meet-side-tiles">
-                    <div className="meet-grid meet-grid-side">{visibleTiles.map(renderTile)}</div>
+                  <div className="mroom-dai">
+                    <div className="meet-grid mroom-grid-dai">{visibleTiles.map(renderTile)}</div>
                     {pager}
                   </div>
                 )}
               </div>
             ) : (
-              <>
-                <div className="meet-grid">{visibleTiles.map(renderTile)}</div>
+              <div className="mroom-luoi-hang">
+                <div className={`meet-grid ${kieuLuoi}`}>{visibleTiles.map(renderTile)}</div>
                 {pager}
-              </>
+              </div>
             )}
           </div>
 
@@ -1106,7 +1223,15 @@ export function MeetingRoomPage() {
                   Phòng tuỳ chỉnh: tin nhắn và tệp trong đây sẽ bị xoá khi cuộc họp kết thúc.
                 </p>
               )}
-              <MeetingDiscussion conversationId={meeting.conversationId} meetingId={meetingId} compact />
+              {/* tuVaoNhom={false}: trang nay da giu viec vao/roi nhom
+                  SignalR de dem tin chua doc. Hai ben cung giu thi luc
+                  dong panel se roi nhom va cham do chet theo. */}
+              <MeetingDiscussion
+                conversationId={meeting.conversationId}
+                meetingId={meetingId}
+                compact
+                tuVaoNhom={false}
+              />
             </aside>
           )}
           {showDiscussion && meeting?.conversationId == null && (
@@ -1124,7 +1249,10 @@ export function MeetingRoomPage() {
 
           {showPeople && (
             <aside className="meet-side">
-              <h3>Trong phòng</h3>
+              <div className="meet-side-head">
+                <h3>Trong phòng</h3>
+                <button onClick={() => setShowPeople(false)}>Đóng</button>
+              </div>
               <ul className="meet-people">
                 {presentParticipants.map((p) => (
                   <li key={p.userId}>
@@ -1281,38 +1409,96 @@ export function MeetingRoomPage() {
         />
       )}
 
-      <footer className="meet-controls">
-        <button
-          onClick={toggleMic}
-          className={micOn ? "" : "meet-off"}
-          disabled={!micAllowed}
-          title={micAllowed ? undefined : "Chủ phòng đã thu quyền bật micro của bạn"}
-        >
-          {!micAllowed ? "🚫 Mic bị khoá" : micOn ? "Tắt mic" : "Bật mic"}
-        </button>
-        <button
-          onClick={toggleCam}
-          className={camOn ? "" : "meet-off"}
-          disabled={!camAllowed}
-          title={camAllowed ? undefined : "Chủ phòng đã thu quyền bật camera của bạn"}
-        >
-          {!camAllowed ? "🚫 Cam bị khoá" : camOn ? "Tắt cam" : "Bật cam"}
-        </button>
-        {room && <DevicePicker room={room} />}
-        {canShareScreen && (
-          <button onClick={toggleShare} className={sharing ? "meet-off" : ""}>
-            {sharing ? "Dừng trình chiếu" : "Trình chiếu"}
-          </button>
-        )}
-        <button className="meet-danger" onClick={handleLeave}>
-          Rời phòng
-        </button>
+      {/* Thanh doc ben phai - Figma "Frame 60": rong 137, nen #293546, tam
+          nut tron 66px vien #85AEB0. Thu tu lay dung tu thiet ke: ket thuc,
+          camera, mic, chat, nguoi tham gia, chia se man hinh, media, cai dat. */}
+      <nav className="mroom-rail" aria-label="Điều khiển cuộc họp">
         {isHost && (
-          <button className="meet-danger" onClick={handleEnd}>
-            Kết thúc cho tất cả
+          <button className="mroom-btn mroom-btn-ket" onClick={handleEnd} title="Kết thúc cho tất cả">
+            <IconCallEnd />
           </button>
         )}
-      </footer>
+
+        <button
+          className={`mroom-btn${camOn ? " mroom-btn-bat" : ""}`}
+          onClick={toggleCam}
+          disabled={!camAllowed}
+          title={
+            !camAllowed
+              ? "Chủ phòng đã thu quyền bật camera của bạn"
+              : camOn
+                ? "Tắt camera"
+                : "Bật camera"
+          }
+        >
+          <IconCamera off={!camOn} />
+        </button>
+
+        <button
+          className={`mroom-btn${micOn ? " mroom-btn-bat" : ""}`}
+          onClick={toggleMic}
+          disabled={!micAllowed}
+          title={
+            !micAllowed ? "Chủ phòng đã thu quyền bật micro của bạn" : micOn ? "Tắt mic" : "Bật mic"
+          }
+        >
+          <IconMicrophone off={!micOn} />
+        </button>
+
+        <button
+          className={`mroom-btn${showDiscussion ? " mroom-btn-bat" : ""}`}
+          onClick={() => moPanel("chat")}
+          title="Thảo luận"
+        >
+          <IconChatBubble />
+          {chuaDocChat > 0 && <span className="mroom-cham">{chuaDocChat > 99 ? "99+" : chuaDocChat}</span>}
+        </button>
+
+        <button
+          className={`mroom-btn${showPeople ? " mroom-btn-bat" : ""}`}
+          onClick={() => moPanel("nguoi")}
+          title={`Người tham gia (${presentParticipants.length})`}
+        >
+          <IconPeople />
+          {waiting.length > 0 && <span className="mroom-cham">{waiting.length}</span>}
+        </button>
+
+        {canShareScreen && (
+          <button
+            className={`mroom-btn${sharing ? " mroom-btn-bat" : ""}`}
+            onClick={toggleShare}
+            title={sharing ? "Dừng trình chiếu" : "Trình chiếu màn hình"}
+          >
+            <IconScreenShare />
+          </button>
+        )}
+
+        {canUseMiniApp && (
+          <button className="mroom-btn" onClick={handleOpenMiniApp} title="Mini App IPTV">
+            <IconMedia />
+          </button>
+        )}
+
+        <button
+          className={`mroom-btn${showSettings ? " mroom-btn-bat" : ""}`}
+          onClick={() => moPanel("caidat")}
+          title="Cài đặt"
+        >
+          <IconGear size={32} />
+        </button>
+      </nav>
+
+      {/* Panel cai dat. Tam thoi chi co phan chon thiet bi - frame "Cai dat"
+          (136:515) chua doc duoc nen chua biet trong do con nhung gi. */}
+      {showSettings && (
+        <aside className="meet-side">
+          <div className="meet-side-head">
+            <h3>Cài đặt</h3>
+            <button onClick={() => setShowSettings(false)}>Đóng</button>
+          </div>
+          {room && <DevicePicker room={room} />}
+        </aside>
+      )}
     </div>
     </IptvPlayerHost>
   );

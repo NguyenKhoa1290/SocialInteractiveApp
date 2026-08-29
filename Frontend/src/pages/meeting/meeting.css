@@ -14,23 +14,6 @@
   padding: 24px;
 }
 
-.meet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  border-bottom: 1px solid #2b2f36;
-  font-weight: 600;
-}
-
-.meet-header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.meet-header button,
-.meet-controls button,
 .meet-side button,
 .meet-join-card button,
 .meet-inline-form button {
@@ -43,13 +26,10 @@
   font-size: 14px;
 }
 
-.meet-header button:hover,
-.meet-controls button:hover,
 .meet-side button:hover {
   background: #2c313a;
 }
 
-.meet-controls button:disabled,
 .meet-inline-form button:disabled {
   opacity: 0.5;
   cursor: default;
@@ -188,91 +168,6 @@
 }
 
 /* FOCUS MODE: khung lon ben trai, cot o nho ben phai (giong Teams). */
-.meet-stage-row {
-  display: flex;
-  gap: 10px;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-.meet-stage-row .meet-stage {
-  flex: 1;
-  min-width: 0;
-}
-
-.meet-side-tiles {
-  flex: 0 0 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-}
-
-.meet-grid-side {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-.meet-grid-side .meet-tile {
-  flex: 0 0 auto;
-  aspect-ratio: 4 / 3;
-}
-
-/* Dieu khien phan trang. Chi hien khi co nhieu hon 1 trang. */
-.meet-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  flex: 0 0 auto;
-  font-size: 13px;
-  color: #9aa2ad;
-}
-
-.meet-pager button {
-  min-width: 32px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid #2b2f36;
-  background: #1a1d23;
-  color: #e9ecef;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1.4;
-}
-
-.meet-pager button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Man hinh hep: cot ben phai tut xuong duoi thanh dai ngang, vi 220px an
-   mat qua nhieu be ngang cua khung trinh bay. */
-@media (max-width: 768px) {
-  .meet-stage-row {
-    flex-direction: column;
-  }
-
-  .meet-side-tiles {
-    flex: 0 0 auto;
-  }
-
-  .meet-grid-side {
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-
-  .meet-grid-side .meet-tile {
-    flex: 0 0 150px;
-  }
-}
-
 .meet-tile {
   position: relative;
   aspect-ratio: 4 / 3;
@@ -393,15 +288,6 @@
 .meet-people-actions button {
   font-size: 12px;
   padding: 3px 8px;
-}
-
-.meet-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px;
-  border-top: 1px solid #2b2f36;
 }
 
 .meet-danger {
@@ -880,4 +766,485 @@
 .meet-toggle:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* ======================================================================
+   PHONG HOP THEO BAN THIET KE CALLI
+   Figma: 116:773 (khuon chinh >9 nguoi), 136:53/135/217/275/337 (theo so
+   nguoi), 118:1080 (focus mode).
+
+   Bo cuc: thanh tren 96 (#293546) - than trang - thanh doc 137 (#293546)
+   dan sat le phai, cot lat trang 109 nam ngay truoc thanh doc.
+   Nen phong #363637; o nguoi hop la #B7B6BA 23% de len nen do.
+   Moi kich thuoc deu nhan --s nhu phan con lai cua app (thiet ke ve o 1920).
+   ====================================================================== */
+
+.mroom {
+  --mroom-top: calc(96px * var(--s));
+  --mroom-rail: calc(137px * var(--s));
+  --mroom-khe: calc(58px * var(--s));
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  background: #363637;
+  color: #fff;
+  font-family: var(--sans);
+}
+
+/* --- Thanh tren (Frame 57) --------------------------------------------- */
+
+.mroom-top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 10;
+  height: var(--mroom-top);
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+  padding: 0 calc(47px * var(--s)) 0 calc(70px * var(--s));
+  background: var(--calli-navy-line);
+}
+
+.mroom-clock {
+  font-size: calc(24px * var(--s));
+  font-weight: 500;
+  /* Chu so cung be rong: dong ho dem tung giay ma be rong chu so nhay qua
+     nhay lai thi ca thanh tren rung theo. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ten cuoc hop canh giua MAN HINH, khong phai giua cho con lai: dong ho ben
+   trai va nut ben phai khong cung be rong nen canh giua theo dong flex se
+   lech han sang mot ben. */
+.mroom-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: calc(24px * var(--s));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.mroom-leave {
+  margin-left: auto;
+  min-width: calc(198px * var(--s));
+  height: calc(65px * var(--s));
+  padding: 0 calc(20px * var(--s));
+  border: 0;
+  border-radius: calc(20px * var(--s));
+  background: rgba(255, 0, 0, 0.73);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(24px * var(--s));
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mroom-leave:hover {
+  background: rgba(255, 0, 0, 0.9);
+}
+
+/* --- Than trang -------------------------------------------------------- */
+
+.mroom-body,
+.mroom-center {
+  position: absolute;
+  top: var(--mroom-top);
+  right: var(--mroom-rail);
+  bottom: 0;
+  left: 0;
+}
+
+.mroom-center {
+  display: grid;
+  place-items: center;
+  font-size: calc(20px * var(--s));
+}
+
+.mroom-body {
+  display: flex;
+  min-height: 0;
+  padding: calc(65px * var(--s)) calc(45px * var(--s)) calc(71px * var(--s)) calc(70px * var(--s));
+}
+
+.mroom-luoi-hang,
+.mroom-focus {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mroom-luoi-hang {
+  gap: calc(43px * var(--s));
+}
+
+.mroom-focus {
+  flex-direction: column;
+  gap: calc(14px * var(--s));
+}
+
+/* --- Luoi o nguoi hop --------------------------------------------------- */
+
+.meet-grid {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  gap: calc(36px * var(--s)) var(--mroom-khe);
+}
+
+.mroom-grid-1 {
+  grid-template-columns: 1fr;
+}
+
+.mroom-grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.mroom-grid-3,
+.mroom-grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Ba nguoi: o thu ba nam mot minh o hang duoi va CANH GIUA ca luoi, dung
+   nhu frame 136:217 - khong dat le trai nhu thu tu luoi thong thuong. */
+.mroom-grid-3 > :nth-child(3) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: calc(50% - var(--mroom-khe) / 2);
+}
+
+/* Tu nam nguoi tro len: luoi 3 cot, o giu ty le 440x256 va xep tu tren
+   xuong - KHONG keo gian cho day cot, dung nhu frame 136:337 (nam nguoi thi
+   hang duoi chi co hai o va phia duoi con trong). */
+.mroom-grid-nhieu {
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: min-content;
+  align-content: start;
+  gap: calc(36px * var(--s)) calc(81px * var(--s));
+}
+
+.mroom-grid-nhieu .meet-tile {
+  aspect-ratio: 440 / 256;
+}
+
+/* Focus mode: dai o nho nam ngang duoi khung lon (frame 118:1080). */
+.mroom-dai {
+  flex: none;
+  display: flex;
+  gap: calc(37px * var(--s));
+  height: calc(163px * var(--s));
+}
+
+.mroom-grid-dai {
+  grid-template-columns: repeat(4, calc(281px * var(--s)));
+  grid-auto-rows: 100%;
+  gap: calc(28px * var(--s));
+  justify-content: start;
+}
+
+/* --- O nguoi hop -------------------------------------------------------- */
+
+.meet-tile {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: calc(25px * var(--s));
+  background: rgba(183, 182, 186, 0.23);
+  overflow: hidden;
+  /* Bo ty le co dinh cua ban cu: gio ty le do bo cuc quyet dinh. */
+  aspect-ratio: auto;
+}
+
+.meet-tile-stage {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(183, 182, 186, 0.23);
+}
+
+/* Chua bat camera: vong tron mau #4A7AAD voi chu cai dau, ten nam ngay duoi
+   va canh giua o - dung nhu moi o trong ban thiet ke. */
+.meet-tile-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(21px * var(--s));
+  width: 100%;
+  height: 100%;
+  padding: calc(10px * var(--s));
+  background: transparent;
+}
+
+.meet-tile-avatar {
+  /* 122 tren o cao 256 la 48%. Chan tren de o co (mot nguoi trong phong, o
+     cao gan het man hinh) khong bien vong tron thanh mot cai dia. */
+  height: min(48%, calc(170px * var(--s)));
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #4a7aad;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: calc(52px * var(--s));
+  font-weight: 600;
+  line-height: 1;
+}
+
+.meet-tile-ten {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  max-width: 100%;
+  font-size: calc(24px * var(--s));
+  font-weight: 500;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dai ten goc duoi CHI dung khi o dang chieu video - luc do khong con cho
+   nao khac de dat ten. O chua bat camera da co ten canh giua roi. */
+.meet-tile-label {
+  left: calc(14px * var(--s));
+  bottom: calc(12px * var(--s));
+  padding: calc(4px * var(--s)) calc(10px * var(--s));
+  border-radius: calc(8px * var(--s));
+  background: rgba(0, 0, 0, 0.55);
+  font-size: calc(15px * var(--s));
+}
+
+/* --- Cot lat trang (Frame 60 ben trai) ---------------------------------- */
+
+.mroom-pager {
+  flex: none;
+  width: calc(109px * var(--s));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(10px * var(--s));
+  padding: calc(24px * var(--s)) 0;
+  border-radius: calc(25px * var(--s));
+  background: rgba(183, 182, 186, 0.23);
+}
+
+.mroom-pager-so {
+  color: var(--calli-teal);
+  font-size: calc(24px * var(--s));
+  font-weight: 500;
+}
+
+.mroom-pager-nut {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: calc(20px * var(--s));
+}
+
+.mroom-pager-nut button {
+  width: calc(34px * var(--s));
+  height: calc(34px * var(--s));
+  padding: 0;
+  border: 2px solid var(--calli-teal);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--calli-teal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.mroom-pager-nut button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Mot hinh mui ten duy nhat, nut phai xoay lai - hai hinh ve rieng thi khong
+   bao gio doi xung that. */
+.mroom-pager-phai {
+  transform: rotate(180deg);
+}
+
+/* --- Thanh doc dieu khien (Frame 60 ben phai) --------------------------- */
+
+.mroom-rail {
+  position: absolute;
+  top: var(--mroom-top);
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: var(--mroom-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(49px * var(--s));
+  padding: calc(30px * var(--s)) 0;
+  background: var(--calli-navy-line);
+  overflow-y: auto;
+}
+
+.mroom-btn {
+  position: relative;
+  flex: none;
+  width: calc(66px * var(--s));
+  height: calc(66px * var(--s));
+  padding: 0;
+  border: 2px solid var(--calli-teal);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--calli-teal);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.mroom-btn:hover:not(:disabled) {
+  background: rgba(133, 174, 176, 0.16);
+}
+
+.mroom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Dang bat / panel dang mo: dao mau lai cho thay ro tu xa. */
+.mroom-btn-bat {
+  background: var(--calli-teal);
+  color: var(--calli-navy-line);
+}
+
+.mroom-btn-bat:hover:not(:disabled) {
+  background: var(--calli-teal-dark);
+}
+
+.mroom-btn-ket {
+  border-color: #ff0000;
+  color: #ff0000;
+}
+
+.mroom-btn-ket:hover:not(:disabled) {
+  background: rgba(255, 0, 0, 0.16);
+}
+
+/* Cham do dem: tin chua doc tren nut chat, so nguoi dang cho tren nut nguoi
+   tham gia. */
+.mroom-cham {
+  position: absolute;
+  top: calc(-4px * var(--s));
+  right: calc(-4px * var(--s));
+  min-width: calc(24px * var(--s));
+  height: calc(24px * var(--s));
+  padding: 0 calc(6px * var(--s));
+  border-radius: var(--r-pill);
+  background: #ff0000;
+  color: #fff;
+  font-size: calc(14px * var(--s));
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+/* --- Panel phu (thao luan / nguoi tham gia / cai dat) -------------------
+   Ban thiet ke ve chung la popup cao het man, rong 847, DE LEN khung hop
+   chu khong chen no hep lai. Cac frame popup do chua doc duoc (Figma dang
+   chan tan suat) nen day moi la cai khung; noi dung ben trong van la ban
+   cu, se xep lai khi co artwork. */
+
+.mroom .meet-side {
+  position: fixed;
+  top: calc(96px * var(--s));
+  right: calc(137px * var(--s));
+  bottom: 0;
+  z-index: 30;
+  width: min(calc(847px * var(--s)), 92vw);
+  flex: none;
+  border: 0;
+  border-left: 1px solid rgba(133, 174, 176, 0.35);
+  border-radius: 0;
+  background: var(--calli-navy-line);
+  overflow-y: auto;
+}
+
+/* --- Dai bao loi / thong bao -------------------------------------------- */
+
+.mroom > .meet-error,
+.mroom > .meet-notice {
+  position: absolute;
+  top: calc(var(--mroom-top) + 12px * var(--s));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: min(90vw, 720px);
+  margin: 0;
+}
+
+/* --- Man hep ------------------------------------------------------------
+   Duoi 900px thanh doc nam ngang o day man, cot lat trang tut xuong duoi
+   luoi. Nhoi mot thanh 137px vao man dien thoai la an mat gan nua be ngang. */
+
+@media (max-width: 900px) {
+  .mroom {
+    --mroom-rail: 0px;
+  }
+
+  .mroom-rail {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: calc(76px * var(--s));
+    flex-direction: row;
+    gap: calc(14px * var(--s));
+    padding: 0 calc(10px * var(--s));
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .mroom-body,
+  .mroom-center {
+    bottom: calc(76px * var(--s));
+  }
+
+  .mroom-body {
+    padding: calc(16px * var(--s));
+  }
+
+  .mroom-luoi-hang {
+    flex-direction: column;
+    gap: calc(12px * var(--s));
+  }
+
+  .mroom-pager {
+    width: auto;
+    height: calc(52px * var(--s));
+    flex-direction: row;
+    justify-content: center;
+    padding: 0 calc(16px * var(--s));
+  }
+
+  .mroom-pager-nut {
+    flex: none;
+  }
+
+  .mroom-top {
+    padding: 0 calc(14px * var(--s));
+  }
+
+  .mroom-title {
+    display: none;
+  }
+
+  .mroom .meet-side {
+    top: calc(96px * var(--s));
+    right: 0;
+    bottom: calc(76px * var(--s));
+    width: 100%;
+  }
 }

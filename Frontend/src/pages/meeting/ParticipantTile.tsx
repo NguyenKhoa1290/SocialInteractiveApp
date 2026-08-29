@@ -80,16 +80,29 @@ export function ParticipantTile({
           className={contain ? "meet-tile-video meet-tile-video-contain" : "meet-tile-video"}
         />
       ) : (
-        <div className="meet-tile-placeholder">{label.slice(0, 1).toUpperCase()}</div>
+        /* Chua bat camera: vong tron chu cai dau, ten ngay ben duoi va canh
+           giua o - dung nhu moi o trong ban thiet ke (Figma 116:773). O
+           trang thai nay ten KHONG nam o dai goc duoi nua, vi ca o dang
+           trong thi khong co gi phai tranh cho. */
+        <div className="meet-tile-placeholder">
+          <span className="meet-tile-avatar">{label.slice(0, 1).toUpperCase()}</span>
+          <span className="meet-tile-ten">
+            {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
+            {label}
+            {source === "camera" && isLocal && " (bạn)"}
+          </span>
+        </div>
       )}
       {/* O man hinh KHONG gan lai mic: nguoi do da co o camera rieng roi,
           gan hai lan la nghe doi tieng. */}
       {!isLocal && source === "camera" && <audio ref={audioRef} autoPlay />}
-      <div className="meet-tile-label">
-        {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
-        {label}
-        {source === "camera" && isLocal && " (bạn)"}
-      </div>
+      {hasVideo && (
+        <div className="meet-tile-label">
+          {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
+          {label}
+          {source === "camera" && isLocal && " (bạn)"}
+        </div>
+      )}
     </div>
   );
 }

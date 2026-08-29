@@ -22,10 +22,18 @@ export function MeetingDiscussion({
   conversationId,
   meetingId,
   compact = false,
+  tuVaoNhom = true,
 }: {
   conversationId: number;
   meetingId: number;
   compact?: boolean;
+  // Co tu vao/roi nhom SignalR cua cuoc hop nay khong.
+  //
+  // Trang thao luan rieng thi CO - no la thu duy nhat dang mo. Panel trong
+  // phong hop thi KHONG: trang phong da giu viec do de dem tin chua doc luc
+  // panel dang dong, ma neu ca hai cung giu thi lan dong panel dau tien se
+  // goi LeaveMeetingDiscussion, keo theo ca duong nghe cua trang.
+  tuVaoNhom?: boolean;
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,7 +55,7 @@ export function MeetingDiscussion({
         if (cancelled) return;
         setMessages([...res.data].reverse());
 
-        await joinMeetingDiscussion(conversationId, meetingId);
+        if (tuVaoNhom) await joinMeetingDiscussion(conversationId, meetingId);
         unsub = await onMeetingMessageReceived((msg) => {
           // Tin cua chinh minh da duoc them ngay luc gui (phan hoi cua POST)
           // - bo qua ban echo de khong hien 2 lan.
@@ -64,9 +72,9 @@ export function MeetingDiscussion({
     return () => {
       cancelled = true;
       unsub?.();
-      leaveMeetingDiscussion(meetingId).catch(() => {});
+      if (tuVaoNhom) leaveMeetingDiscussion(meetingId).catch(() => {});
     };
-  }, [conversationId, meetingId]);
+  }, [conversationId, meetingId, tuVaoNhom]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
