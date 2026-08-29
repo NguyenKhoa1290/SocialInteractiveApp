@@ -56,7 +56,12 @@ export function ParticipantTile({
   const screenPub = participant.getTrackPublication(Track.Source.ScreenShare);
   const camPub = participant.getTrackPublication(Track.Source.Camera);
   const micPub = participant.getTrackPublication(Track.Source.Microphone);
+  const screenAudioPub = participant.getTrackPublication(Track.Source.ScreenShareAudio);
   const videoPub = source === "screen" ? screenPub : camPub;
+  // O man hinh nghe TIENG CUA MAN HINH, o camera nghe tieng nguoi. Truoc day
+  // o man hinh khong gan am thanh nao ca, nen nguoi chia se mot video co
+  // tieng thi ca phong nhin thay hinh ma khong nghe gi.
+  const audioPub = source === "screen" ? screenAudioPub : micPub;
 
   useEffect(() => {
     const el = videoRef.current;
@@ -69,16 +74,17 @@ export function ParticipantTile({
   }, [videoPub?.track, version]);
 
   useEffect(() => {
-    // KHONG attach mic cua chinh minh - se tu nghe lai tieng minh (voi lai).
-    if (isLocal || source === "screen") return;
+    // KHONG attach am thanh cua chinh minh - se tu nghe lai tieng minh (voi
+    // lai), va voi man hinh chia se thi thanh mot vong lap tieng.
+    if (isLocal) return;
     const el = audioRef.current;
-    const track = micPub?.track;
+    const track = audioPub?.track;
     if (!el || !track) return;
     track.attach(el);
     return () => {
       track.detach(el);
     };
-  }, [micPub?.track, version, isLocal, source]);
+  }, [audioPub?.track, version, isLocal]);
 
   const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted && !videoHidden;
   // Noi dung trinh chieu bi cat vien la mat chu - luon hien nguyen khung du
@@ -130,9 +136,9 @@ export function ParticipantTile({
           </span>
         </div>
       )}
-      {/* O man hinh KHONG gan lai mic: nguoi do da co o camera rieng roi,
-          gan hai lan la nghe doi tieng. */}
-      {!isLocal && source === "camera" && <audio ref={audioRef} autoPlay />}
+      {/* O camera gan mic, o man hinh gan tieng cua man hinh - hai nguon
+          khac nhau nen khong bao gio nghe doi. */}
+      {!isLocal && <audio ref={audioRef} autoPlay />}
       {hasVideo && (
         <div className="meet-tile-label">
           {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}

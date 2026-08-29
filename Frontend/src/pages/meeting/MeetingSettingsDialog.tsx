@@ -37,6 +37,10 @@ export function MeetingSettingsDialog({
   room,
   tietKiem,
   doiTietKiem,
+  dangChieu,
+  tenNguoiChieu,
+  dungDuoc,
+  onDungChieu,
   onClose,
 }: {
   room: Room | null;
@@ -44,6 +48,13 @@ export function MeetingSettingsDialog({
   // cua ai ve may nay ca.
   tietKiem: boolean;
   doiTietKiem: (v: boolean) => void;
+  // Dang co ai trinh bay khong, va la thu gi ("man hinh" / "Mini App").
+  // null = khong ai. Nut dung nam O DAY chu khong o thanh doc.
+  dangChieu: string | null;
+  tenNguoiChieu: string;
+  // Chi nguoi DANG trinh bay va chu phong moi dung duoc.
+  dungDuoc: boolean;
+  onDungChieu: () => void;
   onClose: () => void;
 }) {
   const [thietBi, setThietBi] = useState<Partial<Record<Kind, MediaDeviceInfo[]>>>({});
@@ -120,6 +131,21 @@ export function MeetingSettingsDialog({
 
   return (
     <MeetingPopup title="Cài đặt" onClose={onClose} width={825}>
+      {/* Dang trinh bay thi day la cho dung lai - thiet ke khong dat nut dung
+          o thanh doc. */}
+      {dangChieu && (
+        <div className="mpop-dang-chieu">
+          <span>
+            <b>{tenNguoiChieu}</b> đang trình chiếu {dangChieu}
+          </span>
+          {dungDuoc && (
+            <button type="button" className="mpop-pill mpop-pill-do" onClick={onDungChieu}>
+              Dừng trình chiếu
+            </button>
+          )}
+        </div>
+      )}
+
       {KINDS.map((k) => (
         <div key={k} className="mpop-muc">
           <p className="mpop-nhan">{NHAN[k]}</p>

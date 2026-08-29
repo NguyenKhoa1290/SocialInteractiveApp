@@ -531,7 +531,15 @@ export function MeetingRoomPage() {
 
     let tracks;
     try {
-      tracks = await createLocalScreenTracks({ audio: false });
+      // audio: true = keo ca TIENG cua cua so dang chia se (tab Chrome,
+      // hoac ca may tren Windows). Trinh duyet chi kem am thanh khi nguoi
+      // dung tich o "Chia se am thanh" trong hop chon - khong tich thi chi co
+      // track hinh, va publishTrack ben duoi van chay dung.
+      //
+      // Token LiveKit da co san screen_share_audio trong danh sach nguon duoc
+      // phep (xem LiveKitService.GenerateAccessToken), nen khong phai xin
+      // them quyen gi.
+      tracks = await createLocalScreenTracks({ audio: true });
     } catch {
       // Nguoi dung bam Huy o hop chon man hinh - khong phai loi. Tra lai
       // suat vua gianh, neu khong ca phong se ket o focus mode voi mot man
@@ -1251,11 +1259,6 @@ export function MeetingRoomPage() {
                       {gridOverride ? "Xem khung trình bày" : "Xem dạng lưới"}
                     </button>
                   )}
-                  {presentation && (presentation.userId === currentUserId || isHost) && (
-                    <button className="meet-danger" onClick={handleStopPresentation}>
-                      Dừng trình bày
-                    </button>
-                  )}
                 </span>
               </div>
             )}
@@ -1414,6 +1417,19 @@ export function MeetingRoomPage() {
           room={room}
           tietKiem={tietKiem}
           doiTietKiem={setTietKiem}
+          // Nut dung nam O DAY chu khong o thanh doc: chu du an chot vay.
+          // `dungDuoc` gom ca truong hop chu phong go ket cho nguoi khac dang
+          // trinh bay ma mat mang khong kip tat.
+          dangChieu={
+            presentation
+              ? presentation.kind === "screen"
+                ? "man hình"
+                : "Mini App"
+              : null
+          }
+          tenNguoiChieu={presentation?.nickname ?? ""}
+          dungDuoc={!!presentation && (presentation.userId === currentUserId || isHost)}
+          onDungChieu={handleStopPresentation}
           onClose={() => setShowSettings(false)}
         />
       )}

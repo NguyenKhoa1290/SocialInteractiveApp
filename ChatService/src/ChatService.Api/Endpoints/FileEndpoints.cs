@@ -65,6 +65,31 @@ public static class FileEndpoints
                             statusCode: 507);
                 }
             }
+            else if (conversation.Type == ConversationType.Meeting)
+            {
+                // Phong hop TAM khong co GroupChatSettings de tinh han muc -
+                // no khong thuoc nhom nao, va ca hoi thoai bi xoa han khi hop
+                // xong. Nhung KHONG the de no khong gioi han: phong tam ai co
+                // link cung vao duoc, khong chan thi thanh cho do rac mien phi.
+                //
+                // 2GB moi phong, dung con so ghi tren dau khung chat trong ban
+                // thiet ke (Figma 136:500: "Tin nhan tam khong luu tru va gioi
+                // han 2gb gui file").
+                //
+                // Cong tay thay vi doc mot cot dem san: hoi thoai tam song vai
+                // tieng va co it tep, mot cau SUM re hon nhieu so voi them mot
+                // cot phai giu dong bo bang trigger.
+                var daDung = await db.Files
+                    .Where(f => f.ConversationId == req.ConversationId)
+                    .SumAsync(f => (long?)f.SizeBytes) ?? 0L;
+
+                if (daDung + req.SizeBytes > MeetingRoomQuotaBytes)
+                    return Results.Json(new ErrorResponse(
+                        "storage_quota_exceeded",
+                        $"Phòng họp tạm chỉ chứa được {Human(MeetingRoomQuotaBytes)} tệp. " +
+                        $"Đã dùng {Human(daDung)}, tệp này {Human(req.SizeBytes)} — không còn đủ chỗ."),
+                        statusCode: 507);
+            }
 
             // Chon kho luu tru theo dung luong TRUOC khi insert, roi ghi thang
             // vao hang - luc tai ve chi doc lai cot nay, khong tinh lai theo
@@ -364,6 +389,9 @@ public static class FileEndpoints
             "Da huy lan tai len do dang: file {FileId} ({Size} byte) cua hoi thoai {ConversationId}",
             id, size, conversationId);
     }
+
+    // Han muc tep cua MOT PHONG HOP TAM. Xem cho dung no o tren.
+    private const long MeetingRoomQuotaBytes = 2L * 1024 * 1024 * 1024;
 
     // Doi byte sang chuoi nguoi doc duoc. Dat o day chu khong dung mot thu
     // vien: chi phuc vu thong bao loi, khong dang keo them phu thuoc.
