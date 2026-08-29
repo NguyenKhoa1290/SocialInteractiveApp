@@ -34,11 +34,30 @@ export const meetingApi = {
   joinInChat: (meetingId: number, nickname?: string) =>
     mediaHttp.post<JoinResult>(`/meetings/${meetingId}/join`, { nickname: nickname ?? null }),
 
-  // Chi chu phong goi duoc. Hien chi dung de bat/tat phong cho giua chung.
-  update: (meetingId: number, patch: { requiresApproval?: boolean }) =>
+  // Chi chu phong goi duoc. Truong nao khong truyen thi gui null = khong
+  // dong toi - server phan biet "dat false" voi "bo qua" bang chinh cho do.
+  update: (
+    meetingId: number,
+    patch: {
+      requiresApproval?: boolean;
+      allowCamera?: boolean;
+      allowMic?: boolean;
+      allowScreenShare?: boolean;
+      allowMiniApp?: boolean;
+    },
+  ) =>
     mediaHttp.patch<Meeting>(`/meetings/${meetingId}`, {
       requiresApproval: patch.requiresApproval ?? null,
+      allowCamera: patch.allowCamera ?? null,
+      allowMic: patch.allowMic ?? null,
+      allowScreenShare: patch.allowScreenShare ?? null,
+      allowMiniApp: patch.allowMiniApp ?? null,
     }),
+
+  // Hai nut do "Tat tat ca mic" / "Tat tat ca cam". KHAC cong tac cua phong:
+  // tat MOT LAN, khong thu quyen - moi nguoi bat lai duoc ngay sau do.
+  muteAll: (meetingId: number, mic: boolean, camera: boolean) =>
+    mediaHttp.post<void>(`/meetings/${meetingId}/mute-all`, { mic, camera }),
 
   leave: (meetingId: number) => mediaHttp.post<void>(`/meetings/${meetingId}/leave`),
 

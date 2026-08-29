@@ -18,6 +18,8 @@ export function ParticipantTile({
   userId,
   avatarUpdatedAt,
   avatarSize = 122,
+  onGhim,
+  dangGhim = false,
 }: {
   participant: Participant;
   isLocal: boolean;
@@ -43,6 +45,10 @@ export function ParticipantTile({
   // Duong kinh vong tron TRUOC khi nhan --s. Thiet ke dat co dinh, khong doi
   // theo do lon cua o: 122 o luoi thuong, 61 o dai nho cua focus mode.
   avatarSize?: number;
+  // Bam vao o de ghim nguoi do vao khung lon. Ban thiet ke khong ve nut ghim
+  // o dau ca, nen chinh cai o la nut - khong ton mot mm giao dien nao.
+  onGhim?: () => void;
+  dangGhim?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -80,8 +86,16 @@ export function ParticipantTile({
   const contain = stage || source === "screen";
   const micMuted = !micPub?.track || micPub.isMuted;
 
+  const lop = [stage ? "meet-tile meet-tile-stage" : "meet-tile", onGhim ? "meet-tile-ghim-duoc" : "", dangGhim ? "meet-tile-dang-ghim" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={stage ? "meet-tile meet-tile-stage" : "meet-tile"}>
+    <div
+      className={lop}
+      onClick={onGhim}
+      title={onGhim ? (dangGhim ? `Bỏ ghim ${label}` : `Ghim ${label} vào khung lớn`) : undefined}
+    >
       {hasVideo ? (
         <video
           ref={videoRef}

@@ -17,6 +17,16 @@ export interface Meeting {
   isTemporary: boolean;
   /** Có bật phòng chờ hay không - chủ phòng bật/tắt được ngay trong phòng. */
   requiresApproval: boolean;
+
+  /* "Cài đặt phòng" (Figma 140:645) - MẶC ĐỊNH CỦA CẢ PHÒNG, áp cho cả người
+   * vào sau. Riêng từng người thì một hàng `no_*` trong permissions đè lên
+   * trên; chủ phòng luôn được phép. */
+  allowCamera: boolean;
+  allowMic: boolean;
+  allowScreenShare: boolean;
+  /** Cho phép một thành viên KHÔNG phải chủ phòng bắt đầu ứng dụng. Mặc định
+   *  tắt, và là quyết định của cả phòng - không cấp lẻ từng người. */
+  allowMiniApp: boolean;
 }
 
 export interface MeetingWithCallerStatus extends Meeting {
@@ -53,10 +63,21 @@ export interface MeetingParticipant {
   permissions: PermissionType[];
 }
 
-// Chu y hai loai cuoi NGUOC nghia voi ba loai dau: share_screen/mini_app/
-// focus_mode co trong mang = DUOC phep, con no_mic/no_camera co trong mang =
-// BI CAM (mic va camera mac dinh ai cung bat duoc).
-export type PermissionType = "share_screen" | "mini_app" | "focus_mode" | "no_mic" | "no_camera";
+// Chu y ba loai cuoi NGUOC nghia voi ba loai dau: share_screen/mini_app/
+// focus_mode co trong mang = DUOC phep, con no_mic/no_camera/no_screen_share
+// co trong mang = BI CAM.
+//
+// no_screen_share them sau, cung dot voi "Cai dat phong": chia se man hinh
+// gio mac dinh CO (meeting.allowScreenShare) nen cam mot nguoi moi la thao
+// tac dang ghi - giong het mic va camera. share_screen o dau mang chi con de
+// doc du lieu cu.
+export type PermissionType =
+  | "share_screen"
+  | "mini_app"
+  | "focus_mode"
+  | "no_mic"
+  | "no_camera"
+  | "no_screen_share";
 
 // Trang thai "ai dang trinh bay" - doc tu metadata cua phong LiveKit
 // (RoomMetadataChanged), khong phai tu REST. Chi MOT nguoi tai mot thoi diem.

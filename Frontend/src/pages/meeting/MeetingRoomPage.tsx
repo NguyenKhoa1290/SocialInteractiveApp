@@ -15,11 +15,16 @@ import { userApi } from "../../api/userApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
-import { DevicePicker } from "./DevicePicker";
 import { IptvStage } from "./IptvStage";
 import { IptvChannelPicker } from "./IptvChannelPicker";
 import { IptvPlayerHost } from "./IptvPlayerHost";
-import { MeetingDiscussion } from "./MeetingDiscussion";
+import { MeetingSettingsDialog } from "./MeetingSettingsDialog";
+import { MeetingPeopleDialog } from "./MeetingPeopleDialog";
+import { MeetingChatDialog } from "./MeetingChatDialog";
+import { MeetingAppsDialog } from "./MeetingAppsDialog";
+import { apLaiAmLuongMic, quenAmLuongMic } from "./micGain";
+import { chatApi } from "../../api/chatApi";
+import { workspaceApi } from "../../api/workspaceApi";
 import {
   IconCallEnd,
   IconCamera,
@@ -35,6 +40,7 @@ import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageReceived
 import type {
   MeetingParticipant,
   MeetingWithCallerStatus,
+  PermissionType,
   PresentationState,
   RoomMetadata,
   WaitingParticipant,
@@ -117,6 +123,14 @@ export function MeetingRoomPage() {
   const [showIptvPicker, setShowIptvPicker] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showApps, setShowApps] = useState(false);
+  // "Che do tiet kiem du lieu" trong popup Cai dat: KHONG tai video cua ai ve
+  // may nay ca. Thay cho nut "tat camera nguoi nay cho do mang" theo tung
+  // nguoi cua ban cu - ban thiet ke gop lai thanh mot cong tac chung.
+  const [tietKiem, setTietKiem] = useState(() => localStorage.getItem("meet-tiet-kiem") === "1");
+  // Ten + anh cua nhom so huu cuoc hop, chi de dat dau popup nhan tin. Media
+  // Service khong biet nhung thu nay nen phai hoi Chat roi hoi WorkSpace.
+  const [nhomCuaHop, setNhomCuaHop] = useState<{ id: number; ten: string; anh: string | null } | null>(null);
   // userId -> moc doi anh dai dien. Media Service khong luu thu nay (no chi
   // biet userId + nickname cua nguoi trong phong), ma thieu no thi avatarUrl()
   // tra null va o nao cung chi hien duoc chu cai dau.
@@ -146,7 +160,6 @@ export function MeetingRoomPage() {
   // UC-34 1d/1e - deu la thao tac CLIENT-SIDE theo dung dac ta, moi nguoi tu
   // chinh cho rieng minh, khong ai khac bi anh huong va khong luu len server.
   const [volumes, setVolumes] = useState<Record<number, number>>({});
-  const [hiddenVideos, setHiddenVideos] = useState<Set<number>>(new Set());
 
   // Phan trang luoi. Ly do khong phai tham my ma la BAT BUOC ky thuat: phong
   // 100 nguoi ma render het thi moi may phai giai ma ~99 luong video cung
@@ -198,19 +211,6 @@ export function MeetingRoomPage() {
 
   // Bat/tat phong cho giua chung. Cap nhat tai cho thay vi doi vong poll sau:
   // host vua bam thi phai thay ngay minh vua bat cai gi.
-  async function handleToggleApproval(bat: boolean) {
-    if (!meeting) return;
-    setDangDoiDuyet(true);
-    setError(null);
-    try {
-      await meetingApi.update(meeting.id, { requiresApproval: bat });
-      setMeeting((truoc) => (truoc ? { ...truoc, requiresApproval: bat } : truoc));
-    } catch (err) {
-      setError(extractApiError(err, "Không đổi được chế độ duyệt"));
-    } finally {
-      setDangDoiDuyet(false);
-    }
-  }
   // LUU Y - hai danh sach, dung sai cho la sinh loi:
   //
   //   participants        = bang meeting_participants tu API. La SO SACH:
@@ -247,14 +247,21 @@ export function MeetingRoomPage() {
         )
       : participants;
 
-  const canUseMiniApp = isHost || myPermissions.includes("mini_app");
-  const canShareScreen = isHost || myPermissions.includes("share_screen");
+  // Hai tang chong len nhau, doc giong het ben server (xem
+  // ParticipantsEndpoints.LoadPublishFlagsAsync): MAC DINH CUA PHONG truoc,
+  // rieng tung nguoi de bep len tren. Chu phong luon duoc phep.
+  //
+  // Mo ung dung thi KHONG cap le tung nguoi nua - la quyet dinh cua ca phong,
+  // dung theo ban thiet ke 140:645.
+  const canUseMiniApp = isHost || (meeting?.allowMiniApp ?? false);
+  const canShareScreen =
+    isHost || ((meeting?.allowScreenShare ?? true) && !myPermissions.includes("no_screen_share"));
   // Mac dinh ai cung bat duoc mic/camera - chu phong THU quyen thi moi co
   // hang trong meeting_permissions. Day chi la de hien dung giao dien; cho
   // chan that su la LiveKit (xem LiveKitService.ApplyPublishPermissionsAsync),
   // vi an nut chi ngan nguoi dung binh thuong.
-  const micAllowed = isHost || !myPermissions.includes("no_mic");
-  const camAllowed = isHost || !myPermissions.includes("no_camera");
+  const micAllowed = isHost || ((meeting?.allowMic ?? true) && !myPermissions.includes("no_mic"));
+  const camAllowed = isHost || ((meeting?.allowCamera ?? true) && !myPermissions.includes("no_camera"));
 
   // --- Ket noi phong -------------------------------------------------------
   useEffect(() => {
@@ -465,6 +472,9 @@ export function MeetingRoomPage() {
       if (kind === "mic") {
         await room.localParticipant.setMicrophoneEnabled(next);
         setMicOn(next);
+        // Track mic vua duoc tao xong - gio moi gan duoc bo khuech dai neu
+        // nguoi dung da keo thanh "Am luong micro cua ban" tu truoc.
+        if (next) await apLaiAmLuongMic(room);
       } else {
         await room.localParticipant.setCameraEnabled(next);
         setCamOn(next);
@@ -618,6 +628,7 @@ export function MeetingRoomPage() {
   }
 
   async function handleLeave() {
+    quenAmLuongMic();
     await roomRef.current?.disconnect();
     try {
       await meetingApi.leave(meetingId);
@@ -656,26 +667,7 @@ export function MeetingRoomPage() {
     }
   }
 
-  async function handleCreateInviteLink() {
-    try {
-      const res = await meetingApi.createInvite(meetingId, "link");
-      setInviteLink(`${window.location.origin}/meetings/join/${res.data.inviteToken}`);
-    } catch (err) {
-      setError(extractApiError(err, "Không tạo được link mời"));
-    }
-  }
 
-  async function handleCopyInviteLink() {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setNotice("Đã chép link mời.");
-    } catch {
-      // Trinh duyet tu choi quyen ghi clipboard - o link van hien de chep tay,
-      // khong can bao loi do.
-      setNotice("Trình duyệt không cho chép tự động — bạn bôi đen ô link rồi chép nhé.");
-    }
-  }
 
   async function handleApprove(userId: number) {
     try {
@@ -711,16 +703,68 @@ export function MeetingRoomPage() {
   // Dung chung cho ca quyen CAP (share_screen, mini_app) lan quyen THU
   // (no_mic, no_camera): ca hai deu la "co hang thi xoa, khong co thi them",
   // chi khac nghia cua viec co hang. Xem types/media.ts.
-  async function handleTogglePermission(
-    p: MeetingParticipant,
-    perm: "share_screen" | "mini_app" | "no_mic" | "no_camera",
-  ) {
+  async function handleTogglePermission(p: MeetingParticipant, perm: PermissionType) {
     try {
       if (p.permissions.includes(perm)) await meetingApi.revokePermission(meetingId, p.userId, perm);
       else await meetingApi.grantPermission(meetingId, p.userId, perm);
       await refresh();
     } catch (err) {
       setError(extractApiError(err, "Không đổi được quyền"));
+    }
+  }
+
+  // Hai nut do o dau danh sach thanh vien. Tat MOT LAN, khong thu quyen -
+  // moi nguoi bat lai duoc ngay sau do. Muon cam han thi dung cong tac cua
+  // phong o trang "Cai dat phong".
+  async function handleMuteAll(mic: boolean, camera: boolean) {
+    try {
+      await meetingApi.muteAll(meetingId, mic, camera);
+      setNotice(mic ? "Đã tắt mic của mọi người." : "Đã tắt camera của mọi người.");
+    } catch (err) {
+      setError(extractApiError(err, "Không tắt được"));
+    }
+  }
+
+  async function handleDoiCaiDatPhong(patch: {
+    requiresApproval?: boolean;
+    allowCamera?: boolean;
+    allowMic?: boolean;
+    allowScreenShare?: boolean;
+    allowMiniApp?: boolean;
+  }) {
+    setDangDoiDuyet(true);
+    try {
+      const { data } = await meetingApi.update(meetingId, patch);
+      // Ghep vao ban dang giu chu khong thay han: `meeting` con co
+      // callerStatus/livekitToken ma PATCH khong tra ve.
+      setMeeting((truoc) => (truoc ? { ...truoc, ...data } : truoc));
+    } catch (err) {
+      setError(extractApiError(err, "Không đổi được cài đặt phòng"));
+    } finally {
+      setDangDoiDuyet(false);
+    }
+  }
+
+  // Ban thiet ke gop "tao link" va "chep link" thanh mot nut. Chua co link
+  // thi tao roi chep luon - khong bat nguoi dung bam hai lan.
+  async function handleLayVaChepLink() {
+    let link = inviteLink;
+    if (!link) {
+      try {
+        const res = await meetingApi.createInvite(meetingId, "link");
+        link = `${window.location.origin}/meetings/join/${res.data.inviteToken}`;
+        setInviteLink(link);
+      } catch (err) {
+        setError(extractApiError(err, "Không tạo được link mời"));
+        return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      setNotice("Đã chép link mời.");
+    } catch {
+      // Trinh duyet tu choi quyen ghi clipboard - hien thang link ra de chep tay.
+      setNotice(`Trình duyệt không cho chép tự động — link mời: ${link}`);
     }
   }
 
@@ -792,24 +836,6 @@ export function MeetingRoomPage() {
       if (v !== undefined) p.setVolume(v);
     }
   }, [remotes, volumes]);
-
-  // UC-34 1e: tat hien thi camera nguoi khac de TIET KIEM BANG THONG.
-  // Dung setSubscribed(false) chu khong an bang CSS: an CSS thi trinh duyet
-  // VAN tai video ve, dung mat muc dich cua tinh nang. Huy dang ky la
-  // LiveKit ngung gui luon luong do toi may nay.
-  // CHI doi state; viec huy/dang ky lai do effect dieu phoi subscribe ben
-  // duoi lam. Truoc day ham nay tu goi setSubscribed, nhung tu khi co phan
-  // trang thi co HAI nguon cung dieu khien mot thu - de lech nhau (vd bo an
-  // mot nguoi dang o trang khac se subscribe lai luong khong ai nhin).
-  function toggleHideVideo(userId: number) {
-    setHiddenVideos((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
-    setVersion((v) => v + 1);
-  }
 
   // Tu bo ghim khi nguoi bi ghim roi phong - neu khong, khung trung tam ket
   // o mot o trong mai cho toi khi nguoi dung tu bam bo.
@@ -915,7 +941,7 @@ export function MeetingRoomPage() {
   // Ba nguon quyet dinh, ket hop lai:
   //   - dang o khung lon  -> luon giu
   //   - dang o trang hien tai -> giu
-  //   - bi nguoi dung tu an (hiddenVideos) -> BO, thang moi thu tren
+  //   - dang bat che do tiet kiem du lieu -> BO HET, thang moi thu tren
   // KHONG dung toi audio - van phai nghe duoc moi nguoi du o cua ho khong
   // hien. Man hinh chia se nay da co o RIENG nen cung duoc tinh y het nhu
   // camera: khong hien thi thi khong tai ve. Truoc day man hinh luon duoc
@@ -931,7 +957,7 @@ export function MeetingRoomPage() {
       // Khung lon dang chieu MAN HINH thi khong can giu camera cua nguoi do
       // - o camera cua ho (neu co hien) da nam trong visible roi.
       const onStageAsCamera = p === stageParticipant && !stageIsScreen;
-      const wantCam = (onStageAsCamera || visible.has(uid)) && !hiddenVideos.has(uid);
+      const wantCam = (onStageAsCamera || visible.has(uid)) && !tietKiem;
       const camPub = p.getTrackPublication(Track.Source.Camera) as RemoteTrackPublication | undefined;
       if (camPub && camPub.isSubscribed !== wantCam) camPub.setSubscribed(wantCam);
 
@@ -940,7 +966,7 @@ export function MeetingRoomPage() {
       const screenPub = p.getTrackPublication(Track.Source.ScreenShare) as RemoteTrackPublication | undefined;
       if (screenPub && screenPub.isSubscribed !== wantScreen) screenPub.setSubscribed(wantScreen);
     }
-  }, [room, remotes, visibleKey, visibleScreenKey, hiddenVideos, stageParticipant, stageIsScreen]);
+  }, [room, remotes, visibleKey, visibleScreenKey, tietKiem, stageParticipant, stageIsScreen]);
 
   // Dem tin nhan chua doc cho cham do tren nut chat.
   //
@@ -980,6 +1006,32 @@ export function MeetingRoomPage() {
   useEffect(() => {
     if (showDiscussion) setChuaDocChat(0);
   }, [showDiscussion]);
+
+  useEffect(() => {
+    localStorage.setItem("meet-tiet-kiem", tietKiem ? "1" : "0");
+  }, [tietKiem]);
+
+  // Ten nhom cho dau popup nhan tin. Chi hoi khi that su can (nguoi dung mo
+  // panel chat) va chi mot lan: Media Service khong tra workspaceId, nen phai
+  // di vong Chat -> WorkSpace.
+  useEffect(() => {
+    const convId = meeting?.conversationId;
+    if (!showDiscussion || convId == null || meeting?.isTemporary || nhomCuaHop) return;
+    let huy = false;
+    void (async () => {
+      try {
+        const { data: conv } = await chatApi.getConversation(convId);
+        if (huy || conv.workspaceId == null) return;
+        const { data: ws } = await workspaceApi.get(conv.workspaceId);
+        if (!huy) setNhomCuaHop({ id: ws.id, ten: ws.name, anh: ws.avatarUpdatedAt });
+      } catch {
+        // Khong lay duoc ten nhom thi dau popup lui ve "Cuoc hop #n".
+      }
+    })();
+    return () => {
+      huy = true;
+    };
+  }, [showDiscussion, meeting?.conversationId, meeting?.isTemporary, nhomCuaHop]);
 
   // Hoi Identity ve anh dai dien cua nhung nguoi trong phong. Chi hoi NHUNG
   // NGUOI CHUA CO trong bang, va ghi ca nguoi khong tra ve (null) de khong
@@ -1054,17 +1106,27 @@ export function MeetingRoomPage() {
               ? (nickname ?? "Bạn")
               : nameOf(t.participant)
         }
-        videoHidden={t.kind === "participant" && !t.isLocal && hiddenVideos.has(t.userId)}
+        videoHidden={t.kind === "participant" && !t.isLocal && tietKiem}
+        // Ghim la lua chon xem RIENG cua toi - khong gui len server, khong ai
+        // khac bi anh huong, nen khong can quyen gi. O man hinh chia se thi
+        // khong ghim: khung do da tu len giua roi.
+        onGhim={
+          t.kind === "participant"
+            ? () => setPinnedUserId((truoc) => (truoc === t.userId ? null : t.userId))
+            : undefined
+        }
+        dangGhim={t.kind === "participant" && pinnedUserId === t.userId}
       />
     );
   };
 
   // Cot lat trang - Figma "Frame 60" ben trai thanh doc: mot cot cao mo,
   // so trang o dinh, hai mui ten o giua.
-  function moPanel(ten: "chat" | "nguoi" | "caidat") {
+  function moPanel(ten: "chat" | "nguoi" | "caidat" | "app") {
     setShowDiscussion(ten === "chat" ? !showDiscussion : false);
     setShowPeople(ten === "nguoi" ? !showPeople : false);
     setShowSettings(ten === "caidat" ? !showSettings : false);
+    setShowApps(ten === "app" ? !showApps : false);
   }
 
   const pager = totalPages > 1 && (
@@ -1249,195 +1311,6 @@ export function MeetingRoomPage() {
               </div>
             )}
           </div>
-
-          {/* Thao luan chi co khi cuoc hop gan voi 1 hoi thoai - cuoc hop
-              doc lap (mode=direct) khong co nhom nao de gan luong thao luan. */}
-          {showDiscussion && meeting?.conversationId != null && (
-            <aside className="meet-side">
-              <div className="meet-side-head">
-                <h3>Thảo luận</h3>
-                <button onClick={() => setShowDiscussion(false)}>Đóng</button>
-              </div>
-              {meeting.isTemporary && (
-                <p className="meet-note">
-                  Phòng tuỳ chỉnh: tin nhắn và tệp trong đây sẽ bị xoá khi cuộc họp kết thúc.
-                </p>
-              )}
-              {/* tuVaoNhom={false}: trang nay da giu viec vao/roi nhom
-                  SignalR de dem tin chua doc. Hai ben cung giu thi luc
-                  dong panel se roi nhom va cham do chet theo. */}
-              <MeetingDiscussion
-                conversationId={meeting.conversationId}
-                meetingId={meetingId}
-                compact
-                tuVaoNhom={false}
-              />
-            </aside>
-          )}
-          {showDiscussion && meeting?.conversationId == null && (
-            <aside className="meet-side">
-              <div className="meet-side-head">
-                <h3>Thảo luận</h3>
-                <button onClick={() => setShowDiscussion(false)}>Đóng</button>
-              </div>
-              <p className="meet-empty">
-                Cuộc họp này chưa có luồng thảo luận (mở trước khi tính năng chat trong phòng tuỳ chỉnh có mặt).
-              </p>
-            </aside>
-          )}
-
-
-          {showPeople && (
-            <aside className="meet-side">
-              <div className="meet-side-head">
-                <h3>Trong phòng</h3>
-                <button onClick={() => setShowPeople(false)}>Đóng</button>
-              </div>
-              <ul className="meet-people">
-                {presentParticipants.map((p) => (
-                  <li key={p.userId}>
-                    <span>
-                      {p.nickname}
-                      {p.role === "host" && " · Chủ phòng"}
-                    </span>
-                    {/* UC-34 1d - am luong cua nguoi nay, chi o phia minh */}
-                    {p.userId !== currentUserId && (
-                      <label className="meet-volume">
-                        🔊
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={volumes[p.userId] ?? 1}
-                          onChange={(e) => handleVolume(p.userId, Number(e.target.value))}
-                        />
-                      </label>
-                    )}
-                    <span className="meet-people-actions">
-                      {/* Ghim = lua chon xem RIENG cua toi, khong gui len
-                          server, khong ai khac bi anh huong -> khong can
-                          quyen gi ca, ai cung ghim duoc. */}
-                      <button onClick={() => setPinnedUserId(pinnedUserId === p.userId ? null : p.userId)}>
-                        {pinnedUserId === p.userId ? "Bỏ ghim" : "Ghim vào giữa"}
-                      </button>
-                      {p.userId !== currentUserId && (
-                        <button onClick={() => toggleHideVideo(p.userId)}>
-                          {hiddenVideos.has(p.userId) ? "Hiện camera" : "Tắt camera (đỡ mạng)"}
-                        </button>
-                      )}
-                      {isHost && p.userId !== currentUserId && (
-                        <>
-                          <button onClick={() => handleTogglePermission(p, "share_screen")}>
-                            {p.permissions.includes("share_screen") ? "Thu quyền chia sẻ" : "Cho chia sẻ"}
-                          </button>
-                          <button onClick={() => handleTogglePermission(p, "mini_app")}>
-                            {p.permissions.includes("mini_app") ? "Thu quyền Mini App" : "Cho Mini App"}
-                          </button>
-                          {/* Nguoc chieu voi hai nut tren: co hang = BI CAM,
-                              vi mic/camera mac dinh ai cung bat duoc. */}
-                          <button onClick={() => handleTogglePermission(p, "no_mic")}>
-                            {p.permissions.includes("no_mic") ? "Trả quyền mic" : "Thu quyền mic"}
-                          </button>
-                          <button onClick={() => handleTogglePermission(p, "no_camera")}>
-                            {p.permissions.includes("no_camera") ? "Trả quyền camera" : "Thu quyền camera"}
-                          </button>
-                          <button className="meet-danger" onClick={() => handleKick(p.userId)}>
-                            Mời ra
-                          </button>
-                        </>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              {isHost && (
-                <>
-                  <h3>Phòng chờ</h3>
-                  {waiting.length === 0 ? (
-                    <p className="meet-empty">Không có ai đang chờ.</p>
-                  ) : (
-                    <ul className="meet-people">
-                      {waiting.map((w) => (
-                        <li key={w.userId}>
-                          <span>{w.nickname}</span>
-                          <span className="meet-people-actions">
-                            <button onClick={() => handleApprove(w.userId)}>Duyệt</button>
-                            <button className="meet-danger" onClick={() => handleDeny(w.userId)}>
-                              Từ chối
-                            </button>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <h3>Mời bạn bè</h3>
-                  {friends.length === 0 ? (
-                    <p className="meet-empty">Chưa có bạn bè nào để mời.</p>
-                  ) : (
-                    <ul className="meet-people">
-                      {friends.map((f) => {
-                        // Co y dung participants (so sach) chu khong phai
-                        // presentParticipants: nguoi vua rot mang van con ho so
-                        // trong cuoc hop, moi lai chi to loi "da o trong phong".
-                        const inRoom = participants.some((p) => p.userId === f.userId);
-                        return (
-                          <li key={f.userId}>
-                            <span>{f.nickname}</span>
-                            <span className="meet-people-actions">
-                              {inRoom ? (
-                                <span className="meet-note">Đang trong phòng</span>
-                              ) : (
-                                <button
-                                  onClick={() => handleInviteFriend(f)}
-                                  disabled={invitingId === f.userId || invitedIds.has(f.userId)}
-                                >
-                                  {invitedIds.has(f.userId) ? "Đã mời" : invitingId === f.userId ? "Đang mời..." : "Mời"}
-                                </button>
-                              )}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <p className="meet-note">Bạn được mời nhận link ngay trong khung chat riêng và vào thẳng, không qua Phòng chờ.</p>
-
-                  <h3>Mời bằng link</h3>
-                  <button onClick={handleCreateInviteLink}>
-                    {inviteLink ? "Tạo link mới (24 giờ)" : "Tạo link mời (24 giờ)"}
-                  </button>
-                  {inviteLink && (
-                    <>
-                      <input className="meet-invite-link" readOnly value={inviteLink} onFocus={(e) => e.target.select()} />
-                      <button onClick={() => void handleCopyInviteLink()}>Chép link</button>
-                    </>
-                  )}
-
-                  {/* Cong tac phong cho. Truoc day "phai duyet" la luat cung
-                      cua loi moi bang link, host khong doi y duoc giua chung.
-                      Phong tuy chinh mac dinh TAT de vao cho nhanh; thay nguoi
-                      la bam link thi bat len, nhung nguoi sau do phai xep hang. */}
-                  <label className="meet-toggle">
-                    <input
-                      type="checkbox"
-                      checked={meeting?.requiresApproval ?? true}
-                      disabled={!isHost || dangDoiDuyet}
-                      onChange={(e) => void handleToggleApproval(e.target.checked)}
-                    />
-                    <span>Duyệt người vào bằng link</span>
-                  </label>
-                  <p className="meet-note">
-                    {meeting?.requiresApproval
-                      ? "Người bấm link sẽ nằm ở Phòng chờ tới khi bạn duyệt."
-                      : "Người bấm link vào thẳng phòng, không phải chờ duyệt."}
-                  </p>
-                </>
-              )}
-            </aside>
-          )}
         </div>
       )}
 
@@ -1513,11 +1386,16 @@ export function MeetingRoomPage() {
           </button>
         )}
 
-        {canUseMiniApp && (
-          <button className="mroom-btn" onClick={handleOpenMiniApp} title="Mini App IPTV">
-            <IconMedia />
-          </button>
-        )}
+        {/* LUON hien, ke ca khi chua duoc phep: popup se noi ro vi sao va
+            chi cho o dau ma bat. An nut di thi nguoi dung chi thay mot cho
+            trong va khong biet minh dang thieu gi. */}
+        <button
+          className={`mroom-btn${showApps ? " mroom-btn-bat" : ""}`}
+          onClick={() => moPanel("app")}
+          title="Ứng dụng trong cuộc họp"
+        >
+          <IconMedia />
+        </button>
 
         <button
           className={`mroom-btn${showSettings ? " mroom-btn-bat" : ""}`}
@@ -1528,16 +1406,69 @@ export function MeetingRoomPage() {
         </button>
       </nav>
 
-      {/* Panel cai dat. Tam thoi chi co phan chon thiet bi - frame "Cai dat"
-          (136:515) chua doc duoc nen chua biet trong do con nhung gi. */}
+      {/* Ba popup cua phong hop. Chung DE LEN khung hop chu khong chen no hep
+          lai, va doc quyen nhau - xem moPanel(). Nen SANG de len phong toi la
+          co y trong ban thiet ke, moi frame popup deu ve vay. */}
       {showSettings && (
-        <aside className="meet-side">
-          <div className="meet-side-head">
-            <h3>Cài đặt</h3>
-            <button onClick={() => setShowSettings(false)}>Đóng</button>
-          </div>
-          {room && <DevicePicker room={room} />}
-        </aside>
+        <MeetingSettingsDialog
+          room={room}
+          tietKiem={tietKiem}
+          doiTietKiem={setTietKiem}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showPeople && (
+        <MeetingPeopleDialog
+          meeting={meeting}
+          participants={presentParticipants}
+          waiting={waiting}
+          friends={friends}
+          currentUserId={currentUserId}
+          isHost={isHost}
+          anhCua={anhCua}
+          volumes={volumes}
+          inviteLink={inviteLink}
+          invitingId={invitingId}
+          invitedIds={invitedIds}
+          dangDoiDuyet={dangDoiDuyet}
+          onClose={() => setShowPeople(false)}
+          onVolume={handleVolume}
+          onTogglePermission={handleTogglePermission}
+          onKick={handleKick}
+          onApprove={handleApprove}
+          onDeny={handleDeny}
+          onInviteFriend={handleInviteFriend}
+          onCopyInviteLink={handleLayVaChepLink}
+          onMuteAll={handleMuteAll}
+          onDoiCaiDatPhong={handleDoiCaiDatPhong}
+        />
+      )}
+
+      {showDiscussion && (
+        <MeetingChatDialog
+          conversationId={meeting?.conversationId ?? null}
+          meetingId={meetingId}
+          laPhongTam={meeting?.isTemporary ?? false}
+          tenNhom={nhomCuaHop?.ten ?? null}
+          workspaceId={nhomCuaHop?.id ?? null}
+          anhNhom={nhomCuaHop?.anh ?? null}
+          tenChuPhong={nameOfUserId(meeting?.hostId ?? -1)}
+          chuPhongId={meeting?.hostId ?? -1}
+          anhChuPhong={anhCua[meeting?.hostId ?? -1] ?? null}
+          onClose={() => setShowDiscussion(false)}
+        />
+      )}
+
+      {showApps && (
+        <MeetingAppsDialog
+          moDuoc={canUseMiniApp}
+          onOpenIptv={() => {
+            setShowApps(false);
+            handleOpenMiniApp();
+          }}
+          onClose={() => setShowApps(false)}
+        />
       )}
     </div>
     </IptvPlayerHost>

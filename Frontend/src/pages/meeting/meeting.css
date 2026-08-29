@@ -1292,3 +1292,514 @@
     width: 100%;
   }
 }
+
+/* ======================================================================
+   POPUP TRONG PHONG HOP
+   Figma 136:515 (Cai dat), 140:497/140:774/140:645 (Quan ly thanh vien),
+   136:419/136:460 (Nhan tin), 140:218 (Them app).
+
+   Nen SANG #F2F2F7 de len phong toi - co y trong ban thiet ke, moi frame
+   popup deu ve vay. Popup noi ben canh thanh doc chu khong chen khung hop
+   hep lai.
+   ====================================================================== */
+
+.mpop {
+  position: fixed;
+  top: calc(96px * var(--s) + 17px);
+  right: calc(137px * var(--s) + 20px);
+  bottom: 17px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  border-radius: calc(20px * var(--s));
+  background: #f2f2f7;
+  color: var(--calli-navy-line);
+  box-shadow: 0 calc(18px * var(--s)) calc(48px * var(--s)) rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+/* --- Dau popup (the vien 92px) ----------------------------------------- */
+
+.mpop-head {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(92px * var(--s));
+  margin: calc(32px * var(--s)) calc(25px * var(--s)) 0;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+}
+
+.mpop-title {
+  /* Canh giua CA THE, khong phai giua cho con lai: nut "Dong" ben phai khong
+     co doi trong ben trai nen canh giua theo dong flex se lech han. */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+}
+
+.mpop-close {
+  margin-left: auto;
+  margin-right: calc(16px * var(--s));
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  border: 0;
+  padding: calc(6px * var(--s));
+  background: transparent;
+  color: rgba(0, 0, 0, 0.58);
+  font-family: var(--sans);
+  font-size: calc(20px * var(--s));
+  font-weight: 200;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+
+.mpop-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.mpop-than {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(24px * var(--s)) calc(25px * var(--s)) calc(28px * var(--s));
+  display: flex;
+  flex-direction: column;
+  gap: calc(14px * var(--s));
+}
+
+/* --- Nhan muc ----------------------------------------------------------- */
+
+.mpop-nhan {
+  margin: 0;
+  font-size: calc(32px * var(--s));
+  font-weight: 500;
+  color: var(--calli-navy-line);
+}
+
+.mpop-nhan-nho {
+  margin: 0 0 calc(6px * var(--s));
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+}
+
+.mpop-muc {
+  display: flex;
+  flex-direction: column;
+  gap: calc(10px * var(--s));
+}
+
+.mpop-ghi-chu {
+  margin: 0;
+  font-size: calc(16px * var(--s));
+  color: rgba(41, 53, 70, 0.7);
+}
+
+.mpop-loi {
+  margin: 0;
+  font-size: calc(16px * var(--s));
+  color: var(--danger);
+}
+
+/* Hang tieu de co dai nut chay ngang ben phai (Figma "Frame 65"). */
+.mpop-dau {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc(10px * var(--s));
+}
+
+/* --- O chon thiet bi (the 781x92 co mui ten) ---------------------------- */
+
+.mpop-chon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(92px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+}
+
+.mpop-chon select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 calc(70px * var(--s)) 0 calc(30px * var(--s));
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--calli-navy-line);
+  font-family: var(--sans);
+  font-size: calc(24px * var(--s));
+  cursor: pointer;
+  /* Bo mui ten mac dinh cua trinh duyet - thiet ke co mui ten rieng. */
+  appearance: none;
+}
+
+.mpop-chon svg {
+  position: absolute;
+  right: calc(24px * var(--s));
+  color: var(--calli-teal);
+  pointer-events: none;
+}
+
+/* --- Cong tac (Figma "Nut bat" 138:22) ---------------------------------- */
+
+.mpop-hang-tac {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(16px * var(--s));
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+}
+
+.mpop-tac {
+  flex: none;
+  width: calc(51px * var(--s));
+  height: calc(30px * var(--s));
+  padding: 0 calc(4px * var(--s));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mpop-tac-bat {
+  background: var(--calli-teal);
+  justify-content: flex-end;
+}
+
+.mpop-tac:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mpop-tac-nut {
+  width: calc(21px * var(--s));
+  height: calc(21px * var(--s));
+  border-radius: 50%;
+  background: var(--calli-placeholder);
+}
+
+/* --- Thanh truot ------------------------------------------------------- */
+
+.mpop-truot {
+  position: relative;
+  padding-top: calc(16px * var(--s));
+}
+
+.mpop-truot-moc {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: calc(11px * var(--s));
+  color: var(--calli-navy-line);
+}
+
+.mpop-truot-moc-phai {
+  left: auto;
+  right: 0;
+}
+
+/* Mot kieu chung cho ca thanh lon (am luong mic cua minh, cao 63) lan thanh
+   nho o tung hang nguoi (cao 27). --phan la phan da keo, do JSX dat. */
+.mpop-truot input[type="range"],
+.mpop-am {
+  width: 100%;
+  height: calc(63px * var(--s));
+  margin: 0;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    to right,
+    var(--calli-teal) 0 var(--phan, 0%),
+    var(--calli-placeholder) var(--phan, 0%) 100%
+  );
+  appearance: none;
+  cursor: pointer;
+}
+
+.mpop-am {
+  width: calc(206px * var(--s));
+  height: calc(27px * var(--s));
+  flex: none;
+}
+
+.mpop-truot input[type="range"]::-webkit-slider-thumb,
+.mpop-am::-webkit-slider-thumb {
+  /* Thiet ke khong ve num keo - phan mau da la chi bao roi. Van de mot vung
+     bam rong de keo duoc bang chuot. */
+  width: calc(18px * var(--s));
+  height: 100%;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  appearance: none;
+}
+
+.mpop-truot input[type="range"]:focus-visible,
+.mpop-am:focus-visible {
+  outline: 2px solid var(--calli-teal-dark);
+  outline-offset: 2px;
+}
+
+/* --- O tim kiem (843x49 nen #B7B6BA) ------------------------------------ */
+
+.mpop-tim {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--s));
+  height: calc(49px * var(--s));
+  padding: 0 calc(16px * var(--s));
+  border-radius: calc(6px * var(--s));
+  background: var(--calli-muted);
+  color: var(--calli-navy-line);
+}
+
+.mpop-tim input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--sans);
+  font-size: calc(16px * var(--s));
+}
+
+.mpop-tim input:focus {
+  outline: none;
+}
+
+/* --- Nut vien (pill) ---------------------------------------------------- */
+
+.mpop-pill {
+  flex: none;
+  height: calc(34px * var(--s));
+  padding: 0 calc(14px * var(--s));
+  border: 0;
+  border-radius: calc(20px * var(--s));
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(13px * var(--s));
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mpop-pill-teal {
+  background: var(--calli-teal-dark);
+}
+
+.mpop-pill-do {
+  background: rgba(255, 0, 0, 0.73);
+}
+
+.mpop-pill-xam {
+  background: var(--calli-muted);
+}
+
+.mpop-pill:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.mpop-pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- Hang mot nguoi (843x101) ------------------------------------------- */
+
+.mpop-hang {
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+  flex-wrap: wrap;
+  min-height: calc(101px * var(--s));
+  padding: calc(12px * var(--s)) calc(16px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+}
+
+.mpop-ten {
+  flex: 1;
+  min-width: calc(120px * var(--s));
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+}
+
+.mpop-ten em {
+  font-size: calc(16px * var(--s));
+  font-style: normal;
+  color: rgba(41, 53, 70, 0.65);
+}
+
+.mpop-nut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(8px * var(--s));
+  justify-content: flex-end;
+}
+
+/* --- Moi ban be --------------------------------------------------------- */
+
+.mpop-moi {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8px * var(--s));
+  padding: calc(12px * var(--s));
+  border-radius: calc(10px * var(--s));
+  background: rgba(41, 53, 70, 0.06);
+}
+
+.mpop-hang-moi {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--s));
+}
+
+.mpop-ten-moi {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(18px * var(--s));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Mot app trong danh sach (Figma 140:218) ---------------------------- */
+
+.mpop-app {
+  display: flex;
+  align-items: center;
+  gap: calc(20px * var(--s));
+  padding: calc(14px * var(--s)) calc(18px * var(--s));
+  border: 2px solid var(--calli-navy-line);
+  border-radius: calc(10px * var(--s));
+  background: #f4f8f9;
+  color: inherit;
+  font-family: var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mpop-app:hover:not(:disabled) {
+  background: #eaf2f3;
+}
+
+.mpop-app:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mpop-app-chu {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--s));
+  min-width: 0;
+}
+
+.mpop-app-chu b {
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+}
+
+.mpop-app-chu em {
+  font-size: calc(20px * var(--s));
+  font-style: normal;
+  color: rgba(41, 53, 70, 0.75);
+}
+
+/* --- Popup nhan tin ----------------------------------------------------- */
+
+.mpop-head-chat {
+  gap: calc(14px * var(--s));
+  padding: 0 calc(12px * var(--s));
+  background: #f4f8f9;
+}
+
+.mpop-chat-ten {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mpop-chat-ten b {
+  font-size: calc(24px * var(--s));
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mpop-chat-ten em {
+  font-size: calc(16px * var(--s));
+  font-style: normal;
+  font-weight: 200;
+}
+
+.mpop-chat-than {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  margin: calc(12px * var(--s)) calc(25px * var(--s)) 0;
+}
+
+/* Khung thao luan von duoc son cho nen toi cua ban phong cu - trong popup
+   sang nay phai tra lai mau chu doc duoc. */
+.mpop-chat-than > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  color: var(--calli-navy-line);
+}
+
+.mpop-chat-nhac {
+  flex: none;
+  margin: calc(8px * var(--s)) 0 calc(12px * var(--s));
+  font-size: calc(15px * var(--s));
+  color: rgba(41, 53, 70, 0.7);
+  text-align: center;
+}
+
+.mpop-chat-trong {
+  padding: calc(24px * var(--s));
+}
+
+/* --- Man hep ------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .mpop {
+    top: calc(96px * var(--s) + 8px);
+    right: 8px;
+    left: 8px;
+    bottom: calc(76px * var(--s) + 8px);
+    width: auto !important;
+  }
+
+  .mpop-hang {
+    gap: calc(10px * var(--s));
+  }
+}
+
+/* Ca cai o la nut ghim - ban thiet ke khong ve nut ghim o dau, ma bo han
+   tinh nang thi mat mot thu dang dung duoc. */
+.meet-tile-ghim-duoc {
+  cursor: pointer;
+}
+
+.meet-tile-ghim-duoc:hover {
+  outline: 2px solid rgba(133, 174, 176, 0.6);
+  outline-offset: calc(-2px);
+}
+
+.meet-tile-dang-ghim {
+  outline: 3px solid var(--calli-teal);
+  outline-offset: calc(-3px);
+}
