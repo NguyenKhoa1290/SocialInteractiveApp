@@ -1197,6 +1197,22 @@
   overflow-y: auto;
 }
 
+/* Khung chon thiet bi truoc day nam o chan trang nen mo NGUOC LEN
+   (bottom: 100%). Gio no nam trong panel Cai dat, sat dinh panel va panel lai
+   co cuon rieng - mo len la bi cat mat. Trong panel thi cho no nam thang
+   trong dong, day noi dung xuong thay vi de len. */
+.mroom .meet-side .meet-devices,
+.mroom .meet-side .meet-devices-pop {
+  width: 100%;
+  max-width: none;
+}
+
+.mroom .meet-side .meet-devices-pop {
+  position: static;
+  transform: none;
+  box-shadow: none;
+}
+
 /* --- Dai bao loi / thong bao -------------------------------------------- */
 
 .mroom > .meet-error,
