@@ -16,8 +16,12 @@ type P = { size?: number };
 export function IconCallEnd({ size = 30 }: P) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 6.4c-3.1 0-6 .8-8.4 2.3-.9.6-1.3 1.7-1 2.7l.7 2.2c.2.7 1 1.1 1.7.9l3-.9c.7-.2 1.1-.9 1-1.6l-.2-1.5c1-.3 2.1-.4 3.2-.4s2.2.1 3.2.4l-.2 1.5c-.1.7.3 1.4 1 1.6l3 .9c.7.2 1.5-.2 1.7-.9l.7-2.2c.3-1-.1-2.1-1-2.7A15.5 15.5 0 0 0 12 6.4Z" />
-      <path d="M4.3 17.7 19.7 2.3l1.7 1.7L6 19.4l-1.7-1.7Z" />
+      {/* Ong nghe dien thoai XOAY 135 do - hinh "gac may" quen thuoc. Ve mot
+          hinh roi xoay chu khong ve san hinh nghieng: sua do nghieng thi chi
+          sua mot con so. */}
+      <g transform="rotate(135 12 12)">
+        <path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.4c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .7-.2 1l-2.2 2.2Z" />
+      </g>
     </svg>
   );
 }
