@@ -4,6 +4,8 @@ import { iptvApi } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
 import { MeetingPopup } from "./MeetingPopup";
 import { AddPlaylistDialog } from "../miniapp/AddPlaylistDialog";
+import { useAuthStore } from "../../store/authStore";
+import { decodeJwtIsAdmin } from "../../lib/jwt";
 import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
 import type { TuyChonPhat } from "./IptvPlayer";
 
@@ -74,7 +76,6 @@ export function IptvChannelPicker({
   dangPhat,
   tuyChon,
   onPick,
-  onPlayDirect,
   onDungPhat,
   onPhatLai,
   onDoiTuyChon,
@@ -85,15 +86,17 @@ export function IptvChannelPicker({
   dangPhat: string | null;
   tuyChon: TuyChonPhat;
   onPick: (channelId: number, channelName: string) => void;
-  // Phat mot link dan thang, khong luu vao danh sach nao. NEM neu link khong
-  // dung - popup giu nguyen de nguoi dung sua, chu khong dong lai roi de ho
-  // doan xem hong o dau.
-  onPlayDirect: (url: string, name: string) => Promise<void>;
   onDungPhat: () => void;
   onPhatLai: () => void;
   onDoiTuyChon: (t: TuyChonPhat) => void;
   onClose: () => void;
 }) {
+  // Admin tao duoc "Admin Playlist" (playlist dung chung) ngay trong phong
+  // hop, khong phai thoat ra man Mini App. Claim `role` chi co khi
+  // User.IsAdmin - xem lib/jwt.ts.
+  const accessToken = useAuthStore((x) => x.accessToken);
+  const laAdmin = accessToken !== null && decodeJwtIsAdmin(accessToken);
+
   const [buoc, setBuoc] = useState<Buoc>(dangPhat ? "dangphat" : "playlist");
   const [lists, setLists] = useState<IptvChannelList[]>([]);
   const [listDangMo, setListDangMo] = useState<IptvChannelList | null>(null);
@@ -109,11 +112,6 @@ export function IptvChannelPicker({
 
   const [moThemPlaylist, setMoThemPlaylist] = useState(false);
   const [nhomThemKenh, setNhomThemKenh] = useState<number | null>(null);
-
-  // Duong thu hai, song song voi danh sach: dan thang mot link vao xem ngay.
-  const [linkThang, setLinkThang] = useState("");
-  const [tenThang, setTenThang] = useState("");
-  const [banThang, setBanThang] = useState(false);
 
   const napLists = useRef(() => {
     setDangNap(true);
@@ -181,22 +179,6 @@ export function IptvChannelPicker({
       setNhomThemKenh(null);
     } catch (err) {
       setLoi(extractApiError(err, "Không thêm được kênh"));
-    }
-  }
-
-  async function phatLinkThang(e: FormEvent) {
-    e.preventDefault();
-    const url = linkThang.trim();
-    if (!url || banThang) return;
-    setBanThang(true);
-    setLoi(null);
-    try {
-      await onPlayDirect(url, tenThang.trim());
-      setBuoc("dangphat");
-    } catch (err) {
-      setLoi(extractApiError(err, "Không phát được link này"));
-    } finally {
-      setBanThang(false);
     }
   }
 
@@ -317,27 +299,6 @@ export function IptvChannelPicker({
               </>
             )}
 
-            {/* Duong thu hai: dan thang mot link, khong luu vao playlist nao.
-                Khong co trong ban thiet ke nhung la duong duy nhat de chieu
-                mot luong dung mot lan - bo di la mat han. */}
-            <form className="mpop-link-thang" onSubmit={phatLinkThang}>
-              <p className="mpop-nhan-be">Hoặc dán thẳng một link .m3u8</p>
-              <input
-                className="mpop-o-nhap"
-                value={linkThang}
-                onChange={(e) => setLinkThang(e.target.value)}
-                placeholder="https://…/stream.m3u8"
-              />
-              <input
-                className="mpop-o-nhap"
-                value={tenThang}
-                onChange={(e) => setTenThang(e.target.value)}
-                placeholder="Tên hiển thị (tuỳ chọn)"
-              />
-              <button type="submit" className="mpop-pill mpop-pill-teal" disabled={banThang || !linkThang.trim()}>
-                {banThang ? "Đang mở…" : "Phát link này"}
-              </button>
-            </form>
           </>
         )}
 
@@ -444,7 +405,7 @@ export function IptvChannelPicker({
 
       {moThemPlaylist && (
         <AddPlaylistDialog
-          laAdmin={false}
+          laAdmin={laAdmin}
           onClose={() => setMoThemPlaylist(false)}
           onCreated={() => {
             setMoThemPlaylist(false);

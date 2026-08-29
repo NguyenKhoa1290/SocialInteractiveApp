@@ -1008,32 +1008,62 @@
 }
 
 .mroom-grid-dai {
-  grid-template-columns: repeat(4, minmax(0, calc(281px * var(--s))));
+  /* Frame 149:1735 (Page 3) doi lai: NAM o, dat le trai tu 70 - khac ban cu
+     tren Page 1 (bon o canh giua). */
+  grid-template-columns: repeat(5, minmax(0, calc(281px * var(--s))));
   grid-auto-rows: 100%;
   gap: calc(28px * var(--s));
-  /* Thiet ke dat dai o CANH GIUA khung lon chu khong dat le trai: frame
-     118:1080 co bon o nam tu 382 den 1590 tren mot khung bat dau o 70. */
-  justify-content: center;
+  justify-content: start;
 }
 
 /* Dai bao "ai dang trinh bay / dang ghim ai". Ban cu son mau ho phach cua mot
    bang canh bao - do len nen phong toi thi trong nhu mot loi he thong chu
    khong phai mot dong tin. */
-/* Thiet ke khong ve dai nay (frame 118:1080 chi co khung lon + dai o nho).
-   Nhung no la duong DUY NHAT de quay ve dang luoi, bo di la nguoi dung ket
-   trong focus mode. Nen giu, chi lam mong het muc de khung lon duoc rong. */
-.mroom .meet-focus-bar {
-  flex: none;
-  padding: calc(6px * var(--s)) calc(14px * var(--s));
-  border: 0;
-  border-radius: var(--r-pill);
-  background: rgba(183, 182, 186, 0.18);
-  color: #fff;
-  font-size: calc(14px * var(--s));
+/* Khoi "dang phat noi dung" tren THANH TREN - Figma Page 3, frame 149:1735.
+   Truoc day day la mot dai xam rieng nam duoi thanh tren, an mat mot khoanh
+   cua khung trinh bay. */
+.mroom-chieu {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-left: calc(40px * var(--sr));
+  gap: calc(18px * var(--sr));
 }
 
-.mroom .meet-focus-bar button {
-  font-size: calc(13px * var(--s));
+.mroom-chieu-chu {
+  font-size: calc(24px * var(--sr));
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mroom-pill {
+  flex: none;
+  min-width: calc(98px * var(--sr));
+  height: calc(34px * var(--sr));
+  padding: 0 calc(14px * var(--sr));
+  border: 0;
+  border-radius: calc(20px * var(--sr));
+  background: var(--calli-teal);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: calc(13px * var(--sr));
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mroom-pill:hover {
+  background: var(--calli-teal-dark);
+}
+
+/* Dang co khoi do thi ten cuoc hop khong canh giua man nua - no lui ve trai
+   de nhuong cho, dung nhu frame 149:1735. */
+.mroom-top-chieu .mroom-title {
+  position: static;
+  transform: none;
+  margin-left: calc(40px * var(--sr));
 }
 
 .mroom .meet-focus-bar button {
@@ -1067,6 +1097,16 @@
   height: 100%;
   border: 0;
   background: rgba(183, 182, 186, 0.23);
+}
+
+/* LOI THAT: .meet-tile-video dat `object-fit: cover` va nam SAU trong tep,
+   nen no de bep .meet-tile-video-contain - hai lop cung mot muc do dac hieu
+   thi cai viet sau thang. Hau qua la man hinh chia se bi CAT VIEN: trong anh
+   chu du an gui, dinh trang Google bi cat mat.
+   Ghep hai lop lai de nang do dac hieu - "phai hien nguyen khung" tu gio luon
+   thang, du co ai them mot quy tac .meet-tile-video nua o duoi. */
+.meet-tile-video.meet-tile-video-contain {
+  object-fit: contain;
 }
 
 /* Chua bat camera: vong tron mau #4A7AAD voi chu cai dau, ten nam ngay duoi

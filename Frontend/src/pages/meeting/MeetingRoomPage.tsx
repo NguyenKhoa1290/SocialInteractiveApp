@@ -9,7 +9,7 @@ import {
   type RemoteParticipant,
   type RemoteTrackPublication,
 } from "livekit-client";
-import { meetingApi, iptvApi } from "../../api/mediaApi";
+import { meetingApi } from "../../api/mediaApi";
 import { friendApi } from "../../api/friendApi";
 import { userApi } from "../../api/userApi";
 import { useAuthStore } from "../../store/authStore";
@@ -602,30 +602,6 @@ export function MeetingRoomPage() {
     }
   }
 
-  // Duong song song voi handlePickChannel: link dan thang, khong luu vao
-  // danh sach nao. Server kiem truoc (chan link that ra la danh sach nhieu
-  // kenh, chan link khong phai HLS) roi URL di kem luon trong trang thai
-  // trinh bay - moi may trong phong tu phat, khong ton them vong goi nao.
-  //
-  // KHONG bat loi o day: popup can biet de giu nguyen va hien ly do, chu
-  // dong lai roi bao loi o goc man hinh thi nguoi dung mat luon cai link
-  // vua go.
-  async function handlePlayDirect(url: string, name: string) {
-    const res = await iptvApi.resolveDirect(meetingId, url, name);
-    await meetingApi.startPresentation(meetingId, "mini_app", {
-      appId: "iptv",
-      channelUrl: res.data.streamUrl,
-      channelName: res.data.name,
-    });
-    // Server khong doc duoc nguon (bi chan hoac khong phan hoi voi no) nhung
-    // trinh duyet co the van vao duoc - van phat, chi noi ro la chua kiem
-    // duoc, de neu hong thi nguoi trinh bay biet nhin di dau.
-    setNotice(
-      res.data.verified
-        ? null
-        : `Máy chủ không kiểm được nguồn này (${res.data.warning ?? "không rõ lý do"}) — vẫn phát thử, nếu không lên hình thì do link.`,
-    );
-  }
 
   async function handleStopPresentation() {
     try {
@@ -902,7 +878,7 @@ export function MeetingRoomPage() {
   // So o moi trang lay tu thiet ke: luoi thuong 3x3 = 9 (frame 116:773),
   // focus mode la dai bon o duoi khung lon (frame 118:1080). Man hinh hep
   // thi it hon nua.
-  const perPage = inFocusLayout ? (isNarrow ? 2 : 4) : isNarrow ? 4 : 9;
+  const perPage = inFocusLayout ? (isNarrow ? 2 : 5) : isNarrow ? 4 : 9;
   const totalPages = Math.max(1, Math.ceil(gridTiles.length / perPage));
   const safePage = Math.min(page, totalPages - 1);
   const visibleTiles = gridTiles.slice(safePage * perPage, safePage * perPage + perPage);
@@ -1135,6 +1111,26 @@ export function MeetingRoomPage() {
 
   // Cot lat trang - Figma "Frame 60" ben trai thanh doc: mot cot cao mo,
   // so trang o dinh, hai mui ten o giua.
+  // Khoi giua thanh tren: dang chieu gi, va nhung nut di kem. null = khong
+  // co gi de bao. Ghim va trinh bay dung chung mot cho vi khong bao gio xay
+  // ra cung luc - ghim thang moi thu khac (xem stageParticipant).
+  const bangChieu: { chu: string; nut: { chu: string; bam: () => void }[] } | null = presentation
+    ? {
+        chu: `${presentation.nickname} đang phát ${presentation.kind === "screen" ? "màn hình" : "nội dung"}`,
+        nut: [
+          ...(presentation.userId === currentUserId || isHost
+            ? [{ chu: "Dừng", bam: () => void handleStopPresentation() }]
+            : []),
+          { chu: gridOverride ? "Dạng khung" : "Dạng lưới", bam: () => setGridOverride((v) => !v) },
+        ],
+      }
+    : pinnedUserId !== null
+      ? {
+          chu: `Bạn đang ghim ${nameOfUserId(pinnedUserId)}`,
+          nut: [{ chu: "Bỏ ghim", bam: () => setPinnedUserId(null) }],
+        }
+      : null;
+
   function moPanel(ten: "chat" | "nguoi" | "caidat" | "app") {
     setShowDiscussion(ten === "chat" ? !showDiscussion : false);
     setShowPeople(ten === "nguoi" ? !showPeople : false);
@@ -1213,11 +1209,26 @@ export function MeetingRoomPage() {
 
           "Roi khoi" o day chi dua RIENG TOI ra khoi phong. Viec ket thuc ca
           cuoc hop nam o nut tron do dau thanh doc va chi chu phong thay. */}
-      <header className="mroom-top">
+      <header className={`mroom-top${bangChieu ? " mroom-top-chieu" : ""}`}>
         <span className="mroom-clock" title="Thời gian đã họp">
           {daHop}
         </span>
         <span className="mroom-title">Cuộc họp #{meetingId}</span>
+
+        {/* Khoi "dang phat noi dung" nam NGAY TREN THANH TREN, dung theo
+            frame 149:1735 - truoc day no la mot dai xam rieng an mat mot
+            khoanh cua khung trinh bay. */}
+        {bangChieu && (
+          <span className="mroom-chieu">
+            <span className="mroom-chieu-chu">{bangChieu.chu}</span>
+            {bangChieu.nut.map((n) => (
+              <button key={n.chu} type="button" className="mroom-pill" onClick={n.bam}>
+                {n.chu}
+              </button>
+            ))}
+          </span>
+        )}
+
         <button className="mroom-leave" onClick={handleLeave}>
           Rời khỏi
         </button>
@@ -1240,34 +1251,6 @@ export function MeetingRoomPage() {
       ) : (
         <div className="mroom-body">
           <div className="meet-stage-wrap">
-            {/* FOCUS MODE: co nguoi dang trinh bay -> khung trinh bay chiem
-                trung tam, moi nguoi thu nho thanh dai ben duoi. Khong ai
-                trinh bay -> luoi deu nhu binh thuong. */}
-            {(presentation || pinnedUserId !== null) && (
-              <div className="meet-focus-bar">
-                <span>
-                  {presentation ? (
-                    <>
-                      🔴 <strong>{presentation.nickname}</strong>{" "}
-                      {presentation.kind === "screen" ? "đang trình chiếu màn hình" : "đang mở Mini App"}
-                    </>
-                  ) : (
-                    <>
-                      📌 Bạn đang ghim <strong>{nameOfUserId(pinnedUserId!)}</strong>{" "}
-                      <em className="meet-note">(chỉ hiển thị ở màn hình của bạn)</em>
-                    </>
-                  )}
-                </span>
-                <span className="meet-people-actions">
-                  {pinnedUserId !== null && <button onClick={() => setPinnedUserId(null)}>Bỏ ghim</button>}
-                  {presentation && (
-                    <button onClick={() => setGridOverride((v) => !v)}>
-                      {gridOverride ? "Xem khung trình bày" : "Xem dạng lưới"}
-                    </button>
-                  )}
-                </span>
-              </div>
-            )}
 
             {/* FOCUS MODE: khung lon ben trai, cot o nho co phan trang ben
                 phai (giong Teams). Man hinh hep thi cot nay tu xuong duoi
@@ -1330,7 +1313,6 @@ export function MeetingRoomPage() {
           tuyChon={tuyChonPhat}
           onDoiTuyChon={setTuyChonPhat}
           onPick={handlePickChannel}
-          onPlayDirect={handlePlayDirect}
           onDungPhat={() => {
             setShowIptvPicker(false);
             void handleStopPresentation();
