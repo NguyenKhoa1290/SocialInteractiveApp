@@ -1400,6 +1400,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Popup khong bao gio duoc cuon NGANG - cai gi khong vua thi phai tu co lai
+     hoac xuong dong, khong day ca khung ra. */
+  overflow-x: hidden;
   padding: calc(24px * var(--s)) calc(25px * var(--s)) calc(28px * var(--s));
   display: flex;
   flex-direction: column;
@@ -1913,6 +1916,13 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: calc(20px * var(--s));
+}
+
+/* Cot luoi mac dinh la min-width:auto = khong co duoi noi dung. O chon thiet
+   bi co padding phai 70px cho mui ten, nen hai cot cong lai rong hon popup va
+   de ra mot thanh cuon ngang. */
+.mpop-doi > * {
+  min-width: 0;
 }
 
 .mpop-hang-nut {
