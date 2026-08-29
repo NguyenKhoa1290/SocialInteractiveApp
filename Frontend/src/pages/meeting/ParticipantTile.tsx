@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Track, type Participant } from "livekit-client";
+import { Avatar } from "../../components/Avatar";
 
 // Mot o video cua 1 nguoi trong phong. LiveKit khong phat su kien React nao
 // nen tile phai duoc render lai qua prop "version" (bo dem tang moi khi Room
@@ -14,6 +15,9 @@ export function ParticipantTile({
   stage = false,
   videoHidden = false,
   source = "camera",
+  userId,
+  avatarUpdatedAt,
+  avatarSize = 122,
 }: {
   participant: Participant;
   isLocal: boolean;
@@ -32,6 +36,13 @@ export function ParticipantTile({
   // NGUYEN khung hinh (object-fit: contain) thay vi cat vien nhu o video
   // khuon mat - noi dung trinh chieu bi cat la mat chu.
   stage?: boolean;
+  // Chu cua o, de lay anh dai dien. Khach vang lai vao bang link co the khong
+  // ung voi mot tai khoan nao - luc do bo trong va o hien chu cai dau.
+  userId?: number | null;
+  avatarUpdatedAt?: string | null;
+  // Duong kinh vong tron TRUOC khi nhan --s. Thiet ke dat co dinh, khong doi
+  // theo do lon cua o: 122 o luoi thuong, 61 o dai nho cua focus mode.
+  avatarSize?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -85,7 +96,19 @@ export function ParticipantTile({
            trang thai nay ten KHONG nam o dai goc duoi nua, vi ca o dang
            trong thi khong co gi phai tranh cho. */
         <div className="meet-tile-placeholder">
-          <span className="meet-tile-avatar">{label.slice(0, 1).toUpperCase()}</span>
+          {typeof userId === "number" && Number.isFinite(userId) && userId > 0 ? (
+            <Avatar
+              userId={userId}
+              nickname={label}
+              avatarUpdatedAt={avatarUpdatedAt}
+              size={avatarSize}
+              className="meet-tile-avatar"
+            />
+          ) : (
+            <span className="avatar avatar-chu meet-tile-avatar meet-tile-avatar-tay">
+              {label.slice(0, 1).toUpperCase()}
+            </span>
+          )}
           <span className="meet-tile-ten">
             {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
             {label}

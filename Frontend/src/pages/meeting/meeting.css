@@ -1006,19 +1006,21 @@
   background: transparent;
 }
 
+/* Vong tron trong o. KHONG dat kich thuoc o day: <Avatar> tu dat theo prop
+   `size`, ma thiet ke dat co dinh 122 (61 o dai nho) chu khong theo do lon
+   cua o - moi frame theo so nguoi deu ve 122 du o to nho khac han nhau. */
 .meet-tile-avatar {
-  /* 122 tren o cao 256 la 48%. Chan tren de o co (mot nguoi trong phong, o
-     cao gan het man hinh) khong bien vong tron thanh mot cai dia. */
-  height: min(48%, calc(170px * var(--s)));
-  aspect-ratio: 1;
-  border-radius: 50%;
   background: #4a7aad;
   color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: calc(52px * var(--s));
   font-weight: 600;
-  line-height: 1;
+}
+
+/* Ban ve tay cho nguoi khong ung voi tai khoan nao (khach vao bang link):
+   <Avatar> can userId nen khong dung duoc, phai tu dat co. */
+.meet-tile-avatar-tay {
+  width: calc(122px * var(--s));
+  height: calc(122px * var(--s));
+  font-size: calc(52px * var(--s));
 }
 
 .meet-tile-ten {

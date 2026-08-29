@@ -66,6 +66,45 @@ public static class UsersEndpoints
 
             return Results.Ok(results.Select(UserResponse.FromEntity));
         });
+
+        // Ho so CONG KHAI cua nhieu nguoi cung luc, tra theo danh sach id.
+        //
+        // Sinh ra vi phong hop: Media Service chi biet userId + nickname cua
+        // nguoi trong phong, khong biet moc doi anh dai dien. Ma thieu moc do
+        // thi lib/avatarUrl.ts tra null va o nao trong phong cung chi hien
+        // duoc chu cai dau. Hoi tung nguoi mot thi mot phong 30 nguoi la 30
+        // request.
+        //
+        // Tra ve KIEU HEP rieng chu khong dung UserResponse: UserResponse co
+        // ca email va trang thai khoa: khong co ly do gi de mot nguoi trong
+        // phong hop doc duoc email cua nhung nguoi con lai.
+        users.MapGet("", async (string? ids, ClaimsPrincipal principal, IdentityDbContext db) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null)
+                return Results.Unauthorized();
+
+            // Chan 200 id mot lan goi: danh sach do client dat nen khong the
+            // de no tu quyet dinh cau IN dai bao nhieu.
+            var danhSach = (ids ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => long.TryParse(x, out var v) ? v : (long?)null)
+                .Where(x => x is not null)
+                .Select(x => x!.Value)
+                .Distinct()
+                .Take(200)
+                .ToArray();
+
+            if (danhSach.Length == 0)
+                return Results.Ok(Array.Empty<PublicUserResponse>());
+
+            var rows = await db.Users
+                .Where(u => danhSach.Contains(u.Id))
+                .Select(u => new PublicUserResponse(u.Id, u.Nickname, u.AvatarUpdatedAt))
+                .ToListAsync();
+
+            return Results.Ok(rows);
+        });
     }
 
     // ---- Anh dai dien ----------------------------------------------------

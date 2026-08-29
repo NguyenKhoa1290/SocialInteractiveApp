@@ -25,6 +25,11 @@ public record UserResponse(
         u.AvatarUpdatedAt);
 }
 
+// Nhung gi MOI NGUOI trong he thong duoc biet ve mot nguoi khac: ten hien
+// thi, va moc doi anh dai dien (vua la co "co anh khong", vua la ma chong
+// cache - xem lib/avatarUrl.ts). Khong co email, khong co trang thai khoa.
+public record PublicUserResponse(long Id, string Nickname, DateTimeOffset? AvatarUpdatedAt);
+
 public record AuthSuccessResponse(string AccessToken, UserResponse User);
 public record ErrorResponse(string Error, string Message);
 

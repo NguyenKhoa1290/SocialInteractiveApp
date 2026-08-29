@@ -11,6 +11,7 @@ import {
 } from "livekit-client";
 import { meetingApi, iptvApi } from "../../api/mediaApi";
 import { friendApi } from "../../api/friendApi";
+import { userApi } from "../../api/userApi";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
@@ -116,6 +117,10 @@ export function MeetingRoomPage() {
   const [showIptvPicker, setShowIptvPicker] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // userId -> moc doi anh dai dien. Media Service khong luu thu nay (no chi
+  // biet userId + nickname cua nguoi trong phong), ma thieu no thi avatarUrl()
+  // tra null va o nao cung chi hien duoc chu cai dau.
+  const [anhCua, setAnhCua] = useState<Record<number, string | null>>({});
   // So tin nhan den TRONG LUC panel thao luan dang dong - cham do tren nut
   // chat o thanh doc (Figma goi frame do la "khi co thong bao").
   const [chuaDocChat, setChuaDocChat] = useState(0);
@@ -976,6 +981,33 @@ export function MeetingRoomPage() {
     if (showDiscussion) setChuaDocChat(0);
   }, [showDiscussion]);
 
+  // Hoi Identity ve anh dai dien cua nhung nguoi trong phong. Chi hoi NHUNG
+  // NGUOI CHUA CO trong bang, va ghi ca nguoi khong tra ve (null) de khong
+  // hoi lai vong sau - danh sach nguoi trong phong duoc poll 4 giay mot lan.
+  useEffect(() => {
+    const thieu = participants.map((p) => p.userId).filter((id) => !(id in anhCua));
+    if (thieu.length === 0) return;
+    let huy = false;
+    userApi
+      .byIds(thieu)
+      .then((r) => {
+        if (huy) return;
+        setAnhCua((truoc) => {
+          const moi = { ...truoc };
+          for (const id of thieu) moi[id] = null;
+          for (const u of r.data) moi[u.id] = u.avatarUpdatedAt;
+          return moi;
+        });
+      })
+      .catch(() => {
+        // Khong lay duoc thi o hien chu cai dau - khong dang de bao loi giua
+        // cuoc hop.
+      });
+    return () => {
+      huy = true;
+    };
+  }, [participants, anhCua]);
+
   // Danh sach ban be chi can khi chu phong that su mo bang dieu khien de
   // moi - tai san luc vao phong la mot request thua cho phan lon phien hop.
   useEffect(() => {
@@ -1009,6 +1041,12 @@ export function MeetingRoomPage() {
         isLocal={t.isLocal}
         version={version}
         source={t.kind === "screen" ? "screen" : "camera"}
+        userId={t.userId}
+        avatarUpdatedAt={anhCua[t.userId]}
+        // Thiet ke dat vong tron CO DINH: 122 o luoi thuong (moi frame theo so
+        // nguoi deu ve 122 du o to nho khac han nhau), 61 o dai nho cua focus
+        // mode (frame 118:1080).
+        avatarSize={inFocusLayout ? 61 : 122}
         label={
           t.kind === "screen"
             ? `Màn hình của ${t.isLocal ? (nickname ?? "bạn") : nameOf(t.participant)}`
@@ -1175,6 +1213,8 @@ export function MeetingRoomPage() {
                       isLocal={stageParticipant === room?.localParticipant}
                       version={version}
                       source={stageIsScreen ? "screen" : "camera"}
+                      userId={pinnedUserId ?? presentation?.userId ?? null}
+                      avatarUpdatedAt={anhCua[pinnedUserId ?? presentation?.userId ?? -1]}
                       label={
                         pinnedParticipant
                           ? nameOfUserId(pinnedUserId!)

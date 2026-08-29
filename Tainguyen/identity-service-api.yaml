@@ -316,6 +316,33 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ============== PROFILE ==============
+  /users:
+    get:
+      tags: [Profile]
+      summary: Lấy hồ sơ công khai của nhiều người theo danh sách id
+      description: >-
+        Dùng cho những màn hình chỉ biết `userId` mà cần tên + ảnh đại diện:
+        lưới người trong phòng họp (Media Service không lưu mốc đổi ảnh),
+        danh sách thành viên nhóm.
+        Chỉ trả tên hiển thị và mốc đổi ảnh — không trả email hay trạng thái khoá.
+        Tối đa 200 id mỗi lần gọi; id không tồn tại thì bỏ qua, không báo lỗi.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Danh sách id ngăn cách bởi dấu phẩy, ví dụ `12,15,203`
+      responses:
+        "200":
+          description: Danh sách hồ sơ công khai
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicUser"
+
   /users/me:
     get:
       tags: [Profile]
@@ -558,6 +585,21 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    PublicUser:
+      type: object
+      description: Những gì mọi người trong hệ thống được biết về một người khác.
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Mốc đổi ảnh đại diện lần cuối; null là chưa có ảnh. Vừa là cờ "có ảnh không", vừa là mã chống cache cho `GET /users/{userId}/avatar`.
 
     User:
       type: object

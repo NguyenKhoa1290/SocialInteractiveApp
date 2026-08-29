@@ -13,6 +13,14 @@ export interface AuthUser {
   avatarUpdatedAt: string | null;
 }
 
+// Nhung gi MOI NGUOI duoc biet ve mot nguoi khac: ten hien thi va moc doi
+// anh. Khong co email, khong co trang thai khoa - xem GET /users?ids=...
+export interface PublicUser {
+  id: number;
+  nickname: string;
+  avatarUpdatedAt: string | null;
+}
+
 export interface AuthSuccessResponse {
   accessToken: string;
   user: AuthUser;
