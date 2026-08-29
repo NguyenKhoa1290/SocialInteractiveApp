@@ -23,6 +23,14 @@ public class Meeting
 
     // Bat phong cho hay khong - host doi duoc ngay trong phong.
     public bool RequiresApproval { get; set; } = true;
+
+    // MAC DINH CUA CA PHONG ("Cai dat phong", Figma 140:645). Rieng tung
+    // nguoi thi mot hang no_* trong meeting_permissions de bep len tren; chu
+    // phong luon duoc phep. Xem ghi chu day du o media-db-init.sql.
+    public bool AllowCamera { get; set; } = true;
+    public bool AllowMic { get; set; } = true;
+    public bool AllowScreenShare { get; set; } = true;
+    public bool AllowMiniApp { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }
 

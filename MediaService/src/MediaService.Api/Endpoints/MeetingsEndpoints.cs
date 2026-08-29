@@ -220,8 +220,9 @@ public static class MeetingsEndpoints
             }
 
             var email = (await identity.ResolveUserDetailAsync(callerId))?.Email;
-            var (micOk, camOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
-            var token = liveKit.GenerateAccessToken(meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6), micOk, camOk);
+            var (micOk, camOk, shareOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
+            var token = liveKit.GenerateAccessToken(
+                meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6), micOk, camOk, shareOk);
             return Results.Ok(new JoinResultResponse("approved", token, liveKit.ClientUrl, meeting.Id));
         });
 
@@ -353,9 +354,39 @@ public static class MeetingsEndpoints
         // (link thi luon phai duyet), nen host khong co cach nao doi y giua
         // chung. Phong tuy chinh mac dinh TAT de vao nhanh; thay nguoi la bam
         // link thi bat len mot cai la nhung nguoi sau do phai xep hang.
+        // Tat mic / camera cua MOI NGUOI dang trong phong, mot lan.
+        //
+        // Khong dong toi quyen: ai cung bat lai duoc ngay sau do. Do la dung y
+        // - no la nut "cho ca phong im mot lat de toi noi", khong phai lenh
+        // cam. Muon cam han thi tat cong tac tuong ung trong Cai dat phong.
+        group.MapPost("/{meetingId:long}/mute-all", async (
+            long meetingId, MuteAllRequest req, System.Security.Claims.ClaimsPrincipal principal,
+            MediaDbContext db, LiveKitService liveKit) =>
+        {
+            var meeting = await db.Meetings.FindAsync(meetingId);
+            if (meeting is null)
+                return Results.NotFound();
+            if (meeting.HostId != principal.GetUserId()!.Value)
+                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hop duoc tat mic/camera cua nguoi khac"), statusCode: 403);
+            if (meeting.Status != MeetingStatus.Active)
+                return Results.Json(new ErrorResponse("meeting_ended", "Cuoc hop da ket thuc"), statusCode: 409);
+            if (!req.Mic && !req.Camera)
+                return Results.NoContent();
+
+            var dangO = await db.MeetingParticipants
+                .Where(p => p.MeetingId == meetingId && p.LeftAt == null && p.UserId != meeting.HostId)
+                .Select(p => p.UserId)
+                .ToListAsync();
+
+            foreach (var userId in dangO)
+                await liveKit.MutePublishedAsync(meetingId, userId, req.Mic, req.Camera);
+
+            return Results.NoContent();
+        });
+
         group.MapPatch("/{meetingId:long}", async (
             long meetingId, UpdateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db) =>
+            MediaDbContext db, LiveKitService liveKit) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
@@ -367,7 +398,33 @@ public static class MeetingsEndpoints
 
             if (req.RequiresApproval is not null)
                 meeting.RequiresApproval = req.RequiresApproval.Value;
+
+            // Bon cong tac cua "Cai dat phong". Chi mic va camera moi phai day
+            // sang LiveKit: chia se man hinh va mini app duoc chan o tang API
+            // (PresentationEndpoints / MiniAppSessionEndpoints) nen doc thang
+            // tu DB o lan goi sau la du.
+            var doiPhatSong = false;
+            if (req.AllowCamera is not null && req.AllowCamera.Value != meeting.AllowCamera)
+            {
+                meeting.AllowCamera = req.AllowCamera.Value;
+                doiPhatSong = true;
+            }
+            if (req.AllowMic is not null && req.AllowMic.Value != meeting.AllowMic)
+            {
+                meeting.AllowMic = req.AllowMic.Value;
+                doiPhatSong = true;
+            }
+            if (req.AllowScreenShare is not null)
+                meeting.AllowScreenShare = req.AllowScreenShare.Value;
+            if (req.AllowMiniApp is not null)
+                meeting.AllowMiniApp = req.AllowMiniApp.Value;
+
             await db.SaveChangesAsync();
+
+            // Ghi vao DB thoi la CHUA DU - nguoi dang ngoi trong phong van noi
+            // binh thuong cho toi lan vao sau. Phai ap lai tung nguoi.
+            if (doiPhatSong)
+                await ParticipantsEndpoints.SyncAllPublishPermissionsAsync(meetingId, db, liveKit);
 
             return Results.Ok(MeetingResponse.FromEntity(meeting));
         });

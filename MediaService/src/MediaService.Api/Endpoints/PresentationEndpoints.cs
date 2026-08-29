@@ -63,12 +63,32 @@ public static class PresentationEndpoints
             // Quyen tuong ung voi tung loai trinh bay - cap RIENG LE tung
             // tinh nang dung theo tai lieu goc muc 7.1, khong phai
             // all-or-nothing. Quyen nay KHONG dung thay cho quyen kia.
-            var needed = req.Kind == "screen" ? PermissionType.ShareScreen : PermissionType.MiniApp;
-            var allowed = meeting.HostId == callerId || await db.MeetingPermissions
-                .AnyAsync(p => p.MeetingId == meetingId && p.UserId == callerId && p.PermissionType == needed);
+            //
+            // Ca hai deu bat dau tu MAC DINH CUA PHONG ("Cai dat phong"):
+            //   - chia se man hinh: mac dinh CO, chu phong cam rieng tung
+            //     nguoi bang mot hang no_screen_share.
+            //   - mini app: mac dinh KHONG (mo ung dung la chieu len man hinh
+            //     ca phong), va la quyet dinh CUA CA PHONG chu khong cap le
+            //     tung nguoi nua - dung theo ban thiet ke 140:645.
+            bool allowed;
+            string tenQuyen;
+            if (req.Kind == "screen")
+            {
+                tenQuyen = "chia se man hinh";
+                allowed = meeting.HostId == callerId ||
+                    (meeting.AllowScreenShare && !await db.MeetingPermissions.AnyAsync(p =>
+                        p.MeetingId == meetingId && p.UserId == callerId &&
+                        p.PermissionType == PermissionType.NoScreenShare));
+            }
+            else
+            {
+                tenQuyen = "mo ung dung";
+                allowed = meeting.HostId == callerId || meeting.AllowMiniApp;
+            }
+
             if (!allowed)
                 return Results.Json(
-                    new ErrorResponse("forbidden", $"Ban chua duoc cap quyen {MeetingPermission.ToStringValue(needed)}"),
+                    new ErrorResponse("forbidden", $"Ban chua duoc phep {tenQuyen} trong cuoc hop nay"),
                     statusCode: 403);
 
             // Chan tu day chu khong chi tin vao endpoint resolve-direct: trang

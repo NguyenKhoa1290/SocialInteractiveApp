@@ -19,6 +19,12 @@ public enum PermissionType
     // roi; tach bang rieng chi de Frontend phai goi them mot API nua.
     NoMic,
     NoCamera,
+
+    // Them sau, khi "Cai dat phong" ra doi (Figma 140:645). Chia se man hinh
+    // gio cung mac dinh CO (meetings.allow_screen_share) nen cam mot nguoi
+    // moi la thao tac dang ghi - giong mic va camera. ShareScreen o tren van
+    // giu de doc duoc du lieu cu, chi khong con duong nao ghi them.
+    NoScreenShare,
 }
 
 public class MeetingPermission
@@ -37,6 +43,7 @@ public class MeetingPermission
         "focus_mode" => PermissionType.FocusMode,
         "no_mic" => PermissionType.NoMic,
         "no_camera" => PermissionType.NoCamera,
+        "no_screen_share" => PermissionType.NoScreenShare,
         _ => throw new ArgumentException($"Gia tri permission_type khong hop le: {s}"),
     };
 
@@ -47,6 +54,7 @@ public class MeetingPermission
         PermissionType.FocusMode => "focus_mode",
         PermissionType.NoMic => "no_mic",
         PermissionType.NoCamera => "no_camera",
+        PermissionType.NoScreenShare => "no_screen_share",
         _ => throw new ArgumentOutOfRangeException(nameof(p)),
     };
 }

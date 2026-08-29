@@ -23,6 +23,22 @@ CREATE TABLE meetings (
   -- Mac dinh cua phong tuy chinh la FALSE - muc tieu la chu tri duoc mot cuoc
   -- hop trong ba cu bam, ma ngoi canh phong cho thi khong con la ba cu bam.
   requires_approval BOOLEAN NOT NULL DEFAULT true,
+
+  -- MAC DINH CUA CA PHONG cho bon quyen duoi day ("Cai dat phong" trong ban
+  -- thiet ke, Figma 140:645). Truoc day quyen chi co theo TUNG NGUOI trong
+  -- meeting_permissions, nen chu phong khong dat duoc luat chung: tat mic cua
+  -- nam nguoi dang ngoi thi nguoi thu sau vao van bat duoc.
+  --
+  -- Cach doc: mac dinh phong noi "duoc hay khong", rieng tung nguoi thi mot
+  -- hang no_* trong meeting_permissions de bep len tren. Chu phong luon duoc
+  -- phep, khong thi bam nham mot cai la tu khoa mieng minh khong mo lai duoc.
+  allow_camera        BOOLEAN NOT NULL DEFAULT true,
+  allow_mic           BOOLEAN NOT NULL DEFAULT true,
+  allow_screen_share  BOOLEAN NOT NULL DEFAULT true,
+  -- Rieng cai nay mac dinh TAT: mo mot ung dung la chieu len man hinh cua ca
+  -- phong, khong phai thu ai vao cung lam duoc.
+  allow_mini_app      BOOLEAN NOT NULL DEFAULT false,
+
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   ended_at          TIMESTAMPTZ
 );
@@ -61,12 +77,17 @@ CREATE TABLE meeting_permissions (
   id                BIGSERIAL PRIMARY KEY,
   meeting_id        BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   user_id           BIGINT NOT NULL,
-  -- share_screen / mini_app / focus_mode: CO hang = DUOC phep.
-  -- no_mic / no_camera:                     CO hang = BI CAM.
+  -- share_screen / mini_app / focus_mode:     CO hang = DUOC phep.
+  -- no_mic / no_camera / no_screen_share:     CO hang = BI CAM.
   -- Nguoc nghia nhau la co y: mic va camera thi mac dinh ai cung co, nen
   -- thao tac dang ghi lai la viec THU quyen. Xem Models/MeetingPermission.cs.
+  --
+  -- no_screen_share them sau, khi "Cai dat phong" ra doi: gio chia se man
+  -- hinh cung mac dinh CO (meetings.allow_screen_share), nen cam mot nguoi
+  -- moi la thao tac dang ghi - giong het mic va camera. Ba hang share_screen
+  -- cu van doc duoc, chi khong con ai ghi them.
   permission_type   VARCHAR(20) NOT NULL
-                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode','no_mic','no_camera')),
+                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode','no_mic','no_camera','no_screen_share')),
   granted_by        BIGINT NOT NULL,
   granted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (meeting_id, user_id, permission_type)

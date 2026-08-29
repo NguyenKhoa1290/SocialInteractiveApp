@@ -113,11 +113,11 @@ public static class InvitesEndpoints
             var existing = meeting.Participants.FirstOrDefault(p => p.UserId == callerId && p.LeftAt == null);
             if (existing is not null)
             {
-                var (rejoinMic, rejoinCam) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
+                var (rejoinMic, rejoinCam, rejoinShare) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
                 var rejoinToken = liveKit.GenerateAccessToken(
                     meeting.Id, callerId, req?.Nickname ?? principal.GetNickname(),
                     (await identity.ResolveUserDetailAsync(callerId))?.Email,
-                    TimeSpan.FromHours(6), rejoinMic, rejoinCam);
+                    TimeSpan.FromHours(6), rejoinMic, rejoinCam, rejoinShare);
                 return Results.Ok(new JoinResultResponse("approved", rejoinToken, liveKit.ClientUrl, meeting.Id));
             }
 
@@ -146,8 +146,9 @@ public static class InvitesEndpoints
             await db.SaveChangesAsync();
 
             var email = (await identity.ResolveUserDetailAsync(callerId))?.Email;
-            var (micOk, camOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
-            var token = liveKit.GenerateAccessToken(meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6), micOk, camOk);
+            var (micOk, camOk, shareOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
+            var token = liveKit.GenerateAccessToken(
+                meeting.Id, callerId, nickname, email, TimeSpan.FromHours(6), micOk, camOk, shareOk);
             return Results.Ok(new JoinResultResponse("approved", token, liveKit.ClientUrl, meeting.Id));
         }).RequireAuthorization();
     }

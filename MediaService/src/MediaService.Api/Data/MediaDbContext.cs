@@ -31,6 +31,10 @@ public class MediaDbContext(DbContextOptions<MediaDbContext> options) : DbContex
             entity.Property(m => m.MaxParticipants).HasColumnName("max_participants");
             entity.Property(m => m.IsTemporary).HasColumnName("is_temporary");
             entity.Property(m => m.RequiresApproval).HasColumnName("requires_approval");
+            entity.Property(m => m.AllowCamera).HasColumnName("allow_camera");
+            entity.Property(m => m.AllowMic).HasColumnName("allow_mic");
+            entity.Property(m => m.AllowScreenShare).HasColumnName("allow_screen_share");
+            entity.Property(m => m.AllowMiniApp).HasColumnName("allow_mini_app");
             entity.Property(m => m.CreatedAt).HasColumnName("created_at");
             entity.Property(m => m.EndedAt).HasColumnName("ended_at");
 

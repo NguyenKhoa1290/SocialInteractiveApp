@@ -10,14 +10,12 @@ namespace MediaService.Api.Endpoints;
 // participant duoc cap quyen mini_app).
 public static class MiniAppSessionEndpoints
 {
-    private static async Task<bool> CanUseMiniAppAsync(MediaDbContext db, Meeting meeting, long userId)
-    {
-        if (meeting.HostId == userId)
-            return true;
-
-        return await db.MeetingPermissions.AnyAsync(p =>
-            p.MeetingId == meeting.Id && p.UserId == userId && p.PermissionType == PermissionType.MiniApp);
-    }
+    // Mo ung dung la quyet dinh CUA CA PHONG, khong cap le tung nguoi nua -
+    // "Cho phep mot thanh vien khong phai chu phong bat dau ung dung" trong
+    // ban thiet ke (Figma 140:645). Mac dinh TAT: mo mot ung dung la chieu
+    // len man hinh cua ca phong.
+    private static Task<bool> CanUseMiniAppAsync(MediaDbContext db, Meeting meeting, long userId) =>
+        Task.FromResult(meeting.HostId == userId || meeting.AllowMiniApp);
 
     public static void MapMiniAppSessionEndpoints(this WebApplication app)
     {

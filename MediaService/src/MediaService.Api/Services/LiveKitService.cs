@@ -169,7 +169,8 @@ public class LiveKitService
     // BAY: canPublishSources RONG co nghia la "cho phep TAT CA" chu khong
     // phai "cam tat ca". Nen luon phai liet ke tuong minh nhung nguon duoc
     // phep, khong bao gio de danh sach rong.
-    public Task ApplyPublishPermissionsAsync(long meetingId, long userId, bool micAllowed, bool camAllowed)
+    public Task ApplyPublishPermissionsAsync(
+        long meetingId, long userId, bool micAllowed, bool camAllowed, bool shareAllowed)
     {
         var permission = new ParticipantPermission
         {
@@ -180,11 +181,17 @@ public class LiveKitService
 
         if (micAllowed) permission.CanPublishSources.Add(TrackSource.Microphone);
         if (camAllowed) permission.CanPublishSources.Add(TrackSource.Camera);
-        // Man hinh chia se KHONG dong o day - quyen share_screen van kiem tra
-        // o tang API nhu cu, dong vao day se doi hanh vi cua mot tinh nang
-        // khong lien quan.
-        permission.CanPublishSources.Add(TrackSource.ScreenShare);
-        permission.CanPublishSources.Add(TrackSource.ScreenShareAudio);
+        // Man hinh chia se nay CUNG chan o day. Truoc kia no chi bi kiem o
+        // tang API, tuc la an nut ben Frontend cong voi mot cau if o endpoint
+        // "bat dau trinh bay" - ai goi thang SDK LiveKit van publish duoc mot
+        // luong man hinh ma ca phong nhin thay. Tu khi "Cai dat phong" co muc
+        // cho phep/cam chia se man hinh thi no la mot cai khoa that, phai
+        // khoa o cho khoa duoc.
+        if (shareAllowed)
+        {
+            permission.CanPublishSources.Add(TrackSource.ScreenShare);
+            permission.CanPublishSources.Add(TrackSource.ScreenShareAudio);
+        }
 
         return _roomService.UpdateParticipant(new UpdateParticipantRequest
         {
@@ -243,7 +250,7 @@ public class LiveKitService
     // them. name = nickname hien thi trong phong.
     public string GenerateAccessToken(
         long meetingId, long userId, string nickname, string? email, TimeSpan ttl,
-        bool micAllowed = true, bool camAllowed = true)
+        bool micAllowed = true, bool camAllowed = true, bool shareAllowed = true)
     {
         var identity = new Dictionary<string, string> { ["userId"] = userId.ToString() };
         if (email is not null)
@@ -255,8 +262,11 @@ public class LiveKitService
         var sources = new List<string>();
         if (micAllowed) sources.Add("microphone");
         if (camAllowed) sources.Add("camera");
-        sources.Add("screen_share");
-        sources.Add("screen_share_audio");
+        if (shareAllowed)
+        {
+            sources.Add("screen_share");
+            sources.Add("screen_share_audio");
+        }
 
         var grants = new VideoGrants
         {

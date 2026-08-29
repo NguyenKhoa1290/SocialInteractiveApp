@@ -8,15 +8,24 @@ public record CreateMeetingRequest(string Mode, long? ConversationId);
 
 // Doi cau hinh phong khi dang hop - hien chi co cong tac phong cho. Dung
 // nullable de sau nay them truong khac ma khong bat client phai gui lai het.
-public record UpdateMeetingRequest(bool? RequiresApproval);
+// Moi truong deu tuy chon: PATCH nay dung chung cho ca cong tac phong cho lan
+// bon cong tac "Cai dat phong". Truong null = khong dong toi.
+public record UpdateMeetingRequest(
+    bool? RequiresApproval,
+    bool? AllowCamera,
+    bool? AllowMic,
+    bool? AllowScreenShare,
+    bool? AllowMiniApp);
 
 public record MeetingResponse(
     long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
-    bool IsTemporary, bool RequiresApproval)
+    bool IsTemporary, bool RequiresApproval,
+    bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
         m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
-        m.IsTemporary, m.RequiresApproval);
+        m.IsTemporary, m.RequiresApproval,
+        m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
 
 // Mo rong so voi schema "Meeting" trong OpenAPI spec goc - CAN mo rong vi
@@ -28,13 +37,21 @@ public record MeetingResponse(
 public record MeetingWithCallerStatusResponse(
     long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     string CallerStatus, string? LivekitToken, string? LivekitUrl,
-    bool IsTemporary, bool RequiresApproval)
+    bool IsTemporary, bool RequiresApproval,
+    bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
         m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
-        callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval);
+        callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval,
+        m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
+
+// Hai nut do "Tat tat ca mic" / "Tat tat ca cam" o dau danh sach thanh vien
+// (Figma 140:497). KHAC voi cong tac "Cho phep bat mic" cua Cai dat phong:
+// day la mot lan tat NGAY BAY GIO, khong thu quyen - moi nguoi van bat lai
+// duoc. Muon cam han thi dung cong tac cua phong.
+public record MuteAllRequest(bool Mic, bool Camera);
 
 public record MeetingPreviewResponse(long MeetingId, string HostNickname, int ParticipantCount, bool RequiresApproval);
 

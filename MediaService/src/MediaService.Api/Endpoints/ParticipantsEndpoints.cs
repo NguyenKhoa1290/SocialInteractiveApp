@@ -102,8 +102,9 @@ public static class ParticipantsEndpoints
             var email = (await identity.ResolveUserDetailAsync(userId))?.Email;
             // Quyen mic/camera bam theo cap (meeting, user) nen van con nguyen
             // neu nguoi nay tung bi thu quyen roi roi phong va quay lai.
-            var (micOk, camOk) = await LoadPublishFlagsAsync(db, meetingId, userId);
-            var token = liveKit.GenerateAccessToken(meetingId, userId, entry.Nickname, email, TimeSpan.FromHours(6), micOk, camOk);
+            var (micOk, camOk, shareOk) = await LoadPublishFlagsAsync(db, meetingId, userId);
+            var token = liveKit.GenerateAccessToken(
+                meetingId, userId, entry.Nickname, email, TimeSpan.FromHours(6), micOk, camOk, shareOk);
 
             // Chua co WebSocket (xem ghi chu trong WaitingRoomStore.cs) - luu
             // token tam vao Redis de nguoi duoc duyet lay o lan poll
@@ -211,7 +212,7 @@ public static class ParticipantsEndpoints
     }
 
     private static bool IsPublishDenial(PermissionType t) =>
-        t is PermissionType.NoMic or PermissionType.NoCamera;
+        t is PermissionType.NoMic or PermissionType.NoCamera or PermissionType.NoScreenShare;
 
     // Doc lai trang thai cam trong DB roi day sang LiveKit.
     //
@@ -221,11 +222,11 @@ public static class ParticipantsEndpoints
     private static async Task SyncPublishPermissionsAsync(
         long meetingId, long userId, MediaDbContext db, LiveKitService liveKit)
     {
-        var (micAllowed, camAllowed) = await LoadPublishFlagsAsync(db, meetingId, userId);
+        var (micAllowed, camAllowed, shareAllowed) = await LoadPublishFlagsAsync(db, meetingId, userId);
 
         try
         {
-            await liveKit.ApplyPublishPermissionsAsync(meetingId, userId, micAllowed, camAllowed);
+            await liveKit.ApplyPublishPermissionsAsync(meetingId, userId, micAllowed, camAllowed, shareAllowed);
         }
         catch (Exception)
         {
@@ -237,17 +238,53 @@ public static class ParticipantsEndpoints
         await liveKit.MutePublishedAsync(meetingId, userId, !micAllowed, !camAllowed);
     }
 
-    // Dung chung ca luc sinh token: mac dinh la DUOC phep, co hang trong
-    // meeting_permissions moi la bi cam (xem ghi chu o MeetingPermission.cs).
-    public static async Task<(bool MicAllowed, bool CamAllowed)> LoadPublishFlagsAsync(
+    // Dung chung ca luc sinh token. Hai tang chong len nhau:
+    //   1. MAC DINH CUA PHONG (meetings.allow_mic / allow_camera) - "Cai dat
+    //      phong", ap cho moi nguoi, ke ca nguoi vao sau.
+    //   2. RIENG TUNG NGUOI: mot hang no_mic / no_camera trong
+    //      meeting_permissions de bep len tren (xem MeetingPermission.cs).
+    //
+    // Chu phong LUON duoc phep: cong tac cua phong la thu ong ta cam, bam
+    // nham mot cai ma tu khoa mieng minh thi khong con duong mo lai.
+    public static async Task<(bool MicAllowed, bool CamAllowed, bool ShareAllowed)> LoadPublishFlagsAsync(
         MediaDbContext db, long meetingId, long userId)
     {
+        var phong = await db.Meetings
+            .Where(m => m.Id == meetingId)
+            .Select(m => new { m.HostId, m.AllowMic, m.AllowCamera, m.AllowScreenShare })
+            .FirstOrDefaultAsync();
+
+        if (phong is null)
+            return (true, true, true);
+        if (phong.HostId == userId)
+            return (true, true, true);
+
         var denied = await db.MeetingPermissions
             .Where(p => p.MeetingId == meetingId && p.UserId == userId &&
-                        (p.PermissionType == PermissionType.NoMic || p.PermissionType == PermissionType.NoCamera))
+                        (p.PermissionType == PermissionType.NoMic ||
+                         p.PermissionType == PermissionType.NoCamera ||
+                         p.PermissionType == PermissionType.NoScreenShare))
             .Select(p => p.PermissionType)
             .ToListAsync();
 
-        return (!denied.Contains(PermissionType.NoMic), !denied.Contains(PermissionType.NoCamera));
+        return (
+            phong.AllowMic && !denied.Contains(PermissionType.NoMic),
+            phong.AllowCamera && !denied.Contains(PermissionType.NoCamera),
+            phong.AllowScreenShare && !denied.Contains(PermissionType.NoScreenShare));
+    }
+
+    // Ap lai quyen phat cho MOI NGUOI dang trong phong. Dung khi chu phong
+    // doi mot cong tac cua ca phong - doi mot dong trong DB thi nguoi dang
+    // ngoi trong phong van noi binh thuong, phai day sang LiveKit tung nguoi.
+    public static async Task SyncAllPublishPermissionsAsync(
+        long meetingId, MediaDbContext db, LiveKitService liveKit)
+    {
+        var dangO = await db.MeetingParticipants
+            .Where(p => p.MeetingId == meetingId && p.LeftAt == null)
+            .Select(p => p.UserId)
+            .ToListAsync();
+
+        foreach (var userId in dangO)
+            await SyncPublishPermissionsAsync(meetingId, userId, db, liveKit);
     }
 }

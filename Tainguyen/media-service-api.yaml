@@ -94,6 +94,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/Meeting"
 
+    patch:
+      tags: [Meetings]
+      summary: Đổi cài đặt phòng (chỉ chủ phòng)
+      description: Trường nào null/vắng thì không đụng tới.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requiresApproval: { type: boolean, nullable: true }
+                allowCamera: { type: boolean, nullable: true }
+                allowMic: { type: boolean, nullable: true }
+                allowScreenShare: { type: boolean, nullable: true }
+                allowMiniApp: { type: boolean, nullable: true }
+      responses:
+        "200":
+          description: Phòng sau khi đổi
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meeting"
+        "403": { description: Không phải chủ phòng }
+        "409": { description: Cuộc họp đã kết thúc }
+
+  /meetings/{meetingId}/mute-all:
+    post:
+      tags: [Meetings]
+      summary: Tắt mic/camera của mọi người đang trong phòng, MỘT LẦN
+      description: >-
+        Khác công tắc `allowMic`/`allowCamera` của Cài đặt phòng: đây không thu quyền,
+        mọi người bật lại được ngay sau đó. Chủ phòng không bị tắt.
+      parameters:
+        - $ref: "#/components/parameters/MeetingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mic, camera]
+              properties:
+                mic: { type: boolean }
+                camera: { type: boolean }
+      responses:
+        "204": { description: Đã tắt }
+        "403": { description: Không phải chủ phòng }
+        "409": { description: Cuộc họp đã kết thúc }
+
   /meetings/{meetingId}/end:
     post:
       tags: [Meetings]
@@ -596,6 +648,10 @@ components:
         hostId:
           type: integer
           format: int64
+        conversationId:
+          type: integer
+          format: int64
+          nullable: true
         status:
           type: string
           enum: [active, ended]
@@ -604,6 +660,28 @@ components:
         createdAt:
           type: string
           format: date-time
+        isTemporary:
+          type: boolean
+          description: Phòng tuỳ chỉnh — hội thoại tạm bên trong bị xoá hẳn khi họp kết thúc.
+        requiresApproval:
+          type: boolean
+          description: Có bật phòng chờ hay không.
+        allowCamera:
+          type: boolean
+          description: >-
+            "Cài đặt phòng" — mặc định của CẢ PHÒNG. Riêng từng người thì một hàng
+            `no_camera` trong meeting_permissions đè lên trên. Chủ phòng luôn được phép.
+        allowMic:
+          type: boolean
+          description: Như allowCamera, cho micro (`no_mic`).
+        allowScreenShare:
+          type: boolean
+          description: Như allowCamera, cho chia sẻ màn hình (`no_screen_share`).
+        allowMiniApp:
+          type: boolean
+          description: >-
+            Cho phép một thành viên KHÔNG phải chủ phòng bắt đầu ứng dụng. Mặc định false,
+            và là quyết định của cả phòng — không cấp lẻ từng người.
 
     MeetingPreview:
       type: object
