@@ -31,13 +31,6 @@ export function IptvStage({
 
   return (
     <div className={compact ? "meet-app-stage meet-app-compact" : "meet-app-stage"}>
-      <div className="meet-side-head">
-        <h3>
-          {compact
-            ? (channelName ?? "Mini App · IPTV")
-            : `Mini App · IPTV${channelName ? ` · ${channelName}` : ""}`}
-        </h3>
-      </div>
 
       {status === "error" && <p className="meet-error">{slot?.error}</p>}
 
