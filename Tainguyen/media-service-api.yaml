@@ -504,10 +504,21 @@ paths:
               properties:
                 url:
                   type: string
+                  description: >-
+                    Không giới hạn độ dài — link luồng của nhiều nhà cung cấp
+                    mang token ký rất dài.
                   example: https://example.com/playlist.m3u
+                autoGroups:
+                  type: boolean
+                  default: true
+                  description: >-
+                    true = tách theo `group-title` trong M3U thành các danh sách
+                    con. false = dồn hết vào một nhóm mang tên playlist.
       responses:
         "200":
-          description: Đã xử lý
+          description: >-
+            Đã xử lý. URL được ghi lại làm nguồn của playlist; từ đó cứ 10 phút
+            hệ thống tự nhập lại một lần.
           content:
             application/json:
               schema:
@@ -518,9 +529,20 @@ paths:
                     description: false = URL là một luồng đơn, không có gì để tách
                   imported:
                     type: integer
-                  skipped:
+                    description: Số kênh mới thêm
+                  updated:
                     type: integer
-                    description: Số kênh bỏ qua vì đã có sẵn cùng streamUrl
+                    description: >-
+                      Số kênh đã có, được ghi đè đường dẫn luồng mới. Đối chiếu
+                      theo (nhóm, tên kênh) chứ không theo URL — nguồn IPTV đổi
+                      link luôn, đối chiếu theo URL thì mỗi lần làm mới là một
+                      loạt kênh trùng tên.
+                  removed:
+                    type: integer
+                    description: >-
+                      Số kênh do lần nhập trước tạo ra nhưng nay không còn trong
+                      nguồn nữa — đã gỡ đi. Kênh người dùng tự thêm tay không bao
+                      giờ nằm trong số này. Nguồn trả về rỗng thì không gỡ gì.
                   newGroups:
                     type: integer
         "404":
