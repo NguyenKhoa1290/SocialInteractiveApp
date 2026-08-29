@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { iptvApi } from "../../api/mediaApi";
-import { IptvPlayer } from "./IptvPlayer";
+import { IptvPlayer, type TuyChonPhat } from "./IptvPlayer";
 import { extractApiError } from "../../lib/apiError";
 
 // Giu MOT trinh phat IPTV duy nhat cho ca phien hop.
@@ -55,6 +55,7 @@ export function IptvPlayerHost({
   meetingId,
   channelId,
   channelUrl,
+  tuyChon,
   children,
 }: {
   meetingId: number;
@@ -63,6 +64,8 @@ export function IptvPlayerHost({
   // Link dan thang - da di kem trong trang thai trinh bay nen khong phai goi
   // API doi ra URL. Co gia tri thi dung luon, bo qua channelId.
   channelUrl: string | null;
+  // Lua chon phat cua may nay (do phan giai, luong tieng, khoa giai ma).
+  tuyChon?: TuyChonPhat;
   children: ReactNode;
 }) {
   const holderRef = useRef<HTMLDivElement | null>(null);
@@ -158,7 +161,11 @@ export function IptvPlayerHost({
   return (
     <IptvSlotContext.Provider value={api}>
       {children}
-      {streamUrl && createPortal(<IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} />, holderRef.current)}
+      {streamUrl &&
+        createPortal(
+          <IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} tuyChon={tuyChon} />,
+          holderRef.current,
+        )}
     </IptvSlotContext.Provider>
   );
 }

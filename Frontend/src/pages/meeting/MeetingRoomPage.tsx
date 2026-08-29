@@ -17,6 +17,7 @@ import { extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
 import { IptvStage } from "./IptvStage";
 import { IptvChannelPicker } from "./IptvChannelPicker";
+import { TUY_CHON_MAC_DINH, type TuyChonPhat } from "./IptvPlayer";
 import { IptvPlayerHost } from "./IptvPlayerHost";
 import { MeetingSettingsDialog } from "./MeetingSettingsDialog";
 import { MeetingPeopleDialog } from "./MeetingPeopleDialog";
@@ -124,6 +125,10 @@ export function MeetingRoomPage() {
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showApps, setShowApps] = useState(false);
+  // Lua chon phat IPTV cua RIENG may nay (do phan giai, luong tieng, khoa
+  // giai ma). Moi nguoi trong phong tu tai luong rieng nen ai xem o muc nao
+  // la viec cua nguoi do - khong gui len server.
+  const [tuyChonPhat, setTuyChonPhat] = useState<TuyChonPhat>(TUY_CHON_MAC_DINH);
   // "Che do tiet kiem du lieu" trong popup Cai dat: KHONG tai video cua ai ve
   // may nay ca. Thay cho nut "tat camera nguoi nay cho do mang" theo tung
   // nguoi cua ban cu - ban thiet ke gop lai thanh mot cong tac chung.
@@ -1200,6 +1205,7 @@ export function MeetingRoomPage() {
       meetingId={meetingId}
       channelId={presentation?.kind === "mini_app" ? (presentation.channelId ?? null) : null}
       channelUrl={presentation?.kind === "mini_app" ? (presentation.channelUrl ?? null) : null}
+      tuyChon={tuyChonPhat}
     >
     <div className="mroom">
       {/* Thanh tren - Figma "Frame 57": cao 96, nen #293546. Dong ho trai,
@@ -1319,8 +1325,22 @@ export function MeetingRoomPage() {
 
       {showIptvPicker && canUseMiniApp && (
         <IptvChannelPicker
+          meetingId={meetingId}
+          dangPhat={presentation?.kind === "mini_app" ? (presentation.channelName ?? null) : null}
+          tuyChon={tuyChonPhat}
+          onDoiTuyChon={setTuyChonPhat}
           onPick={handlePickChannel}
           onPlayDirect={handlePlayDirect}
+          onDungPhat={() => {
+            setShowIptvPicker(false);
+            void handleStopPresentation();
+          }}
+          // "Phat lai" = dung mot vong Hls moi cho cung kenh do. Doi
+          // khoaClearKey qua lai mot khoang trang la du de effect dung trinh
+          // phat len lai, khong phai them mot duong rieng.
+          onPhatLai={() =>
+            setTuyChonPhat((t) => ({ ...t, khoaClearKey: t.khoaClearKey.endsWith(" ") ? t.khoaClearKey.trimEnd() : t.khoaClearKey + " " }))
+          }
           onClose={() => setShowIptvPicker(false)}
         />
       )}

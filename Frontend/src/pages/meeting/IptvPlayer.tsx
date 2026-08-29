@@ -43,6 +43,37 @@ const STALL_SECONDS = 8;
 
 type PlayerStatus = "loading" | "playing" | "recovering" | "failed";
 
+// Lua chon phat cua NGUOI TRINH BAY, dat o buoc "Tuy chinh kenh" (Figma
+// 140:396). Deu la lua chon cuc bo cua may nay: moi nguoi trong phong tu tai
+// luong rieng nen ai muon xem o do phan giai nao la viec cua nguoi do.
+export type TuyChonPhat = {
+  // Chi so muc chat luong trong hls.levels. -1 = de hls.js tu chon.
+  mucChatLuong: number;
+  // Chi so trong hls.audioTracks. -1 = theo mac dinh cua luong.
+  luongAmThanh: number;
+  // Dang "kid:key", ca hai la chuoi hex 32 ky tu.
+  khoaClearKey: string;
+};
+
+export const TUY_CHON_MAC_DINH: TuyChonPhat = { mucChatLuong: -1, luongAmThanh: -1, khoaClearKey: "" };
+
+// Doi mot cap kid:key hex thanh mot "giay phep" ClearKey (JWK Set) nhung
+// duoi dang data: URL, de hls.js coi no nhu mot may chu cap phep.
+//
+// CHUA KIEM DUOC TREN LUONG THAT: khong co nguon ClearKey nao de thu. Neu no
+// hong thi cho hong nam o buoc hls.js goi XHR toi data: URL - luc do doi
+// licenseUrl sang mot duong dan cung nguon tra 200 la chay, vi
+// licenseResponseCallback ben duoi da thay noi dung tra ve roi.
+function giayPhepClearKey(khoa: string): string | null {
+  const m = khoa.trim().match(/^([0-9a-fA-F]{32}):([0-9a-fA-F]{32})$/);
+  if (!m) return null;
+  const b64url = (hex: string) => {
+    const b = Uint8Array.from(hex.match(/../g)!.map((h) => parseInt(h, 16)));
+    return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  return JSON.stringify({ keys: [{ kty: "oct", kid: b64url(m[1]), k: b64url(m[2]) }], type: "temporary" });
+}
+
 type AudioOption = { index: number; name: string; lang: string };
 
 // Doi mot ten track sang o trong danh sach that. Tim theo nhieu muc do khop
@@ -60,7 +91,15 @@ function pickTrack(tracks: AudioOption[], want: string | null | undefined): Audi
   );
 }
 
-export function IptvPlayer({ src, preferredAudioTrack }: { src: string; preferredAudioTrack?: string | null }) {
+export function IptvPlayer({
+  src,
+  preferredAudioTrack,
+  tuyChon,
+}: {
+  src: string;
+  preferredAudioTrack?: string | null;
+  tuyChon?: TuyChonPhat;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -167,6 +206,7 @@ export function IptvPlayer({ src, preferredAudioTrack }: { src: string; preferre
     };
 
     if (Hls.isSupported()) {
+      const giayPhep = tuyChon?.khoaClearKey ? giayPhepClearKey(tuyChon.khoaClearKey) : null;
       const hls = new Hls({
         // Luong IPTV la TRUC TIEP: bam sat mep song, va tu tang toc phat nhe
         // de duoi kip sau moi lan nghen mang.
@@ -175,8 +215,25 @@ export function IptvPlayer({ src, preferredAudioTrack }: { src: string; preferre
         liveDurationInfinity: true,
         // Kenh IPTV chay lien hang gio - giu lai phan da phat chi ton RAM.
         backBufferLength: 60,
+        // Chi bat EME khi that su co khoa: bat san se lam hls.js hoi
+        // requestMediaKeySystemAccess cho MOI luong, ke ca luong khong ma hoa.
+        ...(giayPhep
+          ? {
+              emeEnabled: true,
+              drmSystems: {
+                'org.w3.clearkey': { licenseUrl: 'data:application/json;base64,' + btoa(giayPhep) },
+              },
+              // Thay han noi dung tra ve: giay phep ClearKey khong den tu may
+              // chu nao ca, no duoc dung tu cap kid:key nguoi dung go vao.
+              licenseResponseCallback: () => new TextEncoder().encode(giayPhep).buffer as ArrayBuffer,
+            }
+          : {}),
       });
       hlsRef.current = hls;
+
+      // Muc chat luong va luong tieng do nguoi trinh bay chon o buoc "Tuy
+      // chinh kenh". -1 la de hls.js tu lo, dung mac dinh cua no.
+      if (tuyChon && tuyChon.mucChatLuong >= 0) hls.currentLevel = tuyChon.mucChatLuong;
 
       const applyTracks = () => {
         const tracks: AudioOption[] = hls.audioTracks.map((t, i) => ({
@@ -186,6 +243,16 @@ export function IptvPlayer({ src, preferredAudioTrack }: { src: string; preferre
         }));
         setAudioTracks(tracks);
         if (tracks.length === 0) return;
+
+        // Nguoi trinh bay da chon THANG mot luong o buoc "Tuy chinh kenh" thi
+        // theo dung so do - luc do da nhin danh sach that roi, khong phai doan
+        // theo ten nua.
+        const soDaChon = tuyChon?.luongAmThanh ?? -1;
+        if (soDaChon >= 0 && soDaChon < tracks.length) {
+          if (hls.audioTrack !== soDaChon) hls.audioTrack = soDaChon;
+          setCurrentAudio(soDaChon);
+          return;
+        }
 
         // Uu tien lua chon cua chinh nguoi xem, sau moi den goi y trong DB.
         // Khong khop ca hai thi giu track mac dinh cua luong.
@@ -278,7 +345,21 @@ export function IptvPlayer({ src, preferredAudioTrack }: { src: string; preferre
         video.load();
       }
     };
-  }, [src, generation, reload]);
+    // khoaClearKey nam trong deps vi no chi gan duoc luc DUNG Hls len - doi
+    // khoa la phai dung lai tu dau. Con muc chat luong va luong tieng thi doi
+    // duoc giua chung, xem effect ngay duoi.
+  }, [src, generation, reload, tuyChon?.khoaClearKey]);
+
+  // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG
+  // dung Hls lai. Dung lai la mat vai giay dem va video giat ve dau.
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    const muc = tuyChon?.mucChatLuong ?? -1;
+    if (hls.currentLevel !== muc) hls.currentLevel = muc;
+    const tieng = tuyChon?.luongAmThanh ?? -1;
+    if (tieng >= 0 && hls.audioTrack !== tieng) hls.audioTrack = tieng;
+  }, [tuyChon?.mucChatLuong, tuyChon?.luongAmThanh]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.volume = volume;
