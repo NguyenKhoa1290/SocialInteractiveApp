@@ -31,6 +31,16 @@ export function IptvStage({
 
   return (
     <div className={compact ? "meet-app-stage meet-app-compact" : "meet-app-stage"}>
+      <div className="meet-side-head">
+        <h3>
+          {compact
+            ? (channelName ?? "Mini App · IPTV")
+            : `Mini App · IPTV${channelName ? ` · ${channelName}` : ""}`}
+        </h3>
+        {canPick && !compact && (
+          <button onClick={onOpenPicker}>{}</button>
+        )}
+      </div>
 
       {status === "error" && <p className="meet-error">{slot?.error}</p>}
 
@@ -49,6 +59,7 @@ export function IptvStage({
           gian doan luong dang phat. Ca o nay lan holder deu la
           display:contents nen khong them mot tang layout nao. */}
       <div ref={slot?.mount} className="iptv-player-slot" />
+
     </div>
   );
 }
