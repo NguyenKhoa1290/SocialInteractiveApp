@@ -2123,3 +2123,17 @@
 .mpop-chat-than {
   padding-bottom: calc(4px * var(--s));
 }
+
+/* Popup nhan tin cao het cho (847x1080 trong thiet ke) chu khong co lai theo
+   noi dung - vai tin nhan ma khung chat chi cao mot phan ba man thi moi lan
+   co tin moi la ca khung nhay len nhay xuong. */
+.mpop-chat {
+  height: calc(1080px * var(--s));
+}
+
+/* Dong nhac cua RIENG popup da noi dung y het - giu mot cai thoi. Dong ben
+   trong MeetingDiscussion con noi "tinh vao dung luong cua nhom", sai voi
+   phong tam (phong tam co han muc 2GB rieng). */
+.mpop-chat .disc-note {
+  display: none;
+}
