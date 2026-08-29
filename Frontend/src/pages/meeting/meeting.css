@@ -939,7 +939,7 @@
 }
 
 .mroom-grid-dai {
-  grid-template-columns: repeat(4, calc(281px * var(--s)));
+  grid-template-columns: repeat(4, minmax(0, calc(281px * var(--s))));
   grid-auto-rows: 100%;
   gap: calc(28px * var(--s));
   justify-content: start;
