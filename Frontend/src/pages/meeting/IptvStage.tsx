@@ -59,12 +59,6 @@ export function IptvStage({
           gian doan luong dang phat. Ca o nay lan holder deu la
           display:contents nen khong them mot tang layout nao. */}
       <div ref={slot?.mount} className="iptv-player-slot" />
-
-      {!compact && slot?.streamUrl && (
-        <a href={slot.streamUrl} target="_blank" rel="noreferrer" className="meet-note">
-          Mở luồng ở tab mới
-        </a>
-      )}
     </div>
   );
 }
