@@ -37,9 +37,6 @@ export function IptvStage({
             ? (channelName ?? "Mini App · IPTV")
             : `Mini App · IPTV${channelName ? ` · ${channelName}` : ""}`}
         </h3>
-        {canPick && !compact && (
-          <button onClick={onOpenPicker}>{status === "idle" ? "Chọn kênh" : "Đổi kênh"}</button>
-        )}
       </div>
 
       {status === "error" && <p className="meet-error">{slot?.error}</p>}
