@@ -319,7 +319,7 @@ export function MiniAppPage() {
               )}
 
               {nhomHienThi?.map((g) => (
-                <div key={g.id}>
+                <div key={g.id} className = "channel-structure">
                   <div className="ma-section ma-section-row">
                     <span className="ma-group-name">{g.groupName}</span>
                     {chon.canEdit && (

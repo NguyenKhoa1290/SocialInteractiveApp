@@ -391,6 +391,11 @@
   }
 }
 
+
+.channel-structure{
+  display: grid;
+  gap: 10px;
+}
 /* AppShell dat padding 24px cho noi dung - man ba panel phai tran vien va cao
    dung bang man hinh, giong man chat (xem .shell-main:has(.cw)). */
 .shell-main:has(.ma) {

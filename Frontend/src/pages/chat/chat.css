@@ -376,6 +376,8 @@
   font-size: 12px;
   color: var(--text);
   font-style: italic;
+  align-self: center;
+
 }
 
 /* ---- Tin nhan he thong ----
