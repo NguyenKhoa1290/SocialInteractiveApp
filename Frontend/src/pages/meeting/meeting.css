@@ -943,7 +943,7 @@
 }
 
 .mroom-focus {
-  flex-direction: column;
+  flex-direction: row;
   gap: calc(14px * var(--s));
 }
 
@@ -1010,7 +1010,7 @@
 .mroom-grid-dai {
   /* Frame 149:1735 (Page 3) doi lai: NAM o, dat le trai tu 70 - khac ban cu
      tren Page 1 (bon o canh giua). */
-  grid-template-columns: repeat(5, minmax(0, calc(281px * var(--s))));
+  grid-template-rows: repeat(5, minmax(0, calc(281px * var(--s))));
   grid-auto-rows: 100%;
   gap: calc(28px * var(--s));
   justify-content: start;
