@@ -66,7 +66,7 @@ export function MeetingPeopleDialog({
 
   if (trang === "phong") {
     return (
-      <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={893}>
+      <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={1000}>
         <div className="mpop-dau">
           <h3 className="mpop-nhan">Cài đặt phòng</h3>
           <button type="button" className="mpop-pill mpop-pill-teal" onClick={() => setTrang("nguoi")}>
