@@ -45,7 +45,7 @@
 
 .meet-stage-wrap {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 10px;
   flex: 1;
   min-width: 0;
@@ -1004,7 +1004,7 @@
   flex: none;
   display: flex;
   gap: calc(37px * var(--s));
-  height: calc(163px * var(--s));
+  height: calc(var(--s));
 }
 
 .mroom-grid-dai {
