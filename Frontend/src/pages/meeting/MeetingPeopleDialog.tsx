@@ -116,7 +116,7 @@ export function MeetingPeopleDialog({
   }
 
   return (
-    <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={893}>
+    <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={1000}>
       {isHost && waiting.length > 0 && (
         <>
           <h3 className="mpop-nhan">Danh sách Thành viên đang đợi</h3>
