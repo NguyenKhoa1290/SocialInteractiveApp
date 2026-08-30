@@ -99,7 +99,7 @@ export function ParticipantTile({
   return (
     <div
       className={lop}
-      onClick={onGhim}
+      // onClick={onGhim}
       title={onGhim ? (dangGhim ? `Bỏ ghim ${label}` : `Ghim ${label} vào khung lớn`) : undefined}
     >
       {hasVideo ? (
