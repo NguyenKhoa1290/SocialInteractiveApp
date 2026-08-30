@@ -195,7 +195,7 @@
 
 .lp-features h2,
 .lp-biz-text h2 {
-  font-size: clamp(30px, 3.4vw, 64px);
+  font-size: clamp(30px, 3vw, 64px);
   font-weight: 700;
   line-height: 120%;
   color: var(--calli-navy);
