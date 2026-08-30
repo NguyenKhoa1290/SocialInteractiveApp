@@ -39,7 +39,7 @@ export function MeetingChatDialog({
   const [tim, setTim] = useState("");
 
   return (
-    <aside className="mpop mpop-chat" style={{ width: "min(calc(847px * var(--s)), 96vw)" }}>
+    <aside className="mpop mpop-chat" style={{ width: "min(calc(1000px * var(--s)), 96vw)" }}>
       <header className="mpop-head mpop-head-chat">
         {laPhongTam || workspaceId === null ? (
           <Avatar userId={chuPhongId} nickname={tenChuPhong} avatarUpdatedAt={anhChuPhong} size={68} />
