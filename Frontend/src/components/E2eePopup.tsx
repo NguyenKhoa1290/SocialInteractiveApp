@@ -90,7 +90,7 @@ export function E2eePopup() {
         {mode === "unknown" ? (
           <>
             <p className="e2-note">
-              Không kiểm tra được trạng thái mã hoá của tài khoản. Đừng đặt mật khẩu mới lúc này — làm vậy sẽ
+              Không kiểm tra được trạng thái mã hoá của tài khoản. Đừng đặt mật khẩu mới lúc này - làm vậy sẽ
               tạo khoá mới và mọi tin nhắn chữ cũ sẽ không đọc lại được.
             </p>
             <button className="e2-btn" onClick={() => doiSang("checking")} type="button">

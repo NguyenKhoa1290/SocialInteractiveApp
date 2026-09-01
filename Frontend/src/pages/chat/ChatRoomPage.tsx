@@ -1020,7 +1020,7 @@ export function ChatRoomPage() {
       )}
 
       {storage?.isLocked && (
-        <p className="chat-banner-danger">Nhóm đã bị khoá vì vượt hạn mức lưu trữ — Trưởng nhóm cần nạp thêm/mở khoá.</p>
+        <p className="chat-banner-danger">Nhóm đã bị khoá vì vượt hạn mức lưu trữ - Trưởng nhóm cần nạp thêm/mở khoá.</p>
       )}
       {!storage?.isLocked && storageNearExpiry && (
         <p className="chat-banner-warning">
@@ -1054,7 +1054,7 @@ export function ChatRoomPage() {
 
               {storage.isLocked && (
                 <p className="md-note" style={{ color: "var(--danger)" }}>
-                  Nhóm đang bị khoá vì vượt hạn mức — thu hồi bớt tệp cũ hoặc nạp thêm để mở lại.
+                  Nhóm đang bị khoá vì vượt hạn mức - thu hồi bớt tệp cũ hoặc nạp thêm để mở lại.
                 </p>
               )}
 

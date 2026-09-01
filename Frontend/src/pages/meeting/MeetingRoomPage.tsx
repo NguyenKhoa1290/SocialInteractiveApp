@@ -206,9 +206,9 @@ export function MeetingRoomPage() {
     // ra thang phong hop, khong biet co link nao ton tai - luong "ba cu bam"
     // chet ngay o day.
     if (initialToken?.linkDaChep) {
-      setNotice("Đã chép link mời vào clipboard — dán cho người bạn muốn mời là họ vào thẳng.");
+      setNotice("Đã chép link mời vào clipboard - dán cho người bạn muốn mời là họ vào thẳng.");
     } else if (initialToken?.inviteLink) {
-      setNotice("Chưa chép được link tự động — mở “Người tham gia” để lấy link mời.");
+      setNotice("Chưa chép được link tự động - mở “Người tham gia” để lấy link mời.");
     }
     // Chi chay mot lan luc mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,7 +491,7 @@ export function MeetingRoomPage() {
       setNotice(
         name === "NotAllowedError"
           ? `Trình duyệt đang chặn quyền ${device}. Bấm vào biểu tượng khoá trên thanh địa chỉ để cấp quyền.`
-          : `Không mở được ${device} — thiết bị đang bị ứng dụng khác (Zoom/Teams/OBS…) hoặc một tab khác chiếm dụng. Đóng ứng dụng đó rồi thử lại.`,
+          : `Không mở được ${device} - thiết bị đang bị ứng dụng khác (Zoom/Teams/OBS…) hoặc một tab khác chiếm dụng. Đóng ứng dụng đó rồi thử lại.`,
       );
     }
   }
@@ -753,7 +753,7 @@ export function MeetingRoomPage() {
       setNotice("Đã chép link mời.");
     } catch {
       // Trinh duyet tu choi quyen ghi clipboard - hien thang link ra de chep tay.
-      setNotice(`Trình duyệt không cho chép tự động — link mời: ${link}`);
+      setNotice(`Trình duyệt không cho chép tự động - link mời: ${link}`);
     }
   }
 

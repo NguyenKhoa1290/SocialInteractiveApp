@@ -242,7 +242,7 @@ export function IptvPlayer({
 
       if (recoveries > MAX_RECOVERY) {
         setStatus("failed");
-        setMessage("Luồng phát liên tục bị gián đoạn — nguồn có thể đã tắt.");
+        setMessage("Luồng phát liên tục bị gián đoạn - nguồn có thể đã tắt.");
         return;
       }
 

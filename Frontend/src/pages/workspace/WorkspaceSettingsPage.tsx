@@ -100,7 +100,7 @@ export function WorkspaceSettingsPage() {
       <div className="ws-danger-box">
         <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>Xoá nhóm</h2>
         <p>
-          Hành động này xoá <strong>vĩnh viễn</strong> cả nhóm, toàn bộ tin nhắn, file và thành viên —
+          Hành động này xoá <strong>vĩnh viễn</strong> cả nhóm, toàn bộ tin nhắn, file và thành viên -
           không thể hoàn tác.
         </p>
         <button className="ws-btn-danger" onClick={() => setShowDeleteModal(true)}>

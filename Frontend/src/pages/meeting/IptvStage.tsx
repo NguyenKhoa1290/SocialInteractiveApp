@@ -32,7 +32,7 @@ export function IptvStage({ compact = false }: {
           khung sach tron mot mau video. */}
       {status === "idle" && (
         <p className="meet-empty">
-          Đang chờ chọn kênh — mở biểu tượng ứng dụng ở thanh bên phải để chọn.
+          Đang chờ chọn kênh - mở biểu tượng ứng dụng ở thanh bên phải để chọn.
         </p>
       )}
 

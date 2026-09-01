@@ -96,9 +96,9 @@ export function AdminSystemPage() {
             ))}
           </div>
 
-          <h2 className="adm-subtitle">Pod ({res.pods.length}) — xếp theo CPU</h2>
+          <h2 className="adm-subtitle">Pod ({res.pods.length}) - xếp theo CPU</h2>
           <p className="adm-hint">
-            Metrics Server chỉ trả lượng đang dùng, không trả giới hạn — thanh đo là tương quan giữa các
+            Metrics Server chỉ trả lượng đang dùng, không trả giới hạn - thanh đo là tương quan giữa các
             pod, không phải phần trăm hạn mức.
           </p>
           <div className="adm-table-wrap">
@@ -143,7 +143,7 @@ export function AdminSystemPage() {
       <h2 className="adm-subtitle">Mở rộng service</h2>
       <p className="adm-hint">
         Chỉ có tác dụng khi service chạy trong K8s. Ở môi trường dev hiện tại các service chạy bằng
-        Docker Compose nên lệnh này sẽ báo lỗi không tìm thấy deployment — đó là kết quả đúng.
+        Docker Compose nên lệnh này sẽ báo lỗi không tìm thấy deployment - đó là kết quả đúng.
       </p>
       <form onSubmit={handleScale} className="adm-scale-form">
         <select value={target} onChange={(e) => setTarget(e.target.value)} className="adm-input">

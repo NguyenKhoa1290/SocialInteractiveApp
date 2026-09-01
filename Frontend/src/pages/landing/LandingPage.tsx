@@ -116,7 +116,7 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
             Tương tác thông minh
           </h1>
           <p className="lp-hero-sub">
-            Nền tảng tích hợp các dịch vụ trong một, chạy ngay trên website — hãy điền tên và bắt đầu ngay hôm nay
+            Nền tảng tích hợp các dịch vụ trong một, chạy ngay trên website - hãy điền tên và bắt đầu ngay hôm nay
           </p>
 
           <form onSubmit={handleGuest} className="lp-hero-form">

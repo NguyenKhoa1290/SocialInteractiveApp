@@ -116,7 +116,7 @@ export interface IptvChannelList {
   createdAt: string;
   /** Playlist dùng chung do quản trị viên đặt sẵn: ai cũng thấy và xem được. */
   isShared: boolean;
-  /** Người đang gọi có sửa được playlist này không — playlist dùng chung thì
+  /** Người đang gọi có sửa được playlist này không - playlist dùng chung thì
    *  ai cũng thấy nhưng chỉ admin sửa. Không phải thuộc tính cố định của
    *  playlist mà là câu trả lời cho "tôi làm gì được với nó". */
   canEdit: boolean;

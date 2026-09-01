@@ -147,6 +147,9 @@
   border: 2px solid var(--calli-navy-line);
   border-radius: calc(10px * var(--s));
   flex: none;
+  /* La grid item trong .channel-structure - khong co dong nay thi min-width
+     mac dinh la auto, track no ra vua ca ten kenh dai va ellipsis vo tac dung. */
+  min-width: 0;
 }
 
 .ma-row.active {
@@ -392,9 +395,16 @@
 }
 
 
+/* Danh sach kenh cua mot playlist con. Chi co MOT cot, nhung phai ghi ro
+   minmax(0, 1fr): mac dinh cot grid la auto va se nong ra vua ten kenh dai
+   nhat, keo ca cot ba tran ngang. Khoa ve 1fr thi hang kenh bi ep trong be
+   rong cot va ellipsis o .ma-row-main moi cat bot ten dai. Trong cuoc hop danh
+   sach kenh dung lop .mpop-* rieng, khong dung day, nen van hien day du. */
 .channel-structure{
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
 }
 /* AppShell dat padding 24px cho noi dung - man ba panel phai tran vien va cao
    dung bang man hinh, giong man chat (xem .shell-main:has(.cw)). */

@@ -101,7 +101,7 @@ export function DeviceGate({ children }: { children: ReactNode }) {
           gia cuộc họp.
         </p>
         <p className="dgate-phu">
-          Bật “Trang cho máy tính” trong trình duyệt cũng chưa dùng được — giao diện vẫn cần một màn hình
+          Bật “Trang cho máy tính” trong trình duyệt cũng chưa dùng được - giao diện vẫn cần một màn hình
           rộng thật sự.
         </p>
       </ManBao>
@@ -117,7 +117,7 @@ export function DeviceGate({ children }: { children: ReactNode }) {
             duyệt là lời nhắc này tự biến mất.
           </p>
           <p className="dgate-phu">
-            Đang rộng {rong}px — thiếu {RONG_TOI_THIEU - rong}px.
+            Đang rộng {rong}px - thiếu {RONG_TOI_THIEU - rong}px.
           </p>
         </ManBao>
       )}

@@ -87,7 +87,7 @@ function quetDash(url: string): Promise<KetQuaQuet> {
           xong = true;
           clearTimeout(hen);
           player.destroy();
-          tuChoi(new Error("Không đọc được luồng — nguồn có thể chặn hoặc đã chết."));
+          tuChoi(new Error("Không đọc được luồng - nguồn có thể chặn hoặc đã chết."));
         });
 
         player.initialize(the, url, false);
@@ -137,7 +137,7 @@ function quetHls(url: string): Promise<KetQuaQuet> {
       if (!data.fatal) return;
       clearTimeout(hen);
       hls.destroy();
-      tuChoi(new Error("Không đọc được luồng — nguồn có thể chặn hoặc đã chết."));
+      tuChoi(new Error("Không đọc được luồng - nguồn có thể chặn hoặc đã chết."));
     });
 
     hls.loadSource(url);
@@ -336,7 +336,7 @@ export function IptvChannelPicker({
 
       {quet && quet.mucChatLuong.length === 0 && quet.luongAmThanh.length === 0 && (
         <p className="mpop-ghi-chu">
-          Luồng này chỉ có một mức chất lượng và một luồng tiếng — không có gì để chọn. Link .flv và
+          Luồng này chỉ có một mức chất lượng và một luồng tiếng - không có gì để chọn. Link .flv và
           .ts luôn như vậy.
         </p>
       )}
@@ -365,7 +365,7 @@ export function IptvChannelPicker({
           style={{ ["--phan" as string]: `${tuyChon.amLuong * 100}%` }}
         />
       </div>
-      <p className="mpop-ghi-chu">Chỉ đổi ở máy bạn — người khác trong phòng không bị ảnh hưởng.</p>
+      <p className="mpop-ghi-chu">Chỉ đổi ở máy bạn - người khác trong phòng không bị ảnh hưởng.</p>
     </div>
   );
 
@@ -462,7 +462,7 @@ export function IptvChannelPicker({
                     <input
                       className="mpop-o-nhap"
                       name="url"
-                      placeholder="https://…/stream.m3u8 — hoặc .mpd, .flv, .ts"
+                      placeholder="https://…/stream.m3u8 - hoặc .mpd, .flv, .ts"
                     />
                     <button type="submit" className="mpop-pill mpop-pill-teal">
                       Lưu

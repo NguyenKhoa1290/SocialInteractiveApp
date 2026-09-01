@@ -61,7 +61,7 @@ export function AdminComplaintsPage() {
   return (
     <AdminShell title="Khiếu nại">
       <p className="adm-hint">
-        Khiếu nại được giữ trong Redis với TTL 10 tiếng — quá hạn sẽ tự biến mất, không lưu vĩnh viễn.
+        Khiếu nại được giữ trong Redis với TTL 10 tiếng - quá hạn sẽ tự biến mất, không lưu vĩnh viễn.
       </p>
 
       {error && <p className="adm-error">{error}</p>}

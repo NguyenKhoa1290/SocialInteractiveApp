@@ -43,7 +43,7 @@ export function AdminStoragePage() {
   return (
     <AdminShell title="Duyệt nạp dung lượng">
       <p className="adm-hint">
-        Trưởng nhóm không tự cộng dung lượng được — họ gửi yêu cầu, Admin xác nhận đã nhận tiền ở đây.
+        Trưởng nhóm không tự cộng dung lượng được - họ gửi yêu cầu, Admin xác nhận đã nhận tiền ở đây.
         Duyệt xong nhóm mới được nâng hạn mức và mở khoá.
       </p>
 

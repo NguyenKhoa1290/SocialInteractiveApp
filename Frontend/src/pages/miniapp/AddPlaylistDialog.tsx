@@ -45,7 +45,7 @@ export function AddPlaylistDialog({
         try {
           const { data: kq } = await iptvApi.importPlaylist(data.id, link.trim(), tuTachNhom);
           if (!kq.isPlaylist) {
-            setGhiChu("Link này là một luồng đơn, không phải danh sách kênh — hãy thêm nó như một kênh.");
+            setGhiChu("Link này là một luồng đơn, không phải danh sách kênh - hãy thêm nó như một kênh.");
             setDangLam(false);
             return;
           }
@@ -54,7 +54,7 @@ export function AddPlaylistDialog({
           // trước khi hỏng. Đóng lại rồi im lặng là nói dối: người dùng thấy
           // báo lỗi nhưng mở ra vẫn có cả danh sách kênh. Mở thẳng playlist
           // đó ra kèm lời giải thích.
-          onCreated(data.id, extractApiError(err, "Không nhập được hết playlist — hãy kiểm tra lại danh sách kênh."));
+          onCreated(data.id, extractApiError(err, "Không nhập được hết playlist - hãy kiểm tra lại danh sách kênh."));
           return;
         }
       }
@@ -99,7 +99,7 @@ export function AddPlaylistDialog({
             className="ma-input ma-input-lg"
             value={link}
             onChange={(e) => setLink(e.target.value)}
-            placeholder="https://… (.m3u / .m3u8) — để trống nếu muốn tự thêm kênh"
+            placeholder="https://… (.m3u / .m3u8) - để trống nếu muốn tự thêm kênh"
           />
         </label>
 

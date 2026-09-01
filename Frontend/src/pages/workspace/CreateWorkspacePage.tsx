@@ -51,7 +51,7 @@ export function CreateWorkspacePage() {
           await workspaceApi.uploadAvatar(data.id, anh.blob);
         } catch (err) {
           setDaTao(data.id);
-          setError(extractApiError(err, "Đã tạo nhóm nhưng chưa đặt được ảnh — vào nhóm rồi bấm dấu + để thử lại."));
+          setError(extractApiError(err, "Đã tạo nhóm nhưng chưa đặt được ảnh - vào nhóm rồi bấm dấu + để thử lại."));
           return;
         }
       }

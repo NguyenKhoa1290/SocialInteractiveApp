@@ -279,7 +279,7 @@ export function MiniAppPage() {
           {chon !== null && (
             <>
               {chon.isShared && !chon.canEdit && (
-                <p className="ma-note">Playlist dùng chung của quản trị viên — bạn xem được nhưng không sửa.</p>
+                <p className="ma-note">Playlist dùng chung của quản trị viên - bạn xem được nhưng không sửa.</p>
               )}
               {chon.canEdit && (
                 <div className="ma-section ma-section-row">
@@ -368,7 +368,7 @@ export function MiniAppPage() {
 
                   {g.channels.map((c) => (
                     <div key={c.id} className="ma-row">
-                      <span className="ma-row-main ma-row-static" title={c.streamUrl}>
+                      <span className="ma-row-main ma-row-static" title={c.channelName}>
                         {c.channelName}
                       </span>
                       {chon.canEdit && (

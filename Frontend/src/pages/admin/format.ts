@@ -2,7 +2,7 @@
 
 export function formatDateTime(iso: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -15,7 +15,7 @@ export function formatDateTime(iso: string): string {
 // Con bao lau nua thi het han (khieu nai song 10 tieng trong Redis).
 export function formatRemaining(expiresAtIso: string): string {
   const ms = new Date(expiresAtIso).getTime() - Date.now();
-  if (Number.isNaN(ms)) return "—";
+  if (Number.isNaN(ms)) return "-";
   if (ms <= 0) return "đã hết hạn";
   const hours = Math.floor(ms / 3_600_000);
   const minutes = Math.floor((ms % 3_600_000) / 60_000);

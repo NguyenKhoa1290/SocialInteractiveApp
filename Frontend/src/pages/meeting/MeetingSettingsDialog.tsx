@@ -193,7 +193,7 @@ export function MeetingSettingsDialog({
             style={{ ["--phan" as string]: `${(amLuong / 500) * 100}%` }}
           />
         </div>
-        <p className="mpop-ghi-chu">Đang đặt {amLuong}%. Trên 100% là khuếch đại — to quá dễ rè.</p>
+        <p className="mpop-ghi-chu">Đang đặt {amLuong}%. Trên 100% là khuếch đại - to quá dễ rè.</p>
       </div>
     </MeetingPopup>
   );

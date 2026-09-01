@@ -137,7 +137,7 @@ export function JoinMeetingPage() {
             </>
           ) : (
             <form className="meet-join-form" onSubmit={handleGuestJoin}>
-              <p className="meet-note">Bạn chưa đăng nhập — chỉ cần cho biết tên hiển thị trong phòng họp.</p>
+              <p className="meet-note">Bạn chưa đăng nhập - chỉ cần cho biết tên hiển thị trong phòng họp.</p>
               <input
                 placeholder="Tên của bạn"
                 value={guestNickname}

@@ -142,7 +142,7 @@ export function AdminUsersPage() {
                       {u.nickname}
                       {u.isAdmin && <span className="adm-badge adm-badge-admin">Admin</span>}
                     </td>
-                    <td className="adm-muted">{u.email ?? "—"}</td>
+                    <td className="adm-muted">{u.email ?? "-"}</td>
                     <td>{u.userType === "guest" ? "Khách" : "Đã đăng ký"}</td>
                     <td>
                       <span className={`adm-badge ${u.status === "locked" ? "adm-badge-locked" : "adm-badge-active"}`}>
@@ -198,7 +198,7 @@ export function AdminUsersPage() {
 
           <dl className="adm-kv">
             <dt>Email</dt>
-            <dd>{selected.email ?? "—"}</dd>
+            <dd>{selected.email ?? "-"}</dd>
             <dt>Loại tài khoản</dt>
             <dd>{selected.userType === "guest" ? "Khách vãng lai" : "Đã đăng ký"}</dd>
             <dt>Trạng thái</dt>
@@ -242,7 +242,7 @@ export function AdminUsersPage() {
             </button>
           </div>
           <p className="adm-hint">
-            Không xoá được nếu tài khoản còn khiếu nại chưa xử lý — xử lý ở mục Khiếu nại trước.
+            Không xoá được nếu tài khoản còn khiếu nại chưa xử lý - xử lý ở mục Khiếu nại trước.
           </p>
         </section>
       )}

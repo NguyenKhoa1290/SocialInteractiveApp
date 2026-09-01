@@ -38,7 +38,7 @@ export async function setupVault(pin: string, allowOverwrite = false): Promise<v
   if (!allowOverwrite) {
     const trangThai = await vaultState();
     if (trangThai === "yes") {
-      throw new Error("Tài khoản này đã có mật khẩu mã hoá — hãy nhập mật khẩu cũ, đừng đặt lại.");
+      throw new Error("Tài khoản này đã có mật khẩu mã hoá - hãy nhập mật khẩu cũ, đừng đặt lại.");
     }
     if (trangThai === "unknown") {
       throw new Error("Không kiểm tra được trạng thái mã hoá, thử lại khi mạng ổn định.");

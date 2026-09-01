@@ -31,7 +31,7 @@ export function MeetingAppsDialog({
 
       {!moDuoc && (
         <p className="mpop-ghi-chu">
-          Chủ phòng chưa cho phép thành viên khởi tạo ứng dụng — bật ở Quản lý thành viên → Cài đặt.
+          Chủ phòng chưa cho phép thành viên khởi tạo ứng dụng - bật ở Quản lý thành viên → Cài đặt.
         </p>
       )}
     </MeetingPopup>
