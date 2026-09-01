@@ -3,6 +3,7 @@ import Hls from "hls.js";
 import { iptvApi } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
 import { MeetingPopup } from "./MeetingPopup";
+import { useIptvSlot } from "./IptvPlayerHost";
 import { AddPlaylistDialog } from "../miniapp/AddPlaylistDialog";
 import { useAuthStore } from "../../store/authStore";
 import { decodeJwtIsAdmin } from "../../lib/jwt";
@@ -17,6 +18,11 @@ import type { TuyChonPhat } from "./IptvPlayer";
 //   140:465  Cai dat trong luc phat (Dung phat / Chuyen kenh / Phat lai)
 //
 // Bon frame la BON BUOC cua mot popup, khong phai bon popup.
+//
+// MOT nut Mini App o thanh ben phai mo ra HAI popup khac nhau:
+//   - chua phat gi  -> "Danh sach app" (MeetingAppsDialog), roi vao buoc 1
+//   - dang phat IPTV -> nhay THANG vao buoc "dangphat" (frame 149:1321)
+// Cho re nam o moPanel("app") trong MeetingRoomPage.
 
 type Buoc = "playlist" | "kenh" | "tuychinh" | "dangphat";
 
@@ -74,6 +80,7 @@ function quetLuong(url: string): Promise<KetQuaQuet> {
 export function IptvChannelPicker({
   meetingId,
   dangPhat,
+  dieuKhienDuoc,
   tuyChon,
   onPick,
   onDungPhat,
@@ -84,6 +91,10 @@ export function IptvChannelPicker({
   meetingId: number;
   // Ten kenh dang chieu cho ca phong, null = chua phat gi.
   dangPhat: string | null;
+  // Nguoi dang trinh bay (hoac chu phong) moi duoc dung phat / doi kenh cho
+  // ca phong. Nguoi xem van mo duoc popup nay - do phan giai, luong tieng va
+  // am luong deu la lua chon CUC BO cua tung may.
+  dieuKhienDuoc: boolean;
   tuyChon: TuyChonPhat;
   onPick: (channelId: number, channelName: string) => void;
   onDungPhat: () => void;
@@ -96,6 +107,10 @@ export function IptvChannelPicker({
   // User.IsAdmin - xem lib/jwt.ts.
   const accessToken = useAuthStore((x) => x.accessToken);
   const laAdmin = accessToken !== null && decodeJwtIsAdmin(accessToken);
+
+  // Luong DANG phat, de "Quet thong tin" chay duoc ca khi popup mo thang
+  // vao buoc "dangphat" (luc do chua di qua buoc chon kenh nen kenhChon rong).
+  const slot = useIptvSlot();
 
   const [buoc, setBuoc] = useState<Buoc>(dangPhat ? "dangphat" : "playlist");
   const [lists, setLists] = useState<IptvChannelList[]>([]);
@@ -146,12 +161,13 @@ export function IptvChannelPicker({
   }
 
   async function bamQuet() {
-    if (!kenhChon) return;
     setDangQuet(true);
     setLoiQuet(null);
     try {
-      let url = kenhChon.url;
-      if (!url && kenhChon.id !== null) {
+      // Mo popup THANG vao buoc dang phat thi khong co kenhChon - lay luon
+      // link ma trinh phat dang chay.
+      let url = kenhChon ? kenhChon.url : (slot?.streamUrl ?? null);
+      if (!url && kenhChon && kenhChon.id !== null) {
         // Lay URL da ky cua kenh - cung duong ma trinh phat dung.
         const res = await iptvApi.getStreamUrl(meetingId, kenhChon.id);
         url = res.data.streamUrl;
@@ -261,6 +277,32 @@ export function IptvChannelPicker({
         placeholder="Điền mã — dạng kid:key, cả hai là chuỗi hex 32 ký tự"
       />
     </>
+  );
+
+  // Thanh am luong: truoc kia nam ngay duoi khung chieu, gio o day vi khung
+  // chieu chi con video. Am luong la cua RIENG may nay, khong doi cho ca
+  // phong - dung nhu do phan giai va luong tieng ngay tren.
+  const thanhAmLuong = (
+    <div className="mpop-muc">
+      <p className="mpop-nhan-nho">
+        <b>Âm lượng</b>
+      </p>
+      <div className="mpop-truot">
+        <span className="mpop-truot-moc">0%</span>
+        <span className="mpop-truot-moc mpop-truot-moc-phai">100%</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.02}
+          value={tuyChon.amLuong}
+          onChange={(e) => onDoiTuyChon({ ...tuyChon, amLuong: Number(e.target.value) })}
+          aria-label="Âm lượng kênh đang phát"
+          style={{ ["--phan" as string]: `${tuyChon.amLuong * 100}%` }}
+        />
+      </div>
+      <p className="mpop-ghi-chu">Chỉ đổi ở máy bạn — người khác trong phòng không bị ảnh hưởng.</p>
+    </div>
   );
 
   return (
@@ -398,17 +440,27 @@ export function IptvChannelPicker({
         {buoc === "dangphat" && (
           <>
             {khoiTuyChinh}
+            {thanhAmLuong}
             <div className="mpop-hang-nut">
-              <button type="button" className="mpop-pill mpop-pill-do" onClick={onDungPhat}>
-                Dừng phát
-              </button>
-              <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => setBuoc("playlist")}>
-                Chuyển kênh
-              </button>
+              {dieuKhienDuoc && (
+                <>
+                  <button type="button" className="mpop-pill mpop-pill-do" onClick={onDungPhat}>
+                    Dừng phát
+                  </button>
+                  <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => setBuoc("playlist")}>
+                    Chuyển kênh
+                  </button>
+                </>
+              )}
               <button type="button" className="mpop-pill mpop-pill-teal" onClick={onPhatLai}>
                 Phát lại
               </button>
             </div>
+            {!dieuKhienDuoc && (
+              <p className="mpop-ghi-chu">
+                Người đang trình bày mới đổi hoặc dừng được kênh. Những mục ở trên là của riêng máy bạn.
+              </p>
+            )}
           </>
         )}
       </MeetingPopup>

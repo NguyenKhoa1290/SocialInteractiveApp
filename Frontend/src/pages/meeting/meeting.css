@@ -145,19 +145,6 @@
   min-height: 0;
 }
 
-.meet-app-stage .iptv-player-controls {
-  flex: none;
-}
-
-/* Dau khung app (ten kenh + nut doi kenh) khong duoc an cho cua video. */
-.meet-app-stage > .meet-side-head {
-  flex: none;
-}
-
-.meet-app-stage > .meet-side-head h3 {
-  font-size: calc(20px * var(--s));
-}
-
 /* Chon camera/micro/loa ngay trong cuoc hop. */
 .meet-devices {
   position: relative;
@@ -259,13 +246,6 @@
   border-radius: 8px;
 }
 
-.meet-side-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-height: 3%;
-}
-
 .meet-side h3 {
   margin: 0;
   font-size: 15px;
@@ -299,19 +279,6 @@
   border-radius: 6px;
   background: #22262d;
   font-size: 14px;
-}
-
-/* Thanh am luong cua tung nguoi (UC-34 1d) - chi anh huong phia minh. */
-.meet-volume {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.meet-volume input {
-  flex: 1;
-  accent-color: #60a5fa;
 }
 
 .meet-people-actions {
@@ -452,13 +419,6 @@
   gap: 8px;
 }
 
-.iptv-player-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-}
-
 /* O nhan trinh phat va the giu no deu la PASS-THROUGH: trinh phat duoc
    IptvPlayerHost chuyen qua lai giua khung trinh bay va o luoi bang
    appendChild, nen hai the boc nay khong duoc them mot tang layout nao -
@@ -502,25 +462,6 @@
   background: #3a1c1c;
   color: #e9ecef;
   cursor: pointer;
-  font-size: 13px;
-}
-
-.iptv-player-reload {
-  padding: 4px 10px;
-  border: 1px solid #3a3f47;
-  border-radius: 6px;
-  background: #22262d;
-  color: #e9ecef;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.iptv-player-controls select {
-  padding: 4px 8px;
-  border: 1px solid #3a3f47;
-  border-radius: 6px;
-  background: #22262d;
-  color: #e9ecef;
   font-size: 13px;
 }
 
@@ -749,21 +690,6 @@
   gap: 6px;
   overflow: hidden;
   justify-content: center;
-}
-
-.meet-app-compact .meet-side-head h3 {
-  font-size: 12px;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Trong o nho khong con cho cho thanh am luong/chon tieng - trinh phat co
-   san controls cua trinh duyet la du. Nguoi muon chinh thi chuyen ve khung
-   trinh bay. */
-.meet-app-compact .iptv-player-controls {
-  display: none;
 }
 
 .meet-app-compact .meet-iptv-video,

@@ -1066,12 +1066,7 @@ export function MeetingRoomPage() {
     if (t.kind === "iptv")
       return (
         <div key={t.key} className="meet-tile meet-tile-app">
-          <IptvStage
-            channelName={presentation?.channelName ?? null}
-            canPick={presentation?.userId === currentUserId}
-            onOpenPicker={() => setShowIptvPicker(true)}
-            compact
-          />
+          <IptvStage compact />
         </div>
       );
 
@@ -1131,11 +1126,19 @@ export function MeetingRoomPage() {
         }
       : null;
 
+  // Mot nut Mini App, HAI popup - tuy dang co app chay hay khong:
+  //   chua chay -> "Danh sach app" de chon app ma khoi tao
+  //   dang chay -> thang vao trang dieu khien cua app do (Figma 149:1321),
+  //                khong bat nguoi dung di lai qua danh sach app moi lan chi
+  //                muon keo am luong hay doi do phan giai.
+  const dangChayMiniApp = presentation?.kind === "mini_app";
+
   function moPanel(ten: "chat" | "nguoi" | "caidat" | "app") {
     setShowDiscussion(ten === "chat" ? !showDiscussion : false);
     setShowPeople(ten === "nguoi" ? !showPeople : false);
     setShowSettings(ten === "caidat" ? !showSettings : false);
-    setShowApps(ten === "app" ? !showApps : false);
+    setShowApps(ten === "app" && !dangChayMiniApp ? !showApps : false);
+    setShowIptvPicker(ten === "app" && dangChayMiniApp ? !showIptvPicker : false);
   }
 
   const pager = totalPages > 1 && (
@@ -1281,11 +1284,7 @@ export function MeetingRoomPage() {
 
                 {showAppStage && (
                   <div className="meet-stage meet-stage-app">
-                    <IptvStage
-                      channelName={presentation?.channelName ?? null}
-                      canPick={presentation?.userId === currentUserId}
-                      onOpenPicker={() => setShowIptvPicker(true)}
-                    />
+                    <IptvStage />
                   </div>
                 )}
 
@@ -1306,10 +1305,15 @@ export function MeetingRoomPage() {
         </div>
       )}
 
-      {showIptvPicker && canUseMiniApp && (
+      {/* Nguoi XEM cung mo duoc popup nay khi dang co app chay: do phan giai,
+          luong tieng va am luong deu la lua chon cua rieng may ho. Chi rieng
+          "Dung phat"/"Chuyen kenh" moi doi hoi dang trinh bay - xem
+          dieuKhienDuoc. */}
+      {showIptvPicker && (canUseMiniApp || dangChayMiniApp) && (
         <IptvChannelPicker
           meetingId={meetingId}
-          dangPhat={presentation?.kind === "mini_app" ? (presentation.channelName ?? null) : null}
+          dangPhat={dangChayMiniApp ? (presentation?.channelName ?? null) : null}
+          dieuKhienDuoc={presentation?.userId === currentUserId || isHost}
           tuyChon={tuyChonPhat}
           onDoiTuyChon={setTuyChonPhat}
           onPick={handlePickChannel}
@@ -1395,7 +1399,7 @@ export function MeetingRoomPage() {
             chi cho o dau ma bat. An nut di thi nguoi dung chi thay mot cho
             trong va khong biet minh dang thieu gi. */}
         <button
-          className={`mroom-btn${showApps ? " mroom-btn-bat" : ""}`}
+          className={`mroom-btn${showApps || showIptvPicker ? " mroom-btn-bat" : ""}`}
           onClick={() => moPanel("app")}
           title="Ứng dụng trong cuộc họp"
         >

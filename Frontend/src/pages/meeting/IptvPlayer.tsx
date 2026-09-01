@@ -53,9 +53,18 @@ export type TuyChonPhat = {
   luongAmThanh: number;
   // Dang "kid:key", ca hai la chuoi hex 32 ky tu.
   khoaClearKey: string;
+  // Am luong the <video>, 0..1. Nam o day chu khong phai state trong
+  // IptvPlayer vi thanh keo da chuyen sang popup Mini App - khung trinh chieu
+  // gio CHI con video.
+  amLuong: number;
 };
 
-export const TUY_CHON_MAC_DINH: TuyChonPhat = { mucChatLuong: -1, luongAmThanh: -1, khoaClearKey: "" };
+export const TUY_CHON_MAC_DINH: TuyChonPhat = {
+  mucChatLuong: -1,
+  luongAmThanh: -1,
+  khoaClearKey: "",
+  amLuong: 1,
+};
 
 // Doi mot cap kid:key hex thanh mot "giay phep" ClearKey (JWK Set) nhung
 // duoi dang data: URL, de hls.js coi no nhu mot may chu cap phep.
@@ -103,9 +112,6 @@ export function IptvPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  const [audioTracks, setAudioTracks] = useState<AudioOption[]>([]);
-  const [currentAudio, setCurrentAudio] = useState<number | null>(null);
-  const [volume, setVolume] = useState(1);
   const [status, setStatus] = useState<PlayerStatus>("loading");
   const [message, setMessage] = useState<string | null>(null);
   // Tang len de dung han trinh phat cu va dung lai tu dau.
@@ -114,8 +120,18 @@ export function IptvPlayer({
   // Tieng nguoi xem DA TU CHON, nho theo TEN. Nam trong ref chu khong phai
   // state vi no phai song sot qua ca nhung lan dung lai tu dau.
   const chosenAudioRef = useRef<string | null>(null);
+  // Con so nguoi xem chon o popup, de biet khi nao no VUA doi - luc do moi
+  // ghi lai ten track tuong ung. Xem applyTracks ben duoi.
+  const soDaChonRef = useRef(-1);
   const preferredRef = useRef<string | null | undefined>(preferredAudioTrack);
   preferredRef.current = preferredAudioTrack;
+
+  // Doi KENH la quen lua chon tieng cu: chi so trong tuyChon la chi so cua
+  // danh sach track thuoc kenh TRUOC. Nap lai cung mot kenh thi van nho.
+  useEffect(() => {
+    soDaChonRef.current = -1;
+    chosenAudioRef.current = null;
+  }, [src]);
 
   const reload = useCallback(() => setGeneration((g) => g + 1), []);
 
@@ -125,8 +141,6 @@ export function IptvPlayer({
 
     setStatus("loading");
     setMessage(null);
-    setAudioTracks([]);
-    setCurrentAudio(null);
 
     let dead = false;
     let healthy = false;
@@ -241,27 +255,29 @@ export function IptvPlayer({
           name: t.name || t.lang || "Tiếng " + (i + 1),
           lang: t.lang ?? "",
         }));
-        setAudioTracks(tracks);
         if (tracks.length === 0) return;
 
         // Nguoi trinh bay da chon THANG mot luong o buoc "Tuy chinh kenh" thi
         // theo dung so do - luc do da nhin danh sach that roi, khong phai doan
         // theo ten nua.
         const soDaChon = tuyChon?.luongAmThanh ?? -1;
-        if (soDaChon >= 0 && soDaChon < tracks.length) {
-          if (hls.audioTrack !== soDaChon) hls.audioTrack = soDaChon;
-          setCurrentAudio(soDaChon);
+        if (soDaChon >= 0) {
+          // Con so chi dung DUNG LUC nguoi xem chon. Tu do ve sau nho theo
+          // TEN: qua mot lan nap lai, hoac khi nguon doi danh sach giua chung,
+          // chi so cu co the tro sang mot track khac han.
+          if (soDaChonRef.current !== soDaChon) {
+            soDaChonRef.current = soDaChon;
+            chosenAudioRef.current = tracks[soDaChon]?.name ?? null;
+          }
+          const dich = pickTrack(tracks, chosenAudioRef.current);
+          const so = dich ? dich.index : soDaChon < tracks.length ? soDaChon : -1;
+          if (so >= 0 && hls.audioTrack !== so) hls.audioTrack = so;
           return;
         }
 
-        // Uu tien lua chon cua chinh nguoi xem, sau moi den goi y trong DB.
-        // Khong khop ca hai thi giu track mac dinh cua luong.
-        const want = pickTrack(tracks, chosenAudioRef.current) ?? pickTrack(tracks, preferredRef.current);
+        // Chua chon gi thi theo goi y trong DB do nguoi tao kenh nhap.
+        const want = pickTrack(tracks, preferredRef.current);
         if (want && hls.audioTrack !== want.index) hls.audioTrack = want.index;
-        // hls.audioTrack la -1 khi luong chua chot track nao - dung de lot vao
-        // <select> vi khong option nao khop, o chon se thanh trong.
-        const index = want ? want.index : hls.audioTrack;
-        setCurrentAudio(index >= 0 ? index : null);
       };
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -275,9 +291,6 @@ export function IptvPlayer({
       // (vd tran bong co them binh luan tieng Viet o hiep hai), nen phai gan
       // lai moi lan chu khong chi doc mot lan luc bat dau.
       hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, applyTracks);
-      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () =>
-        setCurrentAudio(hls.audioTrack >= 0 ? hls.audioTrack : null),
-      );
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
         // hls.js tu retry duoc rat nhieu loi tam thoi - chi vao cuoc khi no
@@ -361,9 +374,16 @@ export function IptvPlayer({
     if (tieng >= 0 && hls.audioTrack !== tieng) hls.audioTrack = tieng;
   }, [tuyChon?.mucChatLuong, tuyChon?.luongAmThanh]);
 
+  // Am luong den tu popup Mini App (IptvChannelPicker), khong con thanh keo
+  // nao trong khung trinh chieu.
+  //
+  // CHI chay khi con so trong popup doi - co y khong gan lai theo src hay
+  // generation. The <video> song suot ca phien (xem IptvPlayerHost) nen no tu
+  // giu am luong qua moi lan doi kenh/nap lai; gan lai o day chi to bat nguoc
+  // lai nguoi vua keo thanh am luong SAN CO cua trinh duyet.
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = volume;
-  }, [volume]);
+    if (videoRef.current) videoRef.current.volume = tuyChon?.amLuong ?? 1;
+  }, [tuyChon?.amLuong]);
 
   return (
     <div className="iptv-player">
@@ -375,46 +395,6 @@ export function IptvPlayer({
             {status === "failed" && <button onClick={reload}>Thử lại</button>}
           </div>
         )}
-      </div>
-
-      <div className="iptv-player-controls">
-        <label className="meet-volume">
-          🔊 Âm lượng
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-          />
-        </label>
-
-        {audioTracks.length > 1 && (
-          <label className="meet-volume">
-            🎧 Tiếng
-            <select
-              value={currentAudio ?? 0}
-              onChange={(e) => {
-                const index = Number(e.target.value);
-                // Nho theo TEN: sau mot lan nap lai chi so co the khac.
-                chosenAudioRef.current = audioTracks.find((t) => t.index === index)?.name ?? null;
-                if (hlsRef.current) hlsRef.current.audioTrack = index;
-                setCurrentAudio(index);
-              }}
-            >
-              {audioTracks.map((t) => (
-                <option key={t.index} value={t.index}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        <button className="iptv-player-reload" onClick={reload}>
-          Tải lại luồng
-        </button>
       </div>
     </div>
   );
