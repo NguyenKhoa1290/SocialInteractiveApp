@@ -1224,6 +1224,7 @@ export function MeetingRoomPage() {
       meetingId={meetingId}
       channelId={presentation?.kind === "mini_app" ? (presentation.channelId ?? null) : null}
       channelUrl={presentation?.kind === "mini_app" ? (presentation.channelUrl ?? null) : null}
+      channelName={presentation?.kind === "mini_app" ? (presentation.channelName ?? null) : null}
       tuyChon={tuyChonPhat}
     >
     <div className="mroom">

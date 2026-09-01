@@ -55,6 +55,7 @@ export function IptvPlayerHost({
   meetingId,
   channelId,
   channelUrl,
+  channelName,
   tuyChon,
   children,
 }: {
@@ -64,6 +65,8 @@ export function IptvPlayerHost({
   // Link dan thang - da di kem trong trang thai trinh bay nen khong phai goi
   // API doi ra URL. Co gia tri thi dung luon, bo qua channelId.
   channelUrl: string | null;
+  // Ten kenh dang chieu - dung lam nhan cho "Mau file am thanh dang phat".
+  channelName?: string | null;
   // Lua chon phat cua may nay (do phan giai, luong tieng, khoa giai ma).
   tuyChon?: TuyChonPhat;
   children: ReactNode;
@@ -163,7 +166,7 @@ export function IptvPlayerHost({
       {children}
       {streamUrl &&
         createPortal(
-          <IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} tuyChon={tuyChon} />,
+          <IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} tenKenh={channelName} tuyChon={tuyChon} />,
           holderRef.current,
         )}
     </IptvSlotContext.Provider>

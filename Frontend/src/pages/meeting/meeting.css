@@ -475,6 +475,87 @@
   background: #000;
 }
 
+/* "Mau file am thanh dang phat" (Figma 154:2): luong chi co tieng, thay o
+   video den bang mot khung nghe sang. Video den bi phu kin nen dat nen sang o
+   khung bao ngoai luon. */
+.iptv-frame-audio {
+  background: #dbe6e6;
+  border-radius: calc(13px * var(--s));
+}
+
+.iptv-audio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(20px * var(--s));
+  box-sizing: border-box;
+}
+
+/* Card 442x92: nut tron trai + ten file. Nen #F4F8F9 bo 20 vien 2px #293546. */
+.iptv-audio-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(442px * var(--s));
+  min-height: calc(92px * var(--s));
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--s));
+  padding: calc(12px * var(--s)) calc(20px * var(--s)) calc(12px * var(--s)) calc(12px * var(--s));
+  background: #f4f8f9;
+  border: 2px solid #293546;
+  border-radius: calc(20px * var(--s));
+}
+
+/* Nut tron 60px teal, icon trang. */
+.iptv-audio-btn {
+  flex: none;
+  width: calc(60px * var(--s));
+  height: calc(60px * var(--s));
+  border: 0;
+  border-radius: 50%;
+  background: #85aeb0;
+  color: #f4f8f9;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.iptv-audio-btn:hover {
+  filter: brightness(1.06);
+}
+
+.iptv-audio-btn svg {
+  width: calc(30px * var(--s));
+  height: calc(30px * var(--s));
+}
+
+.iptv-audio-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sans);
+  font-size: calc(24px * var(--s));
+  font-weight: 500;
+  color: #293546;
+}
+
+/* Trong o luoi thu nho: gon card lai cho vua. */
+.meet-app-compact .iptv-audio { padding: calc(10px * var(--s)); }
+.meet-app-compact .iptv-audio-card {
+  min-height: 0;
+  gap: calc(10px * var(--s));
+  padding: calc(8px * var(--s)) calc(12px * var(--s)) calc(8px * var(--s)) calc(8px * var(--s));
+  border-radius: calc(14px * var(--s));
+}
+.meet-app-compact .iptv-audio-btn { width: calc(40px * var(--s)); height: calc(40px * var(--s)); }
+.meet-app-compact .iptv-audio-btn svg { width: calc(20px * var(--s)); height: calc(20px * var(--s)); }
+.meet-app-compact .iptv-audio-name { font-size: calc(15px * var(--s)); }
+
 /* IptvManagePage nam trong AppShell (nen sang) - khong dung mau toi cua
    phong hop, chi muon lai cac lop form/danh sach. */
 .shell-main .meet-people li,

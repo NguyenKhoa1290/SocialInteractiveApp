@@ -83,7 +83,13 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
 // Hai thu vien sau NAP DONG. Cong lai chung nang gan 700KB roi, ma phan lon
 // phong hop chi phat HLS - de tinh vao goi chinh thi ai cung phai tai ve mot
 // thu chin phan muoi khong dung toi. Vite tach chung thanh chunk rieng.
-export type LoaiLuong = "hls" | "dash" | "flv" | "ts";
+//   .mp3/.aac/... AUDIO  <video> native - file/luong am thanh phat THANG,
+//                        khong can thu vien nao. Khung chieu hien "Mau file
+//                        am thanh dang phat" thay cho o hinh den.
+export type LoaiLuong = "hls" | "dash" | "flv" | "ts" | "audio";
+
+// Duoi tep am thanh trinh duyet phat thang duoc bang the <video>/<audio>.
+const DUOI_AM_THANH = ["mp3", "aac", "m4a", "ogg", "oga", "opus", "wav", "flac", "weba", "mp2", "mpa"];
 
 export function doanLoaiLuong(url: string): LoaiLuong {
   // Cat query va fragment TRUOC khi nhin duoi tep: rat nhieu link IPTV co
@@ -101,6 +107,10 @@ export function doanLoaiLuong(url: string): LoaiLuong {
   if (duong.endsWith(".mpd")) return "dash";
   if (duong.endsWith(".ts") || duong.endsWith(".m2ts") || duong.endsWith(".mts")) return "ts";
   if (duong.endsWith(".m3u8") || duong.endsWith(".m3u")) return "hls";
+  {
+    const duoi = duong.split(".").pop() ?? "";
+    if (DUOI_AM_THANH.includes(duoi)) return "audio";
+  }
 
   // Mot so nha cung cap khong de duoi o duong dan ma nhet vao tham so:
   // ...?type=flv, .../play?fmt=mpd. Chi xet khi duong dan da khong noi len gi.
@@ -147,10 +157,13 @@ function pickTrack(tracks: AudioOption[], want: string | null | undefined): Audi
 export function IptvPlayer({
   src,
   preferredAudioTrack,
+  tenKenh,
   tuyChon,
 }: {
   src: string;
   preferredAudioTrack?: string | null;
+  // Ten kenh - lam nhan cho khung "Mau file am thanh dang phat".
+  tenKenh?: string | null;
   tuyChon?: TuyChonPhat;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -161,6 +174,12 @@ export function IptvPlayer({
 
   const [status, setStatus] = useState<PlayerStatus>("loading");
   const [message, setMessage] = useState<string | null>(null);
+  // Luong nay la am thanh thuan: khung chieu khong co hinh (videoWidth=0) nen
+  // phu "Mau file am thanh dang phat" len tren the <video> den.
+  const laAmThanh = doanLoaiLuong(src) === "audio";
+  // Nut tron trong khung am thanh la play/pause that - theo dung trang thai
+  // paused cua the <video> (co the doi do watchdog nap lai, do nguoi bam...).
+  const [dangTamDung, setDangTamDung] = useState(false);
   // Tang len de dung han trinh phat cu va dung lai tu dau.
   const [generation, setGeneration] = useState(0);
 
@@ -380,6 +399,14 @@ export function IptvPlayer({
           setMessage(`Không tải được bộ giải mã ${ten}.`);
         }
       })();
+    } else if (loai === "audio") {
+      // File/luong am thanh: the <video> phat thang, khong can thu vien nao.
+      // videoWidth = 0 nen o hinh den - lop phu "dang phat am thanh" (ben duoi
+      // trong JSX) che len. Watchdog van chay: currentTime cua tieng cung nhich.
+      video.src = src;
+      void video.play().catch(() => {
+        // Trinh duyet chan tu phat khi chua tuong tac - bam play la duoc.
+      });
     } else if (Hls.isSupported()) {
       const hls = new Hls({
         // Luong IPTV la TRUC TIEP: bam sat mep song, va tu tang toc phat nhe
@@ -549,10 +576,66 @@ export function IptvPlayer({
     if (videoRef.current) videoRef.current.volume = tuyChon?.amLuong ?? 1;
   }, [tuyChon?.amLuong]);
 
+  // Nut play/pause cua khung am thanh phai anh dung trang thai that: video co
+  // the bi trinh duyet tam dung, watchdog nap lai... nen theo su kien chu
+  // khong tu doan.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !laAmThanh) return;
+    const dong = () => setDangTamDung(video.paused);
+    dong();
+    video.addEventListener("play", dong);
+    video.addEventListener("pause", dong);
+    return () => {
+      video.removeEventListener("play", dong);
+      video.removeEventListener("pause", dong);
+    };
+  }, [laAmThanh, src, generation]);
+
+  const toggleAmThanh = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) void video.play().catch(() => {});
+    else video.pause();
+  };
+
   return (
     <div className="iptv-player">
-      <div className="iptv-player-frame">
-        <video ref={videoRef} controls playsInline className="meet-iptv-video" />
+      <div className={`iptv-player-frame${laAmThanh ? " iptv-frame-audio" : ""}`}>
+        {/* Am thanh thuan khong co hinh: tat thanh dieu khien native (o video
+            den) va thay bang khung "Mau file am thanh dang phat" (Figma 154:2). */}
+        <video ref={videoRef} controls={!laAmThanh} playsInline className="meet-iptv-video" />
+
+        {laAmThanh && status !== "failed" && status !== "recovering" && (
+          <div className="iptv-audio">
+            {/* Card 442x92: nut tron teal play/pause + ten file, nen pale bo
+                20 vien navy - dung khuon the .ma-app. */}
+            <div className="iptv-audio-card">
+              <button
+                type="button"
+                className="iptv-audio-btn"
+                onClick={toggleAmThanh}
+                title={dangTamDung ? "Phát" : "Tạm dừng"}
+                aria-label={dangTamDung ? "Phát" : "Tạm dừng"}
+              >
+                {dangTamDung ? (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="5" width="3.4" height="14" rx="1.1" fill="currentColor" />
+                    <rect x="13.6" y="5" width="3.4" height="14" rx="1.1" fill="currentColor" />
+                  </svg>
+                )}
+              </button>
+              <span className="iptv-audio-name" title={tenKenh ?? undefined}>
+                {tenKenh ?? "File âm thanh"}
+              </span>
+            </div>
+          </div>
+        )}
+
         {(status === "recovering" || status === "failed") && (
           <div className="iptv-player-overlay">
             <span>{message}</span>

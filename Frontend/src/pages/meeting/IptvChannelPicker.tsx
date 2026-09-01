@@ -37,10 +37,11 @@ type KetQuaQuet = {
 function quetLuong(url: string): Promise<KetQuaQuet> {
   const loai = doanLoaiLuong(url);
   if (loai === "dash") return quetDash(url);
-  // FLV va MPEG-TS deu la MOT luong duy nhat: khong co nhieu muc chat luong
-  // hay nhieu track tieng de liet ke. Tra ve rong chu khong bao loi - khong
-  // co gi de chon la dung, khong phai hong.
-  if (loai === "flv" || loai === "ts") return Promise.resolve({ mucChatLuong: [], luongAmThanh: [] });
+  // FLV, MPEG-TS va file am thanh deu la MOT luong duy nhat: khong co nhieu muc
+  // chat luong hay nhieu track tieng de liet ke. Tra ve rong chu khong bao loi
+  // - khong co gi de chon la dung, khong phai hong.
+  if (loai === "flv" || loai === "ts" || loai === "audio")
+    return Promise.resolve({ mucChatLuong: [], luongAmThanh: [] });
   return quetHls(url);
 }
 
