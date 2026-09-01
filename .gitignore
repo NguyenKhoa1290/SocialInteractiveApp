@@ -46,3 +46,7 @@ Tainguyen/infra/k8s/all.yaml
 # chi la chot chan phong khi co file token nao lot vao repo.
 .figma-token
 *.figma-token
+
+# Thu muc tai lieu tham khao cua rieng may nay - 42MB gom bento4.zip va cac
+# doan .ts tai ve. Khong lien quan toi ma nguon va khong duoc len GitHub.
+/thamkhao/
