@@ -7,7 +7,8 @@ import { extractApiError } from "../../lib/apiError";
 import { FileMessageContent } from "../chat/FileMessageContent";
 import type { Message, MessageType } from "../../types/chat";
 import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
-import { IconAttach, IconImage, IconMic, IconSend, IconVideo } from "../chat/ComposerIcons";
+import { IconAttach, IconImage, IconSend } from "../chat/ComposerIcons";
+import { doanLoaiMedia } from "../../lib/mediaKind";
 import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -101,11 +102,28 @@ export function MeetingDiscussion({
     }
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video" | "voice" | "file") {
+  // Nut tep chung (kep giay): loai co dinh la "file".
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video" | "voice" | "file") {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void guiTep(file, type);
+  }
+
+  // Nut media gop: tu doan anh / video / am thanh tu chinh tep. accept chi la
+  // goi y nen phai kiem lai va bao neu khong nhan dang duoc.
+  function handleMedia(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    const loai = doanLoaiMedia(file);
+    if (!loai) {
+      setError("Chỉ gửi được ảnh, video hoặc âm thanh ở nút này.");
+      return;
+    }
+    void guiTep(file, loai);
+  }
 
+  async function guiTep(file: File, type: "image" | "video" | "voice" | "file") {
     if (type === "video" && file.size > VIDEO_MAX_BYTES) {
       setError("Video vượt quá 50MB");
       return;
@@ -195,17 +213,11 @@ export function MeetingDiscussion({
           disabled={sending}
         />
 
-        <label className="disc-icon" title="Ghi âm">
-          <IconMic />
-          <input type="file" accept="audio/*" hidden onChange={(e) => handleUpload(e, "voice")} />
-        </label>
-        <label className="disc-icon" title="Ảnh">
+        {/* Mot nut chung cho anh / video / am thanh - tu doan loai tu tep. Nut
+            kep giay (Tep) van rieng cho tai lieu thuong. */}
+        <label className="disc-icon" title="Gửi ảnh, video hoặc âm thanh">
           <IconImage />
-          <input type="file" accept="image/*" hidden onChange={(e) => handleUpload(e, "image")} />
-        </label>
-        <label className="disc-icon" title="Video">
-          <IconVideo />
-          <input type="file" accept="video/*" hidden onChange={(e) => handleUpload(e, "video")} />
+          <input type="file" accept="image/*,video/*,audio/*" hidden onChange={handleMedia} />
         </label>
         <label className="disc-icon" title="Tệp">
           <IconAttach />

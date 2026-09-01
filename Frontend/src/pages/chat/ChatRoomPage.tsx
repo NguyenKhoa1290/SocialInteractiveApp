@@ -34,6 +34,7 @@ import type { Meeting } from "../../types/media";
 import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
+import { doanLoaiMedia } from "../../lib/mediaKind";
 import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
@@ -45,26 +46,6 @@ const KHOA_AN_THONG_TIN = "cw-an-thong-tin";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
-
-// Mot nut gui duy nhat cho anh / video / am thanh: tu doan loai tin nhan tu
-// chinh tep. Uu tien MIME cua trinh duyet; MIME co the rong (vai dinh dang nhu
-// .mkv, .flac tren mot so may khong duoc nhan), luc do doan theo duoi ten. Am
-// thanh o he thong nay la loai tin "voice". Tra null neu khong phai media.
-const DUOI_ANH = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic", "heif", "avif"];
-const DUOI_VIDEO = ["mp4", "webm", "mov", "mkv", "avi", "m4v", "3gp", "3g2", "mpeg", "mpg", "ogv"];
-const DUOI_AM_THANH = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "weba", "amr", "mid", "midi"];
-
-function doanLoaiMedia(file: File): "image" | "video" | "voice" | null {
-  const mime = (file.type || "").toLowerCase();
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "voice";
-  const duoi = file.name.toLowerCase().split(".").pop() ?? "";
-  if (DUOI_ANH.includes(duoi)) return "image";
-  if (DUOI_VIDEO.includes(duoi)) return "video";
-  if (DUOI_AM_THANH.includes(duoi)) return "voice";
-  return null;
-}
 
 export function ChatRoomPage() {
   const { id } = useParams();
