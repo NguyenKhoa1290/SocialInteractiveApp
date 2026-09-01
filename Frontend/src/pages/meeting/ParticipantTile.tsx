@@ -47,6 +47,11 @@ export function ParticipantTile({
   avatarSize?: number;
   // Bam vao o de ghim nguoi do vao khung lon. Ban thiet ke khong ve nut ghim
   // o dau ca, nen chinh cai o la nut - khong ton mot mm giao dien nao.
+  //
+  // Bo trong khi KHONG ghim duoc; luc do o khong doi con tro, khong sang
+  // vien khi ro chuot va khong co title - de nguoi dung khong bam vao mot
+  // thu khong phan hoi. Xem MeetingRoomPage: dang co nguoi trinh bay thi
+  // khung lon thuoc ve luot trinh bay, ghim bi tat.
   onGhim?: () => void;
   dangGhim?: boolean;
 }) {
@@ -99,7 +104,7 @@ export function ParticipantTile({
   return (
     <div
       className={lop}
-      // onClick={onGhim}
+      onClick={onGhim}
       title={onGhim ? (dangGhim ? `Bỏ ghim ${label}` : `Ghim ${label} vào khung lớn`) : undefined}
     >
       {hasVideo ? (

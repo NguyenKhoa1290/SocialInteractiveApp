@@ -1849,10 +1849,14 @@
 }
 
 /* Ca cai o la nut ghim - ban thiet ke khong ve nut ghim o dau, ma bo han
-   tinh nang thi mat mot thu dang dung duoc. */
-/* .meet-tile-ghim-duoc {
+   tinh nang thi mat mot thu dang dung duoc.
+
+   Lop nay CHI duoc gan khi that su ghim duoc (khong ai dang trinh bay), nen
+   con tro va vien sang tat theo - o se khong moi nguoi dung bam vao mot thu
+   khong lam gi. */
+.meet-tile-ghim-duoc {
   cursor: pointer;
-} */
+}
 
 .meet-tile-ghim-duoc:hover {
   outline: 2px solid rgba(133, 174, 176, 0.6);
