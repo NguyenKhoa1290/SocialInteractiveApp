@@ -340,25 +340,6 @@ export function IptvChannelPicker({
           .ts luôn như vậy.
         </p>
       )}
-
-      <p className="mpop-nhan-nho">
-        <b>Khóa giải mã ClearKey (nếu có)</b>
-      </p>
-      <p className="mpop-nhan-nho">Link lấy Key (license server)</p>
-      <input
-        className="mpop-o-nhap"
-        value={tuyChon.linkLayKey}
-        onChange={(e) => onDoiTuyChon({ ...tuyChon, linkLayKey: e.target.value })}
-        placeholder="https://…/AutoKey/ — dashjs sẽ tự gọi server lấy key"
-      />
-
-      <p className="mpop-nhan-nho" style={{ marginTop: 8 }}>Hoặc điền thủ công</p>
-      <input
-        className="mpop-o-nhap"
-        value={tuyChon.khoaClearKey}
-        onChange={(e) => onDoiTuyChon({ ...tuyChon, khoaClearKey: e.target.value })}
-        placeholder="kid:key — cả hai là chuỗi hex 32 ký tự"
-      />
     </>
   );
 

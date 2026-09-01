@@ -51,12 +51,9 @@ export type TuyChonPhat = {
   mucChatLuong: number;
   // Chi so trong hls.audioTracks. -1 = theo mac dinh cua luong.
   luongAmThanh: number;
-  // Dang "kid:key", ca hai la chuoi hex 32 ky tu.
+  // Khong con dung cho DRM (trinh duyet khong giai ma duoc Widevine bang raw
+  // key). Giu lai vi MeetingRoomPage dung no lam trigger "Phat lai".
   khoaClearKey: string;
-  // URL license server lay key giai ma tu dong — giao thuc ClearKey:
-  // POST {"kids": [kid_b64url], "type": "temporary"} -> {"keys": [{"k": ...}]}.
-  // Xem file tham khao Start.py (LICENSE_URL).
-  linkLayKey: string;
   // Am luong the <video>, 0..1. Nam o day chu khong phai state trong
   // IptvPlayer vi thanh keo da chuyen sang popup Mini App - khung trinh chieu
   // gio CHI con video.
@@ -67,7 +64,6 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   mucChatLuong: -1,
   luongAmThanh: -1,
   khoaClearKey: "",
-  linkLayKey: "",
   amLuong: 1,
 };
 
@@ -118,32 +114,6 @@ export function doanLoaiLuong(url: string): LoaiLuong {
 
   // Khong doan ra thi coi la HLS: dinh dang pho bien nhat, va la hanh vi cu.
   return "hls";
-}
-
-// Tach mot cap "kid:key" hex thanh hai chuoi base64url khong dem. Ca hai
-// duong giai ma deu can dung dang nay: hls.js qua mot JWK Set, dashjs qua
-// bang `clearkeys`.
-function tachClearKey(khoa: string): { kid: string; key: string } | null {
-  const m = khoa.trim().match(/^([0-9a-fA-F]{32}):([0-9a-fA-F]{32})$/);
-  if (!m) return null;
-  const b64url = (hex: string) => {
-    const b = Uint8Array.from(hex.match(/../g)!.map((h) => parseInt(h, 16)));
-    return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  };
-  return { kid: b64url(m[1]), key: b64url(m[2]) };
-}
-
-// Doi mot cap kid:key hex thanh mot "giay phep" ClearKey (JWK Set) nhung
-// duoi dang data: URL, de hls.js coi no nhu mot may chu cap phep.
-//
-// CHUA KIEM DUOC TREN LUONG THAT: khong co nguon ClearKey nao de thu. Neu no
-// hong thi cho hong nam o buoc hls.js goi XHR toi data: URL - luc do doi
-// licenseUrl sang mot duong dan cung nguon tra 200 la chay, vi
-// licenseResponseCallback ben duoi da thay noi dung tra ve roi.
-function giayPhepClearKey(khoa: string): string | null {
-  const k = tachClearKey(khoa);
-  if (!k) return null;
-  return JSON.stringify({ keys: [{ kty: "oct", kid: k.kid, k: k.key }], type: "temporary" });
 }
 
 // Nhung gi mot trinh giai ma NAP DONG phai cung cap cho phan chung: watchdog
@@ -327,20 +297,6 @@ export function IptvPlayer({
             },
           });
 
-          // Khoa ClearKey - hai cach cung cap:
-          //  1. linkLayKey: URL license server (giao thuc ClearKey giong Start.py)
-          //     dashjs tu POST {"kids":[...],"type":"temporary"} va nhan key.
-          //  2. khoaClearKey: cap kid:key hex thu cong.
-          // Khong co gi thi khong bat EME - bat san se lam trinh duyet hoi quyen
-          // giai ma cho ca nhung luong khong ma hoa.
-          const licUrl = tuyChon?.linkLayKey?.trim();
-          const k = tuyChon?.khoaClearKey ? tachClearKey(tuyChon.khoaClearKey) : null;
-          if (licUrl) {
-            player.setProtectionData({ "org.w3.clearkey": { serverURL: licUrl } });
-          } else if (k) {
-            player.setProtectionData({ "org.w3.clearkey": { clearkeys: { [k.kid]: k.key } } });
-          }
-
           player.initialize(video, src, true);
           player.on("playbackPlaying", markHealthy);
           player.on("streamInitialized", apDungTuyChon);
@@ -425,12 +381,6 @@ export function IptvPlayer({
         }
       })();
     } else if (Hls.isSupported()) {
-      const licUrl = tuyChon?.linkLayKey?.trim();
-      const giayPhep = tuyChon?.khoaClearKey ? giayPhepClearKey(tuyChon.khoaClearKey) : null;
-      // ClearKey - hai cach cung cap, uu tien linkLayKey:
-      //  1. linkLayKey: hls.js goi thang license server (giao thuc ClearKey).
-      //  2. khoaClearKey: dung cap kid:key hex qua data: URL.
-      const coKhoa = !!(licUrl || giayPhep);
       const hls = new Hls({
         // Luong IPTV la TRUC TIEP: bam sat mep song, va tu tang toc phat nhe
         // de duoi kip sau moi lan nghen mang.
@@ -439,28 +389,6 @@ export function IptvPlayer({
         liveDurationInfinity: true,
         // Kenh IPTV chay lien hang gio - giu lai phan da phat chi ton RAM.
         backBufferLength: 60,
-        // Chi bat EME khi that su co khoa: bat san se lam hls.js hoi
-        // requestMediaKeySystemAccess cho MOI luong, ke ca luong khong ma hoa.
-        ...(coKhoa
-          ? {
-              emeEnabled: true,
-              drmSystems: {
-                'org.w3.clearkey': {
-                  licenseUrl: licUrl
-                    ? licUrl
-                    : 'data:application/json;base64,' + btoa(giayPhep!),
-                },
-              },
-              // Khi dung kid:key thu cong thi thay noi dung tra ve. Khi dung
-              // license server thi de hls.js dung response that tu server.
-              ...(giayPhep && !licUrl
-                ? {
-                    licenseResponseCallback: () =>
-                      new TextEncoder().encode(giayPhep).buffer as ArrayBuffer,
-                  }
-                : {}),
-            }
-          : {}),
       });
       hlsRef.current = hls;
 
@@ -587,10 +515,9 @@ export function IptvPlayer({
         video.load();
       }
     };
-    // khoaClearKey va linkLayKey nam trong deps vi chung chi gan duoc luc DUNG
-    // player len - doi khoa/link la phai dung lai tu dau. Con muc chat luong
-    // va luong tieng thi doi duoc giua chung, xem effect ngay duoi.
-  }, [src, generation, reload, tuyChon?.khoaClearKey, tuyChon?.linkLayKey]);
+    // khoaClearKey nam trong deps lam trigger cho "Phat lai" (MeetingRoomPage
+    // doi khoaClearKey de buoc effect chay lai). Khong con dung cho DRM.
+  }, [src, generation, reload, tuyChon?.khoaClearKey]);
 
   // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG
   // dung Hls lai. Dung lai la mat vai giay dem va video giat ve dau.
