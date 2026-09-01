@@ -152,19 +152,29 @@ export function ConversationInfo({
   useEffect(() => {
     if (!media || media.length === 0) return;
     let huy = false;
-    void Promise.all(
-      media.slice(0, 9).map(async (f) => {
-        try {
-          const { data } = await chatApi.getDownloadUrl(f.id);
-          return [f.id, data.uploadUrl] as const;
-        } catch {
-          return null;
-        }
-      }),
-    ).then((cap) => {
-      if (huy) return;
-      setUrls(Object.fromEntries(cap.filter((x): x is readonly [number, string] => x !== null)));
-    });
+    // Ky URL cho TAT CA file chu khong chi 9 o dau: luoi khong con gioi han 9 o
+    // nen o thu 10 tro di cung can anh. Nhung dung ban het mot luc - mot cuoc
+    // tro chuyen nhieu anh se tao hang tram request ky URL song song. Chay theo
+    // tung dot 6 cai, va do dan URL vao luoi sau moi dot de anh hien dan.
+    const ds = media;
+    const DOT = 6;
+    void (async () => {
+      for (let i = 0; i < ds.length && !huy; i += DOT) {
+        const cap = await Promise.all(
+          ds.slice(i, i + DOT).map(async (f) => {
+            try {
+              const { data } = await chatApi.getDownloadUrl(f.id);
+              return [f.id, data.uploadUrl] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (huy) return;
+        const them = Object.fromEntries(cap.filter((x): x is readonly [number, string] => x !== null));
+        setUrls((truoc) => ({ ...truoc, ...them }));
+      }
+    })();
     return () => {
       huy = true;
     };
@@ -174,10 +184,6 @@ export function ConversationInfo({
     const u = urls[f.id];
     if (u) window.open(u, "_blank", "noopener");
   }
-
-  // Thiet ke ve luoi 3x3 = 9 o. Luon ve du 9 o de khung khong xo lech khi it
-  // file; o thua la o giu cho xam nhu trong thiet ke.
-  const oTrong = Math.max(0, 9 - Math.min(9, media?.length ?? 0));
 
   return (
     <div className={`cw-info${laNhom ? " cw-info-group" : ""}`}>
@@ -285,24 +291,30 @@ export function ConversationInfo({
         <NutGap mo={hienMedia} doi={() => setHienMedia((v) => !v)} ten="danh sách file media đã gửi" />
       </div>
 
-      {hienMedia && (
-        <div className="cw-media">
-          {media?.slice(0, 9).map((f) => (
-            <button key={f.id} className="cw-media-cell" onClick={() => mo(f)} title={f.fileName ?? "Tệp"}>
-              {/* Video cung hien duoc bang the <video> nhung chi de lay MOT
-                  khung hinh dau - re hon nhieu so voi tai ca doan phim ve chi
-                  de dung o mot o 100x100. */}
-              {urls[f.id] && f.fileType === "image" && <img src={urls[f.id]} alt={f.fileName ?? ""} loading="lazy" />}
-              {urls[f.id] && f.fileType === "video" && (
-                <video src={urls[f.id]} muted playsInline preload="metadata" />
-              )}
-            </button>
-          ))}
-          {Array.from({ length: oTrong }, (_, i) => (
-            <span key={`trong-${i}`} className="cw-media-cell" aria-hidden="true" />
-          ))}
-        </div>
-      )}
+      {hienMedia &&
+        media !== null &&
+        (media.length > 0 ? (
+          // Ve dung so file that co, cang gui nhieu thi luoi cang dai them hang.
+          // KHONG con ve o trong giu cho: o xam chi la mau trong thiet ke, khi
+          // it hoac chua co file thi de trong chu dung bay o rong.
+          <div className="cw-media">
+            {media.map((f) => (
+              <button key={f.id} className="cw-media-cell" onClick={() => mo(f)} title={f.fileName ?? "Tệp"}>
+                {/* Video cung hien duoc bang the <video> nhung chi de lay MOT
+                    khung hinh dau - re hon nhieu so voi tai ca doan phim ve chi
+                    de dung o mot o 100x100. */}
+                {urls[f.id] && f.fileType === "image" && (
+                  <img src={urls[f.id]} alt={f.fileName ?? ""} loading="lazy" />
+                )}
+                {urls[f.id] && f.fileType === "video" && (
+                  <video src={urls[f.id]} muted playsInline preload="metadata" />
+                )}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="cw-empty">Chưa có ảnh hay video nào.</p>
+        ))}
 
       {onDanger && (
         <button className="cw-danger" onClick={onDanger}>
