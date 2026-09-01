@@ -114,24 +114,24 @@
   max-width: calc(813px * var(--s));
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: calc(33px * var(--s));
-  min-height: calc(83px * var(--s));
-  padding: calc(8px * var(--s)) 0;
+  /* Giong khung nhap cua chat app (.cw-composer): o nhap chiem het chieu ngang,
+     cac nut nam ben phai - KHONG can giua voi khoang trong hai ben. Bar cung
+     mong hon (66 thay vi 83). */
+  gap: calc(14px * var(--s));
+  min-height: calc(66px * var(--s));
+  padding: calc(8px * var(--s)) calc(20px * var(--s));
   border: 2px solid var(--calli-navy);
   border-radius: calc(40px * var(--s));
 }
 
-/* O nhap 361x49 nen #B7B6BA bo 98 - vien tron han.
-   `flex: 0 1 auto` chu khong phai `flex: 1`: rong dung 361 theo thiet ke,
-   duoc phep co lai neu khung hep di nhung KHONG duoc phinh ra. */
+/* O nhap dang pill mong, DAI HET thanh: flex 1 de phinh chiem het cho con lai
+   thay vi giu mot be rong co dinh. */
 .disc-compose input[type="text"] {
   box-sizing: border-box;
-  flex: 0 1 auto;
-  width: calc(361px * var(--s));
+  flex: 1;
   min-width: 0;
   height: calc(49px * var(--s));
-  padding: 0 calc(10px * var(--s));
+  padding: 0 calc(16px * var(--s));
   border: 0;
   border-radius: var(--r-pill);
   background: var(--calli-muted);
