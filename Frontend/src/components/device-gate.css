@@ -1,0 +1,68 @@
+/* Man bao "chua ho tro dien thoai" / "hay mo rong cua so".
+
+   Nam TREN moi thu khac, ke ca phong hop (z-index cua .mroom la 0) va cac
+   popup trong do. Cai nay khong duoc de bat ky lop nao che len: no la thu
+   duy nhat con dung duoc luc do. */
+.dgate {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--calli-page, #f3f3f6);
+  /* Khong dung mau nen trong suot: o truong hop cua so hep, ung dung van
+     dang chay ben duoi va nhin xuyen qua se roi mat. */
+}
+
+.dgate-hop {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px 28px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(41, 53, 70, 0.14);
+  text-align: center;
+}
+
+.dgate-logo {
+  height: 34px;
+  margin-bottom: 20px;
+}
+
+.dgate-tieu-de {
+  margin: 0 0 12px;
+  color: var(--calli-navy, #2f3c52);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.dgate-hop p {
+  margin: 0 0 10px;
+  color: var(--text, #4a5568);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.dgate-hop p:last-child {
+  margin-bottom: 0;
+}
+
+.dgate-phu {
+  color: var(--text-m, #6b7688);
+  font-size: 13px !important;
+}
+
+/* Man hinh dien thoai thi hop khong can vien tron to va bong do - de no
+   trai deu ra cho de doc. */
+@media (max-width: 420px) {
+  .dgate {
+    padding: 16px;
+  }
+
+  .dgate-hop {
+    padding: 24px 20px;
+  }
+}
