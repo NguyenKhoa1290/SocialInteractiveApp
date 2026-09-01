@@ -136,7 +136,14 @@ export function ConversationInfo({
         if (huy) return;
         // Chi lay anh/video - "file media" trong ban thiet ke la luoi hinh
         // vuong xem truoc, tai lieu khong co gi de xem truoc ca.
-        setMedia(r.data.filter((f) => f.fileType === "image" || f.fileType === "video"));
+        //
+        // Endpoint /files khong sap xep nen thu tu tra ve tuy y DB - phai tu sap
+        // MOI NHAT LEN DAU (uploadedAt giam dan, hoa nhau thi id lon truoc).
+        const anhVideo = r.data.filter((f) => f.fileType === "image" || f.fileType === "video");
+        anhVideo.sort((a, b) =>
+          a.uploadedAt === b.uploadedAt ? b.id - a.id : (a.uploadedAt < b.uploadedAt ? 1 : -1),
+        );
+        setMedia(anhVideo);
       })
       .catch(() => {
         if (!huy) setMedia([]);
