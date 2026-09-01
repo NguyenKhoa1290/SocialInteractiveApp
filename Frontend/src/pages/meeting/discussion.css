@@ -91,31 +91,53 @@
   font-size: calc(15px * var(--s));
 }
 
-/* --- Khung soan (Frame 38: 813x83, vien #2F3C52 2px, bo 40) -------------- */
+/* --- Khung soan (Frame 38: 813x83, vien #2F3C52 2px, bo 40) --------------
+
+   Khoa dung so trong thiet ke roi CAN GIUA, khong de khung gian rong theo
+   popup. Ban thiet ke ve khung 813 tren popup 847; popup o day da duoc noi
+   rong hon the, ma o nhap lai dat flex:1 - nen no nuot het cho thua. Do tren
+   he thong that: o nhap ra 499px trong khi thiet ke la 361 x --s = 289.
+
+   Frame 38 trong Figma la auto-layout HORIZONTAL, gap 33, dem 8 tren/duoi,
+   primaryAxisAlignItems = CENTER: ca cum noi dung nam giua khung, hai ben
+   con (813 - 744) / 2 = 34,5. */
 
 .disc-compose {
+  /* Noi ro box-sizing thay vi trong cho the cha. Trong phong hop co luat
+     `.mroom * { box-sizing: border-box }`, nhung trang thao luan doc lap thi
+     KHONG - de mac dinh thi cung mot khoi ra hai kich thuoc khac nhau o hai
+     cho (do duoc: 650x66 trong popup, 654x83 ngoai trang rieng). */
+  box-sizing: border-box;
   flex: none;
+  align-self: center;
+  width: 100%;
+  max-width: calc(813px * var(--s));
   display: flex;
   align-items: center;
-  gap: calc(14px * var(--s));
+  justify-content: center;
+  gap: calc(33px * var(--s));
   min-height: calc(83px * var(--s));
-  padding: 0 calc(18px * var(--s));
+  padding: calc(8px * var(--s)) 0;
   border: 2px solid var(--calli-navy);
   border-radius: calc(40px * var(--s));
 }
 
-/* O nhap 361x49 nen #B7B6BA bo 98 - vien tron han. */
+/* O nhap 361x49 nen #B7B6BA bo 98 - vien tron han.
+   `flex: 0 1 auto` chu khong phai `flex: 1`: rong dung 361 theo thiet ke,
+   duoc phep co lai neu khung hep di nhung KHONG duoc phinh ra. */
 .disc-compose input[type="text"] {
-  flex: 1;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  width: calc(361px * var(--s));
   min-width: 0;
   height: calc(49px * var(--s));
-  padding: 0 calc(18px * var(--s));
+  padding: 0 calc(10px * var(--s));
   border: 0;
   border-radius: var(--r-pill);
   background: var(--calli-muted);
   color: var(--calli-navy);
   font-family: var(--sans);
-  font-size: calc(20px * var(--s));
+  font-size: calc(24px * var(--s));
 }
 
 .disc-compose input[type="text"]:focus {
