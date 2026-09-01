@@ -53,6 +53,10 @@ export type TuyChonPhat = {
   luongAmThanh: number;
   // Dang "kid:key", ca hai la chuoi hex 32 ky tu.
   khoaClearKey: string;
+  // URL license server lay key giai ma tu dong — giao thuc ClearKey:
+  // POST {"kids": [kid_b64url], "type": "temporary"} -> {"keys": [{"k": ...}]}.
+  // Xem file tham khao Start.py (LICENSE_URL).
+  linkLayKey: string;
   // Am luong the <video>, 0..1. Nam o day chu khong phai state trong
   // IptvPlayer vi thanh keo da chuyen sang popup Mini App - khung trinh chieu
   // gio CHI con video.
@@ -63,6 +67,7 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   mucChatLuong: -1,
   luongAmThanh: -1,
   khoaClearKey: "",
+  linkLayKey: "",
   amLuong: 1,
 };
 
@@ -322,12 +327,19 @@ export function IptvPlayer({
             },
           });
 
-          // Khoa ClearKey - o nhap trong popup ghi ".hpd (neu co)", tuc la
-          // danh cho chinh dinh dang nay. Khong co khoa thi khong bat EME,
-          // giong ben HLS: bat san se lam trinh duyet hoi quyen giai ma cho
-          // ca nhung luong khong ma hoa.
+          // Khoa ClearKey - hai cach cung cap:
+          //  1. linkLayKey: URL license server (giao thuc ClearKey giong Start.py)
+          //     dashjs tu POST {"kids":[...],"type":"temporary"} va nhan key.
+          //  2. khoaClearKey: cap kid:key hex thu cong.
+          // Khong co gi thi khong bat EME - bat san se lam trinh duyet hoi quyen
+          // giai ma cho ca nhung luong khong ma hoa.
+          const licUrl = tuyChon?.linkLayKey?.trim();
           const k = tuyChon?.khoaClearKey ? tachClearKey(tuyChon.khoaClearKey) : null;
-          if (k) player.setProtectionData({ "org.w3.clearkey": { clearkeys: { [k.kid]: k.key } } });
+          if (licUrl) {
+            player.setProtectionData({ "org.w3.clearkey": { serverURL: licUrl } });
+          } else if (k) {
+            player.setProtectionData({ "org.w3.clearkey": { clearkeys: { [k.kid]: k.key } } });
+          }
 
           player.initialize(video, src, true);
           player.on("playbackPlaying", markHealthy);
@@ -413,7 +425,12 @@ export function IptvPlayer({
         }
       })();
     } else if (Hls.isSupported()) {
+      const licUrl = tuyChon?.linkLayKey?.trim();
       const giayPhep = tuyChon?.khoaClearKey ? giayPhepClearKey(tuyChon.khoaClearKey) : null;
+      // ClearKey - hai cach cung cap, uu tien linkLayKey:
+      //  1. linkLayKey: hls.js goi thang license server (giao thuc ClearKey).
+      //  2. khoaClearKey: dung cap kid:key hex qua data: URL.
+      const coKhoa = !!(licUrl || giayPhep);
       const hls = new Hls({
         // Luong IPTV la TRUC TIEP: bam sat mep song, va tu tang toc phat nhe
         // de duoi kip sau moi lan nghen mang.
@@ -424,15 +441,24 @@ export function IptvPlayer({
         backBufferLength: 60,
         // Chi bat EME khi that su co khoa: bat san se lam hls.js hoi
         // requestMediaKeySystemAccess cho MOI luong, ke ca luong khong ma hoa.
-        ...(giayPhep
+        ...(coKhoa
           ? {
               emeEnabled: true,
               drmSystems: {
-                'org.w3.clearkey': { licenseUrl: 'data:application/json;base64,' + btoa(giayPhep) },
+                'org.w3.clearkey': {
+                  licenseUrl: licUrl
+                    ? licUrl
+                    : 'data:application/json;base64,' + btoa(giayPhep!),
+                },
               },
-              // Thay han noi dung tra ve: giay phep ClearKey khong den tu may
-              // chu nao ca, no duoc dung tu cap kid:key nguoi dung go vao.
-              licenseResponseCallback: () => new TextEncoder().encode(giayPhep).buffer as ArrayBuffer,
+              // Khi dung kid:key thu cong thi thay noi dung tra ve. Khi dung
+              // license server thi de hls.js dung response that tu server.
+              ...(giayPhep && !licUrl
+                ? {
+                    licenseResponseCallback: () =>
+                      new TextEncoder().encode(giayPhep).buffer as ArrayBuffer,
+                  }
+                : {}),
             }
           : {}),
       });
@@ -561,10 +587,10 @@ export function IptvPlayer({
         video.load();
       }
     };
-    // khoaClearKey nam trong deps vi no chi gan duoc luc DUNG Hls len - doi
-    // khoa la phai dung lai tu dau. Con muc chat luong va luong tieng thi doi
-    // duoc giua chung, xem effect ngay duoi.
-  }, [src, generation, reload, tuyChon?.khoaClearKey]);
+    // khoaClearKey va linkLayKey nam trong deps vi chung chi gan duoc luc DUNG
+    // player len - doi khoa/link la phai dung lai tu dau. Con muc chat luong
+    // va luong tieng thi doi duoc giua chung, xem effect ngay duoi.
+  }, [src, generation, reload, tuyChon?.khoaClearKey, tuyChon?.linkLayKey]);
 
   // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG
   // dung Hls lai. Dung lai la mat vai giay dem va video giat ve dau.
