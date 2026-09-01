@@ -601,7 +601,7 @@ export function IptvPlayer({
 
   return (
     <div className="iptv-player">
-      <div className={`iptv-player-frame${laAmThanh ? " iptv-frame-audio" : ""}`}>
+      <div className="iptv-player-frame">
         {/* Am thanh thuan khong co hinh: tat thanh dieu khien native (o video
             den) va thay bang khung "Mau file am thanh dang phat" (Figma 154:2). */}
         <video ref={videoRef} controls={!laAmThanh} playsInline className="meet-iptv-video" />

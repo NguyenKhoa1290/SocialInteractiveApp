@@ -476,13 +476,10 @@
 }
 
 /* "Mau file am thanh dang phat" (Figma 154:2): luong chi co tieng, thay o
-   video den bang mot khung nghe sang. Video den bi phu kin nen dat nen sang o
-   khung bao ngoai luon. */
-.iptv-frame-audio {
-  background: #dbe6e6;
-  border-radius: calc(13px * var(--s));
-}
-
+   video den bang mot khung nghe sang.
+   Nen sang phai dat o CHINH lop phu .iptv-audio chu khong o khung ngoai: the
+   <video> (nen den) phu kin khung, dat nen o khung ngoai thi bi video che mat.
+   Lop phu nam TREN video nen nen cua no moi thay duoc. */
 .iptv-audio {
   position: absolute;
   inset: 0;
@@ -491,6 +488,8 @@
   justify-content: center;
   padding: calc(20px * var(--s));
   box-sizing: border-box;
+  border-radius: calc(13px * var(--s));
+  background: radial-gradient(circle at 50% 40%, #e9f1f1 0%, #d3e0e0 100%);
 }
 
 /* Card 442x92: nut tron trai + ten file. Nen #F4F8F9 bo 20 vien 2px #293546. */
