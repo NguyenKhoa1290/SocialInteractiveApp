@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { MessageType } from "../../types/chat";
+import { ImageViewer } from "../../components/ImageViewer";
 
 function humanSize(bytes: number): string {
   if (bytes <= 0) return "";
@@ -31,6 +32,7 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
   const [name, setName] = useState<string | null>(null);
   const [size, setSize] = useState(0);
   const [error, setError] = useState(false);
+  const [xemAnh, setXemAnh] = useState(false);
 
   useEffect(() => {
     let huy = false;
@@ -63,10 +65,26 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
   // bi cat mat dau duoi neu ep khung.
   if (type === "image") {
     return (
-      <a className="fm-media" href={url} target="_blank" rel="noreferrer noopener" title={ten}>
-        <img src={url} alt={ten} loading="lazy" />
-        <span className="fm-media-name">{ten}</span>
-      </a>
+      <>
+        {/* Van la mot <a> tro toi URL that: bam thuong mo popup xem, con
+            Ctrl/giua chuot van mo tab moi nhu cu - khong chan thoi quen do. */}
+        <a
+          className="fm-media"
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={ten}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            setXemAnh(true);
+          }}
+        >
+          <img src={url} alt={ten} loading="lazy" />
+          <span className="fm-media-name">{ten}</span>
+        </a>
+        {xemAnh && <ImageViewer src={url} name={ten} kind="image" onClose={() => setXemAnh(false)} />}
+      </>
     );
   }
 

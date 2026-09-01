@@ -1,0 +1,89 @@
+/* Popup xem anh/video. Nen toi de anh noi bat, khac han hop thoai trang .md-*.
+   z-index tren .md-overlay (120) vi co the mo tu ben trong mot panel. */
+.iv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(0, 0, 0, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(24px * var(--s));
+  box-sizing: border-box;
+}
+
+.iv-figure {
+  margin: 0;
+  max-width: 94vw;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(14px * var(--s));
+}
+
+/* Anh/video giu dung ty le, chi thu cho vua khung - khong cat, khong keo gian. */
+.iv-media {
+  max-width: 94vw;
+  max-height: 84vh;
+  object-fit: contain;
+  border-radius: calc(8px * var(--s));
+  box-shadow: rgba(0, 0, 0, 0.5) 0 20px 60px -12px;
+  background: #000;
+}
+
+.iv-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(18px * var(--s));
+  max-width: 94vw;
+  color: #fff;
+}
+
+.iv-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sans);
+  font-size: calc(16px * var(--s));
+  font-weight: 300;
+  opacity: 0.92;
+}
+
+.iv-dl {
+  flex: none;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--sans);
+  font-size: calc(14px * var(--s));
+  font-weight: 500;
+  padding: calc(8px * var(--s)) calc(18px * var(--s));
+  white-space: nowrap;
+}
+
+.iv-dl:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.iv-close {
+  position: fixed;
+  top: calc(18px * var(--s));
+  right: calc(22px * var(--s));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(44px * var(--s));
+  height: calc(44px * var(--s));
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+
+.iv-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}

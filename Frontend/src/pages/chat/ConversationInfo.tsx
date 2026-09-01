@@ -4,6 +4,7 @@ import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
 import { resizeAvatar } from "../../lib/imageResize";
 import { Avatar } from "../../components/Avatar";
+import { ImageViewer } from "../../components/ImageViewer";
 import { IconCaret } from "./ComposerIcons";
 import type { FileMeta } from "../../types/chat";
 
@@ -85,6 +86,7 @@ export function ConversationInfo({
   const [hienMedia, setHienMedia] = useState(true);
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
+  const [xem, setXem] = useState<FileMeta | null>(null);
   const laNhom = members !== undefined;
 
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -181,8 +183,9 @@ export function ConversationInfo({
   }, [media]);
 
   function mo(f: FileMeta) {
-    const u = urls[f.id];
-    if (u) window.open(u, "_blank", "noopener");
+    // Chi mo popup khi da co URL da ky; chua ky xong thi bam khong lam gi thay
+    // vi mo mot popup trong.
+    if (urls[f.id]) setXem(f);
   }
 
   return (
@@ -320,6 +323,15 @@ export function ConversationInfo({
         <button className="cw-danger" onClick={onDanger}>
           {dangerLabel}
         </button>
+      )}
+
+      {xem && urls[xem.id] && (
+        <ImageViewer
+          src={urls[xem.id]}
+          name={xem.fileName}
+          kind={xem.fileType === "video" ? "video" : "image"}
+          onClose={() => setXem(null)}
+        />
       )}
     </div>
   );
