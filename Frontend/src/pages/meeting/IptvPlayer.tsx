@@ -362,11 +362,16 @@ export function IptvPlayer({
           const player = mpegts.createPlayer(
             { type: "flv", url: src, isLive: true, cors: true },
             {
-              // Luong truc tiep: bo bo dem trung gian va duoi theo mep song,
-              // cung tinh than voi hai duong kia.
+              // Luong truc tiep: bo bo dem trung gian de bam sat mep song.
               enableStashBuffer: false,
-              liveBufferLatencyChasing: true,
               enableWorker: true,
+              // KHONG bat liveBufferLatencyChasing. Do duoc tren he thong
+              // that: voi mot tep .flv co do dai huu han, "mep song" chinh la
+              // cuoi tep - no nhay thang toi 20,09/20,09 giay ngay khi tai
+              // xong roi bao het. Luong FLV that thi khong can no: may chu chi
+              // gui tu THOI DIEM NAY tro di nen trinh phat da o mep san, con
+              // do tre tich luy sau moi lan nghen thi watchdog ben duoi nap
+              // lai la ve dung.
             },
           );
           player.attachMediaElement(video);
@@ -512,9 +517,17 @@ export function IptvPlayer({
     }, 1000);
 
     const onVideoError = () => recover();
-    // Nguon truc tiep bao "het" nghia la no vua ngat - thu noi lai thay vi de
+    // Nguon TRUC TIEP bao "het" nghia la no vua ngat - thu noi lai thay vi de
     // man hinh dung o khung cuoi cung.
-    const onEnded = () => later(reload, 2000);
+    //
+    // Nhung mot tep co do dai huu han (VOD, hay mot .flv tinh) thi "het" dung
+    // la het - nap lai la roi vao vong phat di phat lai khong bao gio dung.
+    // Luong truc tiep khong dinh vao day: HLS chay voi liveDurationInfinity
+    // nen duration la Infinity, con FLV truc tiep thi khong co duration.
+    const onEnded = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) return;
+      later(reload, 2000);
+    };
     video.addEventListener("error", onVideoError);
     video.addEventListener("ended", onEnded);
 
