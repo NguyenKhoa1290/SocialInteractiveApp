@@ -192,6 +192,13 @@ export function IptvChannelPicker({
   const [dangQuet, setDangQuet] = useState(false);
   const [loiQuet, setLoiQuet] = useState<string | null>(null);
 
+  // Link lấy key mã hóa / giải mã — theo cơ chế tham khảo (Start.py):
+  // POST {"kids": [kid_b64url], "type": "temporary"} tới license URL,
+  // server trả {"keys": [{"k": "base64url_key", ...}]}.
+  const [linkLayKey, setLinkLayKey] = useState("");
+  const [dangLayKey, setDangLayKey] = useState(false);
+  const [loiLayKey, setLoiLayKey] = useState<string | null>(null);
+
   const [moThemPlaylist, setMoThemPlaylist] = useState(false);
   const [nhomThemKenh, setNhomThemKenh] = useState<number | null>(null);
 
@@ -246,6 +253,83 @@ export function IptvChannelPicker({
       setLoiQuet(err instanceof Error && !("response" in err) ? err.message : extractApiError(err, "Không quét được"));
     } finally {
       setDangQuet(false);
+    }
+  }
+
+  // Lay key tu link license server — co che giong file tham khao (Start.py):
+  //   1. Tai MPD tu URL kenh, trich cenc:default_KID
+  //   2. Ma hoa KID sang base64url
+  //   3. POST {"kids": [kid_b64url], "type": "temporary"} toi license URL
+  //   4. Server tra {"keys": [{"k": "base64url_key"}]}
+  //   5. Giai ma key tu base64url sang hex, dien vao khoaClearKey = kid:key
+  async function bamLayKey() {
+    const licenseUrl = linkLayKey.trim();
+    if (!licenseUrl) return;
+    setDangLayKey(true);
+    setLoiLayKey(null);
+    try {
+      // Buoc 1: Lay URL luong MPD cua kenh
+      let streamUrl = kenhChon ? kenhChon.url : (slot?.streamUrl ?? null);
+      if (!streamUrl && kenhChon && kenhChon.id !== null) {
+        const res = await iptvApi.getStreamUrl(meetingId, kenhChon.id);
+        streamUrl = res.data.streamUrl;
+        setKenhChon({ ...kenhChon, url: streamUrl });
+      }
+      if (!streamUrl) throw new Error("Chưa có link kênh để lấy KID.");
+
+      // Buoc 2: Tai manifest MPD de trich KID
+      const mpdRes = await fetch(streamUrl);
+      if (!mpdRes.ok) throw new Error("Không tải được MPD từ link kênh.");
+      const mpdText = await mpdRes.text();
+
+      const kidMatch = mpdText.match(/cenc:default_KID="([a-fA-F0-9-]+)"/);
+      if (!kidMatch) throw new Error("Luồng không có mã hóa (không tìm thấy default_KID trong MPD).");
+
+      const kidHex = kidMatch[1].replace(/-/g, "");
+      if (kidHex.length !== 32) throw new Error("KID không hợp lệ: " + kidHex);
+
+      // Buoc 3: Ma hoa KID sang base64url (khong dem)
+      const kidBytes = Uint8Array.from(
+        kidHex.match(/../g)!.map((h) => parseInt(h, 16)),
+      );
+      const kidB64url = btoa(String.fromCharCode(...kidBytes))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+
+      // Buoc 4: POST toi license server
+      const keyRes = await fetch(licenseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kids: [kidB64url], type: "temporary" }),
+      });
+      if (!keyRes.ok) throw new Error(`License server trả lỗi ${keyRes.status}.`);
+      const keyData = await keyRes.json();
+
+      const keys: { k?: string; kid?: string }[] = keyData.keys ?? [];
+      if (keys.length === 0) throw new Error("Server không trả về key nào.");
+
+      // Buoc 5: Giai ma key tu base64url sang hex
+      const b64urlToHex = (b: string) => {
+        let s = b.replace(/-/g, "+").replace(/_/g, "/");
+        while (s.length % 4) s += "=";
+        const raw = atob(s);
+        return Array.from(raw, (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+      };
+
+      const keyHex = b64urlToHex(keys[0].k ?? "");
+      if (keyHex.length !== 32) throw new Error("Key giải mã không hợp lệ.");
+
+      // Dien vao khoaClearKey theo dung dinh dang kid:key hex
+      onDoiTuyChon({ ...tuyChon, khoaClearKey: `${kidHex}:${keyHex}` });
+    } catch (err) {
+      setLoiLayKey(
+        err instanceof Error && !("response" in err)
+          ? err.message
+          : extractApiError(err, "Không lấy được key"),
+      );
+    } finally {
+      setDangLayKey(false);
     }
   }
 
@@ -344,11 +428,32 @@ export function IptvChannelPicker({
       <p className="mpop-nhan-nho">
         <b>Khóa giải mã ClearKey (nếu có)</b>
       </p>
+      <p className="mpop-nhan-nho">Link lấy Key (license server)</p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          className="mpop-o-nhap"
+          style={{ flex: 1 }}
+          value={linkLayKey}
+          onChange={(e) => setLinkLayKey(e.target.value)}
+          placeholder="https://…/AutoKey/ — nhập link rồi bấm Lấy Key"
+        />
+        <button
+          type="button"
+          className="mpop-pill mpop-pill-teal"
+          disabled={dangLayKey || !linkLayKey.trim()}
+          onClick={() => void bamLayKey()}
+        >
+          {dangLayKey ? "Đang lấy…" : "Lấy Key"}
+        </button>
+      </div>
+      {loiLayKey && <p className="mpop-loi">{loiLayKey}</p>}
+
+      <p className="mpop-nhan-nho" style={{ marginTop: 8 }}>Hoặc điền thủ công</p>
       <input
         className="mpop-o-nhap"
         value={tuyChon.khoaClearKey}
         onChange={(e) => onDoiTuyChon({ ...tuyChon, khoaClearKey: e.target.value })}
-        placeholder="Điền mã — dạng kid:key, cả hai là chuỗi hex 32 ký tự"
+        placeholder="kid:key — cả hai là chuỗi hex 32 ký tự"
       />
     </>
   );
