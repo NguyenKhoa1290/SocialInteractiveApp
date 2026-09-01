@@ -235,7 +235,7 @@ export function IptvChannelPicker({
               ))}
             </select>
             <svg width="22" height="14" viewBox="0 0 24 14" fill="none" aria-hidden="true">
-              <path d="m2 12 10-10 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="m2 2 10 10 10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
@@ -255,7 +255,7 @@ export function IptvChannelPicker({
               ))}
             </select>
             <svg width="22" height="14" viewBox="0 0 24 14" fill="none" aria-hidden="true">
-              <path d="m2 12 10-10 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="m2 2 10 10 10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
