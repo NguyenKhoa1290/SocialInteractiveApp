@@ -26,7 +26,7 @@ import { ConversationList } from "./ConversationList";
 import { ConversationInfo } from "./ConversationInfo";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { Avatar } from "../../components/Avatar";
-import { IconAttach, IconCaret, IconImage, IconMic, IconSend, IconStorage, IconVideo } from "./ComposerIcons";
+import { IconAttach, IconCaret, IconImage, IconSend, IconStorage } from "./ComposerIcons";
 import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
@@ -45,6 +45,26 @@ const KHOA_AN_THONG_TIN = "cw-an-thong-tin";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
+
+// Mot nut gui duy nhat cho anh / video / am thanh: tu doan loai tin nhan tu
+// chinh tep. Uu tien MIME cua trinh duyet; MIME co the rong (vai dinh dang nhu
+// .mkv, .flac tren mot so may khong duoc nhan), luc do doan theo duoi ten. Am
+// thanh o he thong nay la loai tin "voice". Tra null neu khong phai media.
+const DUOI_ANH = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic", "heif", "avif"];
+const DUOI_VIDEO = ["mp4", "webm", "mov", "mkv", "avi", "m4v", "3gp", "3g2", "mpeg", "mpg", "ogv"];
+const DUOI_AM_THANH = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "weba", "amr", "mid", "midi"];
+
+function doanLoaiMedia(file: File): "image" | "video" | "voice" | null {
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "voice";
+  const duoi = file.name.toLowerCase().split(".").pop() ?? "";
+  if (DUOI_ANH.includes(duoi)) return "image";
+  if (DUOI_VIDEO.includes(duoi)) return "video";
+  if (DUOI_AM_THANH.includes(duoi)) return "voice";
+  return null;
+}
 
 export function ChatRoomPage() {
   const { id } = useParams();
@@ -829,6 +849,26 @@ export function ChatRoomPage() {
     input.click();
   }
 
+  // Nut gui media gop: mo hop chon nhan ca anh, video va am thanh, roi tu doan
+  // loai. accept chi la goi y - nguoi dung van co the chon tep khac, nen phai
+  // kiem lai va bao neu khong nhan dang duoc.
+  function pickMedia() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,video/*,audio/*";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const loai = doanLoaiMedia(file);
+      if (!loai) {
+        setError("Chỉ gửi được ảnh, video hoặc âm thanh ở nút này.");
+        return;
+      }
+      handleFileSelect(loai, file);
+    };
+    input.click();
+  }
+
   const storageNearExpiry =
     storage?.expiresAt && new Date(storage.expiresAt).getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000;
 
@@ -1322,14 +1362,17 @@ export function ChatRoomPage() {
 
             {textInput.trim() === "" && (
               <div className="cw-attach">
-                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("voice", "audio/*")} title="Ghi âm">
-                  <IconMic />
-                </button>
-                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("image", "image/*")} title="Ảnh">
+                {/* Mot nut chung cho anh / video / am thanh - tu doan loai tu
+                    tep. Nut kep giay (Tep) van rieng va chi co o nhom vi chat
+                    1-1 khong nhan loai "file". */}
+                <button
+                  type="button"
+                  className="cw-icon-btn"
+                  disabled={!!uploading}
+                  onClick={pickMedia}
+                  title="Gửi ảnh, video hoặc âm thanh"
+                >
                   <IconImage />
-                </button>
-                <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("video", "video/*")} title="Video">
-                  <IconVideo />
                 </button>
                 {conversation?.type === "group" && (
                   <button type="button" className="cw-icon-btn" disabled={!!uploading} onClick={() => pickFile("file", "*/*")} title="Tệp">
