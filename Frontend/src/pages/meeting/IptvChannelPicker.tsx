@@ -37,10 +37,10 @@ type KetQuaQuet = {
 function quetLuong(url: string): Promise<KetQuaQuet> {
   const loai = doanLoaiLuong(url);
   if (loai === "dash") return quetDash(url);
-  // FLV la MOT luong duy nhat: khong co nhieu muc chat luong hay nhieu track
-  // tieng de liet ke. Tra ve rong chu khong bao loi - khong co gi de chon la
-  // dung, khong phai hong.
-  if (loai === "flv") return Promise.resolve({ mucChatLuong: [], luongAmThanh: [] });
+  // FLV va MPEG-TS deu la MOT luong duy nhat: khong co nhieu muc chat luong
+  // hay nhieu track tieng de liet ke. Tra ve rong chu khong bao loi - khong
+  // co gi de chon la dung, khong phai hong.
+  if (loai === "flv" || loai === "ts") return Promise.resolve({ mucChatLuong: [], luongAmThanh: [] });
   return quetHls(url);
 }
 
@@ -336,8 +336,8 @@ export function IptvChannelPicker({
 
       {quet && quet.mucChatLuong.length === 0 && quet.luongAmThanh.length === 0 && (
         <p className="mpop-ghi-chu">
-          Luồng này chỉ có một mức chất lượng và một luồng tiếng — không có gì để chọn. Link .flv luôn
-          như vậy.
+          Luồng này chỉ có một mức chất lượng và một luồng tiếng — không có gì để chọn. Link .flv và
+          .ts luôn như vậy.
         </p>
       )}
 
@@ -472,7 +472,7 @@ export function IptvChannelPicker({
                     <input
                       className="mpop-o-nhap"
                       name="url"
-                      placeholder="https://…/stream.m3u8 — hoặc .mpd, .flv"
+                      placeholder="https://…/stream.m3u8 — hoặc .mpd, .flv, .ts"
                     />
                     <button type="submit" className="mpop-pill mpop-pill-teal">
                       Lưu

@@ -72,11 +72,17 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
 //   .m3u8  HLS   hls.js      dinh kem san trong goi, la duong dung nhieu nhat
 //   .mpd   DASH  dashjs      nap khi can
 //   .flv   FLV   mpegts.js   nap khi can
+//   .ts    TS    mpegts.js   nap khi can - luong MPEG-TS phat THANG qua HTTP
+//
+// Dung nham lan .ts o day voi cac doan .ts BEN TRONG mot playlist HLS: nhung
+// doan do la viec rieng cua hls.js, khong bao gio di qua ham doan loai nay.
+// Chi URL cua KENH moi di qua day, nen mot URL kenh tan cung bang .ts la mot
+// luong TS lien tuc chu khong phai mot doan.
 //
 // Hai thu vien sau NAP DONG. Cong lai chung nang gan 700KB roi, ma phan lon
 // phong hop chi phat HLS - de tinh vao goi chinh thi ai cung phai tai ve mot
 // thu chin phan muoi khong dung toi. Vite tach chung thanh chunk rieng.
-export type LoaiLuong = "hls" | "dash" | "flv";
+export type LoaiLuong = "hls" | "dash" | "flv" | "ts";
 
 export function doanLoaiLuong(url: string): LoaiLuong {
   // Cat query va fragment TRUOC khi nhin duoi tep: rat nhieu link IPTV co
@@ -92,10 +98,15 @@ export function doanLoaiLuong(url: string): LoaiLuong {
 
   if (duong.endsWith(".flv")) return "flv";
   if (duong.endsWith(".mpd")) return "dash";
+  if (duong.endsWith(".ts") || duong.endsWith(".m2ts") || duong.endsWith(".mts")) return "ts";
   if (duong.endsWith(".m3u8") || duong.endsWith(".m3u")) return "hls";
 
   // Mot so nha cung cap khong de duoi o duong dan ma nhet vao tham so:
   // ...?type=flv, .../play?fmt=mpd. Chi xet khi duong dan da khong noi len gi.
+  //
+  // KHONG doan "ts" theo kieu nay: hai chu do qua ngan va gap khap noi trong
+  // chuoi truy van (timestamp, token...), doan bua la cuop luong HLS binh
+  // thuong dua sang sai bo giai ma.
   const ca = url.toLowerCase();
   if (/[?&=/.]flv(\b|$)/.test(ca)) return "flv";
   if (/[?&=/.]mpd(\b|$)/.test(ca)) return "dash";
@@ -349,18 +360,21 @@ export function IptvPlayer({
           setMessage("Không tải được bộ giải mã DASH.");
         }
       })();
-    } else if (loai === "flv") {
+    } else if (loai === "flv" || loai === "ts") {
+      // Cung mot thu vien cho ca hai: mpegts.js doc duoc ca vo boc FLV lan
+      // luong MPEG-TS tran. Chi khac mot chu trong `type`.
+      const ten = loai === "ts" ? "MPEG-TS" : "FLV";
       void (async () => {
         try {
           const mpegts = (await import("mpegts.js")).default;
           if (dead) return;
           if (!mpegts.isSupported()) {
             setStatus("failed");
-            setMessage("Trình duyệt này không phát được luồng FLV.");
+            setMessage(`Trình duyệt này không phát được luồng ${ten}.`);
             return;
           }
           const player = mpegts.createPlayer(
-            { type: "flv", url: src, isLive: true, cors: true },
+            { type: loai === "ts" ? "mpegts" : "flv", url: src, isLive: true, cors: true },
             {
               // Luong truc tiep: bo bo dem trung gian de bam sat mep song.
               enableStashBuffer: false,
@@ -395,7 +409,7 @@ export function IptvPlayer({
         } catch {
           if (dead) return;
           setStatus("failed");
-          setMessage("Không tải được bộ giải mã FLV.");
+          setMessage(`Không tải được bộ giải mã ${ten}.`);
         }
       })();
     } else if (Hls.isSupported()) {
