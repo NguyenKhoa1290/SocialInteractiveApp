@@ -8,7 +8,7 @@ import { AddPlaylistDialog } from "../miniapp/AddPlaylistDialog";
 import { useAuthStore } from "../../store/authStore";
 import { decodeJwtIsAdmin } from "../../lib/jwt";
 import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
-import type { TuyChonPhat } from "./IptvPlayer";
+import { doanLoaiLuong, type TuyChonPhat } from "./IptvPlayer";
 
 // Luong IPTV theo dung bon frame di NGANG trong ban thiet ke:
 //   140:263  Danh sach Playlist
@@ -33,10 +33,77 @@ type KetQuaQuet = {
 
 // Doc manifest de biet luong co nhung do phan giai va nhung luong tieng nao.
 //
-// Chay hls.js KHONG gan vao the <video>: chi can toi su kien MANIFEST_PARSED,
-// khong can giai ma mot khung hinh nao. Nen "Quet thong tin" khong ton bang
-// thong cua doan video.
+// Moi dinh dang mot duong doc rieng - xem doanLoaiLuong trong IptvPlayer.
 function quetLuong(url: string): Promise<KetQuaQuet> {
+  const loai = doanLoaiLuong(url);
+  if (loai === "dash") return quetDash(url);
+  // FLV la MOT luong duy nhat: khong co nhieu muc chat luong hay nhieu track
+  // tieng de liet ke. Tra ve rong chu khong bao loi - khong co gi de chon la
+  // dung, khong phai hong.
+  if (loai === "flv") return Promise.resolve({ mucChatLuong: [], luongAmThanh: [] });
+  return quetHls(url);
+}
+
+// DASH: dashjs can mot the <video> de khoi tao, nhung khong can the do nam
+// trong trang - dung mot the roi, khong tu phat, doc xong la huy.
+function quetDash(url: string): Promise<KetQuaQuet> {
+  return new Promise((giai, tuChoi) => {
+    let xong = false;
+    void (async () => {
+      try {
+        const { MediaPlayer } = await import("dashjs");
+        const the = document.createElement("video");
+        the.muted = true;
+        const player = MediaPlayer().create();
+        const hen = setTimeout(() => {
+          if (xong) return;
+          xong = true;
+          player.destroy();
+          tuChoi(new Error("Quá lâu không đọc được thông tin luồng."));
+        }, 12000);
+
+        player.on("streamInitialized", () => {
+          if (xong) return;
+          xong = true;
+          clearTimeout(hen);
+          const kq: KetQuaQuet = {
+            mucChatLuong: player.getRepresentationsByType("video").map((r, i) => ({
+              index: i,
+              nhan: `${r.height || r.width || "?"}${r.height ? "p" : ""}${
+                r.frameRate ? ` - ${Math.round(r.frameRate)}fps` : ""
+              }`,
+            })),
+            luongAmThanh: player.getTracksFor("audio").map((t, i) => ({
+              index: i,
+              nhan: [t.labels?.[0]?.text, t.lang].filter(Boolean).join(" - ") || `Luồng ${i + 1}`,
+            })),
+          };
+          player.destroy();
+          giai(kq);
+        });
+
+        player.on("error", () => {
+          if (xong) return;
+          xong = true;
+          clearTimeout(hen);
+          player.destroy();
+          tuChoi(new Error("Không đọc được luồng — nguồn có thể chặn hoặc đã chết."));
+        });
+
+        player.initialize(the, url, false);
+      } catch {
+        if (xong) return;
+        xong = true;
+        tuChoi(new Error("Không tải được bộ giải mã DASH."));
+      }
+    })();
+  });
+}
+
+// HLS: chay hls.js KHONG gan vao the <video> - chi can toi su kien
+// MANIFEST_PARSED, khong can giai ma mot khung hinh nao. Nen "Quet thong tin"
+// khong ton bang thong cua doan video.
+function quetHls(url: string): Promise<KetQuaQuet> {
   return new Promise((giai, tuChoi) => {
     if (!Hls.isSupported()) {
       tuChoi(new Error("Trình duyệt này không đọc trước được luồng HLS."));
@@ -267,6 +334,13 @@ export function IptvChannelPicker({
         </p>
       )}
 
+      {quet && quet.mucChatLuong.length === 0 && quet.luongAmThanh.length === 0 && (
+        <p className="mpop-ghi-chu">
+          Luồng này chỉ có một mức chất lượng và một luồng tiếng — không có gì để chọn. Link .flv luôn
+          như vậy.
+        </p>
+      )}
+
       <p className="mpop-nhan-nho">
         <b>Khóa giải mã ClearKey (nếu có)</b>
       </p>
@@ -395,7 +469,11 @@ export function IptvChannelPicker({
                     <input className="mpop-o-nhap" name="ten" placeholder="Tên kênh" maxLength={100} />
                     {/* Khong dat maxLength: link luong cua nhieu nha cung cap
                         co token ky rat dai, cot da doi sang TEXT. */}
-                    <input className="mpop-o-nhap" name="url" placeholder="https://…/stream.m3u8" />
+                    <input
+                      className="mpop-o-nhap"
+                      name="url"
+                      placeholder="https://…/stream.m3u8 — hoặc .mpd, .flv"
+                    />
                     <button type="submit" className="mpop-pill mpop-pill-teal">
                       Lưu
                     </button>

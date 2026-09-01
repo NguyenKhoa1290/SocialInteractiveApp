@@ -66,6 +66,57 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   amLuong: 1,
 };
 
+// Ba dinh dang luong, ba thu vien - trinh duyet khong tu phat duoc cai nao
+// trong so nay (tru HLS tren Safari):
+//
+//   .m3u8  HLS   hls.js      dinh kem san trong goi, la duong dung nhieu nhat
+//   .mpd   DASH  dashjs      nap khi can
+//   .flv   FLV   mpegts.js   nap khi can
+//
+// Hai thu vien sau NAP DONG. Cong lai chung nang gan 700KB roi, ma phan lon
+// phong hop chi phat HLS - de tinh vao goi chinh thi ai cung phai tai ve mot
+// thu chin phan muoi khong dung toi. Vite tach chung thanh chunk rieng.
+export type LoaiLuong = "hls" | "dash" | "flv";
+
+export function doanLoaiLuong(url: string): LoaiLuong {
+  // Cat query va fragment TRUOC khi nhin duoi tep: rat nhieu link IPTV co
+  // dang .../live.flv?token=<chuoi rat dai> - nhin ca chuoi thi duoi khong
+  // bao gio nam o cuoi.
+  let duong: string;
+  try {
+    duong = new URL(url, window.location.href).pathname;
+  } catch {
+    duong = url.split(/[?#]/)[0];
+  }
+  duong = duong.toLowerCase();
+
+  if (duong.endsWith(".flv")) return "flv";
+  if (duong.endsWith(".mpd")) return "dash";
+  if (duong.endsWith(".m3u8") || duong.endsWith(".m3u")) return "hls";
+
+  // Mot so nha cung cap khong de duoi o duong dan ma nhet vao tham so:
+  // ...?type=flv, .../play?fmt=mpd. Chi xet khi duong dan da khong noi len gi.
+  const ca = url.toLowerCase();
+  if (/[?&=/.]flv(\b|$)/.test(ca)) return "flv";
+  if (/[?&=/.]mpd(\b|$)/.test(ca)) return "dash";
+
+  // Khong doan ra thi coi la HLS: dinh dang pho bien nhat, va la hanh vi cu.
+  return "hls";
+}
+
+// Tach mot cap "kid:key" hex thanh hai chuoi base64url khong dem. Ca hai
+// duong giai ma deu can dung dang nay: hls.js qua mot JWK Set, dashjs qua
+// bang `clearkeys`.
+function tachClearKey(khoa: string): { kid: string; key: string } | null {
+  const m = khoa.trim().match(/^([0-9a-fA-F]{32}):([0-9a-fA-F]{32})$/);
+  if (!m) return null;
+  const b64url = (hex: string) => {
+    const b = Uint8Array.from(hex.match(/../g)!.map((h) => parseInt(h, 16)));
+    return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  };
+  return { kid: b64url(m[1]), key: b64url(m[2]) };
+}
+
 // Doi mot cap kid:key hex thanh mot "giay phep" ClearKey (JWK Set) nhung
 // duoi dang data: URL, de hls.js coi no nhu mot may chu cap phep.
 //
@@ -74,14 +125,21 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
 // licenseUrl sang mot duong dan cung nguon tra 200 la chay, vi
 // licenseResponseCallback ben duoi da thay noi dung tra ve roi.
 function giayPhepClearKey(khoa: string): string | null {
-  const m = khoa.trim().match(/^([0-9a-fA-F]{32}):([0-9a-fA-F]{32})$/);
-  if (!m) return null;
-  const b64url = (hex: string) => {
-    const b = Uint8Array.from(hex.match(/../g)!.map((h) => parseInt(h, 16)));
-    return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  };
-  return JSON.stringify({ keys: [{ kty: "oct", kid: b64url(m[1]), k: b64url(m[2]) }], type: "temporary" });
+  const k = tachClearKey(khoa);
+  if (!k) return null;
+  return JSON.stringify({ keys: [{ kty: "oct", kid: k.kid, k: k.key }], type: "temporary" });
 }
+
+// Nhung gi mot trinh giai ma NAP DONG phai cung cap cho phan chung: watchdog
+// goi napLai khi luong treo, effect doi chat luong goi hai ham dat, va luc
+// thao thi goi thao. hls.js khong di qua day - no da co duong rieng trong
+// effect chinh tu truoc.
+type Engine = {
+  napLai: () => void;
+  thao: () => void;
+  datChatLuong?: (chiSo: number) => void;
+  datTieng?: (chiSo: number) => void;
+};
 
 type AudioOption = { index: number; name: string; lang: string };
 
@@ -111,6 +169,9 @@ export function IptvPlayer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  // Trinh giai ma DASH/FLV. Chi mot trong hai ref nay khac null tai mot thoi
+  // diem - luong nao thi engine day.
+  const engineRef = useRef<Engine | null>(null);
 
   const [status, setStatus] = useState<PlayerStatus>("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -125,6 +186,10 @@ export function IptvPlayer({
   const soDaChonRef = useRef(-1);
   const preferredRef = useRef<string | null | undefined>(preferredAudioTrack);
   preferredRef.current = preferredAudioTrack;
+  // Lua chon moi nhat, de duong nap dong doc duoc no khi engine dung xong -
+  // luc do effect doi chat luong da chay tu lau roi.
+  const tuyChonRef = useRef(tuyChon);
+  tuyChonRef.current = tuyChon;
 
   // Doi KENH la quen lua chon tieng cu: chi so trong tuyChon la chi so cua
   // danh sach track thuoc kenh TRUOC. Nap lai cung mot kenh thi van nho.
@@ -214,12 +279,121 @@ export function IptvPlayer({
       later(() => {
         seekToLiveEdge();
         if (hlsRef.current) hlsRef.current.startLoad();
+        else if (engineRef.current) engineRef.current.napLai();
         else video.load();
         void video.play().catch(() => {});
       }, Math.min(1000 * recoveries, 8000));
     };
 
-    if (Hls.isSupported()) {
+    const loai = doanLoaiLuong(src);
+
+    // Ap lai lua chon cua nguoi xem sau khi engine nap xong. Phai lam o day
+    // chu khong o effect doi chat luong: effect do chay ngay, con engine thi
+    // vai tram mili giay sau moi co (nap dong + doc manifest).
+    const apDungTuyChon = () => {
+      const t = tuyChonRef.current;
+      engineRef.current?.datChatLuong?.(t?.mucChatLuong ?? -1);
+      engineRef.current?.datTieng?.(t?.luongAmThanh ?? -1);
+    };
+
+    if (loai === "dash") {
+      void (async () => {
+        try {
+          const { MediaPlayer } = await import("dashjs");
+          if (dead) return;
+          const player = MediaPlayer().create();
+          player.updateSettings({
+            streaming: {
+              // Bam sat mep song y nhu ben HLS: luong truc tiep tut lai sau
+              // moi lan nghen mang, khong keo len thi cang xem cang tre.
+              delay: { liveDelay: 6 },
+              liveCatchup: { enabled: true },
+            },
+          });
+
+          // Khoa ClearKey - o nhap trong popup ghi ".hpd (neu co)", tuc la
+          // danh cho chinh dinh dang nay. Khong co khoa thi khong bat EME,
+          // giong ben HLS: bat san se lam trinh duyet hoi quyen giai ma cho
+          // ca nhung luong khong ma hoa.
+          const k = tuyChon?.khoaClearKey ? tachClearKey(tuyChon.khoaClearKey) : null;
+          if (k) player.setProtectionData({ "org.w3.clearkey": { clearkeys: { [k.kid]: k.key } } });
+
+          player.initialize(video, src, true);
+          player.on("playbackPlaying", markHealthy);
+          player.on("streamInitialized", apDungTuyChon);
+          player.on("error", () => {
+            if (!dead) recover();
+          });
+
+          engineRef.current = {
+            napLai: () => player.attachSource(src),
+            thao: () => player.destroy(),
+            datChatLuong: (chiSo) => {
+              // -1 la "tu dong": tra quyen chon bitrate lai cho dashjs. Dat
+              // mot chi so cu the thi phai TAT tu dong truoc, khong thi vong
+              // do bang thong sau se de len lua chon cua nguoi xem.
+              player.updateSettings({
+                streaming: { abr: { autoSwitchBitrate: { video: chiSo < 0 } } },
+              });
+              if (chiSo >= 0) player.setRepresentationForTypeByIndex("video", chiSo);
+            },
+            datTieng: (chiSo) => {
+              if (chiSo < 0) return;
+              const ds = player.getTracksFor("audio");
+              if (chiSo < ds.length) player.setCurrentTrack(ds[chiSo]);
+            },
+          };
+        } catch {
+          if (dead) return;
+          setStatus("failed");
+          setMessage("Không tải được bộ giải mã DASH.");
+        }
+      })();
+    } else if (loai === "flv") {
+      void (async () => {
+        try {
+          const mpegts = (await import("mpegts.js")).default;
+          if (dead) return;
+          if (!mpegts.isSupported()) {
+            setStatus("failed");
+            setMessage("Trình duyệt này không phát được luồng FLV.");
+            return;
+          }
+          const player = mpegts.createPlayer(
+            { type: "flv", url: src, isLive: true, cors: true },
+            {
+              // Luong truc tiep: bo bo dem trung gian va duoi theo mep song,
+              // cung tinh than voi hai duong kia.
+              enableStashBuffer: false,
+              liveBufferLatencyChasing: true,
+              enableWorker: true,
+            },
+          );
+          player.attachMediaElement(video);
+          player.load();
+          void Promise.resolve(player.play()).catch(() => {});
+          player.on(mpegts.Events.ERROR, () => {
+            if (!dead) recover();
+          });
+
+          engineRef.current = {
+            napLai: () => {
+              player.unload();
+              player.load();
+              void Promise.resolve(player.play()).catch(() => {});
+            },
+            thao: () => player.destroy(),
+            // FLV la MOT luong duy nhat: khong co muc chat luong lan nhieu
+            // track tieng de doi. Bo trong hai ham la effect doi chat luong
+            // tu khong lam gi.
+          };
+        } catch {
+          if (dead) return;
+          setStatus("failed");
+          setMessage("Không tải được bộ giải mã FLV.");
+        }
+      })();
+    } else if (Hls.isSupported()) {
       const giayPhep = tuyChon?.khoaClearKey ? giayPhepClearKey(tuyChon.khoaClearKey) : null;
       const hls = new Hls({
         // Luong IPTV la TRUC TIEP: bam sat mep song, va tu tang toc phat nhe
@@ -352,6 +526,8 @@ export function IptvPlayer({
       video.removeEventListener("ended", onEnded);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      engineRef.current?.thao();
+      engineRef.current = null;
       // Duong native: khong go src thi trinh duyet tai tiep du da thao.
       if (video.src) {
         video.removeAttribute("src");
@@ -366,12 +542,20 @@ export function IptvPlayer({
   // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG
   // dung Hls lai. Dung lai la mat vai giay dem va video giat ve dau.
   useEffect(() => {
-    const hls = hlsRef.current;
-    if (!hls) return;
     const muc = tuyChon?.mucChatLuong ?? -1;
-    if (hls.currentLevel !== muc) hls.currentLevel = muc;
     const tieng = tuyChon?.luongAmThanh ?? -1;
-    if (tieng >= 0 && hls.audioTrack !== tieng) hls.audioTrack = tieng;
+
+    const hls = hlsRef.current;
+    if (hls) {
+      if (hls.currentLevel !== muc) hls.currentLevel = muc;
+      if (tieng >= 0 && hls.audioTrack !== tieng) hls.audioTrack = tieng;
+      return;
+    }
+
+    // DASH cung hai con so do, chi khac ten ham. FLV la luong don nen engine
+    // cua no bo trong hai ham nay - goi vao khong lam gi ca.
+    engineRef.current?.datChatLuong?.(muc);
+    engineRef.current?.datTieng?.(tieng);
   }, [tuyChon?.mucChatLuong, tuyChon?.luongAmThanh]);
 
   // Am luong den tu popup Mini App (IptvChannelPicker), khong con thanh keo
