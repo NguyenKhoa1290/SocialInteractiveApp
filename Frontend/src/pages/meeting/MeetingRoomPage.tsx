@@ -100,6 +100,11 @@ export function MeetingRoomPage() {
   const roomRef = useRef<Room | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [remotes, setRemotes] = useState<RemoteParticipant[]>([]);
+  // userId -> moc thoi gian (ms) NOI gan nhat. Dung sap o cua nguoi dang noi
+  // len dau: ai vua noi thi len tren, im lang lau thi tut xuong - giong cac
+  // ung dung hop hien nay. Cap nhat qua ActiveSpeakersChanged (LiveKit da tu
+  // gom, khong ban lien tuc tung khung tieng nen khong giat).
+  const lastSpokeRef = useRef<Record<number, number>>({});
   const [version, setVersion] = useState(0); // ep render lai tile khi LiveKit ban su kien
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | "left" | "ended">("connecting");
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +333,16 @@ export function MeetingRoomPage() {
           .on(RoomEvent.LocalTrackUnpublished, bump)
           .on(RoomEvent.RoomMetadataChanged, (metadata) => {
             setPresentation(parsePresentation(metadata));
+          })
+          .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+            // Ghi moc "vua noi" cho tung nguoi dang noi (gom ca chinh minh).
+            // Chi doi thu tu khi tap nguoi noi doi, khong phai moi khung tieng.
+            const luc = Date.now();
+            for (const s of speakers) {
+              const uid = Number(s.identity);
+              if (!Number.isNaN(uid)) lastSpokeRef.current[uid] = luc;
+            }
+            bump();
           })
           .on(RoomEvent.Disconnected, () => {
             if (!cancelled) setStatus("left");
@@ -884,12 +899,27 @@ export function MeetingRoomPage() {
   // Thu dang o khung lon thi khong lap lai o cot ben canh. Luu y CHI loai o
   // dung loai: nguoi dang trinh chieu van giu o CAMERA cua ho trong luoi,
   // chi o MAN HINH cua ho moi bi loai (vi no dang o khung lon).
-  const gridTiles = allTiles.filter((t) => {
+  const gridLoc = allTiles.filter((t) => {
     if (showAppStage && t.kind === "iptv") return false;
     if (!stageParticipant) return true;
     if (stageIsScreen) return !(t.kind === "screen" && t.participant === stageParticipant);
     return !(t.kind === "participant" && t.participant === stageParticipant);
   });
+
+  // Dua NGUOI DANG NOI len dau (o luoi lan dai ben canh khi ghim). Ai vua noi
+  // gan day nhat len truoc; nguoi im lang giu nguyen thu tu cu (sort on dinh);
+  // o man hinh / IPTV luon o cuoi. Hai nguoi noi cung luc thi ca hai deu len
+  // tren, nguoi noi sau cung nhinh hon mot chut - giong cac ung dung hop.
+  const hangTile = (t: Tile) => {
+    if (t.kind !== "participant") return t.kind === "iptv" ? 1e15 + 1 : 1e15;
+    const ls = lastSpokeRef.current[t.userId] ?? 0;
+    return ls > 0 ? -ls : 0;
+  };
+  const gridTiles = gridLoc
+    .map((t, i) => [t, i] as const)
+    // Giu on dinh cho nhung o cung hang bang cach kem chi so goc.
+    .sort((a, b) => hangTile(a[0]) - hangTile(b[0]) || a[1] - b[1])
+    .map(([t]) => t);
 
   // So o moi trang lay tu thiet ke: luoi thuong 3x3 = 9 (frame 116:773),
   // focus mode la dai bon o duoi khung lon (frame 118:1080). Man hinh hep
