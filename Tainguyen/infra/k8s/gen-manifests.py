@@ -687,10 +687,6 @@ RABBIT = [("RabbitMq__HostName", data_host("rabbitmq"))]
 CORS_ORIGINS = [
     ("Cors__AllowedOrigins__0", pub()),
     ("Cors__AllowedOrigins__1", f"http://{LAN_HOST}"),
-    # Tam thoi trong luc chuyen domain sang callimeet.com: van cho origin cu
-    # cachephoarong.click de trang dang mo khong bi chan CORS. Go sau khi da
-    # go han cachephoarong.
-    ("Cors__AllowedOrigins__2", "https://cachephoarong.click"),
 ]
 
 SERVICES = [
