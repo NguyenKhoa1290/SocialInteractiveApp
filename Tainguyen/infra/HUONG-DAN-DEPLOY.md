@@ -868,12 +868,12 @@ RabbitMQ cũ bị từ chối (`authenticate_user` → exit 65).
 #### Đưa dịch vụ ra Internet qua cloudflared (vượt CGNAT)
 
 Máy nhà không có IP public, nhưng cloudflared chỉ cần kết nối **đi ra** nên vẫn public hoá được.
-Tunnel có tên sẵn (`e1f67fd0-...`), tên miền `cachephoarong.click`, cấu hình ở `/etc/cloudflared/config.yml`.
+Tunnel có tên sẵn (`e1f67fd0-...`), tên miền `callimeet.com`, cấu hình ở `/etc/cloudflared/config.yml`.
 
 Thêm một dịch vụ = thêm một mục `ingress` + một bản ghi CNAME:
 
 ```yaml
-  - hostname: dashboard.cachephoarong.click
+  - hostname: dashboard.callimeet.com
     service: https://localhost:9443
     originRequest:
       noTLSVerify: true        # Portainer dung chung chi TU KY
@@ -881,7 +881,7 @@ Thêm một dịch vụ = thêm một mục `ingress` + một bản ghi CNAME:
 
 ```bash
 # cert.pem nam o home cua user, chay sudo thi phai chi duong
-sudo cloudflared --origincert /home/nguyenkhoa/.cloudflared/cert.pem   tunnel route dns <tunnel-id> dashboard.cachephoarong.click
+sudo cloudflared --origincert /home/nguyenkhoa/.cloudflared/cert.pem   tunnel route dns <tunnel-id> dashboard.callimeet.com
 sudo cloudflared --config /etc/cloudflared/config.yml   --origincert /home/nguyenkhoa/.cloudflared/cert.pem tunnel ingress validate
 sudo systemctl restart cloudflared
 ```
@@ -895,7 +895,7 @@ sudo systemctl restart cloudflared
 - **Sao lưu + `tunnel ingress validate` trước khi restart** — sai cú pháp là mất luôn cả route `ssh`
   đang dùng để quản trị máy.
 
-Kết quả: `https://dashboard.cachephoarong.click` → **200** từ Internet.
+Kết quả: `https://dashboard.callimeet.com` → **200** từ Internet.
 
 #### ĐÃ ĐƯA TOÀN BỘ HỆ THỐNG RA INTERNET
 
@@ -903,7 +903,7 @@ Frontend ở domain gốc, mỗi service một subdomain. **10/10 tên miền tr
 
 | Tên miền | Đích | Cổng |
 |---|---|---|
-| `cachephoarong.click` | Frontend | 80 |
+| `callimeet.com` | Frontend | 80 |
 | `identity.` `workspace.` `chat.` `media.` `admin.` | 5 API service | 5194 / 5153 / 5261 / 5300 / 5230 |
 | `files.` | MinIO gateway (có bóp tốc độ) | 9000 |
 | `minio.` `rabbit.` `dashboard.` | MinIO Console · RabbitMQ Mgmt · Portainer | 9001 / 15672 / 9443 |
@@ -915,7 +915,7 @@ AMQP (5672), Postgres, Redis, Kafka đều giữ ClusterIP.
 
 1. **Build lại frontend** với `https://<sub>.<domain>` — Vite nhúng URL lúc build. Không build lại thì
    trình duyệt vẫn gọi IP LAN, người ngoài mạng không tới được **và** bị chặn mixed content.
-2. **CORS** thêm origin `https://cachephoarong.click` (giữ luôn `http://<IP LAN>` để mở bằng IP vẫn chạy).
+2. **CORS** thêm origin `https://callimeet.com` (giữ luôn `http://<IP LAN>` để mở bằng IP vẫn chạy).
 3. **`Storage:Providers:home:Endpoint`** → `https://files.<domain>`. Chữ ký S3 gắn với hostname; may là
    cloudflared giữ nguyên header Host và nginx chuyển tiếp bằng `$http_host` nên chữ ký khớp.
 
