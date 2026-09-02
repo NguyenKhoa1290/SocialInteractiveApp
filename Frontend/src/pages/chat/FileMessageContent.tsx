@@ -1,7 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { MessageType } from "../../types/chat";
 import { ImageViewer } from "../../components/ImageViewer";
+import "./file-message.css";
+
+// Trinh phat file am thanh theo "Mau file am thanh dang phat" (Figma 154:2):
+// nut tron teal play/pause + ten file, thay cho <audio controls> mac dinh cua
+// trinh duyet. The <audio> that van o trong DOM (an, khong controls) de phat.
+function AudioMessage({ url, name }: { url: string; name: string }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [dangTamDung, setDangTamDung] = useState(true);
+
+  const toggle = () => {
+    const a = ref.current;
+    if (!a) return;
+    if (a.paused) void a.play().catch(() => {});
+    else a.pause();
+  };
+
+  return (
+    <div className="fm-audio">
+      <audio
+        ref={ref}
+        src={url}
+        preload="metadata"
+        onPlay={() => setDangTamDung(false)}
+        onPause={() => setDangTamDung(true)}
+        onEnded={() => setDangTamDung(true)}
+      />
+      <button
+        type="button"
+        className="fm-audio-btn"
+        onClick={toggle}
+        title={dangTamDung ? "Phát" : "Tạm dừng"}
+        aria-label={dangTamDung ? "Phát" : "Tạm dừng"}
+      >
+        {dangTamDung ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="7" y="5" width="3.4" height="14" rx="1.1" fill="currentColor" />
+            <rect x="13.6" y="5" width="3.4" height="14" rx="1.1" fill="currentColor" />
+          </svg>
+        )}
+      </button>
+      <span className="fm-audio-name" title={name}>
+        {name}
+      </span>
+    </div>
+  );
+}
 
 function humanSize(bytes: number): string {
   if (bytes <= 0) return "";
@@ -98,12 +148,7 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
   }
 
   if (type === "voice") {
-    return (
-      <span className="fm-media fm-voice">
-        <audio src={url} controls />
-        <span className="fm-media-name">{ten}</span>
-      </span>
-    );
+    return <AudioMessage url={url} name={ten} />;
   }
 
   // Tep thuong: khuon the giong hang danh sach (Figma node 111:539) - vong
