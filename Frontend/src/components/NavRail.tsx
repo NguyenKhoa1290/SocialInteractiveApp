@@ -41,8 +41,14 @@ export function NavRail({ activeTab }: { activeTab?: RailTab }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
-  // Co hoi thoai nao co tin chua doc khong -> cham do tren bieu tuong Chat.
-  const coTinChua = useChatUnreadStore((s) => Object.keys(s.unread).length > 0);
+  // Cham do "tin moi": p2p -> bieu tuong Chat, nhom -> bieu tuong Nhom. Chua
+  // biet loai (chua nap danh sach) thi coi la p2p (Chat).
+  const chuaP2P = useChatUnreadStore((s) =>
+    Object.keys(s.unread).some((id) => (s.types[Number(id)] ?? "p2p") === "p2p"),
+  );
+  const chuaGroup = useChatUnreadStore((s) =>
+    Object.keys(s.unread).some((id) => s.types[Number(id)] === "group"),
+  );
 
   const items: Item[] = [
     { key: "chat", to: "/app", label: "Chat", icon: <IconChat />, match: (p) => p === "/app" || p.startsWith("/app/chat") },
@@ -95,11 +101,17 @@ export function NavRail({ activeTab }: { activeTab?: RailTab }) {
             key={it.to}
             to={it.to}
             className={`rail-item${dangMo(it) ? " active" : ""}`}
-            aria-label={it.key === "chat" && coTinChua ? `${it.label}, có tin nhắn mới` : it.label}
+            aria-label={
+              (it.key === "chat" && chuaP2P) || (it.key === "groups" && chuaGroup)
+                ? `${it.label}, có tin nhắn mới`
+                : it.label
+            }
             aria-current={dangMo(it) ? "page" : undefined}
           >
             {it.icon}
-            {it.key === "chat" && coTinChua && <span className="rail-dot" aria-hidden="true" />}
+            {((it.key === "chat" && chuaP2P) || (it.key === "groups" && chuaGroup)) && (
+              <span className="rail-dot" aria-hidden="true" />
+            )}
             <span className="rail-label">{it.label}</span>
           </Link>
         ))}

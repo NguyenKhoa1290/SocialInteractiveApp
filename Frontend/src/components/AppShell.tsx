@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useAuthStore } from "../store/authStore";
 import { onNotification } from "../lib/notificationHub";
 import { notificationApi } from "../api/notificationApi";
+import { chatApi } from "../api/chatApi";
 import { useNotificationStore } from "../store/notificationStore";
 import { useChatUnreadStore } from "../store/chatUnreadStore";
 import { URGENT_TYPES } from "../types/notification";
@@ -21,6 +22,16 @@ export function AppShell({ children, activeTab }: { children: ReactNode; activeT
     if (!accessToken) return;
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
+
+    // Seed loai cac hoi thoai de cham do "tin moi" dat dung bieu tuong (Chat
+    // vs Nhom) ke ca khi chua vao trang danh sach nao.
+    chatApi
+      .listConversations()
+      .then((res) => {
+        if (!cancelled)
+          useChatUnreadStore.getState().setTypes(res.data.map((c) => ({ id: c.id, type: c.type })));
+      })
+      .catch(() => {});
 
     notificationApi
       .unreadCount()

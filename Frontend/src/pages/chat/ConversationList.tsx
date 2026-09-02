@@ -123,6 +123,9 @@ export function ConversationList({
         setNames(map);
         setFriends(friendsRes.data);
         setLoiMoi(moiRes.data);
+        // Ghi loai tung hoi thoai de thanh dieu huong dat cham do dung bieu
+        // tuong (Chat vs Nhom).
+        useChatUnreadStore.getState().setTypes(convRes.data.map((c) => ({ id: c.id, type: c.type })));
         setItems(convRes.data.filter((c) => c.type === kind));
       } catch (err) {
         setError(extractApiError(err, "Không tải được danh sách"));
