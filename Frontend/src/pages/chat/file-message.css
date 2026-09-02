@@ -39,9 +39,17 @@
   height: calc(24px * var(--s));
 }
 
-.fm-audio-name {
+/* Ben phai nut: ten file o tren, thanh tua o duoi. */
+.fm-audio-body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--s));
+}
+
+.fm-audio-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -49,4 +57,34 @@
   font-size: calc(16px * var(--s));
   font-weight: 500;
   color: #293546;
+}
+
+/* Thanh tua: thoi gian hien tai | slider | tong thoi gian. */
+.fm-audio-seek {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--s));
+}
+
+.fm-audio-time {
+  flex: none;
+  font-family: var(--sans);
+  font-size: calc(13px * var(--s));
+  font-weight: 400;
+  color: #5c6b6d;
+  font-variant-numeric: tabular-nums;
+}
+
+.fm-audio-range {
+  flex: 1;
+  min-width: 0;
+  height: calc(6px * var(--s));
+  /* Track + num teal - accent-color to ca phan da chay lan num keo. */
+  accent-color: #85aeb0;
+  cursor: pointer;
+}
+
+.fm-audio-range:disabled {
+  cursor: default;
+  opacity: 0.6;
 }

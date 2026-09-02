@@ -4,12 +4,26 @@ import type { MessageType } from "../../types/chat";
 import { ImageViewer } from "../../components/ImageViewer";
 import "./file-message.css";
 
+// mm:ss, hoac h:mm:ss neu dai qua mot tieng. NaN/Infinity (luong khong biet do
+// dai) tra "--:--".
+function dinhThoiGian(giay: number): string {
+  if (!Number.isFinite(giay) || giay < 0) return "--:--";
+  const s = Math.floor(giay % 60);
+  const p = Math.floor(giay / 60) % 60;
+  const h = Math.floor(giay / 3600);
+  const hai = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${hai(p)}:${hai(s)}` : `${p}:${hai(s)}`;
+}
+
 // Trinh phat file am thanh theo "Mau file am thanh dang phat" (Figma 154:2):
-// nut tron teal play/pause + ten file, thay cho <audio controls> mac dinh cua
-// trinh duyet. The <audio> that van o trong DOM (an, khong controls) de phat.
+// nut tron teal play/pause + ten file + thanh tua (thoi gian / tong + slider),
+// thay cho <audio controls> mac dinh. The <audio> that van o trong DOM (an,
+// khong controls) de phat.
 function AudioMessage({ url, name }: { url: string; name: string }) {
   const ref = useRef<HTMLAudioElement>(null);
   const [dangTamDung, setDangTamDung] = useState(true);
+  const [hienTai, setHienTai] = useState(0);
+  const [tong, setTong] = useState(0);
 
   const toggle = () => {
     const a = ref.current;
@@ -17,6 +31,16 @@ function AudioMessage({ url, name }: { url: string; name: string }) {
     if (a.paused) void a.play().catch(() => {});
     else a.pause();
   };
+
+  const tua = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const a = ref.current;
+    if (!a) return;
+    const t = Number(e.target.value);
+    a.currentTime = t;
+    setHienTai(t);
+  };
+
+  const coDoDai = Number.isFinite(tong) && tong > 0;
 
   return (
     <div className="fm-audio">
@@ -27,6 +51,9 @@ function AudioMessage({ url, name }: { url: string; name: string }) {
         onPlay={() => setDangTamDung(false)}
         onPause={() => setDangTamDung(true)}
         onEnded={() => setDangTamDung(true)}
+        onLoadedMetadata={(e) => setTong(e.currentTarget.duration)}
+        onDurationChange={(e) => setTong(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setHienTai(e.currentTarget.currentTime)}
       />
       <button
         type="button"
@@ -46,9 +73,26 @@ function AudioMessage({ url, name }: { url: string; name: string }) {
           </svg>
         )}
       </button>
-      <span className="fm-audio-name" title={name}>
-        {name}
-      </span>
+      <div className="fm-audio-body">
+        <span className="fm-audio-name" title={name}>
+          {name}
+        </span>
+        <div className="fm-audio-seek">
+          <span className="fm-audio-time">{dinhThoiGian(hienTai)}</span>
+          <input
+            type="range"
+            className="fm-audio-range"
+            min={0}
+            max={coDoDai ? tong : 0}
+            step="any"
+            value={coDoDai ? Math.min(hienTai, tong) : 0}
+            onChange={tua}
+            disabled={!coDoDai}
+            aria-label="Tua"
+          />
+          <span className="fm-audio-time">{dinhThoiGian(tong)}</span>
+        </div>
+      </div>
     </div>
   );
 }
