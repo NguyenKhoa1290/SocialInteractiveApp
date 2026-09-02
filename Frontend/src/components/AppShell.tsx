@@ -4,6 +4,7 @@ import { useAuthStore } from "../store/authStore";
 import { onNotification } from "../lib/notificationHub";
 import { notificationApi } from "../api/notificationApi";
 import { useNotificationStore } from "../store/notificationStore";
+import { useChatUnreadStore } from "../store/chatUnreadStore";
 import { URGENT_TYPES } from "../types/notification";
 import { NavRail } from "./NavRail";
 import type { RailTab } from "./NavRail";
@@ -36,6 +37,12 @@ export function AppShell({ children, activeTab }: { children: ReactNode; activeT
       // Chi loai khan moi noi popup - tin nhan moi va canh bao dung luong
       // den lien tuc, popup se thanh phien nhieu.
       if (URGENT_TYPES.includes(n.type)) useNotificationStore.getState().pushToast(n);
+      // Tin nhan moi: dua nguoi gui len dau + cham do canh avatar/bieu tuong
+      // chat. Thong bao chi gui cho nguoi NHAN nen khong phai loc tin cua minh.
+      if (n.type === "new_message" && n.link) {
+        const m = n.link.match(/\/app\/chat\/(\d+)/);
+        if (m) useChatUnreadStore.getState().incoming(Number(m[1]), Date.parse(n.createdAt) || Date.now());
+      }
     })
       .then((off) => {
         // Component da thao truoc khi ket noi kip mo -> huy dang ky ngay,

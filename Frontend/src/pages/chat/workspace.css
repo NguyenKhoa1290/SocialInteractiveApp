@@ -129,6 +129,26 @@
 /* --- The mot hang (442x92, vien #293546 2px, bo 10) --------------------- */
 /* Dung chung cho: hang danh sach, the ket ban, dau trang chat, tin nhan file. */
 
+/* Avatar trong danh sach + cham do "co tin moi" o goc tren avatar. */
+.cw-av {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  line-height: 0;
+}
+
+.cw-av-dot {
+  position: absolute;
+  top: calc(1px * var(--s));
+  right: calc(1px * var(--s));
+  width: calc(16px * var(--s));
+  height: calc(16px * var(--s));
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--bg);
+  box-sizing: border-box;
+}
+
 .cw-card {
   display: flex;
   align-items: center;

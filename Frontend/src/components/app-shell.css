@@ -112,6 +112,20 @@
   white-space: nowrap;
 }
 
+/* Cham do bao "co tin nhan moi" tren bieu tuong Chat - nho hon rail-badge (chi
+   la dau hieu, khong dem so). */
+.rail-dot {
+  position: absolute;
+  top: calc(9px * var(--s));
+  right: calc(9px * var(--s));
+  width: calc(11px * var(--s));
+  height: calc(11px * var(--s));
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--bg);
+  box-sizing: border-box;
+}
+
 .rail-badge {
   position: absolute;
   top: 4px;

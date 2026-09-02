@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useNotificationStore } from "../store/notificationStore";
+import { useChatUnreadStore } from "../store/chatUnreadStore";
 import { IconBell, IconChat, IconFriends, IconGear, IconGrid } from "./RailIcons";
 import { Avatar } from "./Avatar";
 
@@ -40,6 +41,8 @@ export function NavRail({ activeTab }: { activeTab?: RailTab }) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
+  // Co hoi thoai nao co tin chua doc khong -> cham do tren bieu tuong Chat.
+  const coTinChua = useChatUnreadStore((s) => Object.keys(s.unread).length > 0);
 
   const items: Item[] = [
     { key: "chat", to: "/app", label: "Chat", icon: <IconChat />, match: (p) => p === "/app" || p.startsWith("/app/chat") },
@@ -92,10 +95,11 @@ export function NavRail({ activeTab }: { activeTab?: RailTab }) {
             key={it.to}
             to={it.to}
             className={`rail-item${dangMo(it) ? " active" : ""}`}
-            aria-label={it.label}
+            aria-label={it.key === "chat" && coTinChua ? `${it.label}, có tin nhắn mới` : it.label}
             aria-current={dangMo(it) ? "page" : undefined}
           >
             {it.icon}
+            {it.key === "chat" && coTinChua && <span className="rail-dot" aria-hidden="true" />}
             <span className="rail-label">{it.label}</span>
           </Link>
         ))}

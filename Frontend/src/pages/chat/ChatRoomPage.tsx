@@ -35,6 +35,7 @@ import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import { doanLoaiMedia } from "../../lib/mediaKind";
+import { useChatUnreadStore } from "../../store/chatUnreadStore";
 import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
@@ -271,6 +272,10 @@ export function ChatRoomPage() {
         await joinConversation(conversationId);
         unsubReceived = await onMessageReceived((msg) => {
           if (msg.conversationId !== conversationId) return;
+          // Dua hoi thoai dang mo len dau danh sach ke ca khi CHINH MINH gui
+          // (khong co thong bao cho tin cua minh). activeId === conversationId
+          // nen chi cap nhat thu tu, khong danh dau chua doc.
+          useChatUnreadStore.getState().incoming(conversationId, Date.now());
 
           // Broadcast tin Text Group qua SignalR CO CHU Y bo trong
           // recipientEncryptedKey (1 payload dung chung cho ca nhom, khong
@@ -346,6 +351,13 @@ export function ChatRoomPage() {
       unsubEdited?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  // Dang mo hoi thoai nay: xoa cham chua doc cua no va bao cho store biet de
+  // tin toi trong luc dang xem khong bi danh dau chua doc.
+  useEffect(() => {
+    useChatUnreadStore.getState().setActive(conversationId);
+    return () => useChatUnreadStore.getState().setActive(null);
   }, [conversationId]);
 
   // Lay public key can thiet de ma hoa/giai ma Text: P2P chi 1 nguoi con

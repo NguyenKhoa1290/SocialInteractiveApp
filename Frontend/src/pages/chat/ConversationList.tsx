@@ -10,6 +10,17 @@ import type { ConversationSummary } from "../../types/chat";
 import type { AuthUser } from "../../types/auth";
 import type { Friend, FriendRequest } from "../../types/friend";
 import { useLastMessages } from "./useLastMessages";
+import { useChatUnreadStore } from "../../store/chatUnreadStore";
+
+// Avatar kem cham do khi co tin chua doc - "dau tron do canh tren avatar".
+function AvatarConDot({ con, children }: { con: boolean; children: React.ReactNode }) {
+  return (
+    <span className="cw-av">
+      {children}
+      {con && <span className="cw-av-dot" aria-label="Có tin nhắn mới" />}
+    </span>
+  );
+}
 
 function IconSearch() {
   return (
@@ -80,6 +91,17 @@ export function ConversationList({
   // Doan xem truoc: tin cuoi cua tung hoi thoai, giai ma ngay tai client vi
   // server khong doc duoc noi dung (ma hoa dau cuoi).
   const preview = useLastMessages(items);
+
+  // Cham chua doc + moc hoat dong realtime (xem chatUnreadStore).
+  const unread = useChatUnreadStore((s) => s.unread);
+  const activity = useChatUnreadStore((s) => s.activity);
+  // Moc de sap xep "moi nhat len dau": lay cai muon hon giua tin realtime
+  // trong phien va lastMessageAt tu server.
+  const tsHoiThoai = (c: ConversationSummary | undefined) => {
+    if (!c) return 0;
+    const server = c.lastMessageAt ? Date.parse(c.lastMessageAt) : 0;
+    return Math.max(server || 0, activity[c.id] ?? 0);
+  };
 
   useEffect(() => {
     async function load() {
@@ -363,7 +385,11 @@ export function ConversationList({
               <p className="cw-empty">Không có người bạn nào khớp “{q.trim()}”</p>
             )}
 
-            {banHienThi.map((f) => {
+            {[...banHienThi]
+              // Nguoi vua nhan tin (hoat dong moi nhat) len dau; ban chua tro
+              // chuyen bao gio o cuoi.
+              .sort((a, b) => tsHoiThoai(hoiThoaiCua.get(b.userId)) - tsHoiThoai(hoiThoaiCua.get(a.userId)))
+              .map((f) => {
               const c = hoiThoaiCua.get(f.userId);
               return (
                 <button
@@ -372,7 +398,9 @@ export function ConversationList({
                   onClick={() => void moChat(f.userId)}
                   disabled={dangMo === f.userId}
                 >
-                  <Avatar userId={f.userId} nickname={f.nickname} avatarUpdatedAt={f.avatarUpdatedAt} size={68} />
+                  <AvatarConDot con={!!(c && unread[c.id])}>
+                    <Avatar userId={f.userId} nickname={f.nickname} avatarUpdatedAt={f.avatarUpdatedAt} size={68} />
+                  </AvatarConDot>
                   <div className="cw-card-body">
                     <p className="cw-card-name">{f.nickname}</p>
                     <p className="cw-card-sub">
@@ -394,6 +422,9 @@ export function ConversationList({
 
             {items
               ?.filter((c) => q.trim() === "" || tenCua(c).toLowerCase().includes(q.trim().toLowerCase()))
+              // Nhom co tin moi nhat len dau (realtime trong phien + server).
+              .slice()
+              .sort((a, b) => tsHoiThoai(b) - tsHoiThoai(a))
               .map((c) => {
                 const info = names[`w${c.workspaceId}`];
                 return (
@@ -405,7 +436,7 @@ export function ConversationList({
                     // "Chat" mot nhip roi moi nhay ve "Nhom" luc tai xong.
                     onClick={() => navigate(`/app/chat/${c.id}`, { state: { kind: "group" } })}
                   >
-                    {anhCua(c, info)}
+                    <AvatarConDot con={!!unread[c.id]}>{anhCua(c, info)}</AvatarConDot>
                     <div className="cw-card-body">
                       <p className="cw-card-name">{tenCua(c)}</p>
                       <p className="cw-card-sub">{preview[c.id] ?? batDau(c.lastMessageAt)}</p>
