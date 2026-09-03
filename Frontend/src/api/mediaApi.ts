@@ -90,7 +90,7 @@ export const meetingApi = {
   startPresentation: (
     meetingId: number,
     kind: "screen" | "mini_app",
-    opts?: { appId?: string; channelId?: number; channelName?: string; channelUrl?: string },
+    opts?: { appId?: string; channelId?: number; channelName?: string; channelUrl?: string; clearKey?: string },
   ) =>
     mediaHttp.post<PresentationState>(`/meetings/${meetingId}/presentation`, {
       kind,
@@ -98,6 +98,7 @@ export const meetingApi = {
       channelId: opts?.channelId ?? null,
       channelName: opts?.channelName ?? null,
       channelUrl: opts?.channelUrl ?? null,
+      clearKey: opts?.clearKey ?? null,
     }),
 
   stopPresentation: (meetingId: number) => mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`),

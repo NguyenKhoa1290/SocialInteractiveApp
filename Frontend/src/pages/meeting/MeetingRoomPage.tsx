@@ -160,6 +160,14 @@ export function MeetingRoomPage() {
   // LiveKit tu ban RoomMetadataChanged cho ca phong, va nguoi vao muon doc
   // duoc ngay tu room.metadata luc ket noi.
   const [presentation, setPresentation] = useState<PresentationState | null>(null);
+
+  // Dong bo clearKey tu trang thai trinh bay (room metadata, broadcast cho ca
+  // phong) vao tuyChonPhat cuc bo. Khi chu phong thiet lap key, tat ca client
+  // se nhan duoc qua RoomMetadataChanged va tu dong cap nhat.
+  useEffect(() => {
+    const ck = presentation?.clearKey ?? "";
+    setTuyChonPhat((t) => (t.khoaClearKey === ck ? t : { ...t, khoaClearKey: ck }));
+  }, [presentation?.clearKey]);
   // CUC BO cho rieng nguoi dung nay - khong gui len server, khong ai khac
   // bi anh huong. Ghim ai thi nguoi do len khung trung tam o MAN HINH CUA
   // TOI thoi.
@@ -611,7 +619,8 @@ export function MeetingRoomPage() {
   async function handlePickChannel(channelId: number, channelName: string) {
     setShowIptvPicker(false);
     try {
-      await meetingApi.startPresentation(meetingId, "mini_app", { appId: "iptv", channelId, channelName });
+      const ck = tuyChonPhat.khoaClearKey.trim() || undefined;
+      await meetingApi.startPresentation(meetingId, "mini_app", { appId: "iptv", channelId, channelName, clearKey: ck });
     } catch (err) {
       setNotice(extractApiError(err, "Không đổi được kênh"));
     }

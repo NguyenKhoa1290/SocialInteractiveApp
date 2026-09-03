@@ -26,7 +26,8 @@ namespace MediaService.Api.Services;
 // Chi mot trong hai co gia tri tai mot thoi diem; ChannelUrl duoc uu tien.
 public record PresentationState(
     long UserId, string Nickname, string Kind, string? AppId, DateTimeOffset StartedAt,
-    long? ChannelId = null, string? ChannelName = null, string? ChannelUrl = null);
+    long? ChannelId = null, string? ChannelName = null, string? ChannelUrl = null,
+    string? ClearKey = null);
 
 // Hinh dang metadata phong LiveKit: {"presentation": {...}} hoac {} khi
 // khong ai trinh bay. Giu dang object long nhau de sau nay them truong khac

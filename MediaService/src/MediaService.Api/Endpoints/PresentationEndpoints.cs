@@ -104,7 +104,7 @@ public static class PresentationEndpoints
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
                 callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow,
-                req.ChannelId, req.ChannelName, req.ChannelUrl);
+                req.ChannelId, req.ChannelName, req.ChannelUrl, req.ClearKey);
 
             // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu
             // thay cho doc-roi-ghi tren hai loi goi LiveKit - vua nhanh hon
@@ -177,4 +177,5 @@ public static class PresentationEndpoints
 }
 
 public record StartPresentationRequest(
-    string Kind, string? AppId, long? ChannelId, string? ChannelName, string? ChannelUrl = null);
+    string Kind, string? AppId, long? ChannelId, string? ChannelName,
+    string? ChannelUrl = null, string? ClearKey = null);

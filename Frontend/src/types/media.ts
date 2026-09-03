@@ -97,6 +97,9 @@ export interface PresentationState {
   // Link nguoi trinh bay dan thang vao, khong qua danh sach kenh. Duong song
   // song voi channelId - cai nao co thi dung cai do, channelUrl uu tien.
   channelUrl: string | null;
+  // Cap KID:KEY hex do nguoi trinh bay nhap, di kem trang thai trinh bay de
+  // tat ca client deu co key giai ma Shaka Player.
+  clearKey: string | null;
 }
 
 export interface RoomMetadata {
