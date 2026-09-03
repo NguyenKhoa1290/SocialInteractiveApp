@@ -51,9 +51,14 @@ export type TuyChonPhat = {
   mucChatLuong: number;
   // Chi so trong hls.audioTracks. -1 = theo mac dinh cua luong.
   luongAmThanh: number;
-  // Khong con dung cho DRM (trinh duyet khong giai ma duoc Widevine bang raw
-  // key). Giu lai vi MeetingRoomPage dung no lam trigger "Phat lai".
+  // Cap "KID:KEY" hex 32 ky tu. Khi co gia tri, DASH se dung Shaka Player voi
+  // clearKeys thay vi dashjs (Shaka giai ma duoc CENC Widevine bang raw key,
+  // dashjs thi khong). Xem tham khao: thamkhao/video-direct/player.html.
   khoaClearKey: string;
+  // URL Key API (vd: https://vmttv.dpdns.org/AutoKey/). Khi user cung cap KID
+  // (hoac tu trich KID tu MPD), app POST {"kids":[kid_b64url],"type":"temporary"}
+  // toi URL nay de lay key tu dong, dien vao khoaClearKey.
+  linkLayKey: string;
   // Am luong the <video>, 0..1. Nam o day chu khong phai state trong
   // IptvPlayer vi thanh keo da chuyen sang popup Mini App - khung trinh chieu
   // gio CHI con video.
@@ -64,6 +69,7 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   mucChatLuong: -1,
   luongAmThanh: -1,
   khoaClearKey: "",
+  linkLayKey: "",
   amLuong: 1,
 };
 
@@ -124,6 +130,22 @@ export function doanLoaiLuong(url: string): LoaiLuong {
 
   // Khong doan ra thi coi la HLS: dinh dang pho bien nhat, va la hanh vi cu.
   return "hls";
+}
+
+// Doi chuoi hex 32 ky tu sang base64url (khong dem). Dung cho Shaka Player
+// clearKeys config — xem thamkhao/video-direct/player.html hexToBase64Url().
+function hexToBase64Url(hex: string): string {
+  const bytes = new Uint8Array(hex.match(/../g)!.map((h) => parseInt(h, 16)));
+  let binary = "";
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Tach cap "KID:KEY" hex thanh hai chuoi base64url. Tra null neu dinh dang sai.
+function tachClearKey(khoa: string): { kid: string; key: string } | null {
+  const m = khoa.trim().match(/^([0-9a-fA-F]{32}):([0-9a-fA-F]{32})$/);
+  if (!m) return null;
+  return { kid: hexToBase64Url(m[1]), key: hexToBase64Url(m[2]) };
 }
 
 // Nhung gi mot trinh giai ma NAP DONG phai cung cap cho phan chung: watchdog
@@ -302,51 +324,98 @@ export function IptvPlayer({
     };
 
     if (loai === "dash") {
-      void (async () => {
-        try {
-          const { MediaPlayer } = await import("dashjs");
-          if (dead) return;
-          const player = MediaPlayer().create();
-          player.updateSettings({
-            streaming: {
-              // Bam sat mep song y nhu ben HLS: luong truc tiep tut lai sau
-              // moi lan nghen mang, khong keo len thi cang xem cang tre.
-              delay: { liveDelay: 6 },
-              liveCatchup: { enabled: true },
-            },
-          });
+      // Khi co cap KID:KEY, dung Shaka Player thay dashjs: Shaka giai ma duoc
+      // noi dung CENC khai bao Widevine bang raw ClearKey (dashjs thi khong).
+      // Xem tham khao: thamkhao/video-direct/player.html.
+      const ck = tuyChon?.khoaClearKey ? tachClearKey(tuyChon.khoaClearKey) : null;
 
-          player.initialize(video, src, true);
-          player.on("playbackPlaying", markHealthy);
-          player.on("streamInitialized", apDungTuyChon);
-          player.on("error", () => {
-            if (!dead) recover();
-          });
+      if (ck) {
+        // ========== SHAKA PLAYER (co key DRM) ==========
+        void (async () => {
+          try {
+            const shaka = await import("shaka-player");
+            if (dead) return;
+            if (!shaka.Player.isBrowserSupported()) {
+              setStatus("failed");
+              setMessage("Trình duyệt không hỗ trợ Shaka Player / EME.");
+              return;
+            }
+            const player = new shaka.Player();
+            await player.attach(video);
+            player.configure({
+              drm: { clearKeys: { [ck.kid]: ck.key } },
+              streaming: { rebufferingGoal: 2, bufferingGoal: 10 },
+            });
+            player.addEventListener("error", () => { if (!dead) recover(); });
+            await player.load(src);
+            markHealthy();
+            apDungTuyChon();
 
-          engineRef.current = {
-            napLai: () => player.attachSource(src),
-            thao: () => player.destroy(),
-            datChatLuong: (chiSo) => {
-              // -1 la "tu dong": tra quyen chon bitrate lai cho dashjs. Dat
-              // mot chi so cu the thi phai TAT tu dong truoc, khong thi vong
-              // do bang thong sau se de len lua chon cua nguoi xem.
-              player.updateSettings({
-                streaming: { abr: { autoSwitchBitrate: { video: chiSo < 0 } } },
-              });
-              if (chiSo >= 0) player.setRepresentationForTypeByIndex("video", chiSo);
-            },
-            datTieng: (chiSo) => {
-              if (chiSo < 0) return;
-              const ds = player.getTracksFor("audio");
-              if (chiSo < ds.length) player.setCurrentTrack(ds[chiSo]);
-            },
-          };
-        } catch {
-          if (dead) return;
-          setStatus("failed");
-          setMessage("Không tải được bộ giải mã DASH.");
-        }
-      })();
+            engineRef.current = {
+              napLai: async () => { await player.load(src); },
+              thao: () => { void player.destroy(); },
+              datChatLuong: (chiSo) => {
+                if (chiSo < 0) {
+                  player.configure({ abr: { enabled: true } });
+                } else {
+                  player.configure({ abr: { enabled: false } });
+                  const tracks = player.getVariantTracks();
+                  if (chiSo < tracks.length) player.selectVariantTrack(tracks[chiSo], true);
+                }
+              },
+              datTieng: (chiSo) => {
+                if (chiSo < 0) return;
+                const langs = player.getAudioLanguages();
+                if (chiSo < langs.length) player.selectAudioLanguage(langs[chiSo]);
+              },
+            };
+          } catch (err) {
+            if (dead) return;
+            setStatus("failed");
+            setMessage("Không phát được DASH+DRM: " + (err instanceof Error ? err.message : String(err)));
+          }
+        })();
+      } else {
+        // ========== DASHJS (khong co key, luong khong ma hoa) ==========
+        void (async () => {
+          try {
+            const { MediaPlayer } = await import("dashjs");
+            if (dead) return;
+            const player = MediaPlayer().create();
+            player.updateSettings({
+              streaming: {
+                delay: { liveDelay: 6 },
+                liveCatchup: { enabled: true },
+              },
+            });
+
+            player.initialize(video, src, true);
+            player.on("playbackPlaying", markHealthy);
+            player.on("streamInitialized", apDungTuyChon);
+            player.on("error", () => { if (!dead) recover(); });
+
+            engineRef.current = {
+              napLai: () => player.attachSource(src),
+              thao: () => player.destroy(),
+              datChatLuong: (chiSo) => {
+                player.updateSettings({
+                  streaming: { abr: { autoSwitchBitrate: { video: chiSo < 0 } } },
+                });
+                if (chiSo >= 0) player.setRepresentationForTypeByIndex("video", chiSo);
+              },
+              datTieng: (chiSo) => {
+                if (chiSo < 0) return;
+                const ds = player.getTracksFor("audio");
+                if (chiSo < ds.length) player.setCurrentTrack(ds[chiSo]);
+              },
+            };
+          } catch {
+            if (dead) return;
+            setStatus("failed");
+            setMessage("Không tải được bộ giải mã DASH.");
+          }
+        })();
+      }
     } else if (loai === "flv" || loai === "ts") {
       // Cung mot thu vien cho ca hai: mpegts.js doc duoc ca vo boc FLV lan
       // luong MPEG-TS tran. Chi khac mot chu trong `type`.
@@ -542,8 +611,8 @@ export function IptvPlayer({
         video.load();
       }
     };
-    // khoaClearKey nam trong deps lam trigger cho "Phat lai" (MeetingRoomPage
-    // doi khoaClearKey de buoc effect chay lai). Khong con dung cho DRM.
+    // khoaClearKey nam trong deps vi doi key la phai dung player lai tu dau
+    // (Shaka vs dashjs). Cung la trigger cho "Phat lai" (MeetingRoomPage).
   }, [src, generation, reload, tuyChon?.khoaClearKey]);
 
   // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG

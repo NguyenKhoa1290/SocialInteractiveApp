@@ -193,6 +193,10 @@ export function IptvChannelPicker({
   const [dangQuet, setDangQuet] = useState(false);
   const [loiQuet, setLoiQuet] = useState<string | null>(null);
 
+  // Trang thai khi dang lay key tu Key API (xem thamkhao/video-direct/player.html)
+  const [dangLayKey, setDangLayKey] = useState(false);
+  const [loiLayKey, setLoiLayKey] = useState<string | null>(null);
+
   const [moThemPlaylist, setMoThemPlaylist] = useState(false);
   const [nhomThemKenh, setNhomThemKenh] = useState<number | null>(null);
 
@@ -247,6 +251,79 @@ export function IptvChannelPicker({
       setLoiQuet(err instanceof Error && !("response" in err) ? err.message : extractApiError(err, "Không quét được"));
     } finally {
       setDangQuet(false);
+    }
+  }
+
+  // Lay key tu Key API — co che giong thamkhao/video-direct/player.html fetchKey():
+  // 1. Neu khoaClearKey co KID (hoac KID:KEY) thi dung KID do
+  // 2. Neu khong, trich cenc:default_KID tu MPD
+  // 3. POST {"kids": [kid_b64url], "type": "temporary"} toi Key API
+  // 4. Server tra {"keys": [{"kid": "...", "k": "..."}]}
+  // 5. Dien KID:KEY hex vao khoaClearKey
+  async function bamLayKey() {
+    const keyApi = tuyChon.linkLayKey.trim();
+    if (!keyApi) return;
+    setDangLayKey(true);
+    setLoiLayKey(null);
+    try {
+      let kidHex: string | undefined;
+      const existing = tuyChon.khoaClearKey.trim();
+      if (existing) {
+        // User da nhap KID (hoac KID:KEY) — lay phan KID
+        kidHex = existing.includes(":")
+          ? existing.split(":")[0].replace(/[^0-9a-f]/gi, "").toLowerCase()
+          : existing.replace(/[^0-9a-f]/gi, "").toLowerCase();
+      } else {
+        // Tu dong trich KID tu MPD
+        let streamUrl = kenhChon ? kenhChon.url : (slot?.streamUrl ?? null);
+        if (!streamUrl && kenhChon && kenhChon.id !== null) {
+          const res = await iptvApi.getStreamUrl(meetingId, kenhChon.id);
+          streamUrl = res.data.streamUrl;
+          setKenhChon({ ...kenhChon, url: streamUrl });
+        }
+        if (!streamUrl) throw new Error("Cần nhập KID hoặc có link kênh để đọc KID tự động.");
+        const mpdRes = await fetch(streamUrl);
+        if (!mpdRes.ok) throw new Error(`MPD trả về HTTP ${mpdRes.status}.`);
+        const mpdText = await mpdRes.text();
+        const kidMatch = mpdText.match(/(?:default_KID|default_Kid)\s*=\s*["']([0-9a-f-]{32,36})["']/i);
+        if (!kidMatch) throw new Error("Không tìm thấy cenc:default_KID trong MPD.");
+        kidHex = kidMatch[1].replace(/-/g, "").toLowerCase();
+      }
+      if (!kidHex || kidHex.length !== 32) throw new Error("KID phải có 32 ký tự hex.");
+
+      // Ma hoa KID sang base64url roi POST toi Key API
+      const kidBytes = new Uint8Array(kidHex.match(/../g)!.map((h) => parseInt(h, 16)));
+      let binary = "";
+      kidBytes.forEach((b) => { binary += String.fromCharCode(b); });
+      const kidB64url = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+      const keyRes = await fetch(keyApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kids: [kidB64url], type: "temporary" }),
+      });
+      if (!keyRes.ok) throw new Error(`Key API trả về HTTP ${keyRes.status}.`);
+      const data = await keyRes.json();
+      const returnedKey = data.keys?.[0];
+      if (!returnedKey?.k) throw new Error("Key API không trả về keys[0].k.");
+
+      // Giai ma key tu base64url sang hex
+      const b64urlToHex = (v: string) => {
+        const s = v.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(v.length / 4) * 4, "=");
+        return Array.from(atob(s), (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+      };
+      const returnedKid = returnedKey.kid ? b64urlToHex(returnedKey.kid) : kidHex;
+      const keyHex = b64urlToHex(returnedKey.k);
+
+      onDoiTuyChon({ ...tuyChon, khoaClearKey: `${returnedKid}:${keyHex}` });
+    } catch (err) {
+      setLoiLayKey(
+        err instanceof Error && !("response" in err)
+          ? err.message
+          : extractApiError(err, "Không lấy được key"),
+      );
+    } finally {
+      setDangLayKey(false);
     }
   }
 
@@ -341,6 +418,37 @@ export function IptvChannelPicker({
           .ts luôn như vậy.
         </p>
       )}
+
+      <p className="mpop-nhan-nho">
+        <b>Khóa giải mã ClearKey (nếu có)</b>
+      </p>
+      <p className="mpop-nhan-nho">Key API URL</p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          className="mpop-o-nhap"
+          style={{ flex: 1 }}
+          value={tuyChon.linkLayKey}
+          onChange={(e) => onDoiTuyChon({ ...tuyChon, linkLayKey: e.target.value })}
+          placeholder="https://vmttv.dpdns.org/AutoKey/"
+        />
+        <button
+          type="button"
+          className="mpop-pill mpop-pill-teal"
+          disabled={dangLayKey || !tuyChon.linkLayKey.trim()}
+          onClick={() => void bamLayKey()}
+        >
+          {dangLayKey ? "Đang lấy…" : "Lấy Key"}
+        </button>
+      </div>
+      {loiLayKey && <p className="mpop-loi">{loiLayKey}</p>}
+
+      <p className="mpop-nhan-nho" style={{ marginTop: 8 }}>KID:KEY (hex 32 ký tự mỗi phần)</p>
+      <input
+        className="mpop-o-nhap"
+        value={tuyChon.khoaClearKey}
+        onChange={(e) => onDoiTuyChon({ ...tuyChon, khoaClearKey: e.target.value })}
+        placeholder="KID:KEY hoặc chỉ KID rồi bấm Lấy Key"
+      />
     </>
   );
 
