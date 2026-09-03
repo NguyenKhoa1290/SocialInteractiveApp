@@ -333,7 +333,9 @@ export function IptvPlayer({
         // ========== SHAKA PLAYER (co key DRM) ==========
         void (async () => {
           try {
-            const shaka = await import("shaka-player");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const shakaModule = await import("shaka-player") as any;
+            const shaka = shakaModule.default ?? shakaModule;
             if (dead) return;
             if (!shaka.Player.isBrowserSupported()) {
               setStatus("failed");
