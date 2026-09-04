@@ -117,6 +117,9 @@ export function MeetingRoomPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const [meeting, setMeeting] = useState<MeetingWithCallerStatus | null>(null);
+  // Chu phong lan poll truoc, de biet khi nao no VUA doi. Khong phai state:
+  // chi dung de so sanh, khong co gi phai ve lai theo no.
+  const chuPhongRef = useRef<number | null>(null);
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [waiting, setWaiting] = useState<WaitingParticipant[]>([]);
   // Phong hop tuy chinh duoc tao kem link ngay tu cu bam o danh sach ban be,
@@ -430,6 +433,22 @@ export function MeetingRoomPage() {
       ]);
       setMeeting(meetingRes.data);
       setParticipants(peopleRes.data);
+
+      // Chu phong DOI GIUA CHUNG: chu cu roi di thi server trao quyen cho
+      // nguoi vao som nhat con o lai (HostSuccession ben Media Service).
+      // Phai noi ra thanh loi - nguoi duoc trao thi tu nhien moc them mot
+      // loat nut dieu khien, con nhung nguoi con lai thi can biet gio phai
+      // hoi ai de duoc duyet vao / duoc cap quyen.
+      const chuMoi = meetingRes.data.hostId;
+      if (chuPhongRef.current !== null && chuPhongRef.current !== chuMoi) {
+        const ten = peopleRes.data.find((p) => p.userId === chuMoi)?.nickname ?? `#${chuMoi}`;
+        setNotice(
+          chuMoi === currentUserId
+            ? "Chủ phòng cũ đã rời - bạn là chủ phòng mới của cuộc họp này."
+            : `${ten} là chủ phòng mới của cuộc họp này.`,
+        );
+      }
+      chuPhongRef.current = chuMoi;
 
       // Cuoc hop da bi ket thuc (host bam "Ket thuc cho tat ca", hoac phong
       // da tan). Truoc day khong kiem tra: man hinh cu dung yen, hien

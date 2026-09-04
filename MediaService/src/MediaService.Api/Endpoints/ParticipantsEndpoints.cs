@@ -47,7 +47,16 @@ public static class ParticipantsEndpoints
             // khong bao gio tu sach. Xem ParticipantReconciler.cs - no tu
             // chan tan suat va tu bo qua khi khong chac chan.
             if (meeting.Status == MeetingStatus.Active)
-                await reconciler.ReconcileAsync(meetingId, callerId, db);
+            {
+                var chuMoi = await reconciler.ReconcileAsync(meetingId, callerId, db, identity);
+
+                // Vong doi chieu vua phat hien chu phong da dong tab va da
+                // trao quyen cho nguoi khac. `meeting` doc tu truoc do nen van
+                // mang host_id CU - khong nap lai thi chu cu (da di) van lot
+                // qua duoc cua 403 ngay ben duoi.
+                if (chuMoi is not null)
+                    await db.Entry(meeting).ReloadAsync();
+            }
 
             var active = await db.MeetingParticipants
                 .Where(p => p.MeetingId == meetingId && p.LeftAt == null)
@@ -130,7 +139,8 @@ public static class ParticipantsEndpoints
 
         group.MapPost("/participants/{userId:long}/kick", async (
             long meetingId, long userId, ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit) =>
+            MediaDbContext db, LiveKitService liveKit,
+            IdentityClient identity, ILoggerFactory loggerFactory) =>
         {
             var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
@@ -144,6 +154,12 @@ public static class ParticipantsEndpoints
 
             participant.LeftAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(); // trigger trg_close_meeting_if_empty tu dong dong phong neu day la nguoi cuoi
+
+            // Chu tu moi CHINH MINH ra la mot duong hop le (bam nham, hoac
+            // muon giao phong lai roi di) - ke ca duong nay cung phai co chu
+            // moi, khong duoc de phong vo chu.
+            await HostSuccession.ChuyenNeuChuDaRoiAsync(
+                db, meetingId, identity, loggerFactory.CreateLogger(nameof(HostSuccession)));
 
             return Results.NoContent();
         });

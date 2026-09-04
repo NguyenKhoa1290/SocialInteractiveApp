@@ -670,6 +670,11 @@ components:
         hostId:
           type: integer
           format: int64
+          description: >
+            Chủ phòng HIỆN TẠI - có thể đổi giữa chừng. Chủ rời phòng mà vẫn
+            còn người thì quyền tự chuyển sang người vào sớm nhất còn ở lại
+            (ưu tiên tài khoản đã đăng ký). Client đang poll endpoint này nên
+            đọc lại hostId mỗi vòng chứ không nhớ một lần lúc vào phòng.
         conversationId:
           type: integer
           format: int64

@@ -189,7 +189,17 @@ public static class MeetingsEndpoints
             // trang khong duoc coi la mat quyen. Thieu nhanh nay thi khach
             // moi F5 mot cai la ket "Khong lay duoc quyen vao phong hop" vi
             // token duyet nam trong Redis va chi doc duoc DUNG 1 LAN.
-            if (existing is null && meeting.HostId != callerId)
+            // ... va ca nguoi DA TUNG lam chu phien nay (hang cu cua ho van
+            // giu role='host' - xem HostSuccession). Chu roi phong xong duoc
+            // trao quyen cho nguoi khac, gio quay lai: neu chan o day thi
+            // chinh nguoi mo phong tuy chinh lai khong vao lai duoc phong cua
+            // minh, vi phong do chi vao duoc bang link ma link thi ho khong
+            // giu. Ho vao lai voi tu cach NGUOI THUONG - quyen chu da sang
+            // nguoi khac, day chi la cai cua de buoc vao.
+            var tungLaChu = meeting.Participants.Any(
+                p => p.UserId == callerId && p.Role == ParticipantRole.Host);
+
+            if (existing is null && meeting.HostId != callerId && !tungLaChu)
             {
                 if (meeting.ConversationId is null)
                     return Results.Json(
@@ -232,7 +242,8 @@ public static class MeetingsEndpoints
         // trg_close_meeting_if_empty khong bao gio chay va so nguoi hien thi
         // sai. Idempotent: goi lai khi da roi van tra 204.
         group.MapPost("/{meetingId:long}/leave", async (
-            long meetingId, System.Security.Claims.ClaimsPrincipal principal, MediaDbContext db) =>
+            long meetingId, System.Security.Claims.ClaimsPrincipal principal, MediaDbContext db,
+            IdentityClient identity, ILoggerFactory loggerFactory) =>
         {
             var callerId = principal.GetUserId()!.Value;
             var participant = await db.MeetingParticipants
@@ -242,6 +253,12 @@ public static class MeetingsEndpoints
 
             participant.LeftAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(); // trigger trg_close_meeting_if_empty tu dong dong phong neu day la nguoi cuoi
+
+            // Chu vua bam "Roi khoi" ma phong con nguoi: phai co chu moi NGAY.
+            // Khong thi phong cho dung lai va khong ai ket thuc duoc cuoc hop.
+            await HostSuccession.ChuyenNeuChuDaRoiAsync(
+                db, meetingId, identity, loggerFactory.CreateLogger(nameof(HostSuccession)));
+
             return Results.NoContent();
         });
 

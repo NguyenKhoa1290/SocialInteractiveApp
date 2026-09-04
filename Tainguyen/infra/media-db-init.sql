@@ -5,6 +5,11 @@
 
 CREATE TABLE meetings (
   id                BIGSERIAL PRIMARY KEY,
+  -- Chu phong HIEN TAI, khong phai nguoi mo phong. Chu roi di ma phong con
+  -- nguoi thi cot nay chuyen sang nguoi vao som nhat con o lai - neu khong,
+  -- phong thanh VO CHU: khong ai duyet duoc phong cho (nguoi vao bang link
+  -- ket vinh vien o do), khong ai duoi duoc nguoi, khong ai ket thuc duoc
+  -- cuoc hop. Xem HostSuccession.cs.
   host_id           BIGINT NOT NULL,
   workspace_id      BIGINT,
   conversation_id   BIGINT,
@@ -52,6 +57,12 @@ CREATE TABLE meeting_participants (
   user_id      BIGINT NOT NULL,
   -- VARCHAR(20), KHONG phai VARCHAR(10) nhu ban thiet ke goc muc 7.2 - 'participant'
   -- dai 11 ky tu, khong vua VARCHAR(10) (loi thuc te phat hien khi test Phase 5).
+  --
+  -- 'host' o day la NHAN HIEN THI + dau vet "da/dang la chu phien nay":
+  -- hang cua chu cu giu nguyen 'host' sau khi da roi, va POST /join dua vao
+  -- do de cho nguoi mo phong quay lai duoc phong tuy chinh cua chinh minh
+  -- (phong do chi vao duoc bang link). Quyen THAT van chi doc tu
+  -- meetings.host_id.
   role         VARCHAR(20) NOT NULL DEFAULT 'participant'
                  CHECK (role IN ('host','participant')),
   joined_at    TIMESTAMPTZ NOT NULL DEFAULT now(),

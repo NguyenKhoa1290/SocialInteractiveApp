@@ -3616,7 +3616,7 @@ màn hình pre-join.
 | Cột | Kiểu dữ liệu | Ràng buộc | Mô tả |
 |---|---|---|---|
 | id | BIGSERIAL | PRIMARY KEY | |
-| host_id | BIGINT | NOT NULL | Logical FK → users.id — Chủ phòng họp, bất biến trong suốt phiên |
+| host_id | BIGINT | NOT NULL | Logical FK → users.id — Chủ phòng họp **hiện tại**. Đổi được: chủ rời mà phòng còn người thì tự chuyển sang người khác (xem "Chuyển quyền chủ phòng" bên dưới) |
 | workspace_id | BIGINT | NULL | Logical FK → workspaces.id — có giá trị khi mở từ trong 1 nhóm (UC-31) |
 | conversation_id | BIGINT | NULL | Logical FK → conversations.id — cố ý lưu trùng với workspace_id (denormalize) để tránh join qua nhiều DB |
 | status | VARCHAR(10) | NOT NULL, DEFAULT 'active', CHECK IN ('active','ended') | |
@@ -3631,9 +3631,37 @@ màn hình pre-join.
 | id | BIGSERIAL | PRIMARY KEY | |
 | meeting_id | BIGINT | NOT NULL, FK → meetings(id) ON DELETE CASCADE | |
 | user_id | BIGINT | NOT NULL | Logical FK |
-| role | VARCHAR(10) | NOT NULL, DEFAULT 'participant', CHECK IN ('host','participant') | Chỉ để hiển thị UI; quyền thật dựa vào meetings.host_id |
+| role | VARCHAR(10) | NOT NULL, DEFAULT 'participant', CHECK IN ('host','participant') | Nhãn hiển thị + dấu vết "đã/đang là chủ ở phiên này"; quyền thật vẫn chỉ dựa vào meetings.host_id |
 | joined_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 | left_at | TIMESTAMPTZ | NULL | NULL = vẫn đang trong phòng — dùng tính phòng hết người chưa (UC-36) |
+
+**Chuyển quyền chủ phòng (phòng vô chủ)**
+
+Gap không có trong đặc tả gốc: UC-31→UC-37 chỉ nói phòng tự đóng khi **hết người**
+(trigger `trg_close_meeting_if_empty`), không nói gì về việc **chủ đi mà phòng còn người**.
+Mà mọi thứ đi qua `RequireHostAsync` đều khoá theo `meetings.host_id`: duyệt phòng chờ,
+đuổi người, kết thúc cuộc họp, tắt mic tất cả, sửa cài đặt phòng, gỡ kẹt người trình bày.
+Chủ đi rồi thì cả phòng kẹt cho tới khi người cuối cùng rời — nặng nhất là người vào bằng
+**link** (luôn phải chờ duyệt) sẽ kẹt vĩnh viễn ở phòng chờ.
+
+Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nhóm rời = giải tán, mục 4; với
+**phòng họp** thì không giải tán vì những người còn lại vẫn đang họp thật):
+
+- Chủ rời mà phòng còn người → **người vào sớm nhất còn ở lại** lên làm chủ (`joined_at` tăng dần).
+- Ưu tiên tài khoản đã đăng ký; **khách (guest) chỉ lên làm chủ khi phòng không còn ai khác** —
+  người vào bằng link không nên bỗng nhiên nắm quyền đuổi người/kết thúc khi thành viên thật vẫn đang ngồi đó.
+  Identity Service không trả lời được thì lấy luôn người vào sớm nhất (fail-open: một sự cố của
+  Identity không được phép để phòng nằm lại trạng thái vô chủ).
+- Chủ chỉ **mất kết nối** thì KHÔNG chuyển: chừng nào `ParticipantReconciler` chưa kết luận là họ đã đi
+  (vắng qua hai lần quan sát cách nhau 60 giây) thì `left_at` vẫn NULL. F5 một cái không phải là nhường quyền.
+- Hàng cũ của chủ cũ **giữ nguyên `role='host'`** làm dấu vết, và `POST /join` cho người "đã từng là chủ"
+  vào lại — nếu không, chính người mở phòng tuỳ chỉnh lại không vào lại được phòng mình (phòng đó chỉ
+  vào được bằng link, mà link thì họ không giữ). Vào lại với tư cách **người thường**.
+- Đổi chủ bằng một câu `UPDATE ... WHERE host_id = <chủ cũ>` để hai đường cùng phát hiện một lúc
+  (`/leave` và vòng đối chiếu) không tạo ra hai người cùng tưởng mình là chủ.
+
+Cài ở `MediaService/src/MediaService.Api/Services/HostSuccession.cs`, gọi từ cả ba đường mà chủ có thể
+biến mất: `POST /leave`, `kick` (chủ tự mời mình ra), và `ParticipantReconciler` (đóng tab — đường hay gặp nhất).
 
 **Bảng `meeting_invites`**
 

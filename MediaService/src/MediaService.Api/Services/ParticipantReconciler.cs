@@ -48,18 +48,26 @@ public class ParticipantReconciler(
     // la hon mot request moi giay neu khong chan.
     private static readonly TimeSpan Throttle = TimeSpan.FromSeconds(10);
 
-    public async Task ReconcileAsync(long meetingId, long callerId, MediaDbContext db, CancellationToken ct = default)
+    // identity di qua tham so chu khong qua constructor: lop nay la singleton,
+    // con IdentityClient dang ky bang AddHttpClient nen khong tiem thang vao
+    // duoc (cung ly do MeetingSweeperService phai lay ChatServiceClient tu
+    // scope). Noi goi la GET /participants - no da co san identity.
+    // Tra ve id chu phong MOI neu vong doi chieu nay lam lo ra chuyen chu cu
+    // da di (xem HostSuccession) - noi goi dang giu mot ban Meeting cu trong
+    // context nen phai biet ma nap lai. Khong co gi doi thi null.
+    public async Task<long?> ReconcileAsync(
+        long meetingId, long callerId, MediaDbContext db, IdentityClient identity, CancellationToken ct = default)
     {
         var cache = redis.GetDatabase();
 
         // SET NX: nguoi dau tien den trong moi 10 giay moi thuc su di doi
         // chieu, nhung nguoi con lai di thang qua.
         if (!await cache.StringSetAsync($"meeting:{meetingId}:recon", "1", Throttle, When.NotExists))
-            return;
+            return null;
 
         var live = await liveKit.ListParticipantIdsAsync(meetingId);
         if (live is null || live.Count == 0)
-            return; // lan can 1 va 2
+            return null; // lan can 1 va 2
 
         var active = await db.MeetingParticipants
             .Where(p => p.MeetingId == meetingId && p.LeftAt == null)
@@ -103,11 +111,16 @@ public class ParticipantReconciler(
         }
 
         if (removed.Count == 0)
-            return;
+            return null;
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation(
             "Cuoc hop {MeetingId}: don {Count} nguoi da dong tab ma khong roi phong ({Users})",
             meetingId, removed.Count, string.Join(",", removed));
+
+        // Nguoi vua bi don co the CHINH LA chu phong - day moi la duong hay
+        // gap nhat, vi chu dong tab thi khong co cai /leave nao ca. Ham duoi
+        // tu kiem tra, chu con trong phong thi no khong lam gi.
+        return await HostSuccession.ChuyenNeuChuDaRoiAsync(db, meetingId, identity, logger, ct);
     }
 }
