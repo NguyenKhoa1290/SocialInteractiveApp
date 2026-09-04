@@ -105,6 +105,10 @@ export function MeetingRoomPage() {
   // ung dung hop hien nay. Cap nhat qua ActiveSpeakersChanged (LiveKit da tu
   // gom, khong ban lien tuc tung khung tieng nen khong giat).
   const lastSpokeRef = useRef<Record<number, number>>({});
+  // Ai DANG noi ngay luc nay - de sang vien o cua ho. Khac lastSpokeRef: cai
+  // kia la moc qua khu (dung sap thu tu, giu lai ca khi da im), cai nay tat
+  // ngay khi ho ngung noi.
+  const dangNoiRef = useRef<Set<number>>(new Set());
   const [version, setVersion] = useState(0); // ep render lai tile khi LiveKit ban su kien
   const [status, setStatus] = useState<"connecting" | "connected" | "error" | "left" | "ended">("connecting");
   const [error, setError] = useState<string | null>(null);
@@ -346,10 +350,15 @@ export function MeetingRoomPage() {
             // Ghi moc "vua noi" cho tung nguoi dang noi (gom ca chinh minh).
             // Chi doi thu tu khi tap nguoi noi doi, khong phai moi khung tieng.
             const luc = Date.now();
+            const dang = new Set<number>();
             for (const s of speakers) {
               const uid = Number(s.identity);
-              if (!Number.isNaN(uid)) lastSpokeRef.current[uid] = luc;
+              if (Number.isNaN(uid)) continue;
+              lastSpokeRef.current[uid] = luc;
+              dang.add(uid);
             }
+            // Thay ca tap: ai vua ngung noi thi tat vien ngay o su kien nay.
+            dangNoiRef.current = dang;
             bump();
           })
           .on(RoomEvent.Disconnected, () => {
@@ -1159,6 +1168,9 @@ export function MeetingRoomPage() {
             : undefined
         }
         dangGhim={t.kind === "participant" && pinnedUserId === t.userId}
+        // Sang vien khi dang noi. Chi o CAMERA moi sang - o man hinh chia se
+        // khong phai khuon mat ai, sang vien o do chi gay roi.
+        dangNoi={t.kind === "participant" && dangNoiRef.current.has(t.userId)}
       />
     );
   };
@@ -1338,6 +1350,9 @@ export function MeetingRoomPage() {
                           : nameOfUserId(stageUserId!)
                       }
                       stage
+                      // Nguoi dang duoc ghim/chieu ma noi thi khung lon cung
+                      // sang vien - tru khi khung dang chieu MAN HINH.
+                      dangNoi={!stageIsScreen && stageUserId != null && dangNoiRef.current.has(stageUserId)}
                     />
                   </div>
                 )}

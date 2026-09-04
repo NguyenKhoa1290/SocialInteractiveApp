@@ -20,6 +20,7 @@ export function ParticipantTile({
   avatarSize = 122,
   onGhim,
   dangGhim = false,
+  dangNoi = false,
 }: {
   participant: Participant;
   isLocal: boolean;
@@ -54,6 +55,9 @@ export function ParticipantTile({
   // khung lon thuoc ve luot trinh bay, ghim bi tat.
   onGhim?: () => void;
   dangGhim?: boolean;
+  // Nguoi nay DANG noi -> sang vien o. Do MeetingRoomPage tinh tu su kien
+  // ActiveSpeakersChanged cua LiveKit.
+  dangNoi?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -97,7 +101,12 @@ export function ParticipantTile({
   const contain = stage || source === "screen";
   const micMuted = !micPub?.track || micPub.isMuted;
 
-  const lop = [stage ? "meet-tile meet-tile-stage" : "meet-tile", onGhim ? "meet-tile-ghim-duoc" : "", dangGhim ? "meet-tile-dang-ghim" : ""]
+  const lop = [
+    stage ? "meet-tile meet-tile-stage" : "meet-tile",
+    onGhim ? "meet-tile-ghim-duoc" : "",
+    dangGhim ? "meet-tile-dang-ghim" : "",
+    dangNoi ? "meet-tile-dang-noi" : "",
+  ]
     .filter(Boolean)
     .join(" ");
 

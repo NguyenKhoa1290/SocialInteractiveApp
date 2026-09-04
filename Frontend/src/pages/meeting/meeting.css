@@ -1948,6 +1948,21 @@
   outline-offset: calc(-3px);
 }
 
+/* Nguoi DANG NOI: sang vien + quang nhe quanh o.
+   Dung box-shadow chu khong dung outline vi hai le:
+     - o vua duoc ghim vua dang noi thi hai hieu ung CHONG len nhau duoc,
+       khong dam nhau (ghim da chiem outline roi);
+     - vanh inset an theo border-radius cua o, va khong bi khung luoi ben
+       ngoai cat mat nhu quang toa ra ngoai.
+   Chuyen muot 140ms de khi tap nguoi noi doi lien tuc, vien khong nhap nhay. */
+.meet-tile-dang-noi {
+  box-shadow:
+    inset 0 0 0 3px #9ce8db,
+    inset 0 0 24px rgba(156, 232, 219, 0.4),
+    0 0 14px rgba(156, 232, 219, 0.5);
+  transition: box-shadow 140ms ease-out;
+}
+
 /* Hang "dang trinh chieu" trong popup Cai dat. */
 .mpop-dang-chieu {
   display: flex;
