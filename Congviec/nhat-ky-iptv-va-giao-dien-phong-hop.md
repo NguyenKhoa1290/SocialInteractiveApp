@@ -5,6 +5,11 @@
 Tài liệu này ghi lại những gì đã đổi, **vì sao** đổi, và số đo thu được trên
 hệ thống thật (`cachephoarong.click`). Phần cuối là việc còn phải làm.
 
+> **Lưu ý khi đọc lại (04/09/2026):** hệ thống đã **chuyển sang
+> `callimeet.com`**, tên miền `cachephoarong.click` trong tài liệu này chỉ còn
+> giá trị lịch sử. Xem [nhật ký đổi tên miền và cải tiến chat / phòng
+> họp](nhat-ky-doi-ten-mien-va-cai-tien-chat-hop.md).
+
 Quy ước đọc: mọi số đo đều lấy từ phòng họp thật qua Chrome headless, không
 phải ước lượng từ ảnh chụp. Thiết kế gốc vẽ ở 1920×1080; giao diện chạy ở tỉ
 lệ `--s = 0.8`, nên số trong Figma nhân 0,8 mới ra số đo được.
