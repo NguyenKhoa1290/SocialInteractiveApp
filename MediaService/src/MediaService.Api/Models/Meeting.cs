@@ -9,6 +9,11 @@ public enum MeetingStatus
 public class Meeting
 {
     public long Id { get; set; }
+
+    // Chu phong HIEN TAI - khong phai nguoi mo phong, va KHONG bat bien nhu
+    // tai lieu goc ghi: chu roi di ma phong con nguoi thi quyen tu chuyen
+    // sang nguoi khac (HostSuccession.cs). Moi cho kiem tra quyen deu phai
+    // doc lai cot nay tung request, dung nho mot lan luc vao phong.
     public long HostId { get; set; }
     public long? WorkspaceId { get; set; }
     public long? ConversationId { get; set; }

@@ -27,9 +27,10 @@ headless, không ước lượng từ ảnh chụp.
 7. [Phòng họp: người đang nói lên đầu và sáng viền](#7-phòng-họp-người-đang-nói-lên-đầu-và-sáng-viền)
 8. [Phát file âm thanh trực tiếp trong IPTV](#8-phát-file-âm-thanh-trực-tiếp-trong-iptv)
 9. [Sửa vặt](#9-sửa-vặt)
-10. [Bẫy đã vấp](#10-bẫy-đã-vấp)
-11. [Việc còn phải làm](#11-việc-còn-phải-làm)
-12. [Ghi chú vận hành](#12-ghi-chú-vận-hành)
+10. [Phòng vô chủ: chuyển quyền chủ phòng](#10-phòng-vô-chủ-chuyển-quyền-chủ-phòng)
+11. [Bẫy đã vấp](#11-bẫy-đã-vấp)
+12. [Việc còn phải làm](#12-việc-còn-phải-làm)
+13. [Ghi chú vận hành](#13-ghi-chú-vận-hành)
 
 ---
 
@@ -159,7 +160,7 @@ dài), thẻ nền `#F4F8F9` bo 16 viền `#293546`; dòng dưới là **thanh t
 khoá tua.
 
 CSS để **file riêng** (`file-message.css`) chứ không nhét vào `workspace.css` —
-xem mục 10.
+xem mục 11.
 
 **Đo được.** File 3 giây: không còn `<audio controls>` nào, màu đúng
 (`rgb(133,174,176)` / `rgb(41,53,70)`), bấm nút phát thật (0 → 1.97s), bấm lại
@@ -259,7 +260,59 @@ tiếp (12.03 → 15.05s).
 
 ---
 
-## 10. Bẫy đã vấp
+## 10. Phòng vô chủ: chuyển quyền chủ phòng
+
+**Vấn đề.** `meetings.host_id` được đặc tả là *"bất biến trong suốt phiên"* (mục 7.2 tài liệu kiến
+trúc). Chủ phòng rời đi thì cột đó vẫn trỏ vào người đã đi, và **mọi thứ đi qua `RequireHostAsync`
+chết theo**: duyệt phòng chờ, đuổi người, kết thúc cuộc họp, tắt mic tất cả, sửa cài đặt phòng, gỡ
+kẹt người đang trình bày. Cuộc họp lại chỉ tự đóng khi **hết người** (trigger
+`trg_close_meeting_if_empty`), nên một phòng vô chủ sống tiếp hàng giờ.
+
+Nặng nhất là phòng chờ: đặc tả quy định người vào bằng **link luôn phải chờ duyệt** - chủ đi rồi thì
+họ kẹt vĩnh viễn, không còn đường nào khác vào phòng.
+
+Đối chiếu: với **nhóm** thì luật đã chốt từ lâu là "Trưởng nhóm rời = giải tán, không có nhóm vô
+chủ". Với **phòng họp** thì không giải tán được - những người còn lại vẫn đang họp thật.
+
+**Đã làm.** `MediaService/src/MediaService.Api/Services/HostSuccession.cs`: chủ rời mà phòng còn
+người thì **người vào sớm nhất còn ở lại** lên làm chủ.
+
+| Điểm | Vì sao |
+|---|---|
+| Ưu tiên tài khoản đã đăng ký; khách chỉ lên khi phòng không còn ai khác | người vào bằng link không nên bỗng nhiên nắm quyền đuổi người / kết thúc trong khi thành viên thật vẫn đang ngồi đó |
+| Identity không trả lời được thì lấy luôn người vào sớm nhất | fail-open: một sự cố của Identity không được phép để phòng nằm lại trạng thái vô chủ - đó mới là cái đắt hơn |
+| Chủ chỉ **mất kết nối** thì KHÔNG chuyển | chừng nào `ParticipantReconciler` chưa kết luận là họ đã đi (vắng qua hai lần quan sát cách nhau 60 giây) thì `left_at` vẫn NULL. F5 một cái không phải là nhường quyền |
+| Hàng cũ của chủ cũ **giữ nguyên `role='host'`** | làm dấu vết "đã từng là chủ", để `POST /join` cho họ vào lại phòng tuỳ chỉnh - phòng đó chỉ vào được bằng link mà chính người mở thường không giữ. Vào lại với tư cách **người thường** |
+| Đổi chủ bằng một câu `UPDATE ... WHERE host_id = <chủ cũ>` | `/leave` và vòng đối chiếu có thể cùng phát hiện một lúc; ràng buộc này khiến chỉ một bên đổi được, không bao giờ có hai người cùng tưởng mình là chủ |
+
+Gọi từ **cả ba** đường mà chủ có thể biến mất: `POST /leave`, `kick` (chủ tự mời mình ra), và
+`ParticipantReconciler` (**đóng tab - đường hay gặp nhất**, vì đóng tab thì không có `/leave` nào
+cả). Hàm tự kiểm tra "chủ còn trong phòng không" nên gọi thừa là vô hại.
+
+Frontend chỉ cần một chỗ: vòng poll 4 giây vốn đã đọc `hostId`, thêm so sánh với vòng trước để hiện
+băng báo *"Chủ phòng cũ đã rời - bạn là chủ phòng mới"*. Không có nó thì người được trao tự nhiên
+mọc thêm một loạt nút điều khiển mà không hiểu vì sao.
+
+**Đo được trên hệ thống thật:**
+
+- **API 19/19.** Chưa ai rời → chủ không đổi · người thường rời → cũng không đổi · chủ rời → quyền
+  sang **B (tài khoản thật)** chứ không sang khách dù khách vào trước · chủ mới xem được phòng chờ
+  (200, trước đó 403) và sửa được cài đặt phòng · khách vẫn 403 · danh sách người có **đúng một**
+  nhãn "host" · chủ cũ quay lại được nhưng **không** đòi lại quyền (403) · khi chỉ còn mỗi khách
+  thì khách mới lên làm chủ · người cuối rời thì cuộc họp vẫn kết thúc như cũ.
+- **Trình duyệt 8/8.** Hai Chrome thật, LiveKit thật, "đóng tab" bằng cách **giết hẳn tiến trình**
+  Chrome của chủ: quyền chuyển sang B sau **~109 giây**, nút "Kết thúc cho tất cả" mọc trên màn
+  hình B, băng báo hiện đúng chữ, và **chủ mới kết thúc được cuộc họp** - đúng cái trước đây không
+  ai làm nổi.
+
+~109 giây là **đúng thiết kế** chứ không phải chậm: reconciler cố ý đòi vắng mặt qua hai lần quan
+sát cách nhau 60 giây, để một lần F5 hay một cú nghẽn mạng không bị hiểu nhầm thành rời phòng. Đổi
+lại, trong khoảng đó phòng vẫn tạm thời vô chủ - chấp nhận được so với việc đuổi nhầm quyền của một
+người chỉ đang nối lại mạng.
+
+---
+
+## 11. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
 
@@ -287,12 +340,21 @@ Ghi lại để lần sau không mất công dò:
   bênh (một lần trúng, hai lần trượt). Cách chữa: ghi đè `getUserMedia` trên
   trang, trả về stream từ `AudioContext` phát **tông sawtooth 200Hz liên tục**
   → kết quả tất định.
+- **Cloudflare chặn `Python-urllib`** — bài kiểm viết bằng `urllib` ăn
+  **403 "error code: 1010"** ở ngay bước đăng ký, dễ tưởng nhầm là API hỏng.
+  Không phải app: Cloudflare loại User-Agent mặc định của urllib. Đặt một
+  User-Agent trình duyệt là qua. Node `fetch` thì không dính.
+- **Đừng kết luận "code sai" khi pod chưa kịp đổi image.** Lần chạy đầu của
+  bài kiểm chuyển quyền chủ phòng trượt 8/19, nhưng chạy lại vài phút sau thì
+  19/19 — frontend đã deploy xong trong khi pod `media` còn đang cuốn. Mốc
+  chắc chắn là chờ *hành vi mới của chính service đó*, đừng lấy hash bundle
+  frontend làm mốc cho một thay đổi ở backend.
 
 ---
 
-## 11. Việc còn phải làm
+## 12. Việc còn phải làm
 
-### 11.1. Việc của chủ dự án (mình không có quyền)
+### 12.1. Việc của chủ dự án (mình không có quyền)
 
 | Việc | Vì sao gấp |
 |---|---|
@@ -301,7 +363,7 @@ Ghi lại để lần sau không mất công dò:
 | **Thu hồi hai token Figma** | Treo từ đợt trước, cùng lý do. |
 | **Autostart cloudflared trên Windows** | Nếu có tác vụ tự khởi động client trỏ `ssh/rdp.cachephoarong.click` thì phải sửa sang `callimeet.com` — bản ghi cũ đã xoá. |
 
-### 11.2. Nên làm
+### 12.2. Nên làm
 
 - **Trạng thái chưa đọc chỉ sống trong phiên.** Server chưa có mô hình *đã đọc
   theo từng người*, nên tải lại trang là mất hết chấm đỏ. Muốn giữ được thì cần
@@ -318,14 +380,14 @@ Ghi lại để lần sau không mất công dò:
   dựa vào fallback đã sửa thành `callimeet.com` trong `release.yml`. Nếu sau
   này thấy bản build ra domain cũ thì vào *Settings → Variables* đặt tay.
 
-### 11.3. Carried over từ đợt trước
+### 12.3. Carried over từ đợt trước
 
 Vẫn còn nguyên: đo `.flv` **luồng trực tiếp** thật, và phần thiết kế còn dở
 (chat cá nhân, Mini App, cuộc họp).
 
 ---
 
-## 12. Ghi chú vận hành
+## 13. Ghi chú vận hành
 
 **Tên miền.** Hệ thống chạy ở `callimeet.com`, mỗi service một subdomain,
 frontend ở domain gốc. Tunnel vẫn là `e1f67fd0-…` (locally-managed), định tuyến
