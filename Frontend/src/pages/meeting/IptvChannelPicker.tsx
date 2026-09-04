@@ -429,7 +429,7 @@ export function IptvChannelPicker({
           style={{ flex: 1 }}
           value={tuyChon.linkLayKey}
           onChange={(e) => onDoiTuyChon({ ...tuyChon, linkLayKey: e.target.value })}
-          placeholder="https://vmttv.dpdns.org/AutoKey/"
+          placeholder="Server lấy key"
         />
         <button
           type="button"
