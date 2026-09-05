@@ -10,6 +10,7 @@ import type { ConversationSummary } from "../../types/chat";
 import type { AuthUser } from "../../types/auth";
 import type { Friend, FriendRequest } from "../../types/friend";
 import { useLastMessages } from "./useLastMessages";
+import { useAuthStore } from "../../store/authStore";
 import { useChatUnreadStore } from "../../store/chatUnreadStore";
 
 // Avatar kem cham do khi co tin chua doc - "dau tron do canh tren avatar".
@@ -84,6 +85,9 @@ export function ConversationList({
   const [dangMoHop, setDangMoHop] = useState(false);
 
   const [q, setQ] = useState("");
+  // Khach khong tao duoc nhom (UC-17, da chot): tai khoan Guest bi xoa sau 6
+  // thang khong hoat dong, ma Truong nhom roi nhom = giai tan ca nhom.
+  const laKhach = useAuthStore((st) => st.user?.userType) === "guest";
   const [ketQua, setKetQua] = useState<AuthUser[] | null>(null);
   const [dangTim, setDangTim] = useState(false);
   const [daGui, setDaGui] = useState<Set<number>>(new Set());
@@ -327,9 +331,15 @@ export function ConversationList({
         <div className="cw-section">
           <p className="cw-section-label">{kind === "group" ? "Danh sách nhóm" : "Danh sách bạn bè"}</p>
           {kind === "group" ? (
-            <Link className="cw-pill" to="/workspaces/new">
-              Tạo nhóm mới
-            </Link>
+            // Khach khong tao duoc nhom (UC-17) - an nut thay vi de ho bam roi
+            // an 403 o trang sau.
+            laKhach ? (
+              <span className="cw-empty">Tài khoản khách không tạo được nhóm</span>
+            ) : (
+              <Link className="cw-pill" to="/workspaces/new">
+                Tạo nhóm mới
+              </Link>
+            )
           ) : (
             /* KHONG phai cuoc hop cua mot cuoc tro chuyen nao - day la phong
                hop TUY CHINH, moi nguoi vao bang link. */

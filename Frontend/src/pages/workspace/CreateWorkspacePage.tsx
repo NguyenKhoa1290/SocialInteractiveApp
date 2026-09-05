@@ -4,10 +4,14 @@ import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
 import { resizeAvatar } from "../../lib/imageResize";
 import { AppShell } from "../../components/AppShell";
+import { useAuthStore } from "../../store/authStore";
 import "./workspace.css";
 
 export function CreateWorkspacePage() {
   const navigate = useNavigate();
+  // Chan ca duong go thang dia chi: server tra 403 nhung noi ra o day thi
+  // nguoi dung biet ngay vi sao, khong phai dien xong form moi biet.
+  const laKhach = useAuthStore((s) => s.user?.userType) === "guest";
   const [name, setName] = useState("");
   // Anh da cat/nen san, giu o dang Blob cho toi luc co id nhom de gui len.
   // `xem` la dia chi blob: dung de xem truoc, phai tu thu hoi khi khong dung.
@@ -64,6 +68,24 @@ export function CreateWorkspacePage() {
   }
 
   const chuDau = name.trim().charAt(0).toUpperCase() || "?";
+
+  if (laKhach) {
+    return (
+      <AppShell activeTab="groups">
+        <div className="ws-page-header">
+          <h1>Tạo nhóm mới</h1>
+        </div>
+        <p className="ws-empty">
+          Tài khoản khách không tạo được nhóm. Lý do: tài khoản khách bị xoá sau 6 tháng không hoạt
+          động, mà trưởng nhóm rời nhóm thì cả nhóm bị giải tán - cả nhóm sẽ mất theo. Hãy đăng ký
+          một tài khoản, hoặc nhờ một nhóm có sẵn thêm bạn vào.
+        </p>
+        <Link to="/workspaces" className="ws-btn-primary" style={{ textDecoration: "none" }}>
+          Về danh sách nhóm
+        </Link>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell activeTab="groups">

@@ -54,6 +54,22 @@ public static class WorkspaceEndpoints
             if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Length > 100)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Ten nhom bat buoc, toi da 100 ky tu"));
 
+            // Khach KHONG duoc tao nhom - diem mo cua UC-17 gio da chot.
+            //
+            // Ly do: tai khoan Guest bi xoa tu dong sau 6 thang khong hoat dong.
+            // Ma Truong nhom roi nhom = GIAI TAN ca nhom (trigger
+            // cascade_delete_workspace_on_leader_leave), nen mot cai xoa dinh ky
+            // se keo theo ca nhom va toan bo lich su chat cua nhung nguoi khac -
+            // ho khong lam gi sai va cung khong duoc bao truoc.
+            //
+            // Doc THANG claim user_type trong JWT (IdentityService JwtTokenService
+            // gan san) chu khong goi sang Identity: mot cau hoi mang o duong tao
+            // nhom chi de biet mot thu da nam san trong token.
+            if (principal.FindFirstValue("user_type") == "guest")
+                return Results.Json(
+                    new ErrorResponse("guest_not_allowed", "Tai khoan khach khong tao duoc nhom - hay dang ky tai khoan"),
+                    statusCode: 403);
+
             var userId = GetUserId(principal)!.Value;
             var workspace = new Workspace
             {

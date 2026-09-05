@@ -1419,7 +1419,17 @@ components:
 
 **Xử lý khi rời/bị xoá khỏi nhóm:** publish thông báo qua RabbitMQ → Identity Services (push notification) → tự ngắt kết nối WebSocket (Signal IR) phía Chat Service → tin nhắn cũ chuyển hiển thị thành "người trong nhóm". **Không** kick khỏi cuộc gọi LiveKit đang diễn ra nếu người đó đang trong phiên họp của nhóm — xử lý độc lập, giống Teams/Zoom (chủ đích).
 
-**Điểm còn để ngỏ:** nếu Trưởng nhóm rời nhóm hoặc bị xoá tài khoản, nhóm sẽ ra sao (tự động thăng Phó nhóm hay "vô chủ")? Chưa được chốt.
+**Điểm để ngỏ cũ — nay đã chốt cả hai vế:**
+
+1. *Trưởng nhóm rời nhóm thì nhóm ra sao?* → **giải tán toàn bộ nhóm**, không có khái niệm "nhóm vô
+   chủ" (xem mục 4 và trigger `cascade_delete_workspace_on_leader_leave`). Cố ý **khác** phòng họp:
+   phòng họp mất chủ thì chuyển quyền cho phó phòng chứ không giải tán, vì đó là một phiên đang diễn
+   ra — giải tán nó là đuổi cả phòng đang họp thật. Nhóm thì tồn tại lâu dài, không có "phiên" nào để cứu.
+2. *Trưởng nhóm là Guest rồi bị cron dọn sau 6 tháng thì sao?* → **Guest không được tạo nhóm.**
+   `POST /workspaces` trả 403 `guest_not_allowed` khi claim `user_type` trong JWT là `guest`. Nếu
+   không chặn, một lần dọn tài khoản định kỳ sẽ kéo theo cả nhóm và toàn bộ lịch sử chat của những
+   người khác — họ không làm gì sai và cũng không được báo trước. Guest vẫn **được thêm vào** nhóm
+   như Nhóm viên bình thường; chỉ chặn đúng việc đứng ra mở nhóm.
 
 **Lưu trữ:** Workspace DB (Postgres), tách biệt hoàn toàn khỏi Social DB.
 
