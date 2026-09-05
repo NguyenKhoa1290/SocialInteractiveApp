@@ -364,8 +364,10 @@ thì họ chỉ thấy một loạt nút tự mọc ra rồi tự biến mất.
 nhóm* / *Truất quyền*. Trong CSDL và API vẫn là `co_host` - đổi tên hiển thị thì không phải đụng
 vào lược đồ.
 
-Năm nút quản trị ở từng hàng (*Phó nhóm · Cấm mic · Cấm camera · Cấm chia sẻ · Mời ra*) giờ là nút
-tròn **chỉ có biểu tượng màu trắng**. Chữ không mất: nó chuyển vào `title` + `aria-label`, nên rê
+Năm nút quản trị ở từng hàng (*Phó nhóm · Cấm mic · Cấm camera · Cấm chia sẻ · Mời ra*) giờ **chỉ
+có biểu tượng**, màu trắng ngà (`--calli-surface-2`) trên nền teal. Khuôn nút giữ y như hồi còn
+chữ - cùng chiều cao, cùng padding, vẫn là viên thuốc bo tròn: đây là "thay chữ bằng hình", không
+phải vẽ lại nút. (Bản đầu bóp thành nút tròn 34px, đã sửa lại.) Chữ không mất: nó chuyển vào `title` + `aria-label`, nên rê
 chuột vẫn đọc được và trình đọc màn hình vẫn dùng đúng. Nút ở **phòng chờ** (*Đuổi* / *Cho phép*)
 giữ nguyên chữ - đó là một cặp quyết định, đọc chữ nhanh hơn đoán hình.
 
