@@ -424,6 +424,33 @@ phòng.
 
 ---
 
+### 10.3. Khách không tạo được nhóm
+
+Đọc lại đặc tả gốc ([Drawing2.pdf](../Tainguyen/Drawing2.pdf), [usecase-workspace-service.docx](../Tainguyen/usecase-workspace-service.docx))
+để trả lời câu hỏi "phân quyền trong nhóm nhắn tin thế nào" thì lộ ra một **điểm mở chưa ai chốt**:
+UC-17 tự đặt câu hỏi *"Trưởng nhóm là Guest, bị xoá tự động sau 6 tháng thì nhóm ra sao?"* và bỏ ngỏ.
+Code lúc đó đang chạy theo nhánh chấp nhận rủi ro - chỉ là không ai quyết định điều đó.
+
+Rủi ro không nhỏ: Trưởng nhóm rời nhóm = **giải tán cả nhóm** (trigger
+`cascade_delete_workspace_on_leader_leave`), nên một lần cron dọn tài khoản khách sẽ kéo theo cả
+nhóm và toàn bộ lịch sử chat của những người khác - họ không làm gì sai và cũng không được báo trước.
+
+**Đã chốt: khách không tạo được nhóm.** `POST /workspaces` trả 403 `guest_not_allowed`, đọc thẳng
+claim `user_type` trong JWT chứ không gọi sang Identity - một câu hỏi mạng ở đường tạo nhóm chỉ để
+biết một thứ đã nằm sẵn trong token. Khách **vẫn được thêm vào** nhóm làm Nhóm viên; chỉ chặn đúng
+việc đứng ra mở nhóm.
+
+Giao diện chặn ở cả ba đường: nút ở trang "Nhóm của tôi", nút ở danh sách hội thoại, và **chính
+trang `/workspaces/new`** khi gõ thẳng địa chỉ - kèm lý do, chứ không để người dùng điền xong form
+rồi mới ăn 403.
+
+**Đo được:** API **7/7** (khách 403 đúng mã lỗi · tài khoản thật vẫn tạo được · khách vẫn được thêm
+vào nhóm với vai trò `member` · khách đang ở trong nhóm cũng không mở được nhóm riêng). Trình duyệt
+**6/6**: khách không thấy nút nào, gõ thẳng địa chỉ thì không có ô nhập và có giải thích; tài khoản
+thật thì mọi thứ như cũ.
+
+---
+
 ## 11. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
@@ -461,6 +488,14 @@ Ghi lại để lần sau không mất công dò:
   19/19 — frontend đã deploy xong trong khi pod `media` còn đang cuốn. Mốc
   chắc chắn là chờ *hành vi mới của chính service đó*, đừng lấy hash bundle
   frontend làm mốc cho một thay đổi ở backend.
+- **Image mới ≠ pod mới đã nhận traffic.** Vấp lại đúng cái bẫy đã ghi ở trên, ở dạng tinh vi hơn:
+  digest của `items[0]` đã là bản mới nên tôi tưởng xong, chạy kiểm thì vẫn ra hành vi cũ - vì pod
+  mới chưa Ready, LB còn trỏ vào pod cũ. Cách chẩn đoán dứt điểm: `curl` **thẳng vào pod IP** từ
+  trên máy chủ. Pod trả đúng 403 trong khi đường công khai trả 201 - lúc đó mới biết là chuyện triển
+  khai chứ không phải chuyện code, khỏi phải đi sửa nhầm.
+- **Đừng dùng `grep` chuỗi trên file `.dll` để đoán xem code mới đã vào image chưa.** Chuỗi trong
+  .NET nằm ở dạng UTF-16 trong metadata, `grep` ASCII không khớp - tôi thử với một chuỗi CHẮC CHẮN
+  có trong bản cũ cũng ra 0, nên đây là phép thử vô giá trị, suýt kết luận sai.
 - **CHECK constraint là thứ dễ quên nhất khi thêm giá trị enum.** `permission_type` có
   `CHECK (... IN (...))`; thêm `co_host` trong C# mà không nới ràng buộc thì nút "Phong đồng chủ"
   trả 500 (`23514 check_violation`) chứ không phải lỗi rõ ràng nào. Nới **trước** khi ảnh mới lên;
