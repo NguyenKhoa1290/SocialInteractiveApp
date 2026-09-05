@@ -1,11 +1,17 @@
 # NHẬT KÝ: ĐỔI TÊN MIỀN VÀ CẢI TIẾN CHAT / PHÒNG HỌP
 
-**Đợt làm 02–04/09/2026** — Frontend (React), hạ tầng Cloudflare + k3s
+**Đợt làm 02–05/09/2026** — Frontend (React), Media/Workspace/Identity Service
+(.NET), hạ tầng Cloudflare + k3s
 
 Tiếp nối [nhật ký Mini App IPTV và giao diện phòng họp](nhat-ky-iptv-va-giao-dien-phong-hop.md).
 Tài liệu này ghi lại những gì đã đổi, **vì sao** đổi, và số đo thu được trên hệ
 thống thật. Từ đợt này hệ thống chạy ở **`callimeet.com`** (trước là
 `cachephoarong.click`).
+
+Mục 1–9 là chuyện giao diện và tên miền; **mục 10–12 đi vào phần nghiệp vụ**:
+ai cầm quyền trong một cuộc họp, ai được mở nhóm, và xác thực email khi đăng ký.
+Ba mục đó động tới cả CSDL nên có kèm lệnh đổi lược đồ trong
+[HUONG-DAN-DEPLOY.md](../Tainguyen/infra/HUONG-DAN-DEPLOY.md).
 
 Quy ước đọc giữ như tài liệu cũ: mọi số đo lấy từ hệ thống thật qua Chrome
 headless, không ước lượng từ ảnh chụp.
@@ -27,10 +33,14 @@ headless, không ước lượng từ ảnh chụp.
 7. [Phòng họp: người đang nói lên đầu và sáng viền](#7-phòng-họp-người-đang-nói-lên-đầu-và-sáng-viền)
 8. [Phát file âm thanh trực tiếp trong IPTV](#8-phát-file-âm-thanh-trực-tiếp-trong-iptv)
 9. [Sửa vặt](#9-sửa-vặt)
-10. [Phòng vô chủ: đồng chủ phòng và chuyển quyền](#10-phòng-vô-chủ-đồng-chủ-phòng-và-chuyển-quyền)
-11. [Bẫy đã vấp](#11-bẫy-đã-vấp)
-12. [Việc còn phải làm](#12-việc-còn-phải-làm)
-13. [Ghi chú vận hành](#13-ghi-chú-vận-hành)
+10. [Phòng vô chủ: phó phòng và chuyển quyền](#10-phòng-vô-chủ-phó-phòng-và-chuyển-quyền)
+    - [10.1. Phó phòng - nói trước ai sẽ thay mình](#101-phó-phòng---nói-trước-ai-sẽ-thay-mình)
+    - [10.2. Chủ phòng thật quay lại thì đòi lại quyền](#102-chủ-phòng-thật-quay-lại-thì-đòi-lại-quyền)
+11. [Khách không tạo được nhóm](#11-khách-không-tạo-được-nhóm)
+12. [Xác thực email khi đăng ký](#12-xác-thực-email-khi-đăng-ký)
+13. [Bẫy đã vấp](#13-bẫy-đã-vấp)
+14. [Việc còn phải làm](#14-việc-còn-phải-làm)
+15. [Ghi chú vận hành](#15-ghi-chú-vận-hành)
 
 ---
 
@@ -160,7 +170,7 @@ dài), thẻ nền `#F4F8F9` bo 16 viền `#293546`; dòng dưới là **thanh t
 khoá tua.
 
 CSS để **file riêng** (`file-message.css`) chứ không nhét vào `workspace.css` —
-xem mục 11.
+xem mục 13.
 
 **Đo được.** File 3 giây: không còn `<audio controls>` nào, màu đúng
 (`rgb(133,174,176)` / `rgb(41,53,70)`), bấm nút phát thật (0 → 1.97s), bấm lại
@@ -260,7 +270,7 @@ tiếp (12.03 → 15.05s).
 
 ---
 
-## 10. Phòng vô chủ: đồng chủ phòng và chuyển quyền
+## 10. Phòng vô chủ: phó phòng và chuyển quyền
 
 **Vấn đề.** `meetings.host_id` được đặc tả là *"bất biến trong suốt phiên"* (mục 7.2 tài liệu kiến
 trúc). Chủ phòng rời đi thì cột đó vẫn trỏ vào người đã đi, và **mọi thứ đi qua `RequireHostAsync`
@@ -311,7 +321,7 @@ lại, trong khoảng đó phòng vẫn tạm thời vô chủ - chấp nhận �
 người chỉ đang nối lại mạng.
 
 
-### 10.1. Đồng chủ phòng - nói trước ai sẽ thay mình
+### 10.1. Phó phòng - nói trước ai sẽ thay mình
 
 Luật kế vị ở trên đã lấp được lỗ hổng, nhưng chọn người thay hoàn toàn **máy móc**: ai vào sớm
 nhất thì người đó lên. Chủ phòng không có cách nào nói trước "người này thay tôi", và suốt cuộc
@@ -339,7 +349,7 @@ một người vừa là chủ vừa là đồng chủ.
 
 **Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
 mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
-sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 11.
+sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 13.
 
 Giao diện chỉ cần thêm một biến: vòng poll 4 giây vốn đã trả về `permissions` của từng người, nên
 `co_host` tới nơi miễn phí. Người vừa được phong (hoặc vừa bị thu) được **báo thành lời** - không
@@ -424,7 +434,7 @@ phòng.
 
 ---
 
-### 10.3. Khách không tạo được nhóm
+## 11. Khách không tạo được nhóm
 
 Đọc lại đặc tả gốc ([Drawing2.pdf](../Tainguyen/Drawing2.pdf), [usecase-workspace-service.docx](../Tainguyen/usecase-workspace-service.docx))
 để trả lời câu hỏi "phân quyền trong nhóm nhắn tin thế nào" thì lộ ra một **điểm mở chưa ai chốt**:
@@ -451,7 +461,7 @@ thật thì mọi thứ như cũ.
 
 ---
 
-### 10.4. Xác thực email khi đăng ký
+## 12. Xác thực email khi đăng ký
 
 Đăng ký bằng email/mật khẩu giờ đi **hai bước**, và bước một **không ghi gì vào Postgres**: cả lần
 đăng ký (email, nickname, **mật khẩu đã hash**, mã 6 số) nằm trong Redis 10 phút; `POST
@@ -487,7 +497,7 @@ người đọc**.
 
 ---
 
-## 11. Bẫy đã vấp
+## 13. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
 
@@ -532,6 +542,15 @@ Ghi lại để lần sau không mất công dò:
 - **Đừng dùng `grep` chuỗi trên file `.dll` để đoán xem code mới đã vào image chưa.** Chuỗi trong
   .NET nằm ở dạng UTF-16 trong metadata, `grep` ASCII không khớp - tôi thử với một chuỗi CHẮC CHẮN
   có trong bản cũ cũng ra 0, nên đây là phép thử vô giá trị, suýt kết luận sai.
+- **Đừng phân nhánh theo câu chữ dành cho người đọc.** Trang đăng ký dò chữ trong câu thông báo để
+  biết lần đăng ký còn sống hay không; câu của lỗi *nhập sai mã* lại là "Mã xác thực sai hoặc **đã
+  hết hạn**", nên gõ nhầm một lần là bị đá ngược về form. Câu chữ đổi lúc nào cũng được, **mã lỗi**
+  thì không — phân nhánh theo `error` code. Cũng nên tránh viết một câu ôm hai tình huống như vậy.
+- **Trang `/register` là LỚP PHỦ trên landing page.** Trong DOM còn nguyên ô "Tên người dùng" và
+  form vào-bằng-khách của landing, nên `document.querySelector('form')` trong bài kiểm bắt nhầm
+  form đó: bài kiểm điền email vào ô tên khách rồi submit, tạo ra vài tài khoản khách rác mang tên
+  là địa chỉ email. Bài kiểm trên trang có overlay phải **nhắm đúng khuôn** (`.auth-form`), đừng lấy
+  phần tử đầu tiên.
 - **CHECK constraint là thứ dễ quên nhất khi thêm giá trị enum.** `permission_type` có
   `CHECK (... IN (...))`; thêm `co_host` trong C# mà không nới ràng buộc thì nút "Phong đồng chủ"
   trả 500 (`23514 check_violation`) chứ không phải lỗi rõ ràng nào. Nới **trước** khi ảnh mới lên;
@@ -540,9 +559,9 @@ Ghi lại để lần sau không mất công dò:
 
 ---
 
-## 12. Việc còn phải làm
+## 14. Việc còn phải làm
 
-### 12.1. Việc của chủ dự án (mình không có quyền)
+### 14.1. Việc của chủ dự án (mình không có quyền)
 
 | Việc | Vì sao gấp |
 |---|---|
@@ -550,8 +569,10 @@ Ghi lại để lần sau không mất công dò:
 | **Thu hồi Cloudflare API token** | Token đã dán trong khung chat khi chuyển tên miền. Việc đã xong, nên thu hồi ở *My Profile → API Tokens*. |
 | **Thu hồi hai token Figma** | Treo từ đợt trước, cùng lý do. |
 | **Autostart cloudflared trên Windows** | Nếu có tác vụ tự khởi động client trỏ `ssh/rdp.cachephoarong.click` thì phải sửa sang `callimeet.com` — bản ghi cũ đã xoá. |
+| **Đổi mật khẩu SSH của máy Ubuntu** | Mật khẩu đã dán trong khung chat để mình chạy `ALTER TABLE` và đọc log. Việc đã xong, không cần nữa. |
+| **Dọn 8 email thử trong hộp thư** | Bài kiểm xác thực email gửi thật tới `khoabeoloidom+calli…@gmail.com` và `+ui…@gmail.com` — lọc theo dấu `+` là xoá gọn. |
 
-### 12.2. Nên làm
+### 14.2. Nên làm
 
 - **Trạng thái chưa đọc chỉ sống trong phiên.** Server chưa có mô hình *đã đọc
   theo từng người*, nên tải lại trang là mất hết chấm đỏ. Muốn giữ được thì cần
@@ -567,15 +588,32 @@ Ghi lại để lần sau không mất công dò:
 - **Biến `PUBLIC_DOMAIN` trên GitHub** chưa đặt được (máy không có `gh`). Hiện
   dựa vào fallback đã sửa thành `callimeet.com` trong `release.yml`. Nếu sau
   này thấy bản build ra domain cũ thì vào *Settings → Variables* đặt tay.
+- **21 tài khoản thử cũ** (`@example.invalid`, ngày 01–02/09) vẫn còn trong
+  Identity DB — của các phiên trước, mình không tự xoá. Dữ liệu thử của đợt này
+  đã dọn sạch.
+- **Còn một tài khoản khách tên `sds`** (id 339) — không phải mình tạo nên để
+  nguyên. Nếu là tài khoản thử của bạn thì xoá được.
 
-### 12.3. Carried over từ đợt trước
+### 14.3. Carried over từ đợt trước
 
 Vẫn còn nguyên: đo `.flv` **luồng trực tiếp** thật, và phần thiết kế còn dở
 (chat cá nhân, Mini App, cuộc họp).
 
+**Định dạng `.geo` trong IPTV — đang tạm hoãn, chưa có link mẫu.** Tra cả tiếng
+Việt lẫn tiếng Anh đều không ra định dạng `.geo` chuẩn nào (không phải playlist,
+không phải luồng), nên chưa làm để khỏi đoán bừa. Hướng đã chốt sẵn cho lúc có
+link thật: **dò theo nội dung** chứ không tin vào đuôi tệp — tải vài KB đầu rồi
+nhận chữ ký (`#EXTM3U` → HLS, `<MPD` → DASH, `FLV\x01` → FLV, byte `0x47` lặp
+mỗi 188 → MPEG-TS, `ID3`/`OggS`/`fLaC` → âm thanh, `ftyp`/EBML → phát thẳng), và
+**chỉ dò khi đuôi không nói lên gì** để kênh `.m3u8`/`.mpd`/`.flv` hiện tại
+không phải chịu thêm một request nào. Phải sửa hai chỗ:
+[IptvPlayer.tsx](../Frontend/src/pages/meeting/IptvPlayer.tsx) (lúc phát) và
+[IptvChannelPicker.tsx](../Frontend/src/pages/meeting/IptvChannelPicker.tsx)
+(lúc "Quét thông tin" — hiện đuôi lạ rơi vào `quetHls` rồi báo lỗi).
+
 ---
 
-## 13. Ghi chú vận hành
+## 15. Ghi chú vận hành
 
 **Tên miền.** Hệ thống chạy ở `callimeet.com`, mỗi service một subdomain,
 frontend ở domain gốc. Tunnel vẫn là `e1f67fd0-…` (locally-managed), định tuyến
@@ -593,6 +631,26 @@ lúc bản mới lên (nhanh hơn ghi chú cũ vì không thêm thư viện npm 
 **Mốc chờ bản mới trong script.** Với thay đổi **chỉ CSS** thì hash của bundle
 JS **không đổi** — phải theo dõi hash file `.css`. Ngược lại, đổi `.tsx` thì
 theo hash `.js`.
+
+**Vào thẳng CSDL** (Postgres chỉ mở trong cụm). Các DB nằm ở namespace
+**`chat-data`**, không phải `chat-app`; mỗi service một pod và một cặp
+user/db theo cùng khuôn `<tên>_admin` / `<tên>`:
+
+```bash
+k3s kubectl -n chat-data exec deploy/media-db -- psql -U media_admin -d media -c "..."
+```
+
+Tương tự `identity-db`/`identity_admin`, `chat-db`/`chat_admin`,
+`workspace-db`/`workspace_admin`. Dùng user `postgres` sẽ báo *role does not
+exist*. Redis có mật khẩu — `redis-cli -a <mật khẩu> --no-auth-warning`, mật
+khẩu nằm trong `ConnectionStrings__Redis` của deployment identity.
+
+**Ba lần đổi lược đồ trong đợt này**, lệnh đầy đủ nằm ở
+[HUONG-DAN-DEPLOY.md](../Tainguyen/infra/HUONG-DAN-DEPLOY.md): thêm
+`meetings.creator_id`, nới CHECK của `meeting_permissions` để nhận `co_host`.
+Cả hai đã chạy trên CSDL thật **trước** khi đẩy ảnh mới — thứ tự này bắt buộc,
+ngược lại là service mới truy vấn một thứ chưa tồn tại. Riêng phần xác thực
+email **không** cần đổi lược đồ nào (dữ liệu chờ nằm trong Redis).
 
 **Dọn dữ liệu thử.** Vẫn phải dọn sau mỗi đợt. Lưu ý app **không có API tự xoá
 tài khoản** (`DELETE /users/me` → 405) và **không xoá được hội thoại p2p**
