@@ -198,11 +198,6 @@ export function ProfilePage() {
             Chế độ quản trị
           </Link>
         )}
-
-        {/* Duong phu tam thoi - xem ghi chu trong settings.css */}
-        <p className="st-extra">
-          <Link to="/workspaces">Quản lý nhóm</Link>
-        </p>
       </div>
     </AppShell>
   );

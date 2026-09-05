@@ -167,17 +167,3 @@
 .st-msg-ok {
   color: var(--accent-strong);
 }
-
-/* Loi vao QUAN LY NHOM.
-   KHONG co trong ban thiet ke. Ban thiet ke dat viec nay trong man "Danh sach
-   nhom" (node 100:22) - man do chua duoc dung, ma bo menu tha xuong cu thi
-   /workspaces mat loi vao. De tam o day lam duong phu, xoa di khi man danh
-   sach nhom xong. */
-.st-extra {
-  margin-top: 10px;
-  font-size: calc(15px * var(--s));
-}
-
-.st-extra a {
-  color: var(--accent-strong);
-}
