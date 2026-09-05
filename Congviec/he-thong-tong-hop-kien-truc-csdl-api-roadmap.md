@@ -3647,7 +3647,11 @@ Chủ đi rồi thì cả phòng kẹt cho tới khi người cuối cùng rời
 Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nhóm rời = giải tán, mục 4; với
 **phòng họp** thì không giải tán vì những người còn lại vẫn đang họp thật):
 
-- Chủ rời mà phòng còn người → **người vào sớm nhất còn ở lại** lên làm chủ (`joined_at` tăng dần).
+- **Đồng chủ phòng đi trước mọi tiêu chí khác.** Chủ phòng phong ai làm Đồng chủ phòng
+  (`meeting_permissions.co_host`) thì người đó là người kế vị thứ nhất — chính chủ phòng đã chỉ
+  định trước, không việc gì để thứ tự vào phòng quyết định thay. Nhiều đồng chủ thì lấy người vào
+  sớm nhất trong số họ; kể cả khách (guest) cũng được, vì đã được chủ phòng chọn đích danh.
+- Không có đồng chủ nào đang ở trong phòng → **người vào sớm nhất còn ở lại** lên làm chủ (`joined_at` tăng dần).
 - Ưu tiên tài khoản đã đăng ký; **khách (guest) chỉ lên làm chủ khi phòng không còn ai khác** —
   người vào bằng link không nên bỗng nhiên nắm quyền đuổi người/kết thúc khi thành viên thật vẫn đang ngồi đó.
   Identity Service không trả lời được thì lấy luôn người vào sớm nhất (fail-open: một sự cố của
@@ -3662,6 +3666,25 @@ Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nh
 
 Cài ở `MediaService/src/MediaService.Api/Services/HostSuccession.cs`, gọi từ cả ba đường mà chủ có thể
 biến mất: `POST /leave`, `kick` (chủ tự mời mình ra), và `ParticipantReconciler` (đóng tab — đường hay gặp nhất).
+
+**Đồng chủ phòng (`co_host`)**
+
+Ranh giới quyền — đồng chủ có **mọi quyền điều khiển cuộc họp** (duyệt phòng chờ, đuổi người,
+cấp/thu các quyền lẻ, tắt mic cả phòng, sửa cài đặt phòng, kết thúc cuộc họp, gỡ kẹt người trình
+bày), và không bị cài đặt chung của phòng bịt mic/cam/chia sẻ. Chủ phòng **thật** giữ riêng ba
+điều, cả ba đều để không ai lật được chủ phòng:
+
+1. Chỉ chủ phòng thật **phong/thu** được chính quyền `co_host` (403 nếu đồng chủ thử tự nhân bản).
+2. **Không ai đuổi được chủ phòng** (403 ở `kick`).
+3. Không ai thu được mic/camera/chia sẻ màn hình của chủ phòng (luật cũ, có từ trước).
+
+Muốn khoá mic một đồng chủ thì phải thu quyền đồng chủ trước — cùng một suy nghĩ với việc chủ
+phòng luôn được phép.
+
+Để ở `meeting_permissions` chứ **không** ở `meeting_participants.role`, vì hàng participant sinh
+mới mỗi lần vào phòng: đồng chủ rớt mạng ra vào lại sẽ mất chức. Hàng permission sống theo cả cuộc
+họp. Khi đồng chủ được đưa lên làm chủ thật, hàng `co_host` của họ bị xoá — để giao diện không hiện
+một người vừa là chủ vừa là đồng chủ.
 
 **Bảng `meeting_invites`**
 
@@ -3683,7 +3706,7 @@ biến mất: `POST /leave`, `kick` (chủ tự mời mình ra), và `Participan
 | id | BIGSERIAL | PRIMARY KEY | |
 | meeting_id | BIGINT | NOT NULL, FK → meetings(id) ON DELETE CASCADE | |
 | user_id | BIGINT | NOT NULL | Logical FK |
-| permission_type | VARCHAR(20) | NOT NULL, CHECK IN ('share_screen','mini_app','focus_mode') | Cấp riêng lẻ từng tính năng (UC-35) |
+| permission_type | VARCHAR(20) | NOT NULL, CHECK IN ('share_screen','mini_app','focus_mode','no_mic','no_camera','no_screen_share','co_host') | Cấp riêng lẻ từng tính năng (UC-35). `no_*` ngược nghĩa: **có** hàng = **bị cấm**. `co_host` = Đồng chủ phòng, xem "Chuyển quyền chủ phòng" |
 | granted_by | BIGINT | NOT NULL | Logical FK — luôn là host |
 | granted_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | |
 
@@ -3773,7 +3796,8 @@ CREATE TABLE meeting_permissions (
   meeting_id        BIGINT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
   user_id           BIGINT NOT NULL,
   permission_type   VARCHAR(20) NOT NULL
-                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode')),
+                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode',
+                                                 'no_mic','no_camera','no_screen_share','co_host')),
   granted_by        BIGINT NOT NULL,
   granted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (meeting_id, user_id, permission_type)

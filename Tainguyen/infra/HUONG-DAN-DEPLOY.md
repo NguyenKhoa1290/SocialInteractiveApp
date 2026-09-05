@@ -496,6 +496,21 @@ Thêm cột cho DB đã có dữ liệu:
 ALTER TABLE files ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(20) NOT NULL DEFAULT 'home';
 ```
 
+### Đồng chủ phòng — nới CHECK của `meeting_permissions` (Media DB)
+
+Chạy **trước** khi ảnh mới lên, nếu không nút "Phong đồng chủ" sẽ trả 500 (`23514
+check_violation`). Chỉ nới ràng buộc, không đụng dữ liệu — chạy lại nhiều lần vô hại:
+
+```sql
+ALTER TABLE meeting_permissions DROP CONSTRAINT IF EXISTS meeting_permissions_permission_type_check;
+ALTER TABLE meeting_permissions ADD CONSTRAINT meeting_permissions_permission_type_check
+  CHECK (permission_type IN ('share_screen','mini_app','focus_mode',
+                             'no_mic','no_camera','no_screen_share','co_host'));
+```
+
+Ảnh cũ chạy với ràng buộc mới vẫn bình thường: CHECK chỉ chặn lúc GHI, mà bản cũ không bao giờ
+ghi `co_host`.
+
 **`cloud` không gắn với nhà cung cấp nào** — nó chỉ là cái tên. Trỏ sang một **server MinIO thứ hai**
 (máy khác trong LAN, hoặc MinIO trên VPS) cũng chạy y hệt, chỉ cần **xoá `Region: "auto"`** vì `auto`
 là quy ước riêng của R2; để trống thì SDK ký bằng `us-east-1` mặc định, MinIO chấp nhận.

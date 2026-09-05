@@ -97,8 +97,14 @@ CREATE TABLE meeting_permissions (
   -- hinh cung mac dinh CO (meetings.allow_screen_share), nen cam mot nguoi
   -- moi la thao tac dang ghi - giong het mic va camera. Ba hang share_screen
   -- cu van doc duoc, chi khong con ai ghi them.
+  --
+  -- co_host them sau cung: DONG CHU PHONG - khong phai mot tinh nang le ma la
+  -- toan bo quyen dieu khien cuoc hop, va la nguoi ke vi thu nhat khi chu
+  -- phong roi di (xem Services/HostSuccession.cs). De o bang nay chu khong o
+  -- meeting_participants.role vi hang participant sinh moi moi lan vao phong -
+  -- dong chu roi mang ra vao lai se mat chuc.
   permission_type   VARCHAR(20) NOT NULL
-                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode','no_mic','no_camera','no_screen_share')),
+                      CHECK (permission_type IN ('share_screen','mini_app','focus_mode','no_mic','no_camera','no_screen_share','co_host')),
   granted_by        BIGINT NOT NULL,
   granted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (meeting_id, user_id, permission_type)

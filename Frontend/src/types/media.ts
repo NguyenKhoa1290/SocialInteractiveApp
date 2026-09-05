@@ -77,7 +77,11 @@ export type PermissionType =
   | "focus_mode"
   | "no_mic"
   | "no_camera"
-  | "no_screen_share";
+  | "no_screen_share"
+  // Dong chu phong: co du quyen dieu khien cuoc hop nhu chu phong, va la
+  // nguoi ke vi thu nhat khi chu phong roi di. Chi chu phong THAT phong hoac
+  // thu duoc quyen nay.
+  | "co_host";
 
 // Trang thai "ai dang trinh bay" - doc tu metadata cua phong LiveKit
 // (RoomMetadataChanged), khong phai tu REST. Chi MOT nguoi tai mot thoi diem.

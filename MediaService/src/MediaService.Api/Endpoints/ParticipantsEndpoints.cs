@@ -10,6 +10,8 @@ namespace MediaService.Api.Endpoints;
 // UC-33 buoc 3, UC-34, UC-35.
 public static class ParticipantsEndpoints
 {
+    // Chi CHU PHONG THAT. Danh cho nhung thao tac ma dong chu khong duoc dong
+    // toi - hien la phong/thu chinh quyen dong chu. Xem HostAuthorization.
     private static async Task<(Meeting? meeting, IResult? error)> RequireHostAsync(
         long meetingId, ClaimsPrincipal principal, MediaDbContext db)
     {
@@ -20,6 +22,25 @@ public static class ParticipantsEndpoints
         var callerId = principal.GetUserId()!.Value;
         if (meeting.HostId != callerId)
             return (null, Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hop duoc thuc hien thao tac nay"), statusCode: 403));
+
+        return (meeting, null);
+    }
+
+    // Chu phong HOAC dong chu phong. Day la cua cho gan het thao tac quan tri:
+    // duyet phong cho, duoi nguoi, cap/thu quyen le, tat mic ca phong, sua cai
+    // dat phong, ket thuc cuoc hop.
+    private static async Task<(Meeting? meeting, IResult? error)> RequireDieuKhienAsync(
+        long meetingId, ClaimsPrincipal principal, MediaDbContext db)
+    {
+        var meeting = await db.Meetings.FindAsync(meetingId);
+        if (meeting is null)
+            return (null, Results.NotFound());
+
+        var callerId = principal.GetUserId()!.Value;
+        if (!await HostAuthorization.DieuKhienDuocAsync(db, meeting, callerId))
+            return (null, Results.Json(
+                new ErrorResponse("forbidden", "Chi Chu phong hoac Dong chu phong duoc thuc hien thao tac nay"),
+                statusCode: 403));
 
         return (meeting, null);
     }
@@ -78,7 +99,7 @@ public static class ParticipantsEndpoints
 
         group.MapGet("/waiting-room", async (long meetingId, ClaimsPrincipal principal, MediaDbContext db, WaitingRoomStore waiting) =>
         {
-            var (_, error) = await RequireHostAsync(meetingId, principal, db);
+            var (_, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             var list = await waiting.ListAsync(meetingId);
@@ -89,7 +110,7 @@ public static class ParticipantsEndpoints
             long meetingId, long userId, ClaimsPrincipal principal,
             MediaDbContext db, WaitingRoomStore waiting, LiveKitService liveKit, IdentityClient identity, IConnectionMultiplexer redis) =>
         {
-            var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             if (!await waiting.IsWaitingAsync(meetingId, userId))
@@ -127,7 +148,7 @@ public static class ParticipantsEndpoints
         group.MapPost("/waiting-room/{userId:long}/deny", async (
             long meetingId, long userId, ClaimsPrincipal principal, MediaDbContext db, WaitingRoomStore waiting) =>
         {
-            var (_, error) = await RequireHostAsync(meetingId, principal, db);
+            var (_, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             if (!await waiting.IsWaitingAsync(meetingId, userId))
@@ -142,8 +163,14 @@ public static class ParticipantsEndpoints
             MediaDbContext db, LiveKitService liveKit,
             IdentityClient identity, ILoggerFactory loggerFactory) =>
         {
-            var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
+
+            // Dong chu co quyen duoi nguoi, nhung KHONG duoi duoc chu phong -
+            // khong thi hai dong chu bat tay nhau la lat duoc chu phong khoi
+            // chinh cuoc hop cua ho.
+            if (userId == meeting!.HostId)
+                return Results.Json(new ErrorResponse("forbidden", "Khong the moi Chu phong hop ra khoi phong"), statusCode: 403);
 
             var participant = await db.MeetingParticipants
                 .FirstOrDefaultAsync(p => p.MeetingId == meetingId && p.UserId == userId && p.LeftAt == null);
@@ -168,12 +195,26 @@ public static class ParticipantsEndpoints
             long meetingId, long userId, GrantPermissionRequest req, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit) =>
         {
-            var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             PermissionType permType;
             try { permType = MeetingPermission.FromString(req.PermissionType); }
             catch (ArgumentException) { return Results.BadRequest(new ErrorResponse("invalid_request", "permissionType khong hop le")); }
+
+            // Phong Dong chu phong la viec RIENG cua chu phong that: dong chu
+            // duoc cap moi quyen le, nhung khong duoc tu nhan them dong chu -
+            // khong thi mot dong chu tu nhan them dong minh la chu phong that
+            // mat kiem soat chinh cuoc hop cua ho.
+            if (permType == PermissionType.CoHost && meeting!.HostId != principal.GetUserId()!.Value)
+                return Results.Json(
+                    new ErrorResponse("forbidden", "Chi Chu phong hop duoc phong hoac thu quyen Dong chu phong"),
+                    statusCode: 403);
+
+            // Chu phong da co san moi quyen - phong chinh minh lam dong chu la
+            // mot hang thua, con lam roi lai vuong khi doi chu.
+            if (permType == PermissionType.CoHost && userId == meeting!.HostId)
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Chu phong hop da co du quyen roi"));
 
             // Chu phong tu thu mic cua chinh minh la trang thai vo nghia (tu
             // bam la tu mo lai duoc) - chan cho gon.
@@ -189,7 +230,9 @@ public static class ParticipantsEndpoints
                     MeetingId = meetingId,
                     UserId = userId,
                     PermissionType = permType,
-                    GrantedBy = meeting!.HostId,
+                    // Nguoi THAT SU bam cap - gio co the la dong chu phong,
+                    // khong con chac la chu phong nua.
+                    GrantedBy = principal.GetUserId()!.Value,
                     GrantedAt = DateTimeOffset.UtcNow,
                 });
                 await db.SaveChangesAsync();
@@ -205,12 +248,21 @@ public static class ParticipantsEndpoints
             long meetingId, long userId, string permissionType, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit) =>
         {
-            var (_, error) = await RequireHostAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             PermissionType permType;
             try { permType = MeetingPermission.FromString(permissionType); }
             catch (ArgumentException) { return Results.BadRequest(new ErrorResponse("invalid_request", "permissionType khong hop le")); }
+
+            // Phong Dong chu phong la viec RIENG cua chu phong that: dong chu
+            // duoc cap moi quyen le, nhung khong duoc tu nhan them dong chu -
+            // khong thi mot dong chu tu nhan them dong minh la chu phong that
+            // mat kiem soat chinh cuoc hop cua ho.
+            if (permType == PermissionType.CoHost && meeting!.HostId != principal.GetUserId()!.Value)
+                return Results.Json(
+                    new ErrorResponse("forbidden", "Chi Chu phong hop duoc phong hoac thu quyen Dong chu phong"),
+                    statusCode: 403);
 
             var perm = await db.MeetingPermissions.FirstOrDefaultAsync(p =>
                 p.MeetingId == meetingId && p.UserId == userId && p.PermissionType == permType);
@@ -275,13 +327,23 @@ public static class ParticipantsEndpoints
         if (phong.HostId == userId)
             return (true, true, true);
 
-        var denied = await db.MeetingPermissions
+        var quyen = await db.MeetingPermissions
             .Where(p => p.MeetingId == meetingId && p.UserId == userId &&
                         (p.PermissionType == PermissionType.NoMic ||
                          p.PermissionType == PermissionType.NoCamera ||
-                         p.PermissionType == PermissionType.NoScreenShare))
+                         p.PermissionType == PermissionType.NoScreenShare ||
+                         p.PermissionType == PermissionType.CoHost))
             .Select(p => p.PermissionType)
             .ToListAsync();
+
+        // Dong chu phong dieu khien cuoc hop thay chu phong, nen khong the bi
+        // cai dat chung cua phong bit mieng. Muon khoa mic mot dong chu thi
+        // chu phong that thu quyen dong chu truoc da - cung mot suy nghi voi
+        // viec chu phong luon duoc phep.
+        if (quyen.Contains(PermissionType.CoHost))
+            return (true, true, true);
+
+        var denied = quyen;
 
         return (
             phong.AllowMic && !denied.Contains(PermissionType.NoMic),

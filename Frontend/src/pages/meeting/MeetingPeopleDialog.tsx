@@ -16,7 +16,8 @@ export function MeetingPeopleDialog({
   waiting,
   friends,
   currentUserId,
-  isHost,
+  dieuKhienDuoc,
+  laChuPhongThat,
   anhCua,
   volumes,
   inviteLink,
@@ -39,7 +40,10 @@ export function MeetingPeopleDialog({
   waiting: WaitingParticipant[];
   friends: Friend[];
   currentUserId: number | undefined;
-  isHost: boolean;
+  // Chu phong HOAC dong chu phong - mo het thao tac quan tri.
+  dieuKhienDuoc: boolean;
+  // Rieng chu phong THAT: chi ho phong/thu duoc quyen dong chu phong.
+  laChuPhongThat: boolean;
   anhCua: Record<number, string | null>;
   volumes: Record<number, number>;
   inviteLink: string | null;
@@ -64,6 +68,12 @@ export function MeetingPeopleDialog({
   const loc = tim.trim().toLowerCase();
   const hienThi = loc ? participants.filter((p) => p.nickname.toLowerCase().includes(loc)) : participants;
 
+  // Chu phong doc theo meeting.hostId chu khong theo cot role: sau khi chuyen
+  // quyen, hang cu cua chu cu VAN mang role='host' (dau vet "da tung la chu",
+  // xem HostSuccession.cs) nen tin vao role la co luc hien hai chu phong.
+  const laChu = (p: MeetingParticipant) => meeting != null && p.userId === meeting.hostId;
+  const cam2 = (p: MeetingParticipant, t: PermissionType) => p.permissions.includes(t);
+
   if (trang === "phong") {
     return (
       <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={1000}>
@@ -80,31 +90,31 @@ export function MeetingPeopleDialog({
           nhan="Cho phép bật cam"
           bat={meeting?.allowCamera ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowCamera: v })}
-          khoa={!isHost}
+          khoa={!dieuKhienDuoc}
         />
         <HangTac
           nhan="Cho phép bật mic"
           bat={meeting?.allowMic ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowMic: v })}
-          khoa={!isHost}
+          khoa={!dieuKhienDuoc}
         />
         <HangTac
           nhan="Cho phép chia sẻ màn hình"
           bat={meeting?.allowScreenShare ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowScreenShare: v })}
-          khoa={!isHost}
+          khoa={!dieuKhienDuoc}
         />
         <HangTac
           nhan="Cho phép một thành viên không phải chủ phòng bắt đầu ứng dụng"
           bat={meeting?.allowMiniApp ?? false}
           doi={(v) => onDoiCaiDatPhong({ allowMiniApp: v })}
-          khoa={!isHost}
+          khoa={!dieuKhienDuoc}
         />
         <HangTac
           nhan="Bật phòng chờ"
           bat={meeting?.requiresApproval ?? true}
           doi={(v) => onDoiCaiDatPhong({ requiresApproval: v })}
-          khoa={!isHost || dangDoiDuyet}
+          khoa={!dieuKhienDuoc || dangDoiDuyet}
         />
         <p className="mpop-ghi-chu">
           {meeting?.requiresApproval
@@ -117,7 +127,7 @@ export function MeetingPeopleDialog({
 
   return (
     <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={1000}>
-      {isHost && waiting.length > 0 && (
+      {dieuKhienDuoc && waiting.length > 0 && (
         <>
           <h3 className="mpop-nhan">Danh sách Thành viên đang đợi</h3>
           <label className="mpop-tim">
@@ -146,7 +156,7 @@ export function MeetingPeopleDialog({
 
       <div className="mpop-dau">
         <h3 className="mpop-nhan">Danh sách Thành viên</h3>
-        {isHost && (
+        {dieuKhienDuoc && (
           <>
             <button type="button" className="mpop-pill mpop-pill-do" onClick={() => onMuteAll(true, false)}>
               Tắt tất cả mic
@@ -200,7 +210,7 @@ export function MeetingPeopleDialog({
         </div>
       )}
 
-      {(!isHost || waiting.length === 0) && (
+      {(!dieuKhienDuoc || waiting.length === 0) && (
         <label className="mpop-tim">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
@@ -220,10 +230,29 @@ export function MeetingPeopleDialog({
             <Avatar userId={p.userId} nickname={p.nickname} avatarUpdatedAt={anhCua[p.userId]} size={68} />
             <span className="mpop-ten">
               {p.nickname}
-              {p.role === "host" && <em> · Chủ phòng</em>}
+              {laChu(p) ? <em> · Chủ phòng</em> : cam2(p, "co_host") ? <em> · Đồng chủ phòng</em> : null}
             </span>
 
-            {isHost && nguoiKhac && (
+            {/* Phong/thu dong chu phong la viec RIENG cua chu phong that -
+                dong chu khong tu nhan them dong duoc. */}
+            {laChuPhongThat && nguoiKhac && !laChu(p) && (
+              <span className="mpop-nut">
+                <button
+                  type="button"
+                  className={`mpop-pill${cam("co_host") ? " mpop-pill-xam" : " mpop-pill-teal"}`}
+                  onClick={() => onTogglePermission(p, "co_host")}
+                  title={
+                    cam("co_host")
+                      ? "Thu lại quyền điều khiển cuộc họp của người này"
+                      : "Cho người này mọi quyền của chủ phòng, và là người thay bạn khi bạn rời đi"
+                  }
+                >
+                  {cam("co_host") ? "Thu quyền đồng chủ" : "Phong đồng chủ"}
+                </button>
+              </span>
+            )}
+
+            {dieuKhienDuoc && nguoiKhac && !laChu(p) && (
               <span className="mpop-nut">
                 <button
                   type="button"

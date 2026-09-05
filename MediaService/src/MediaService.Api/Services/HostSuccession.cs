@@ -15,11 +15,15 @@ namespace MediaService.Api.Services;
 // VINH VIEN o do. Ma cuoc hop chi tu dong dong khi HET NGUOI (trigger
 // trg_close_meeting_if_empty), nen mot phong vo chu con song tiep hang gio.
 //
-// LUAT DA CHOT: chu roi ma phong con nguoi -> NGUOI VAO SOM NHAT con o lai
-// len lam chu. Uu tien tai khoan da dang ky; khach vao bang link chi len lam
-// chu khi trong phong khong con ai khac - de mot nguoi la khong bong nhien
-// nam quyen duoi nguoi/ket thuc cuoc hop trong khi thanh vien that van dang
-// ngoi day.
+// LUAT DA CHOT, xet theo thu tu:
+//
+//   1. DONG CHU PHONG dang o trong phong (vao som nhat neu co nhieu nguoi).
+//      Day la nguoi chinh chu phong da chi dinh truoc, nen phai duoc uu tien
+//      hon moi tieu chi may moc khac.
+//   2. Khong co dong chu nao -> nguoi VAO SOM NHAT con o lai, uu tien tai
+//      khoan da dang ky; khach vao bang link chi len lam chu khi trong phong
+//      khong con ai khac - de mot nguoi la khong bong nhien nam quyen duoi
+//      nguoi/ket thuc cuoc hop trong khi thanh vien that van dang ngoi day.
 //
 // GOI O DAU: moi cho co the lam chu bien mat - POST /leave, kick, va
 // ParticipantReconciler (dong tab, duong hay gap nhat). Ham nay TU kiem tra
@@ -65,7 +69,7 @@ public static class HostSuccession
         if (conLai.Count == 0)
             return null;
 
-        var chuMoi = await ChonNguoiKeAsync(conLai, identity);
+        var chuMoi = await ChonNguoiKeAsync(db, meetingId, conLai, identity, ct);
 
         // Doi chu bang MOT cau UPDATE co dieu kien host_id = chu cu: hai
         // duong cung phat hien chu da di trong cung mot khoanh khac (vd nguoi
@@ -86,6 +90,14 @@ public static class HostSuccession
         // vao no de chu cu quay lai duoc: phong tuy chinh chi vao duoc bang
         // link moi, ma link thi chinh chu cu thuong khong giu.
         chuMoi.Role = ParticipantRole.Host;
+
+        // Da la chu phong THAT thi hang co_host thanh thua - de lai chi lam
+        // giao dien hien mot nguoi vua la chu vua la dong chu.
+        var hangDongChu = await db.MeetingPermissions.FirstOrDefaultAsync(
+            x => x.MeetingId == meetingId && x.UserId == chuMoi.UserId && x.PermissionType == PermissionType.CoHost, ct);
+        if (hangDongChu is not null)
+            db.MeetingPermissions.Remove(hangDongChu);
+
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
@@ -94,15 +106,30 @@ public static class HostSuccession
         return chuMoi.UserId;
     }
 
-    // Nguoi vao som nhat con o lai, uu tien tai khoan da dang ky.
+    // Dong chu phong truoc, roi moi den nguoi vao som nhat (uu tien tai khoan
+    // da dang ky).
     //
-    // FAIL-OPEN: Identity khong tra loi duoc thi ResolveUsersAsync tra ve rong
-    // (no tu nuot loi), luc do lay luon nguoi vao som nhat. Mot su co cua
-    // Identity khong duoc phep de cuoc hop nam lai trang thai vo chu - do moi
-    // la cai dat hon.
+    // FAIL-OPEN o buoc thu hai: Identity khong tra loi duoc thi
+    // ResolveUsersAsync tra ve rong (no tu nuot loi), luc do lay luon nguoi
+    // vao som nhat. Mot su co cua Identity khong duoc phep de cuoc hop nam lai
+    // trang thai vo chu - do moi la cai dat hon.
     private static async Task<MeetingParticipant> ChonNguoiKeAsync(
-        List<MeetingParticipant> conLai, IdentityClient identity)
+        MediaDbContext db, long meetingId, List<MeetingParticipant> conLai,
+        IdentityClient identity, CancellationToken ct)
     {
+        // Dong chu duoc chi dinh thi khoi phai doan theo thu tu vao phong -
+        // ke ca khi nguoi do la khach, vi chinh chu phong da chon ho.
+        var dongChu = await db.MeetingPermissions
+            .Where(x => x.MeetingId == meetingId && x.PermissionType == PermissionType.CoHost)
+            .Select(x => x.UserId)
+            .ToListAsync(ct);
+        if (dongChu.Count > 0)
+        {
+            var ke = conLai.Find(p => dongChu.Contains(p.UserId));
+            if (ke is not null)
+                return ke;
+        }
+
         if (conLai.Count == 1)
             return conLai[0];
 

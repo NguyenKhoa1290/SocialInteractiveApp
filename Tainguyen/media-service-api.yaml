@@ -361,12 +361,19 @@ paths:
               properties:
                 permissionType:
                   type: string
-                  enum: [share_screen, mini_app, focus_mode]
+                  enum: [share_screen, mini_app, focus_mode, no_mic, no_camera, no_screen_share, co_host]
+                  description: >
+                    co_host = Đồng chủ phòng: có mọi quyền điều khiển cuộc họp
+                    và là người kế vị đầu tiên khi chủ phòng rời đi. Riêng
+                    co_host thì CHỈ chủ phòng thật cấp/thu được (403 nếu người
+                    gọi là đồng chủ phòng).
       responses:
         "201":
           description: Đã cấp quyền
         "403":
-          description: Người gọi không phải Chủ phòng họp
+          description: >-
+            Người gọi không phải Chủ phòng / Đồng chủ phòng; hoặc đang cấp
+            co_host mà người gọi không phải Chủ phòng thật
 
     delete:
       tags: [Participants]
@@ -390,7 +397,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [share_screen, mini_app, focus_mode]
+            enum: [share_screen, mini_app, focus_mode, no_mic, no_camera, no_screen_share, co_host]
       responses:
         "204":
           description: Đã thu hồi

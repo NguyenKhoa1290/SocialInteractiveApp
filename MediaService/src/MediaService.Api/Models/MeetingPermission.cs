@@ -25,6 +25,21 @@ public enum PermissionType
     // moi la thao tac dang ghi - giong mic va camera. ShareScreen o tren van
     // giu de doc duoc du lieu cu, chi khong con duong nao ghi them.
     NoScreenShare,
+
+    // DONG CHU PHONG. CO hang = duoc phep (cung nghia voi ba loai dau).
+    //
+    // Khac han moi loai tren o chuc nang: day khong phai mot tinh nang le ma
+    // la TOAN BO quyen cua chu phong - duyet phong cho, duoi nguoi, cap/thu
+    // quyen, ket thuc cuoc hop, sua cai dat phong. Ba viec chu phong THAT van
+    // giu rieng: phong/thu chinh quyen nay, va khong ai duoi hay khoa mic
+    // duoc chu phong that.
+    //
+    // Nam trong bang nay chu khong phai o meeting_participants.role vi hang
+    // participant sinh moi moi lan vao phong - dong chu roi mang ra vao lai
+    // se mat chuc. Hang permission thi song theo CA CUOC HOP.
+    //
+    // Cung la duong ke vi thu nhat khi chu phong roi di: xem HostSuccession.
+    CoHost,
 }
 
 public class MeetingPermission
@@ -44,6 +59,7 @@ public class MeetingPermission
         "no_mic" => PermissionType.NoMic,
         "no_camera" => PermissionType.NoCamera,
         "no_screen_share" => PermissionType.NoScreenShare,
+        "co_host" => PermissionType.CoHost,
         _ => throw new ArgumentException($"Gia tri permission_type khong hop le: {s}"),
     };
 
@@ -55,6 +71,7 @@ public class MeetingPermission
         PermissionType.NoMic => "no_mic",
         PermissionType.NoCamera => "no_camera",
         PermissionType.NoScreenShare => "no_screen_share",
+        PermissionType.CoHost => "co_host",
         _ => throw new ArgumentOutOfRangeException(nameof(p)),
     };
 }
