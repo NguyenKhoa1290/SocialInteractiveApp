@@ -124,6 +124,22 @@ Trước khi cấp quyền truy cập, kiểm tra tài khoản có bị khoá v�
 
 Quên mật khẩu: gửi OTP qua email, cho phép đặt mật khẩu mới. Với tài khoản chỉ từng đăng nhập Google/Facebook, đây về bản chất là *tạo mật khẩu lần đầu*, không phải "đặt lại".
 
+**Xác thực email khi đăng ký (bổ sung sau, không có trong UC-06 gốc).** Đăng ký bằng email/mật khẩu
+đi hai bước: `POST /auth/register` **không ghi gì vào Postgres** mà gửi mã 6 số qua mail và giữ cả
+lần đăng ký trong Redis 10 phút (email, nickname, **mật khẩu đã hash**, mã); `POST /auth/register/verify`
+nhập đúng mã thì tài khoản mới thực sự được tạo và trả token như cũ.
+
+Chọn cách này thay vì "tạo trước, gắn cờ chưa xác thực" vì hai lẽ: bảng `users` không bao giờ chứa
+tài khoản treo do người lạ gõ bừa địa chỉ mail của người khác, và email/nickname không bị giữ chỗ
+bởi những bản ghi không ai dùng. Đổi lại, mất mã giữa chừng thì phải đăng ký lại từ đầu — chấp nhận
+được với một thao tác chỉ làm một lần trong đời tài khoản.
+
+Ba lần chặn đi kèm: mã sai quá **5 lần** thì huỷ luôn lần đăng ký đó (mã 6 số chỉ có một triệu khả
+năng, không chặn thì dò được); "Gửi lại mã" sớm nhất **60 giây** một lần, và gửi lại **đúng mã cũ**
+chứ không sinh mã mới; SMTP lỗi thì trả **502** và xoá lần đăng ký đang chờ — trả 202 im lặng là để
+người dùng ngồi chờ một email không bao giờ tới. Đăng nhập bằng Google/Facebook không đụng tới luồng
+này (nhà cung cấp đã xác thực email, và bản ghi OAuth không lưu email).
+
 **Tính năng Đăng ký**
 
 Các phương thức: email, Google, Facebook — đều bắt buộc nhập nickname sau khi đăng ký (kể cả OAuth, không tự lấy tên từ profile mạng xã hội). Với đăng ký qua Google/Facebook: không lưu mật khẩu, chỉ lưu liên kết OAuth.

@@ -1,4 +1,13 @@
 export type UserType = "guest" | "registered";
+
+// Tra ve cua buoc 1 khi dang ky: chua co tai khoan nao, chi moi gui ma qua
+// mail. `ttlGiay` de dem nguoc han cua ma, `guiLaiSauGiay` de biet khi nao mo
+// lai duoc nut "Gui lai ma".
+export interface RegisterPending {
+  email: string;
+  ttlGiay: number;
+  guiLaiSauGiay: number;
+}
 export type UserStatus = "active" | "locked";
 
 export interface AuthUser {

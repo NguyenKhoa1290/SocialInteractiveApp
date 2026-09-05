@@ -232,6 +232,41 @@
   margin: 4px 0 0;
 }
 
+/* Buoc nhap ma xac thuc dang ky: mot dong ghi chu ("da gui ma toi ...") va
+   hai lien ket phu ("Gui lai ma" / "Doi email"). Dung chinh khuon chu cua
+   .auth-footer de khong sinh them mot kieu chu thu ba trong man dang nhap. */
+.auth-note {
+  text-align: center;
+  font-size: 15px;
+  color: var(--calli-navy-soft);
+  margin: 0;
+}
+
+.auth-row-actions {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+.auth-btn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--calli-teal-dark);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.auth-btn-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.auth-btn-link:disabled {
+  color: var(--calli-muted);
+  cursor: default;
+}
+
 .auth-footer a,
 .auth-link {
   color: var(--calli-teal-dark);

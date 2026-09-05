@@ -10,20 +10,46 @@ namespace IdentityService.Api.Endpoints;
 public static class AuthEndpoints
 {
     private static readonly TimeSpan OtpTtl = TimeSpan.FromMinutes(10);
+
+    // Mot lan dang ky cho xac thuc song bao lau. Bang OTP quen mat khau cho de
+    // nho: qua 10 phut thi bam "Dang ky" lai tu dau.
+    private static readonly TimeSpan DangKyTtl = TimeSpan.FromMinutes(10);
+    // Bam "Gui lai ma" som nhat sau bao lau.
+    private static readonly TimeSpan GuiLaiCach = TimeSpan.FromSeconds(60);
+    // Nhap sai qua so lan nay thi huy han lan dang ky do - ma 6 so chi co mot
+    // trieu kha nang, khong chan thi do dung duoc.
+    private const int MaxLanSai = 5;
     private static readonly TimeSpan ResetTokenTtl = TimeSpan.FromMinutes(10);
 
     public static void MapAuthEndpoints(this WebApplication app)
     {
         var auth = app.MapGroup("/auth");
 
-        // UC-06: Dang ky bang email + mat khau
-        auth.MapPost("/register", async (RegisterRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
+        // UC-06: Dang ky bang email + mat khau, CO xac thuc email.
+        //
+        // Buoc nay KHONG ghi gi vao Postgres. Ca lan dang ky nam trong Redis 10
+        // phut, cho toi khi nguoi dung nhap dung ma gui qua mail - chi
+        // POST /auth/register/verify moi thuc su tao tai khoan.
+        //
+        // VI SAO khong tao truoc roi danh dau "chua xac thuc": lam vay thi bang
+        // users day tai khoan treo do nguoi la go bua dia chi mail cua nguoi
+        // khac, va email/nickname bi giu cho boi nhung ban ghi khong ai dung.
+        // Doi lai: mat ma giua chung thi phai bam "Dang ky" lai tu dau - chap
+        // nhan duoc voi mot thao tac chi lam mot lan trong doi tai khoan.
+        auth.MapPost("/register", async (
+            RegisterRequest req, IdentityDbContext db, RedisAuthStore store,
+            IEmailSender email, ILoggerFactory loggerFactory) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password) || string.IsNullOrWhiteSpace(req.Nickname))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Email, password va nickname la bat buoc"));
 
             if (req.Password.Length < 8)
                 return Results.BadRequest(new ErrorResponse("weak_password", "Mat khau toi thieu 8 ky tu"));
+
+            // Dia chi phai gui duoc thi moi co nghia - truoc day khong kiem, go
+            // bua mot chuoi van ra tai khoan that.
+            if (!DiaChiMailHopLe(req.Email))
+                return Results.BadRequest(new ErrorResponse("invalid_email", "Dia chi email khong hop le"));
 
             var exists = await db.Users.AnyAsync(u => u.Email == req.Email);
             if (exists)
@@ -36,22 +62,119 @@ public static class AuthEndpoints
             if (nicknameTaken)
                 return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
 
+            var ma = Random.Shared.Next(0, 1_000_000).ToString("D6");
+            await store.StorePendingRegistrationAsync(
+                new PendingRegistration(req.Email, BCrypt.Net.BCrypt.HashPassword(req.Password), req.Nickname, ma),
+                DangKyTtl);
+
+            try
+            {
+                await email.SendRegistrationOtpAsync(req.Email, ma, req.Nickname);
+            }
+            catch (Exception ex)
+            {
+                // Khong gui duoc mail thi phai noi that. Im lang tra 202 la de
+                // nguoi dung ngoi cho mot email khong bao gio toi.
+                loggerFactory.CreateLogger("DangKy").LogError(ex, "Khong gui duoc ma xac thuc toi {Email}", req.Email);
+                await store.DeletePendingRegistrationAsync(req.Email);
+                return Results.Json(
+                    new ErrorResponse("email_send_failed", "Khong gui duoc ma xac thuc toi email nay, thu lai sau"),
+                    statusCode: 502);
+            }
+
+            return Results.Accepted(value: new RegisterPendingResponse(
+                req.Email, (int)DangKyTtl.TotalSeconds, (int)GuiLaiCach.TotalSeconds));
+        });
+
+        // Nhap ma -> luc nay tai khoan moi thuc su duoc tao.
+        auth.MapPost("/register/verify", async (
+            VerifyRegistrationRequest req, IdentityDbContext db, RedisAuthStore store,
+            JwtTokenService jwt, KafkaProducerService kafka) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Otp))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Email va ma xac thuc la bat buoc"));
+
+            var pending = await store.GetPendingRegistrationAsync(req.Email);
+            if (pending is null)
+                return Results.BadRequest(new ErrorResponse("registration_expired", "Lan dang ky nay da het han, hay dang ky lai"));
+
+            if (pending.Otp != req.Otp.Trim())
+            {
+                var lanSai = await store.DemLanSaiAsync(req.Email, DangKyTtl);
+                if (lanSai >= MaxLanSai)
+                {
+                    await store.DeletePendingRegistrationAsync(req.Email);
+                    return Results.BadRequest(new ErrorResponse("too_many_attempts", "Nhap sai qua nhieu lan, hay dang ky lai"));
+                }
+                return Results.BadRequest(new ErrorResponse("invalid_otp", "Ma xac thuc sai hoac da het han"));
+            }
+
+            // Kiem lai mot lan nua: 10 phut vua roi du de nguoi khac lay mat
+            // email hoac nickname do.
+            if (await db.Users.AnyAsync(u => u.Email == pending.Email))
+            {
+                await store.DeletePendingRegistrationAsync(req.Email);
+                return Results.Conflict(new ErrorResponse("email_taken", "Email da duoc dang ky"));
+            }
+            if (await db.Users.AnyAsync(u => u.Nickname.ToLower() == pending.Nickname.ToLower()))
+            {
+                await store.DeletePendingRegistrationAsync(req.Email);
+                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
+            }
+
             var user = new User
             {
                 UserType = UserType.Registered,
-                Nickname = req.Nickname,
-                Email = req.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
+                Nickname = pending.Nickname,
+                Email = pending.Email,
+                // Mat khau da hash tu luc bam "Dang ky" - Redis khong bao gio
+                // giu mat khau goc.
+                PasswordHash = pending.PasswordHash,
                 Status = UserStatus.Active,
                 CreatedAt = DateTimeOffset.UtcNow,
                 LastActiveAt = DateTimeOffset.UtcNow,
             };
             db.Users.Add(user);
             await db.SaveChangesAsync();
+            await store.DeletePendingRegistrationAsync(req.Email);
 
             var token = jwt.IssueToken(user);
             await kafka.PublishAuthEventAsync("register", user.Id, user.Email, "registered");
             return Results.Created($"/users/{user.Id}", new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
+        });
+
+        // Gui lai ma cho lan dang ky dang cho.
+        auth.MapPost("/register/resend", async (
+            ForgotPasswordRequest req, RedisAuthStore store, IEmailSender email, ILoggerFactory loggerFactory) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Email))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Email la bat buoc"));
+
+            var pending = await store.GetPendingRegistrationAsync(req.Email);
+            if (pending is null)
+                return Results.BadRequest(new ErrorResponse("registration_expired", "Lan dang ky nay da het han, hay dang ky lai"));
+
+            if (!await store.DuocGuiLaiAsync(req.Email, GuiLaiCach))
+                return Results.Json(
+                    new ErrorResponse("resend_too_soon", $"Doi {GuiLaiCach.TotalSeconds:0} giay roi hay gui lai"),
+                    statusCode: 429);
+
+            // Gui lai DUNG ma cu chu khong sinh ma moi: nguoi dung mo hai email
+            // ra thay hai ma khac nhau thi chi to roi.
+            try
+            {
+                await email.SendRegistrationOtpAsync(pending.Email, pending.Otp, pending.Nickname);
+            }
+            catch (Exception ex)
+            {
+                loggerFactory.CreateLogger("DangKy").LogError(ex, "Khong gui lai duoc ma xac thuc toi {Email}", pending.Email);
+                return Results.Json(
+                    new ErrorResponse("email_send_failed", "Khong gui duoc ma xac thuc toi email nay, thu lai sau"),
+                    statusCode: 502);
+            }
+
+            return Results.Accepted(value: new RegisterPendingResponse(
+                pending.Email, (int)DangKyTtl.TotalSeconds, (int)GuiLaiCach.TotalSeconds));
         });
 
         // UC-01: Dang nhap email + mat khau
@@ -260,5 +383,23 @@ public static class AuthEndpoints
             var token = jwt.IssueToken(user);
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         }).RequireAuthorization();
+    }
+
+    // Dia chi mail co gui duoc khong. KHONG dung regex tu che: MailAddress
+    // trong .NET da lam dung viec nay, va mot regex email tu viet thi hoac
+    // chan nham dia chi that hoac lot dia chi rac.
+    private static bool DiaChiMailHopLe(string email)
+    {
+        try
+        {
+            var m = new System.Net.Mail.MailAddress(email.Trim());
+            // MailAddress nhan ca "a@b" - phai co dau cham o phan ten mien thi
+            // moi gui thuc te duoc.
+            return m.Address == email.Trim() && m.Host.Contains('.');
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

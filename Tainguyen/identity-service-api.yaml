@@ -302,18 +302,87 @@ paths:
                   minLength: 1
                   maxLength: 50
       responses:
-        "201":
-          description: Đăng ký thành công
+        "202":
+          description: >-
+            Đã gửi mã xác thực tới email. **Chưa có tài khoản nào được tạo** -
+            cả lần đăng ký nằm trong Redis 10 phút, chỉ
+            `POST /auth/register/verify` mới thực sự tạo tài khoản.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthSuccessResponse"
+                $ref: "#/components/schemas/RegisterPendingResponse"
+        "400":
+          description: Thiếu trường, mật khẩu dưới 8 ký tự, hoặc địa chỉ email không gửi được
         "409":
-          description: Email đã tồn tại (UC-06, luồng ngoại lệ 2a)
+          description: Email đã tồn tại (UC-06, luồng ngoại lệ 2a) hoặc nickname đã có người dùng
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: >-
+            Không gửi được email (SMTP lỗi). Lần đăng ký đang chờ bị xoá luôn -
+            trả 202 im lặng thì người dùng ngồi chờ một email không bao giờ tới.
+
+  /auth/register/verify:
+    post:
+      tags: [Registration]
+      summary: Nhập mã xác thực - lúc này tài khoản mới thực sự được tạo
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp]
+              properties:
+                email: { type: string, format: email }
+                otp: { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        "201":
+          description: Tài khoản đã được tạo, trả token như đăng nhập
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccessResponse"
+        "400":
+          description: >-
+            `invalid_otp` (sai mã) · `registration_expired` (quá 10 phút hoặc
+            chưa từng đăng ký) · `too_many_attempts` (sai quá 5 lần - huỷ luôn
+            lần đăng ký đó, mã 6 số chỉ có một triệu khả năng nên không chặn
+            thì dò được)
+        "409":
+          description: Trong 10 phút chờ đã có người khác lấy mất email hoặc nickname đó
+
+  /auth/register/resend:
+    post:
+      tags: [Registration]
+      summary: Gửi lại mã xác thực cho lần đăng ký đang chờ
+      description: >-
+        Gửi lại ĐÚNG mã cũ chứ không sinh mã mới - người dùng mở hai email ra
+        thấy hai mã khác nhau thì chỉ tổ rối.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202":
+          description: Đã gửi lại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterPendingResponse"
+        "400":
+          description: Không có lần đăng ký nào đang chờ cho email này
+        "429":
+          description: Bấm gửi lại sớm hơn 60 giây kể từ lần trước
 
   # ============== PROFILE ==============
   /users:
@@ -636,6 +705,18 @@ components:
         userType:
           type: string
           enum: [guest, registered]
+
+    RegisterPendingResponse:
+      type: object
+      description: Kết quả bước 1 của đăng ký - chưa có tài khoản, chỉ mới gửi mã.
+      properties:
+        email: { type: string, format: email }
+        ttlGiay:
+          type: integer
+          description: Mã còn hiệu lực bao nhiêu giây
+        guiLaiSauGiay:
+          type: integer
+          description: Sớm nhất bao nhiêu giây nữa mới bấm "Gửi lại mã" được
 
     AuthSuccessResponse:
       type: object

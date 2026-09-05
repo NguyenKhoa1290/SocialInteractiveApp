@@ -38,6 +38,12 @@ public record OAuthSuccessResponse(string AccessToken, UserResponse User, bool I
 
 public record ForgotPasswordRequest(string Email);
 public record VerifyOtpRequest(string Email, string Otp);
+
+// Dang ky xong buoc 1: CHUA co tai khoan nao, chi moi gui ma qua mail.
+// `TtlGiay` de client dem nguoc "ma het han sau...", `GuiLaiSauGiay` de biet
+// khi nao mo lai duoc nut "Gui lai ma".
+public record RegisterPendingResponse(string Email, int TtlGiay, int GuiLaiSauGiay);
+public record VerifyRegistrationRequest(string Email, string Otp);
 public record VerifyOtpResponse(string ResetToken, bool IsFirstTimePassword);
 public record ResetPasswordRequest(string ResetToken, string NewPassword);
 
