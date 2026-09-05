@@ -451,6 +451,42 @@ thật thì mọi thứ như cũ.
 
 ---
 
+### 10.4. Xác thực email khi đăng ký
+
+Đăng ký bằng email/mật khẩu giờ đi **hai bước**, và bước một **không ghi gì vào Postgres**: cả lần
+đăng ký (email, nickname, **mật khẩu đã hash**, mã 6 số) nằm trong Redis 10 phút; `POST
+/auth/register/verify` nhập đúng mã thì tài khoản mới thực sự sinh ra và trả token như cũ.
+
+Chọn cách này thay vì "tạo trước rồi gắn cờ chưa xác thực" vì hai lẽ: bảng `users` không bao giờ
+chứa tài khoản treo do người lạ gõ bừa địa chỉ mail của người khác, và email/nickname không bị giữ
+chỗ bởi bản ghi không ai dùng. Đổi lại, mất mã giữa chừng thì phải đăng ký lại từ đầu.
+
+Dùng lại đúng hạ tầng SMTP đang chạy cho "quên mật khẩu" (Gmail app password trong k8s secret), chỉ
+tách tiêu đề/nội dung email riêng — hai email đến vào hai lúc khác hẳn nhau, dùng chung một dòng
+tiêu đề thì người dùng không biết cái nào là cái mình vừa yêu cầu.
+
+Ba lần chặn đi kèm: sai quá **5 lần** thì huỷ luôn lần đăng ký đó (mã 6 số chỉ có một triệu khả
+năng); "Gửi lại mã" sớm nhất **60 giây** một lần và gửi **đúng mã cũ**; SMTP lỗi thì trả **502** và
+xoá lần đăng ký đang chờ — trả 202 im lặng là để người dùng ngồi chờ một email không bao giờ tới.
+Thêm kiểm địa chỉ mail bằng `MailAddress` — trước đây gõ bừa một chuỗi vẫn ra tài khoản thật.
+
+**Đo được:** API **22/22** — mã đọc thẳng từ Redis qua SSH nên bài kiểm chạy tự động được, nhưng vẫn
+là mã thật do chính service sinh ra và gửi đi. Bao gồm: chưa nhập mã thì CSDL **không** có tài khoản
+nào · nhập sai vẫn không có · gửi lại quá sớm 429, chờ hết 60 giây thì 202 và **đúng mã cũ** · nhập
+đúng thì 201 kèm token dùng được ngay và đăng nhập được bằng mật khẩu đã nhập ở bước 1 · sai 5 lần
+thì huỷ, mã đúng cũ cũng thành vô dụng. Trình duyệt **9/10** (mục trượt là kỳ vọng của bài kiểm đã
+cũ so với câu thông báo vừa sửa, lỗi vẫn hiện đúng).
+
+**Một lỗi thật, và chỉ ảnh chụp mới bắt được.** Bài kiểm báo "nhập đúng mã mà vẫn ở /register";
+nhìn ảnh thì thấy giao diện đã **quay ngược về form đăng ký** ngay từ lần gõ nhầm đầu tiên, và mã
+vừa gõ nằm trong ô email. Nguyên nhân: tôi dò **chữ trong câu thông báo** để biết lần đăng ký còn
+sống không, mà câu của lỗi nhập sai — *"Mã xác thực sai hoặc đã hết hạn"* — cũng chứa chữ "hết hạn".
+Đã đổi sang đọc **mã lỗi** (`registration_expired` / `too_many_attempts` / …) và sửa luôn câu thông
+báo thành *"Mã xác thực không đúng"*. Bài học cũ lặp lại: **đừng phân nhánh theo câu chữ dành cho
+người đọc**.
+
+---
+
 ## 11. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
