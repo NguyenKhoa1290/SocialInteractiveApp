@@ -488,8 +488,13 @@
   border: 0;
   background: transparent;
   font-family: var(--sans);
-  font-size: calc(13px * var(--s));
-  color: var(--calli-teal-dark);
+  /* 13px la co cua cai NUT (.cw-pill) - dung cho mot cai chip thi vua, nhung
+     day la chu de DOC nen phai lon hon; 15px dat duoi nhan muc (16px) mot
+     nac. Va mau phai la mau chu cua panel: teal tren nen trang chi duoc
+     ~3:1, duoi chuan AA cho chu thuong, nhin cung bac hon han chu xung
+     quanh. */
+  font-size: calc(15px * var(--s));
+  color: var(--calli-navy);
   text-align: left;
   text-decoration: none;
   white-space: nowrap;
