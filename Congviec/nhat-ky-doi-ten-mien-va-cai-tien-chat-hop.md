@@ -463,6 +463,18 @@ trạng thái vô chủ (`host_id` không nằm trong danh sách người còn �
 kể cả khi vừa bước vào một phòng đang vô chủ - khác với thông báo đổi chủ, thông báo này lúc nào
 cũng đáng biết.
 
+**Đo trên hệ thống thật:** 32/32 qua API (hai kịch bản - không có phó thì phòng vô chủ và người
+còn lại ăn 403 ở cả năm đường quản trị; có phó thì phó lên chủ, chủ thật về thì phó trở lại làm
+phó), 10/10 trên hai Chrome thật. Bảng `meetings` sau bài kiểm cho `host_id = creator_id` ở cả hai
+phòng - chủ thật đã đòi lại được quyền trong cả hai đường.
+
+**Một lỗi thật chỉ bài kiểm trình duyệt mới bắt được.** Chủ thật quay lại một phòng đang vô chủ thì
+`host_id` **không đổi** - nó vẫn trỏ về họ suốt thời gian vắng mặt. Nhánh "chủ phòng đổi giữa
+chừng" vì thế im lặng, và cả phòng không biết là phòng đã có chủ trở lại: thông báo lúc mất chủ thì
+có, lúc được chủ lại thì không. Đây là loại lỗi mà kiểm API không thấy được, vì API trả về hoàn toàn
+đúng. Chữa bằng cách gom ba trạng thái vào **một** chỗ rẽ ba nhánh (`đổi chủ` / `vừa thành vô chủ` /
+`vừa hết vô chủ`) thay vì hai khối `if` độc lập đè lên nhau.
+
 **Dọn theo được một chỗ.** Bậc thứ hai là lý do duy nhất khiến `HostSuccession` cần `IdentityClient`
 (để hỏi ai là khách, ai là tài khoản thật). Bỏ nó đi thì tham số đó thừa, kéo theo `ReconcileAsync`
 cũng không cần nữa - cùng với đoạn chú thích dài giải thích vì sao một lớp singleton lại phải nhận
