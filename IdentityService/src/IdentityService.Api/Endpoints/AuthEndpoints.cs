@@ -82,6 +82,10 @@ public static class AuthEndpoints
                     statusCode: 502);
             }
 
+            // Bat dong ho cho "Gui lai ma" ngay tu lan gui dau: khong thi bam
+            // Dang ky xong bam Gui lai luon la ra hai email trong mot giay.
+            await store.DuocGuiLaiAsync(req.Email, GuiLaiCach);
+
             return Results.Accepted(value: new RegisterPendingResponse(
                 req.Email, (int)DangKyTtl.TotalSeconds, (int)GuiLaiCach.TotalSeconds));
         });
