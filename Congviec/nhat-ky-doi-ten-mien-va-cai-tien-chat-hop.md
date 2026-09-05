@@ -347,17 +347,23 @@ thì họ chỉ thấy một loạt nút tự mọc ra rồi tự biến mất.
 
 **Đo được trên hệ thống thật:**
 
-- **API 17/17.** Trước khi phong thì 403 · phong xong thì đồng chủ xem được phòng chờ, sửa được cài
-  đặt, tắt được mic cả phòng, cấp và thu được quyền lẻ · đồng chủ **không** phong được đồng chủ
-  khác (403), **không** tự thu quyền của mình (403), **không** đuổi được chủ phòng (403) · người
-  thường vẫn 403 · **chủ rời thì đồng chủ lên, dù người kia vào phòng trước** · lên chủ thì hàng
-  `co_host` biến mất và `role` thành `host` · chủ mới phong được đồng chủ tiếp · chủ cũ quay lại
-  chỉ là người thường.
-- **Trình duyệt 11/11.** Hai Chrome thật: nút "Phong đồng chủ" chỉ hiện với chủ phòng thật · bấm
+- **API 20/20.** Trước khi phong thì 403 · phong xong thì đồng chủ xem được phòng chờ, tắt được mic
+  và camera cả phòng · và **403 ở tất cả phần còn lại**: kết thúc cuộc họp, sửa cài đặt phòng, cấm
+  mic, thu quyền, đuổi người, phong đồng chủ khác · cuộc họp vẫn `active` sau khi đồng chủ thử kết
+  thúc · chính chủ phòng cũng không tự mời mình ra (403) · người thường vẫn 403 · **chủ rời thì đồng
+  chủ lên, dù người kia vào phòng trước** · lên chủ thì hàng `co_host` biến mất và `role` thành
+  `host` · chủ mới phong được đồng chủ tiếp · chủ cũ quay lại chỉ là người thường.
+- **Trình duyệt 13/13.** Hai Chrome thật: nút "Phong đồng chủ" chỉ hiện với chủ phòng thật · bấm
   xong hàng đó ghi *"· Đồng chủ phòng"* và nút đổi thành "Thu quyền đồng chủ" · màn hình bên kia
-  mọc nút "Kết thúc cho tất cả" kèm băng báo · **đồng chủ mở bảng quản lý thì hàng của chủ phòng
-  không có nút "Đuổi" lẫn "Phong đồng chủ"** · thu quyền thì nút quản trị biến mất kèm báo.
+  mọc **đúng hai nút** "Tắt tất cả mic" / "Tắt tất cả cam" kèm băng báo, **không** có "Kết thúc cho
+  tất cả", **không** có "Cài đặt", và hàng người khác **không** có nút "Cấm…" lẫn "Đuổi" · thu
+  quyền thì hai nút đó biến mất kèm báo.
 - **Không phá phần cũ**: chạy lại nguyên bộ kế vị ở mục 10 - vẫn 19/19.
+
+**Một vòng sửa lại giữa chừng.** Bản đầu cho đồng chủ *mọi* quyền của chủ phòng (kể cả kết thúc
+cuộc họp và cấm mic từng người) - đã chạy được 17/17 rồi mới siết lại theo yêu cầu. Ranh giới hiện
+tại gọn hơn và cũng dễ giải thích hơn: **tắt** là việc của người điều phối, **cấm** là việc của chủ
+phòng.
 
 ---
 
