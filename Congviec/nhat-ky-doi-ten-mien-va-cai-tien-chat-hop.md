@@ -39,9 +39,10 @@ headless, không ước lượng từ ảnh chụp.
     - [10.3. Bỏ kế vị ngẫu nhiên - phòng được phép vô chủ](#103-bỏ-kế-vị-ngẫu-nhiên---phòng-được-phép-vô-chủ)
 11. [Khách không tạo được nhóm](#11-khách-không-tạo-được-nhóm)
 12. [Xác thực email khi đăng ký](#12-xác-thực-email-khi-đăng-ký)
-13. [Bẫy đã vấp](#13-bẫy-đã-vấp)
-14. [Việc còn phải làm](#14-việc-còn-phải-làm)
-15. [Ghi chú vận hành](#15-ghi-chú-vận-hành)
+13. [Vá lỗ hổng Microsoft.OpenApi](#13-vá-lỗ-hổng-microsoftopenapi)
+14. [Bẫy đã vấp](#14-bẫy-đã-vấp)
+15. [Việc còn phải làm](#15-việc-còn-phải-làm)
+16. [Ghi chú vận hành](#16-ghi-chú-vận-hành)
 
 ---
 
@@ -171,7 +172,7 @@ dài), thẻ nền `#F4F8F9` bo 16 viền `#293546`; dòng dưới là **thanh t
 khoá tua.
 
 CSS để **file riêng** (`file-message.css`) chứ không nhét vào `workspace.css` —
-xem mục 13.
+xem mục 14.
 
 **Đo được.** File 3 giây: không còn `<audio controls>` nào, màu đúng
 (`rgb(133,174,176)` / `rgb(41,53,70)`), bấm nút phát thật (0 → 1.97s), bấm lại
@@ -349,7 +350,7 @@ thì hàng `co_host` bị xoá, để giao diện không hiện một người v
 
 **Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
 mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
-sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 13.
+sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 14.
 
 Giao diện chỉ cần thêm một biến: vòng poll 4 giây vốn đã trả về `permissions` của từng người, nên
 `co_host` tới nơi miễn phí. Người vừa được phong (hoặc vừa bị thu) được **báo thành lời** - không
@@ -546,9 +547,49 @@ người đọc**.
 
 ---
 
-## 13. Bẫy đã vấp
+## 13. Vá lỗ hổng Microsoft.OpenApi
+
+Mỗi lần build service nào cũng thấy `NU1903: Microsoft.OpenApi 2.0.0 has a known high severity
+vulnerability` ([GHSA-v5pm-xwqc-g5wc](https://github.com/advisories/GHSA-v5pm-xwqc-g5wc)) — sáu
+service đều dính, vì gói này là **phụ thuộc gián tiếp** của `Microsoft.AspNetCore.OpenApi`.
+
+Chỗ hay: không phải ghim tay gói con. Bản `10.0.10` ghim cứng `Microsoft.OpenApi` ở đúng `2.0.0`,
+còn `10.0.11` đã nới thành `[2.7.5, 3.0.0)` — Microsoft đã tự vá bằng cách nâng ràng buộc. Nên chỉ
+cần **nâng gói cha một nấc** ở sáu tệp `.csproj`, gói con tự lên `2.7.5`. Sau đó
+`dotnet list package --vulnerable` báo sạch ở cả sáu service, và build không còn cảnh báo nào.
+
+**Vì sao vẫn phải thử chạy dù chỉ là đổi số phiên bản.** `MapOpenApi()` bị chặn theo môi trường
+(`if (app.Environment.IsDevelopment())`), nhưng `builder.Services.AddOpenApi()` thì **chạy ở mọi môi
+trường** — kể cả production. Nên đã chạy thật WorkspaceService ở chế độ Development rồi gọi
+`/openapi/v1.json` để ép nó dựng hẳn tài liệu: ra OpenAPI 3.1.1, 9 đường dẫn, 4 schema, đúng như
+trước. Bằng chứng cuối cùng lấy từ chính container đang chạy:
+
+```bash
+k3s kubectl -n chat-app exec deploy/media --   sh -c 'grep -o "Microsoft.OpenApi/[0-9.]*" /app/*.deps.json | head -1'
+# Microsoft.OpenApi/2.7.5
+```
+
+Cả sáu service đều trả `2.7.5`. Lần này grep được vì `.deps.json` là **tệp văn bản** — khác với bẫy
+"đừng grep DLL" ở mục 14.
+
+---
+
+## 14. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
+
+- **Hạn mức bộ nhớ của namespace vừa đủ chật để chặn việc cuộn phiên bản.**
+  `quota-app` giới hạn `limits.memory` ở **2Gi**, mỗi pod xin 256Mi, mà cuộn
+  kiểu mặc định (`maxSurge=1`) là **dựng pod mới trước rồi mới bỏ pod cũ** — nên
+  lúc cao điểm cần 8 pod cùng lúc = 2048Mi, đúng bằng trần. Đợt nâng gói phải
+  cuộn cả sáu service một lượt, năm cái đầu lọt, `admin` đi cuối thì kẹt:
+  `Error creating: pods ... is forbidden: exceeded quota`. Triệu chứng dễ đọc
+  nhầm — pod cũ vẫn `1/1 Running`, `RESTARTS 0`, dịch vụ vẫn trả 200, chỉ có
+  `rollout status` báo `ProgressDeadlineExceeded`. Tức là **service chạy bình
+  thường nhưng đang chạy mã cũ**. Nơi có câu trả lời thật là
+  `describe rs <replicaset-moi>` chứ không phải `describe deploy` hay log pod.
+  Gỡ tạm bằng cách xoá pod cũ để nhường 256Mi. Máy thật có 15Gi và chỉ dùng 29%,
+  nên trần 2Gi là tự đặt chứ không phải giới hạn phần cứng — xem mục 15.2.
 
 - **`cert.pem` của cloudflared gắn theo ZONE, không phải theo tài khoản.** Chạy
   `tunnel route dns <tunnel> identity.callimeet.com` bằng cert của
@@ -608,9 +649,9 @@ Ghi lại để lần sau không mất công dò:
 
 ---
 
-## 14. Việc còn phải làm
+## 15. Việc còn phải làm
 
-### 14.1. Việc của chủ dự án (mình không có quyền)
+### 15.1. Việc của chủ dự án (mình không có quyền)
 
 | Việc | Vì sao gấp |
 |---|---|
@@ -621,7 +662,7 @@ Ghi lại để lần sau không mất công dò:
 | **Đổi mật khẩu SSH của máy Ubuntu** | Mật khẩu đã dán trong khung chat để mình chạy `ALTER TABLE` và đọc log. Việc đã xong, không cần nữa. |
 | **Dọn 8 email thử trong hộp thư** | Bài kiểm xác thực email gửi thật tới `khoabeoloidom+calli…@gmail.com` và `+ui…@gmail.com` — lọc theo dấu `+` là xoá gọn. |
 
-### 14.2. Nên làm
+### 15.2. Nên làm
 
 - **Trạng thái chưa đọc chỉ sống trong phiên.** Server chưa có mô hình *đã đọc
   theo từng người*, nên tải lại trang là mất hết chấm đỏ. Muốn giữ được thì cần
@@ -642,8 +683,20 @@ Ghi lại để lần sau không mất công dò:
   đã dọn sạch.
 - **Còn một tài khoản khách tên `sds`** (id 339) — không phải mình tạo nên để
   nguyên. Nếu là tài khoản thử của bạn thì xoá được.
+- **Nới `quota-app` lên 3Gi** (hoặc đặt `maxSurge: 0` cho các Deployment). Hiện
+  trần 2Gi vừa khít số pod đang chạy, nên **mọi lần cuộn cả cụm đều sẽ kẹt ở
+  service cuối cùng** — đợt này là `admin`, lần sau có thể là service khác. Máy
+  có 15Gi, đang dùng 29%, nên nới trần là an toàn; đó cũng là lựa chọn tốt hơn
+  `maxSurge: 0` vì `maxSurge: 0` bắt phải tắt pod cũ trước, tức là mỗi lần triển
+  khai có một quãng đứt dịch vụ thật.
+- **Bốn bài kiểm cũ trong scratchpad đã hỏng** vì còn gọi đăng ký một bước
+  (`/auth/register` giờ trả 202 chứ không phải 201 kèm token):
+  `test_chuphong.py`, `test_dongchu.py`, `test_chuthat.py`,
+  `test_khach_taonhom.py`. Bài mới `test_vochu.py` và `vvochu.mjs` dùng tài
+  khoản **khách** nên không vướng — sửa mấy bài cũ theo hướng đó là chạy lại
+  được.
 
-### 14.3. Carried over từ đợt trước
+### 15.3. Carried over từ đợt trước
 
 Vẫn còn nguyên: đo `.flv` **luồng trực tiếp** thật, và phần thiết kế còn dở
 (chat cá nhân, Mini App, cuộc họp).
@@ -662,7 +715,7 @@ không phải chịu thêm một request nào. Phải sửa hai chỗ:
 
 ---
 
-## 15. Ghi chú vận hành
+## 16. Ghi chú vận hành
 
 **Tên miền.** Hệ thống chạy ở `callimeet.com`, mỗi service một subdomain,
 frontend ở domain gốc. Tunnel vẫn là `e1f67fd0-…` (locally-managed), định tuyến
