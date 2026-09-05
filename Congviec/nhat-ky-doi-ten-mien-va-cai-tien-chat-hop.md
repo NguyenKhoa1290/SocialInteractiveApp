@@ -360,6 +360,46 @@ thì họ chỉ thấy một loạt nút tự mọc ra rồi tự biến mất.
   quyền thì hai nút đó biến mất kèm báo.
 - **Không phá phần cũ**: chạy lại nguyên bộ kế vị ở mục 10 - vẫn 19/19.
 
+### 10.2. Chủ phòng thật quay lại thì đòi lại quyền
+
+Bản đầu của mục 10 có một chỗ tôi chọn sai: chủ phòng rời đi, quyền chuyển cho người khác, rồi chủ
+quay lại thì **vĩnh viễn** chỉ còn là người thường. Lý do tôi đưa ra lúc đó - "giật quyền giữa chừng
+thì hai người thay nhau nắm quyền mà không ai bấm gì" - không đủ nặng so với cái vô lý thấy ngay:
+người mở phòng quay lại phòng của chính mình mà phải xin phép người khác.
+
+**Luật hiện tại.** Thêm cột `meetings.creator_id` (bất biến thật sự) vì `host_id` chạy qua chạy lại
+nên không dùng làm "ai mới là chủ thật" được:
+
+| Tình huống | Kết quả |
+|---|---|
+| Chủ rời, có phó phòng | Phó lên **giữ hộ** quyền, vẫn giữ nguyên hàng `co_host` |
+| Chủ rời, không có phó | Một người bất kỳ còn ở lại lên giữ hộ (người vào sớm nhất, ưu tiên tài khoản thật) |
+| **Chủ thật quay lại** | `host_id` trở về họ **ngay trong chính lời gọi join** |
+| Người giữ hộ là phó phòng | **Tự động trở lại làm phó** - không phải phong lại, vì hàng `co_host` chưa bao giờ bị xoá |
+| Người giữ hộ là người thường | Mất sạch quyền, về `participant` |
+
+Đó cũng là lý do bản này **không** xoá hàng `co_host` khi đưa phó lên làm chủ nữa (bản trước có
+xoá, để giao diện không hiện một người hai vai). Chỗ hiển thị đã ưu tiên "Chủ phòng" trước "Phó
+nhóm" nên không cần xoá dữ liệu để chữa một vấn đề hiển thị.
+
+**Phòng chờ**: chủ thật và phó phòng **không phải xếp hàng**. Họ chính là người *duyệt* phòng chờ -
+bắt họ chờ chính mình thì vô lý, và nếu chủ thật đang ở ngoài thì không còn ai duyệt cho họ. Phải
+sửa **hai chỗ**: `POST /meetings/join/{token}` và phần **xem trước** `GET` của nó. Chỉ sửa một chỗ
+thì người dùng đọc "phải chờ duyệt" rồi lại vào thẳng - tự mâu thuẫn với chính mình.
+
+**Không ai đuổi được chủ thật**, kể cả lúc họ đang không giữ `host_id`: nếu không, người giữ hộ chỉ
+việc đuổi chủ thật ra là khoá cửa luôn phòng của chính họ.
+
+**Đo được:** API **19/19** cho luật mới (hai kịch bản: có phó / không phó), cộng chạy lại hai bộ cũ
+đã cập nhật theo luật mới - kế vị **20/20**, phó phòng **22/22**. Trình duyệt **8/8**: chủ bấm "Rời
+khỏi" → phó mọc nút "Kết thúc cho tất cả" kèm báo *"bạn là chủ phòng mới"*; chủ thật vào lại →
+nút đó biến mất, báo đúng lý do *"… đã quay lại và nhận lại quyền chủ phòng"*, và **hai nút tắt
+mic/cam của phó vẫn còn** - đúng nghĩa "trở lại làm phó" chứ không phải mất sạch.
+
+Một lần trượt là **lỗi bài kiểm chứ không phải lỗi sản phẩm**: vòng lặp chờ có `moPopup` bật/tắt
+popup mỗi nhịp, đọc trúng lúc nó đang đóng nên ra mảng rỗng, nhìn như phó bị mất quyền. Sửa cách
+đọc (mở sẵn rồi mới đọc) thì 8/8.
+
 **Tên gọi và dải nút.** Trên giao diện vai trò này gọi là **"Phó nhóm"**, nút phong/thu là *Phó
 nhóm* / *Truất quyền*. Trong CSDL và API vẫn là `co_host` - đổi tên hiển thị thì không phải đụng
 vào lược đồ.
