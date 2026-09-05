@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { authApi } from "../../api/authApi";
 import { useAuthStore } from "../../store/authStore";
 import { scheduleTokenRefresh } from "../../lib/tokenScheduler";
-import { extractApiError } from "../../lib/apiError";
+import { apiErrorCode, extractApiError } from "../../lib/apiError";
 import { AuthLayout, ErrorText, FieldGroupLabel } from "./AuthLayout";
 import { IconEye } from "./AuthIcons";
 
@@ -69,11 +69,18 @@ export function RegisterPage() {
       scheduleTokenRefresh(data.accessToken);
       navigate("/app");
     } catch (err) {
-      const loi = extractApiError(err, "Không xác thực được");
-      setError(loi);
-      // Lan dang ky da bi huy (het han / sai qua nhieu lan) thi quay ve form,
-      // dung de nguoi dung go mai vao mot cai ma khong con ton tai.
-      if (/hết hạn|quá nhiều lần|het han|qua nhieu lan/i.test(loi)) {
+      setError(extractApiError(err, "Không xác thực được"));
+      // Lan dang ky da bi huy han (het gio / sai qua nhieu lan / email hoac
+      // ten bi nguoi khac lay mat) thi quay ve form - de nguoi dung go mai vao
+      // mot cai ma khong con ton tai thi vo ich.
+      //
+      // Doc MA LOI chu khong do chu trong cau thong bao: cau "Ma xac thuc sai
+      // hoac da het han" cua loi nhap sai cung chua chu "het han", do chu la
+      // day nguoi dung ve form ngay lan go nham dau tien (loi that, bat duoc
+      // khi chup man hinh bai kiem).
+      const maLoi = apiErrorCode(err);
+      if (maLoi === "registration_expired" || maLoi === "too_many_attempts"
+          || maLoi === "email_taken" || maLoi === "nickname_taken") {
         setBuoc("nhap");
         setMa("");
         setGhiChu(null);

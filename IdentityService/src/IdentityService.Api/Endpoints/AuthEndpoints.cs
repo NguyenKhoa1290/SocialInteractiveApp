@@ -110,7 +110,7 @@ public static class AuthEndpoints
                     await store.DeletePendingRegistrationAsync(req.Email);
                     return Results.BadRequest(new ErrorResponse("too_many_attempts", "Nhap sai qua nhieu lan, hay dang ky lai"));
                 }
-                return Results.BadRequest(new ErrorResponse("invalid_otp", "Ma xac thuc sai hoac da het han"));
+                return Results.BadRequest(new ErrorResponse("invalid_otp", "Ma xac thuc khong dung"));
             }
 
             // Kiem lai mot lan nua: 10 phut vua roi du de nguoi khac lay mat
