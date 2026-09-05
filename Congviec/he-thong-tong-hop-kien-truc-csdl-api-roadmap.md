@@ -1932,7 +1932,14 @@ service (C#/.NET) chưa viết.*
       của tôi"): OpenAPI spec gốc chỉ có CRUD theo `{workspaceId}` cụ thể, không có endpoint liệt kê
       theo user đang đăng nhập. Trả `WorkspaceSummaryResponse` kèm `myRole` (vai trò của người gọi
       trong từng nhóm) để Frontend không cần gọi thêm `GET /members` chỉ để biết quyền hiển thị nút
-      nào
+      nào.
+
+      Endpoint này phục vụ màn **quản trị** `/workspaces`, KHÔNG phải danh sách nhóm trong màn Chat
+      (`/app/groups`) — cái đó lấy từ `GET /conversations` bên Chat Service vì nó xếp theo tin nhắn
+      mới. Hai màn tách nhau là **chủ đích, đã chốt**, không phải trùng lặp chờ gộp: xem
+      [frontend-admin-page-dac-ta.md](../Tainguyen/frontend-admin-page-dac-ta.md) mục 5, "Hai danh
+      sách nhóm". Đó cũng là lý do `myRole` phải nằm trong phản hồi này mà không cần ở
+      `GET /conversations`
 - [x] CORS — cùng mẫu với Identity Service (mục 4), thiếu sót phát hiện cùng lúc
 - [x] `POST /workspaces`
 - [x] `GET /workspaces/{workspaceId}`

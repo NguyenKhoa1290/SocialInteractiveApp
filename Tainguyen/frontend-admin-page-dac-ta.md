@@ -167,10 +167,13 @@
 - [x] Màn hình nhập PIN khôi phục khoá (khi đăng nhập trên thiết bị mới)
 
 **Workspace**
-- [x] Danh sách nhóm của tôi
+- [x] Danh sách nhóm của tôi (`/workspaces`) — màn **quản trị**: mỗi nhóm kèm vai trò của mình
 - [x] Tạo nhóm mới
 - [x] Cài đặt nhóm (avatar, tên, xoá nhóm — có dialog xác nhận rõ ràng)
-- [x] Danh sách thành viên + quản lý vai trò
+- [x] Danh sách thành viên + quản lý vai trò (`/workspaces/{id}`)
+
+> Danh sách nhóm ở đây **khác** danh sách nhóm trong màn Chat (`/app/groups`) và cả hai đều giữ —
+> hai màn, hai nhiệm vụ. Xem mục 5, "Hai danh sách nhóm".
 
 **Chat**
 - [x] Danh sách cuộc trò chuyện (1-1 + nhóm)
@@ -241,6 +244,29 @@ claim `role=admin`)
   được không gian một triệu khả năng. Signal/WhatsApp nhốt bộ đếm trong HSM/enclave để vault không bao
   giờ tải về được; hệ thống này không có thứ đó. Đây là **đánh đổi đã cân nhắc và chấp nhận**, không
   phải thiếu sót.
+
+- **Hai danh sách nhóm, và đó là chủ đích — không phải trùng lặp.** Bản thiết kế gốc gộp mọi việc
+  về nhóm vào một màn "Danh sách nhóm" (Figma node 100:22). Bản chạy thật **tách làm hai và giữ
+  nguyên như vậy**:
+
+  | Màn | Đường | Trả lời câu hỏi |
+  |---|---|---|
+  | Danh sách nhóm trong Chat | `/app/groups` | *"Nhóm nào đang có tin nhắn cho tôi?"* — xếp theo tin mới, bấm vào là mở cuộc trò chuyện |
+  | Danh sách nhóm quản trị | `/workspaces` | *"Tôi đang ở những nhóm nào, với vai trò gì?"* — bấm vào là mở trang thành viên có nút phong/truất |
+
+  Lý do không gộp: hai câu hỏi đó có **nhịp dùng khác hẳn nhau**. Cái thứ nhất mở vài chục lần mỗi
+  ngày và cần nhanh, gọn, xếp theo tin mới. Cái thứ hai mở vài lần mỗi tháng và cần đủ thứ nặng
+  hơn — vai trò, phong hàm, kick, xoá nhóm. Nhồi bộ nút quản trị vào màn đọc tin làm hỏng màn dùng
+  nhiều để phục vụ màn dùng ít, mà lại đặt *Xoá nhóm* ngay cạnh chỗ người ta bấm hàng ngày.
+
+  **Nối hai màn bằng một lối đi, không bằng cách trộn chúng.** Trong bảng nhóm bên phải màn chat có
+  nút **Tùy chỉnh** → *Thêm thành viên* / *Quản lý thành viên*; mục thứ hai dẫn thẳng sang
+  `/workspaces/{id}`. Chiều ngược lại: trang thành viên có nút *Vào chat nhóm*, và link
+  *← Về danh sách nhóm*.
+
+  Trước đây lối vào `/workspaces` là một link phụ đặt tạm trong trang Cài đặt. Đã **bỏ** khi có lối
+  đi đúng chỗ ở trên — người dùng tìm quyền của một nhóm ngay trong nhóm đó, không phải đi vòng qua
+  Cài đặt.
 
 - **"Sửa và thu hồi tin nhắn"** — có trong sơ đồ tính năng gốc nhưng không xuất hiện ở use case/API nào sau đó. **ĐÃ BỔ SUNG.** `PATCH /conversations/{id}/messages/{messageId}` để sửa (chỉ sender, chỉ Type=Text, trong 15 phút kể từ lúc gửi; client tự mã hoá lại với nonce mới, tái dùng khoá phiên cũ nên không phải gửi lại `recipientKeys`) và `POST .../recall` để thu hồi (dùng lại soft-delete sẵn có, thêm điều kiện phải là chính sender; **không giới hạn thời gian** — sửa là viết lại lịch sử nên phải có hạn, còn thu hồi chỉ là gỡ bỏ nên không cần, và Zalo/Messenger cũng cho thu hồi bất kỳ lúc nào). Khác hẳn "Xoá tin nhắn" của Trưởng nhóm ở UC-28: quyền đó không giới hạn thời gian và áp dụng cho mọi tin trong nhóm. Sau khi sửa, Chat Service phát `MessageEdited` qua SignalR để mọi người trong phòng thấy ngay.
 

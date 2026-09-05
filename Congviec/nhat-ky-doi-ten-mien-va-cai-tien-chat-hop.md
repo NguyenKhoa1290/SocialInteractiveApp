@@ -42,6 +42,7 @@ headless, không ước lượng từ ảnh chụp.
 13. [Vá lỗ hổng Microsoft.OpenApi](#13-vá-lỗ-hổng-microsoftopenapi)
 14. [Nhóm: lối vào quản trị thành viên](#14-nhóm-lối-vào-quản-trị-thành-viên)
     - [14.1. Dọn đường phụ trong Cài đặt](#141-dọn-đường-phụ-trong-cài-đặt)
+    - [14.2. Chốt: KHÔNG gộp hai màn danh sách nhóm](#142-chốt-không-gộp-hai-màn-danh-sách-nhóm)
 15. [Bẫy đã vấp](#15-bẫy-đã-vấp)
 16. [Việc còn phải làm](#16-việc-còn-phải-làm)
 17. [Ghi chú vận hành](#17-ghi-chú-vận-hành)
@@ -631,6 +632,31 @@ nhóm. 8/8 trên Chrome thật.
 Người chưa có nhóm nào cũng không kẹt: nút *Tạo nhóm mới* trong danh sách chat trỏ thẳng
 `/workspaces/new`, không đi qua `/workspaces`.
 
+### 14.2. Chốt: KHÔNG gộp hai màn danh sách nhóm
+
+Tôi từng ghi "hai màn song song" vào phần việc còn phải làm, hiểu theo bản thiết kế gốc là chúng
+phải gộp về một (node 100:22). **Quyết định của chủ dự án: không gộp — sửa đặc tả cho khớp thực tế.**
+Và đó là quyết định đúng:
+
+| Màn | Đường | Trả lời câu hỏi | Nhịp dùng |
+|---|---|---|---|
+| Danh sách nhóm trong Chat | `/app/groups` | *"Nhóm nào đang có tin nhắn cho tôi?"* | vài chục lần/ngày |
+| Danh sách nhóm quản trị | `/workspaces` | *"Tôi ở những nhóm nào, vai trò gì?"* | vài lần/tháng |
+
+Hai câu hỏi có **nhịp dùng lệch nhau cả trăm lần**. Nhồi bộ nút quản trị vào màn đọc tin là làm hỏng
+màn dùng nhiều để phục vụ màn dùng ít — mà lại đặt *Xoá nhóm* ngay cạnh chỗ người ta bấm hàng ngày.
+Nối hai màn bằng **một lối đi** (nút *Tùy chỉnh*) đúng hơn là trộn chúng.
+
+**Đã sửa đặc tả ở ba nơi**, để lần sau không ai đọc thành thiếu sót:
+
+- [frontend-admin-page-dac-ta.md](../Tainguyen/frontend-admin-page-dac-ta.md) — mục 5 thêm ghi chú
+  *"Hai danh sách nhóm"* kèm bảng so sánh và lý do; mục 4 ghi rõ đường của từng màn.
+- [he-thong-tong-hop-kien-truc-csdl-api-roadmap.md](he-thong-tong-hop-kien-truc-csdl-api-roadmap.md)
+  — chỗ `GET /workspaces` nói rõ nó phục vụ màn quản trị, còn danh sách trong Chat lấy từ
+  `GET /conversations`; đó cũng là lý do `myRole` nằm ở phản hồi này.
+- `ConversationInfo.tsx` — ngay tại nút nối hai màn, vì chú thích cũ giải thích chuyện này nằm ở
+  `settings.css` và đã bị xoá cùng đường phụ.
+
 ---
 
 ## 15. Bẫy đã vấp
@@ -748,10 +774,6 @@ Ghi lại để lần sau không mất công dò:
   có 15Gi, đang dùng 29%, nên nới trần là an toàn; đó cũng là lựa chọn tốt hơn
   `maxSurge: 0` vì `maxSurge: 0` bắt phải tắt pod cũ trước, tức là mỗi lần triển
   khai có một quãng đứt dịch vụ thật.
-- **Hai màn danh sách nhóm vẫn song song tồn tại** (mục 14): cái trong chat và
-  `/workspaces`. Bản thiết kế định gộp làm một (node 100:22) nhưng màn đó chưa
-  dựng. Nút *Tùy chỉnh* đã nối được hai bên và đường phụ trong Cài đặt đã dọn
-  (mục 14.1), nên không còn ai bị kẹt — nhưng gộp hai màn thì vẫn chưa làm.
 - **Bốn bài kiểm cũ trong scratchpad đã hỏng** vì còn gọi đăng ký một bước
   (`/auth/register` giờ trả 202 chứ không phải 201 kèm token):
   `test_chuphong.py`, `test_dongchu.py`, `test_chuthat.py`,
