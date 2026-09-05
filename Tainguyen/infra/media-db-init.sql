@@ -11,6 +11,11 @@ CREATE TABLE meetings (
   -- ket vinh vien o do), khong ai duoi duoc nguoi, khong ai ket thuc duoc
   -- cuoc hop. Xem HostSuccession.cs.
   host_id           BIGINT NOT NULL,
+  -- Nguoi MO phong - bat bien that su. host_id chay qua chay lai moi lan chu
+  -- roi phong / quay lai, nen phai co mot cho ghi "ai moi la chu that": chu
+  -- that quay lai thi doi lai duoc quyen ngay, vao phong khong phai qua phong
+  -- cho, va khong ai duoi duoc ho.
+  creator_id        BIGINT NOT NULL,
   workspace_id      BIGINT,
   conversation_id   BIGINT,
   status            VARCHAR(10) NOT NULL DEFAULT 'active'

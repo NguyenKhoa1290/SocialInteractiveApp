@@ -41,6 +41,7 @@ public static class MeetingsEndpoints
             var meeting = new Meeting
             {
                 HostId = hostId,
+                CreatorId = hostId,
                 ConversationId = hoiThoai,
                 Status = MeetingStatus.Active,
                 MaxParticipants = 100,
@@ -170,7 +171,8 @@ public static class MeetingsEndpoints
         // cho host duyet). Chi ap dung cho meeting co ConversationId.
         group.MapPost("/{meetingId:long}/join", async (
             long meetingId, JoinMeetingRequest? req, System.Security.Claims.ClaimsPrincipal principal,
-            MediaDbContext db, ChatServiceClient chat, LiveKitService liveKit, IdentityClient identity) =>
+            MediaDbContext db, ChatServiceClient chat, LiveKitService liveKit, IdentityClient identity,
+            ILoggerFactory loggerFactory) =>
         {
             var meeting = await db.Meetings.Include(m => m.Participants).FirstOrDefaultAsync(m => m.Id == meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
@@ -189,17 +191,16 @@ public static class MeetingsEndpoints
             // trang khong duoc coi la mat quyen. Thieu nhanh nay thi khach
             // moi F5 mot cai la ket "Khong lay duoc quyen vao phong hop" vi
             // token duyet nam trong Redis va chi doc duoc DUNG 1 LAN.
-            // ... va ca nguoi DA TUNG lam chu phien nay (hang cu cua ho van
-            // giu role='host' - xem HostSuccession). Chu roi phong xong duoc
-            // trao quyen cho nguoi khac, gio quay lai: neu chan o day thi
-            // chinh nguoi mo phong tuy chinh lai khong vao lai duoc phong cua
-            // minh, vi phong do chi vao duoc bang link ma link thi ho khong
-            // giu. Ho vao lai voi tu cach NGUOI THUONG - quyen chu da sang
-            // nguoi khac, day chi la cai cua de buoc vao.
-            var tungLaChu = meeting.Participants.Any(
-                p => p.UserId == callerId && p.Role == ParticipantRole.Host);
+            // ... va ca CHU THAT (nguoi mo phong) lan PHO PHONG. Chu that co
+            // the dang khong giu host_id - ho roi phong, quyen da chuyen cho
+            // nguoi khac - nhung phong van la cua ho, chan o day thi chinh
+            // nguoi mo phong tuy chinh lai khong vao lai duoc phong cua minh
+            // (phong do chi vao duoc bang link ma link thi ho khong giu).
+            var laChuThat = meeting.CreatorId == callerId;
+            var laPhoPhong = await db.MeetingPermissions.AnyAsync(
+                p => p.MeetingId == meeting.Id && p.UserId == callerId && p.PermissionType == PermissionType.CoHost);
 
-            if (existing is null && meeting.HostId != callerId && !tungLaChu)
+            if (existing is null && meeting.HostId != callerId && !laChuThat && !laPhoPhong)
             {
                 if (meeting.ConversationId is null)
                     return Results.Json(
@@ -228,6 +229,11 @@ public static class MeetingsEndpoints
                 });
                 await db.SaveChangesAsync();
             }
+
+            // Chu that quay lai thi doi lai quyen NGAY - phai lam TRUOC khi
+            // tinh quyen phat song, vi chu phong luon duoc bat mic/cam.
+            await HostSuccession.ChuThatQuayLaiAsync(
+                db, meeting, callerId, loggerFactory.CreateLogger(nameof(HostSuccession)));
 
             var email = (await identity.ResolveUserDetailAsync(callerId))?.Email;
             var (micOk, camOk, shareOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);

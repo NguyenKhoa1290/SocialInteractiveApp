@@ -3617,6 +3617,7 @@ màn hình pre-join.
 |---|---|---|---|
 | id | BIGSERIAL | PRIMARY KEY | |
 | host_id | BIGINT | NOT NULL | Logical FK → users.id — Chủ phòng họp **hiện tại**. Đổi được: chủ rời mà phòng còn người thì tự chuyển sang người khác (xem "Chuyển quyền chủ phòng" bên dưới) |
+| creator_id | BIGINT | NOT NULL | Logical FK → users.id — người **mở** phòng, bất biến thật sự. Chủ thật quay lại thì đòi lại `host_id` ngay, vào phòng không qua phòng chờ, và không ai đuổi được |
 | workspace_id | BIGINT | NULL | Logical FK → workspaces.id — có giá trị khi mở từ trong 1 nhóm (UC-31) |
 | conversation_id | BIGINT | NULL | Logical FK → conversations.id — cố ý lưu trùng với workspace_id (denormalize) để tránh join qua nhiều DB |
 | status | VARCHAR(10) | NOT NULL, DEFAULT 'active', CHECK IN ('active','ended') | |
@@ -3652,6 +3653,16 @@ Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nh
   định trước, không việc gì để thứ tự vào phòng quyết định thay. Nhiều đồng chủ thì lấy người vào
   sớm nhất trong số họ; kể cả khách (guest) cũng được, vì đã được chủ phòng chọn đích danh.
 - Không có đồng chủ nào đang ở trong phòng → **người vào sớm nhất còn ở lại** lên làm chủ (`joined_at` tăng dần).
+- **Chủ thật quay lại thì đòi lại quyền NGAY** (`creator_id`), người đang giữ hộ trở về chỗ cũ. Phó
+  phòng được đưa lên làm chủ tạm vẫn **giữ nguyên hàng `co_host`**, nên họ tự động trở lại làm phó -
+  chủ phòng không phải phong lại từ đầu. Đây là lý do `creator_id` phải là một cột riêng: `host_id`
+  chạy qua chạy lại nên không dùng làm "ai mới là chủ thật" được.
+- **Chủ thật và phó phòng không qua phòng chờ.** Họ chính là người *duyệt* phòng chờ; bắt họ xếp
+  hàng chờ chính mình thì vô lý, và nếu chủ thật đang ở ngoài thì không còn ai duyệt cho họ. Áp cho
+  cả `POST /meetings/join/{token}` lẫn phần **xem trước** `GET` của nó - hai chỗ phải nói giống nhau,
+  không thì người dùng thấy "phải chờ duyệt" rồi lại vào thẳng.
+- **Không ai đuổi được chủ thật**, kể cả khi họ đang không giữ `host_id` - nếu không, người giữ hộ
+  quyền chỉ việc đuổi chủ thật ra là khoá cửa luôn phòng của chính họ.
 - Ưu tiên tài khoản đã đăng ký; **khách (guest) chỉ lên làm chủ khi phòng không còn ai khác** —
   người vào bằng link không nên bỗng nhiên nắm quyền đuổi người/kết thúc khi thành viên thật vẫn đang ngồi đó.
   Identity Service không trả lời được thì lấy luôn người vào sớm nhất (fail-open: một sự cố của

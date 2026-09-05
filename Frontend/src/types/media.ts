@@ -8,6 +8,9 @@ export type MeetingStatus = "active" | "ended";
 export interface Meeting {
   id: number;
   hostId: number;
+  // Nguoi MO phong - bat bien. Khac hostId khi chu roi phong va quyen dang
+  // tam o nguoi khac; chu that quay lai la lay lai ngay.
+  creatorId: number;
   conversationId: number | null;
   status: MeetingStatus;
   maxParticipants: number;

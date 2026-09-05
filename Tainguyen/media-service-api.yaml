@@ -678,9 +678,17 @@ components:
           format: int64
           description: >
             Chủ phòng HIỆN TẠI - có thể đổi giữa chừng. Chủ rời phòng mà vẫn
-            còn người thì quyền tự chuyển sang người vào sớm nhất còn ở lại
-            (ưu tiên tài khoản đã đăng ký). Client đang poll endpoint này nên
-            đọc lại hostId mỗi vòng chứ không nhớ một lần lúc vào phòng.
+            còn người thì quyền tự chuyển sang phó phòng, hoặc sang người vào
+            sớm nhất còn ở lại nếu không có phó phòng nào. Client đang poll
+            endpoint này nên đọc lại hostId mỗi vòng chứ không nhớ một lần lúc
+            vào phòng.
+        creatorId:
+          type: integer
+          format: int64
+          description: >
+            Người MỞ phòng - bất biến. Khác hostId khi chủ thật đang ở ngoài và
+            quyền tạm ở người khác; chủ thật vào lại là hostId trở về creatorId
+            ngay trong chính lời gọi join đó.
         conversationId:
           type: integer
           format: int64

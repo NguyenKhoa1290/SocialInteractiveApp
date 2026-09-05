@@ -166,10 +166,11 @@ public static class ParticipantsEndpoints
             var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
 
-            // Ke ca chu phong cung khong tu moi minh ra: muon di thi bam "Roi
-            // khoi". Duong nay di qua LiveKit RemoveParticipant nen mot cu bam
-            // nham o day khong giong nut roi phong.
-            if (userId == meeting!.HostId)
+            // Khong duoi duoc chu phong - ke ca CHU THAT dang khong giu quyen
+            // (ho roi phong, quyen tam sang nguoi khac). Neu khong, nguoi giu
+            // ho quyen chi viec duoi chu that ra la khoa cua luon phong cua ho.
+            // Chu phong cung khong tu moi minh ra: muon di thi bam "Roi khoi".
+            if (userId == meeting!.HostId || userId == meeting.CreatorId)
                 return Results.Json(new ErrorResponse("forbidden", "Khong the moi Chu phong hop ra khoi phong"), statusCode: 403);
 
             var participant = await db.MeetingParticipants

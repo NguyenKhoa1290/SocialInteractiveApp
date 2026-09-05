@@ -15,6 +15,14 @@ public class Meeting
     // sang nguoi khac (HostSuccession.cs). Moi cho kiem tra quyen deu phai
     // doc lai cot nay tung request, dung nho mot lan luc vao phong.
     public long HostId { get; set; }
+
+    // Nguoi MO phong - bat bien that su, khong bao gio doi.
+    //
+    // HostId chay qua chay lai khi chu roi phong va quay lai, nen phai co mot
+    // cho ghi "ai moi la chu that". Dung cho ba viec: chu that quay lai thi
+    // doi lai duoc quyen ngay, vao phong khong phai qua phong cho, va khong
+    // ai duoi duoc ho.
+    public long CreatorId { get; set; }
     public long? WorkspaceId { get; set; }
     public long? ConversationId { get; set; }
     public MeetingStatus Status { get; set; } = MeetingStatus.Active;

@@ -496,6 +496,20 @@ Thêm cột cho DB đã có dữ liệu:
 ALTER TABLE files ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(20) NOT NULL DEFAULT 'home';
 ```
 
+### Chủ phòng thật — thêm cột `meetings.creator_id` (Media DB)
+
+`host_id` đổi qua đổi lại mỗi khi chủ rời phòng / quay lại, nên cần một cột riêng nhớ **ai mở
+phòng**. Chạy trước khi ảnh mới lên; chạy lại nhiều lần vô hại:
+
+```sql
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS creator_id BIGINT;
+UPDATE meetings SET creator_id = host_id WHERE creator_id IS NULL;
+ALTER TABLE meetings ALTER COLUMN creator_id SET NOT NULL;
+```
+
+Phòng cũ thì `creator_id` lấy theo `host_id` hiện tại — đúng với gần hết, trừ phòng đang chạy mà
+quyền đã chuyển sang người khác; đó là dữ liệu không còn khôi phục được, chấp nhận.
+
 ### Đồng chủ phòng — nới CHECK của `meeting_permissions` (Media DB)
 
 Chạy **trước** khi ảnh mới lên, nếu không nút "Phong đồng chủ" sẽ trả 500 (`23514

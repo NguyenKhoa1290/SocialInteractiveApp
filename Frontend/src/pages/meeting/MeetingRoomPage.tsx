@@ -450,10 +450,17 @@ export function MeetingRoomPage() {
       const chuMoi = meetingRes.data.hostId;
       if (chuPhongRef.current !== null && chuPhongRef.current !== chuMoi) {
         const ten = peopleRes.data.find((p) => p.userId === chuMoi)?.nickname ?? `#${chuMoi}`;
+        // Chu THAT quay lai thi khong phai "chu moi" - noi vay la sai, va
+        // nguoi vua giu ho quyen can biet vi sao nut cua ho bien mat.
+        const chuThatVe = chuMoi === meetingRes.data.creatorId;
         setNotice(
           chuMoi === currentUserId
-            ? "Chủ phòng cũ đã rời - bạn là chủ phòng mới của cuộc họp này."
-            : `${ten} là chủ phòng mới của cuộc họp này.`,
+            ? chuThatVe
+              ? "Bạn đã quay lại và nhận lại quyền chủ phòng."
+              : "Chủ phòng cũ đã rời - bạn là chủ phòng mới của cuộc họp này."
+            : chuThatVe
+              ? `${ten} đã quay lại và nhận lại quyền chủ phòng.`
+              : `${ten} là chủ phòng mới của cuộc họp này.`,
         );
       }
       chuPhongRef.current = chuMoi;

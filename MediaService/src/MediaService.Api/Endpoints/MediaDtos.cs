@@ -18,12 +18,12 @@ public record UpdateMeetingRequest(
     bool? AllowMiniApp);
 
 public record MeetingResponse(
-    long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    long Id, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     bool IsTemporary, bool RequiresApproval,
     bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
-        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
         m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
@@ -35,14 +35,14 @@ public record MeetingResponse(
 // chi co y nghia cho CHINH nguoi dang goi, khong phai thuoc tinh chung cua
 // cuoc hop.
 public record MeetingWithCallerStatusResponse(
-    long Id, long HostId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    long Id, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     string CallerStatus, string? LivekitToken, string? LivekitUrl,
     bool IsTemporary, bool RequiresApproval,
     bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
-        m.Id, m.HostId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
         callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }

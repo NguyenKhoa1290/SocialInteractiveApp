@@ -70,7 +70,7 @@ public static class InvitesEndpoints
         }).RequireAuthorization();
 
         app.MapGet("/meetings/join/{inviteToken}", async (
-            string inviteToken, MediaDbContext db, IdentityClient identity) =>
+            string inviteToken, ClaimsPrincipal principal, MediaDbContext db, IdentityClient identity) =>
         {
             var invite = await db.MeetingInvites.FirstOrDefaultAsync(i => i.InviteToken == inviteToken);
             if (invite is null || (invite.ExpiresAt is not null && invite.ExpiresAt < DateTimeOffset.UtcNow))
@@ -87,7 +87,18 @@ public static class InvitesEndpoints
             // dong chon dung nguoi do roi. Loi moi bang LINK thi hoi cong tac
             // cua chinh cuoc hop (meetings.requires_approval) chu khong con
             // suy ra cung nhac tu kieu loi moi: host bat/tat duoc giua chung.
-            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval;
+            //
+            // Endpoint nay KHONG doi dang nhap (ai co link deu xem truoc duoc),
+            // nhung neu nguoi goi co kem token thi phai tra loi dung cho nguoi
+            // do: chu that va pho phong vao thang. Noi "phai cho duyet" roi lai
+            // cho vao thang la tu mau thuan voi chinh minh.
+            var nguoiXem = principal.GetUserId();
+            var (xemLaChu, xemLaPho) = nguoiXem is null
+                ? (false, false)
+                : await VaoThangDuocAsync(db, meeting, nguoiXem.Value);
+
+            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval
+                                   && !xemLaChu && !xemLaPho;
 
             return Results.Ok(new MeetingPreviewResponse(
                 meeting.Id, host?.Nickname ?? $"user_{meeting.HostId}", activeCount, requiresApproval));
@@ -95,7 +106,8 @@ public static class InvitesEndpoints
 
         app.MapPost("/meetings/join/{inviteToken}", async (
             string inviteToken, JoinMeetingRequest? req, ClaimsPrincipal principal,
-            MediaDbContext db, LiveKitService liveKit, WaitingRoomStore waiting, IdentityClient identity) =>
+            MediaDbContext db, LiveKitService liveKit, WaitingRoomStore waiting, IdentityClient identity,
+            ILoggerFactory loggerFactory) =>
         {
             var invite = await db.MeetingInvites.FirstOrDefaultAsync(i => i.InviteToken == inviteToken);
             if (invite is null || (invite.ExpiresAt is not null && invite.ExpiresAt < DateTimeOffset.UtcNow))
@@ -110,9 +122,13 @@ public static class InvitesEndpoints
             if (invite.InviteType == InviteType.Direct && invite.InvitedUserId != callerId)
                 return Results.Json(new ErrorResponse("forbidden", "Loi moi nay khong danh cho ban"), statusCode: 403);
 
+            var (laChuThat, laPhoPhong) = await VaoThangDuocAsync(db, meeting, callerId);
+
             var existing = meeting.Participants.FirstOrDefault(p => p.UserId == callerId && p.LeftAt == null);
             if (existing is not null)
             {
+                await HostSuccession.ChuThatQuayLaiAsync(
+                    db, meeting, callerId, loggerFactory.CreateLogger(nameof(HostSuccession)));
                 var (rejoinMic, rejoinCam, rejoinShare) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
                 var rejoinToken = liveKit.GenerateAccessToken(
                     meeting.Id, callerId, req?.Nickname ?? principal.GetNickname(),
@@ -128,7 +144,8 @@ public static class InvitesEndpoints
             var nickname = req?.Nickname ?? principal.GetNickname();
             // Cung quy tac voi phan xem truoc o tren - phai giong nhau, khong
             // thi nguoi dung thay "vao thang duoc" roi lai bi day vao phong cho.
-            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval;
+            var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval
+                                   && !laChuThat && !laPhoPhong;
 
             if (requiresApproval)
             {
@@ -145,6 +162,9 @@ public static class InvitesEndpoints
             });
             await db.SaveChangesAsync();
 
+            await HostSuccession.ChuThatQuayLaiAsync(
+                db, meeting, callerId, loggerFactory.CreateLogger(nameof(HostSuccession)));
+
             var email = (await identity.ResolveUserDetailAsync(callerId))?.Email;
             var (micOk, camOk, shareOk) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
             var token = liveKit.GenerateAccessToken(
@@ -152,4 +172,13 @@ public static class InvitesEndpoints
             return Results.Ok(new JoinResultResponse("approved", token, liveKit.ClientUrl, meeting.Id));
         }).RequireAuthorization();
     }
+
+    // Ai duoc vao THANG, khong qua phong cho: chu that (nguoi mo phong) va pho
+    // phong. Ho chinh la nguoi DUYET phong cho - bat ho xep hang cho chinh
+    // minh thi vo ly, va neu chu that dang o ngoai thi khong con ai duyet cho ho.
+    private static async Task<(bool LaChuThat, bool LaPhoPhong)> VaoThangDuocAsync(
+        MediaDbContext db, Meeting meeting, long userId) =>
+        (meeting.CreatorId == userId,
+         await db.MeetingPermissions.AnyAsync(
+             p => p.MeetingId == meeting.Id && p.UserId == userId && p.PermissionType == PermissionType.CoHost));
 }
