@@ -48,15 +48,12 @@ public class ParticipantReconciler(
     // la hon mot request moi giay neu khong chan.
     private static readonly TimeSpan Throttle = TimeSpan.FromSeconds(10);
 
-    // identity di qua tham so chu khong qua constructor: lop nay la singleton,
-    // con IdentityClient dang ky bang AddHttpClient nen khong tiem thang vao
-    // duoc (cung ly do MeetingSweeperService phai lay ChatServiceClient tu
-    // scope). Noi goi la GET /participants - no da co san identity.
     // Tra ve id chu phong MOI neu vong doi chieu nay lam lo ra chuyen chu cu
     // da di (xem HostSuccession) - noi goi dang giu mot ban Meeting cu trong
-    // context nen phai biet ma nap lai. Khong co gi doi thi null.
+    // context nen phai biet ma nap lai. Khong co gi doi thi null - ke ca khi
+    // chu vua di that ma phong khong co pho phong nao de len thay.
     public async Task<long?> ReconcileAsync(
-        long meetingId, long callerId, MediaDbContext db, IdentityClient identity, CancellationToken ct = default)
+        long meetingId, long callerId, MediaDbContext db, CancellationToken ct = default)
     {
         var cache = redis.GetDatabase();
 
@@ -121,6 +118,6 @@ public class ParticipantReconciler(
         // Nguoi vua bi don co the CHINH LA chu phong - day moi la duong hay
         // gap nhat, vi chu dong tab thi khong co cai /leave nao ca. Ham duoi
         // tu kiem tra, chu con trong phong thi no khong lam gi.
-        return await HostSuccession.ChuyenNeuChuDaRoiAsync(db, meetingId, identity, logger, ct);
+        return await HostSuccession.ChuyenNeuChuDaRoiAsync(db, meetingId, logger, ct);
     }
 }

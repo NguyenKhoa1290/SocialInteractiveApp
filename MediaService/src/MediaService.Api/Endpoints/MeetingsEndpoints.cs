@@ -249,7 +249,7 @@ public static class MeetingsEndpoints
         // sai. Idempotent: goi lai khi da roi van tra 204.
         group.MapPost("/{meetingId:long}/leave", async (
             long meetingId, System.Security.Claims.ClaimsPrincipal principal, MediaDbContext db,
-            IdentityClient identity, ILoggerFactory loggerFactory) =>
+            ILoggerFactory loggerFactory) =>
         {
             var callerId = principal.GetUserId()!.Value;
             var participant = await db.MeetingParticipants
@@ -263,7 +263,7 @@ public static class MeetingsEndpoints
             // Chu vua bam "Roi khoi" ma phong con nguoi: phai co chu moi NGAY.
             // Khong thi phong cho dung lai va khong ai ket thuc duoc cuoc hop.
             await HostSuccession.ChuyenNeuChuDaRoiAsync(
-                db, meetingId, identity, loggerFactory.CreateLogger(nameof(HostSuccession)));
+                db, meetingId, loggerFactory.CreateLogger(nameof(HostSuccession)));
 
             return Results.NoContent();
         });

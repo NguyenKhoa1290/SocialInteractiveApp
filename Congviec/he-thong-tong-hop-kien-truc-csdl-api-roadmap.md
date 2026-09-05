@@ -3678,7 +3678,15 @@ Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nh
   (`meeting_permissions.co_host`) thì người đó là người kế vị thứ nhất — chính chủ phòng đã chỉ
   định trước, không việc gì để thứ tự vào phòng quyết định thay. Nhiều đồng chủ thì lấy người vào
   sớm nhất trong số họ; kể cả khách (guest) cũng được, vì đã được chủ phòng chọn đích danh.
-- Không có đồng chủ nào đang ở trong phòng → **người vào sớm nhất còn ở lại** lên làm chủ (`joined_at` tăng dần).
+- **Không có đồng chủ nào đang ở trong phòng → phòng VÔ CHỦ, có chủ đích.** Hệ thống không tự chọn
+  người kế: chọn ai làm chủ là một quyết định *thay mặt người khác*, mà máy không có căn cứ nào để
+  chọn đúng. "Người vào sớm nhất" chỉ là một con số, nó không nói lên rằng người đó đang được tin
+  tưởng; mà trao quyền đuổi/duyệt/kết thúc cho một người là xong thì không rút lại được. Muốn phòng
+  không bao giờ vô chủ thì chủ phòng **phong phó trước** — đó chính là mục đích của nút Phó nhóm.
+  Cái giá phải trả, ghi rõ ở đây: phòng vô chủ thì mọi thứ đi qua `RequireHostAsync` dừng lại, nặng
+  nhất là người trong phòng chờ kẹt lại cho tới khi chủ thật (hoặc một phó phòng) quay lại. Cuộc họp
+  vẫn tự đóng khi hết người (`trg_close_meeting_if_empty`) nên không có phòng nào sống mãi, và
+  frontend **báo thẳng trạng thái này ra màn hình** chứ không để cả phòng ngồi đoán.
 - **Chủ thật quay lại thì đòi lại quyền NGAY** (`creator_id`), người đang giữ hộ trở về chỗ cũ. Phó
   phòng được đưa lên làm chủ tạm vẫn **giữ nguyên hàng `co_host`**, nên họ tự động trở lại làm phó -
   chủ phòng không phải phong lại từ đầu. Đây là lý do `creator_id` phải là một cột riêng: `host_id`
@@ -3689,10 +3697,6 @@ Luật đã chốt (đối chiếu: với **nhóm** thì luật là Trưởng nh
   không thì người dùng thấy "phải chờ duyệt" rồi lại vào thẳng.
 - **Không ai đuổi được chủ thật**, kể cả khi họ đang không giữ `host_id` - nếu không, người giữ hộ
   quyền chỉ việc đuổi chủ thật ra là khoá cửa luôn phòng của chính họ.
-- Ưu tiên tài khoản đã đăng ký; **khách (guest) chỉ lên làm chủ khi phòng không còn ai khác** —
-  người vào bằng link không nên bỗng nhiên nắm quyền đuổi người/kết thúc khi thành viên thật vẫn đang ngồi đó.
-  Identity Service không trả lời được thì lấy luôn người vào sớm nhất (fail-open: một sự cố của
-  Identity không được phép để phòng nằm lại trạng thái vô chủ).
 - Chủ chỉ **mất kết nối** thì KHÔNG chuyển: chừng nào `ParticipantReconciler` chưa kết luận là họ đã đi
   (vắng qua hai lần quan sát cách nhau 60 giây) thì `left_at` vẫn NULL. F5 một cái không phải là nhường quyền.
 - Hàng cũ của chủ cũ **giữ nguyên `role='host'`** làm dấu vết, và `POST /join` cho người "đã từng là chủ"

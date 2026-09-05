@@ -36,6 +36,7 @@ headless, không ước lượng từ ảnh chụp.
 10. [Phòng vô chủ: phó phòng và chuyển quyền](#10-phòng-vô-chủ-phó-phòng-và-chuyển-quyền)
     - [10.1. Phó phòng - nói trước ai sẽ thay mình](#101-phó-phòng---nói-trước-ai-sẽ-thay-mình)
     - [10.2. Chủ phòng thật quay lại thì đòi lại quyền](#102-chủ-phòng-thật-quay-lại-thì-đòi-lại-quyền)
+    - [10.3. Bỏ kế vị ngẫu nhiên - phòng được phép vô chủ](#103-bỏ-kế-vị-ngẫu-nhiên---phòng-được-phép-vô-chủ)
 11. [Khách không tạo được nhóm](#11-khách-không-tạo-được-nhóm)
 12. [Xác thực email khi đăng ký](#12-xác-thực-email-khi-đăng-ký)
 13. [Bẫy đã vấp](#13-bẫy-đã-vấp)
@@ -285,12 +286,11 @@ họ kẹt vĩnh viễn, không còn đường nào khác vào phòng.
 chủ". Với **phòng họp** thì không giải tán được - những người còn lại vẫn đang họp thật.
 
 **Đã làm.** `MediaService/src/MediaService.Api/Services/HostSuccession.cs`: chủ rời mà phòng còn
-người thì **người vào sớm nhất còn ở lại** lên làm chủ.
+người thì **người vào sớm nhất còn ở lại** lên làm chủ. *(Luật này sau đó đã bị bỏ - xem mục 10.3.
+Bản cuối chỉ phó phòng mới được lên.)*
 
 | Điểm | Vì sao |
 |---|---|
-| Ưu tiên tài khoản đã đăng ký; khách chỉ lên khi phòng không còn ai khác | người vào bằng link không nên bỗng nhiên nắm quyền đuổi người / kết thúc trong khi thành viên thật vẫn đang ngồi đó |
-| Identity không trả lời được thì lấy luôn người vào sớm nhất | fail-open: một sự cố của Identity không được phép để phòng nằm lại trạng thái vô chủ - đó mới là cái đắt hơn |
 | Chủ chỉ **mất kết nối** thì KHÔNG chuyển | chừng nào `ParticipantReconciler` chưa kết luận là họ đã đi (vắng qua hai lần quan sát cách nhau 60 giây) thì `left_at` vẫn NULL. F5 một cái không phải là nhường quyền |
 | Hàng cũ của chủ cũ **giữ nguyên `role='host'`** | làm dấu vết "đã từng là chủ", để `POST /join` cho họ vào lại phòng tuỳ chỉnh - phòng đó chỉ vào được bằng link mà chính người mở thường không giữ. Vào lại với tư cách **người thường** |
 | Đổi chủ bằng một câu `UPDATE ... WHERE host_id = <chủ cũ>` | `/leave` và vòng đối chiếu có thể cùng phát hiện một lúc; ràng buộc này khiến chỉ một bên đổi được, không bao giờ có hai người cùng tưởng mình là chủ |
@@ -342,10 +342,10 @@ chối phòng chờ, tắt mic cả phòng, tắt camera cả phòng. Cộng v�
 Hai điều còn giữ nguyên từ trước: không ai đuổi được chủ phòng, và không ai thu được mic/cam của
 chủ phòng.
 
-**Kế vị**: đồng chủ đứng **trước** luật "người vào sớm nhất". Nhiều đồng chủ thì lấy người vào sớm
-nhất trong số họ - kể cả khách vào bằng link, vì chính chủ phòng đã chọn đích danh, không việc gì
-để tiêu chí máy móc phủ quyết. Lên làm chủ thật thì hàng `co_host` bị xoá, để giao diện không hiện
-một người vừa là chủ vừa là đồng chủ.
+**Kế vị**: đồng chủ đứng **trước** luật "người vào sớm nhất" *(và tới mục 10.3 thì thành người kế
+vị duy nhất)*. Nhiều đồng chủ thì lấy người vào sớm nhất trong số họ - kể cả khách vào bằng link,
+vì chính chủ phòng đã chọn đích danh, không việc gì để tiêu chí máy móc phủ quyết. Lên làm chủ thật
+thì hàng `co_host` bị xoá, để giao diện không hiện một người vừa là chủ vừa là đồng chủ.
 
 **Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
 mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
@@ -383,7 +383,7 @@ nên không dùng làm "ai mới là chủ thật" được:
 | Tình huống | Kết quả |
 |---|---|
 | Chủ rời, có phó phòng | Phó lên **giữ hộ** quyền, vẫn giữ nguyên hàng `co_host` |
-| Chủ rời, không có phó | Một người bất kỳ còn ở lại lên giữ hộ (người vào sớm nhất, ưu tiên tài khoản thật) |
+| Chủ rời, không có phó | Một người bất kỳ còn ở lại lên giữ hộ (người vào sớm nhất, ưu tiên tài khoản thật). **Đã bỏ ở mục 10.3** - giờ phòng vô chủ |
 | **Chủ thật quay lại** | `host_id` trở về họ **ngay trong chính lời gọi join** |
 | Người giữ hộ là phó phòng | **Tự động trở lại làm phó** - không phải phong lại, vì hàng `co_host` chưa bao giờ bị xoá |
 | Người giữ hộ là người thường | Mất sạch quyền, về `participant` |
@@ -431,6 +431,43 @@ này: nút vẫn "có svg, màu trắng, đúng kích thước" - phải nhìn m
 cuộc họp và cấm mic từng người) - đã chạy được 17/17 rồi mới siết lại theo yêu cầu. Ranh giới hiện
 tại gọn hơn và cũng dễ giải thích hơn: **tắt** là việc của người điều phối, **cấm** là việc của chủ
 phòng.
+
+### 10.3. Bỏ kế vị ngẫu nhiên - phòng được phép vô chủ
+
+Luật cũ có hai bậc: phó phòng trước, không có phó thì **người vào sớm nhất** còn ở lại lên giữ hộ.
+Bậc thứ hai đã bỏ. Chủ rời mà không có phó phòng nào ở lại thì **phòng vô chủ, và đó là trạng thái
+hợp lệ** chứ không phải sự cố.
+
+Lý do bỏ, gọn trong một câu: **chọn ai làm chủ là quyết định thay mặt người khác, mà máy không có
+căn cứ nào để chọn đúng.** "Người vào sớm nhất" chỉ là một con số trong bảng, nó không nói lên rằng
+người đó đang được tin tưởng - hoàn toàn có thể là người bấm link sớm nhất rồi đi pha cà phê. Mà thứ
+trao cho họ thì không nhỏ: đuổi người, duyệt phòng chờ, kết thúc cuộc họp cho tất cả. **Trao nhầm
+thì không rút lại được**, còn không trao thì cùng lắm là mọi người phải chờ. Giữa một lỗi không sửa
+được và một bất tiện sửa được, chọn cái sửa được.
+
+Ai muốn phòng không bao giờ vô chủ thì đã có sẵn đường: **phong phó trước khi rời**. Đó đúng là mục
+đích của nút Phó nhóm, và giờ nó là đường duy nhất - nên nó cũng dễ giải thích hơn hẳn.
+
+**Cái giá phải trả, ghi thẳng ra chứ không giấu:**
+
+| Mất gì khi phòng vô chủ | Nặng tới đâu |
+|---|---|
+| Không ai duyệt được phòng chờ | Nặng nhất. Người vào bằng **link** luôn phải chờ duyệt nên họ kẹt lại cho tới khi chủ thật (hoặc một phó) quay lại |
+| Không ai đuổi được người, không ai tắt được mic/cam cả phòng | Bất tiện, không chặn cuộc họp |
+| Không ai kết thúc được cuộc họp cho tất cả | Phòng vẫn **tự đóng khi hết người** (`trg_close_meeting_if_empty`), nên không có phòng nào sống mãi |
+
+Chỗ duy nhất phải làm thêm là **nói cho người ta biết**. Trước đây chủ đổi thì cả phòng nhận một
+dòng thông báo; giờ nếu không ai lên thay thì im lặng tuyệt đối - người trong phòng chờ không được
+duyệt, ai bấm nút quản lý cũng ăn 403 mà không hiểu vì sao. Nên `MeetingRoomPage.tsx` phát hiện
+trạng thái vô chủ (`host_id` không nằm trong danh sách người còn ở phòng) và báo thẳng ra màn hình,
+kể cả khi vừa bước vào một phòng đang vô chủ - khác với thông báo đổi chủ, thông báo này lúc nào
+cũng đáng biết.
+
+**Dọn theo được một chỗ.** Bậc thứ hai là lý do duy nhất khiến `HostSuccession` cần `IdentityClient`
+(để hỏi ai là khách, ai là tài khoản thật). Bỏ nó đi thì tham số đó thừa, kéo theo `ReconcileAsync`
+cũng không cần nữa - cùng với đoạn chú thích dài giải thích vì sao một lớp singleton lại phải nhận
+`IdentityClient` qua tham số thay vì constructor. Hai `endpoint` `/leave` và `kick` cũng bớt một thứ
+phải tiêm vào.
 
 ---
 

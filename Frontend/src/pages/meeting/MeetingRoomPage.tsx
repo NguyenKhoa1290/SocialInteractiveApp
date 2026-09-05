@@ -120,6 +120,8 @@ export function MeetingRoomPage() {
   // Chu phong lan poll truoc, de biet khi nao no VUA doi. Khong phai state:
   // chi dung de so sanh, khong co gi phai ve lai theo no.
   const chuPhongRef = useRef<number | null>(null);
+  // Phong co dang VO CHU khong (lan poll truoc). null = chua biet.
+  const voChuRef = useRef<boolean | null>(null);
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [waiting, setWaiting] = useState<WaitingParticipant[]>([]);
   // Phong hop tuy chinh duoc tao kem link ngay tu cu bam o danh sach ban be,
@@ -442,11 +444,11 @@ export function MeetingRoomPage() {
       setMeeting(meetingRes.data);
       setParticipants(peopleRes.data);
 
-      // Chu phong DOI GIUA CHUNG: chu cu roi di thi server trao quyen cho
-      // nguoi vao som nhat con o lai (HostSuccession ben Media Service).
-      // Phai noi ra thanh loi - nguoi duoc trao thi tu nhien moc them mot
-      // loat nut dieu khien, con nhung nguoi con lai thi can biet gio phai
-      // hoi ai de duoc duyet vao / duoc cap quyen.
+      // Chu phong DOI GIUA CHUNG: chu cu roi di thi server trao quyen cho pho
+      // phong dang o trong phong (HostSuccession ben Media Service). Phai noi
+      // ra thanh loi - nguoi duoc trao thi tu nhien moc them mot loat nut dieu
+      // khien, con nhung nguoi con lai thi can biet gio phai hoi ai de duoc
+      // duyet vao / duoc cap quyen.
       const chuMoi = meetingRes.data.hostId;
       if (chuPhongRef.current !== null && chuPhongRef.current !== chuMoi) {
         const ten = peopleRes.data.find((p) => p.userId === chuMoi)?.nickname ?? `#${chuMoi}`;
@@ -464,6 +466,23 @@ export function MeetingRoomPage() {
         );
       }
       chuPhongRef.current = chuMoi;
+
+      // Chu roi ma KHONG co pho phong nao o lai: server co y khong tu chon
+      // nguoi ke, nen host_id van tro ve nguoi da di va phong tam vo chu.
+      // Khong noi ra thi ca phong ngoi doan - nguoi trong phong cho khong
+      // duoc duyet, ai bam quan ly cung 403 ma khong hieu vi sao.
+      //
+      // Bao ca khi vua vao mot phong dang vo chu (voChuRef con null), khac
+      // voi chuPhongRef o tren: "X la chu phong moi" luc moi vao la thua, con
+      // "phong dang khong co chu" thi luc nao cung dang biet.
+      const voChu = !peopleRes.data.some((p) => p.userId === chuMoi);
+      if (voChu && voChuRef.current !== true) {
+        setNotice(
+          "Chủ phòng đã rời và không có phó phòng nào ở lại - cuộc họp tạm thời không có chủ. " +
+            "Việc duyệt người vào phòng và các thao tác quản lý sẽ tạm dừng cho tới khi chủ phòng quay lại.",
+        );
+      }
+      voChuRef.current = voChu;
 
       // Cuoc hop da bi ket thuc (host bam "Ket thuc cho tat ca", hoac phong
       // da tan). Truoc day khong kiem tra: man hinh cu dung yen, hien

@@ -6,10 +6,9 @@
 CREATE TABLE meetings (
   id                BIGSERIAL PRIMARY KEY,
   -- Chu phong HIEN TAI, khong phai nguoi mo phong. Chu roi di ma phong con
-  -- nguoi thi cot nay chuyen sang nguoi vao som nhat con o lai - neu khong,
-  -- phong thanh VO CHU: khong ai duyet duoc phong cho (nguoi vao bang link
-  -- ket vinh vien o do), khong ai duoi duoc nguoi, khong ai ket thuc duoc
-  -- cuoc hop. Xem HostSuccession.cs.
+  -- nguoi thi cot nay chuyen sang PHO PHONG dang o trong phong. Khong co pho
+  -- phong nao thi cot van tro ve nguoi da di va phong VO CHU - co y nhu vay,
+  -- he thong khong tu chon nguoi ke. Xem HostSuccession.cs.
   host_id           BIGINT NOT NULL,
   -- Nguoi MO phong - bat bien that su. host_id chay qua chay lai moi lan chu
   -- roi phong / quay lai, nen phai co mot cho ghi "ai moi la chu that": chu

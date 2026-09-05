@@ -6,26 +6,28 @@ namespace MediaService.Api.Services;
 
 // Ai dang giu quyen Chu phong - hai chieu.
 //
-// GAP DUOC VA: truoc day meetings.host_id la BAT BIEN ca phien (tai lieu muc
-// 7.2 ghi dung nhu vay), nen chu roi phong = phong VO CHU. Moi thu di qua
-// RequireHostAsync chet theo: khong ai duyet duoc phong cho, khong ai duoi
-// duoc nguoi, khong ai ket thuc duoc cuoc hop. Nang nhat la phong cho - theo
-// dac ta thi nguoi vao bang LINK luon phai cho duyet, chu di roi thi ho ket
-// VINH VIEN o do. Ma cuoc hop chi tu dong dong khi HET NGUOI (trigger
-// trg_close_meeting_if_empty), nen mot phong vo chu con song tiep hang gio.
+// CHIEU DI - chu roi ma phong con nguoi: chi PHO PHONG dang o trong phong moi
+// duoc len (vao som nhat neu co nhieu nguoi), ke ca khi ho la khach.
 //
-// CHIEU DI - chu roi ma phong con nguoi, xet theo thu tu:
+// KHONG CO PHO PHONG THI PHONG CU VO CHU, CO Y NHU VAY. He thong khong tu
+// chon nguoi ke: chon ai lam chu la quyet dinh THAY MAT nguoi khac, ma may
+// khong co can cu nao de chon dung. "Nguoi vao som nhat" chi la mot con so,
+// khong noi len rang nguoi do dang duoc tin tuong; trao quyen duoi/duyet/ket
+// thuc cho mot nguoi la xong thi khong rut lai duoc. Muon phong khong bao gio
+// vo chu thi chu phong phong pho truoc - do la ca muc dich cua nut Pho nhom.
 //
-//   1. PHO PHONG dang o trong phong (vao som nhat neu co nhieu nguoi). Day la
-//      nguoi chinh chu phong da chi dinh truoc, nen di truoc moi tieu chi may
-//      moc khac - ke ca khi ho la khach.
-//   2. Khong co pho phong nao -> nguoi VAO SOM NHAT con o lai, uu tien tai
-//      khoan da dang ky; khach vao bang link chi len lam chu khi trong phong
-//      khong con ai khac.
+// Cai gia phai tra, ghi ra day cho ro: phong vo chu thi moi thu di qua
+// RequireHostAsync dung lai - khong ai duyet duoc phong cho, khong ai duoi
+// duoc nguoi, khong ai ket thuc duoc cuoc hop. Nang nhat la phong cho: nguoi
+// vao bang LINK luon phai cho duyet nen ho ket lai o do cho toi khi chu that
+// (hoac mot pho phong) quay lai. Cuoc hop van tu dong dong khi HET NGUOI
+// (trigger trg_close_meeting_if_empty), nen khong co phong nao song mai.
+// Frontend bao thang trang thai nay ra man hinh chu khong de nguoi ta cho mo.
 //
-// CHIEU VE - chu THAT (creator_id) quay lai thi doi lai quyen NGAY, nguoi
-// dang giu ho tro ve cho cu. Pho phong duoc dua len lam chu tam van giu nguyen
-// hang co_host, nen ho tu dong tro lai lam pho phong - khong phai phong lai.
+// CHIEU VE - chu THAT (creator_id) quay lai thi doi lai quyen NGAY, ke ca khi
+// phong dang vo chu; neu mot pho phong dang giu ho thi ho tro ve cho cu. Pho
+// phong duoc dua len lam chu tam van giu nguyen hang co_host, nen ho tu dong
+// tro lai lam pho phong - chu phong khong phai phong lai tu dau.
 //
 // GOI O DAU: moi cho co the lam chu bien mat (POST /leave, kick,
 // ParticipantReconciler khi dong tab) va moi cho chu that co the tro lai (hai
@@ -42,7 +44,6 @@ public static class HostSuccession
     public static async Task<long?> ChuyenNeuChuDaRoiAsync(
         MediaDbContext db,
         long meetingId,
-        IdentityClient identity,
         ILogger logger,
         CancellationToken ct = default)
     {
@@ -72,7 +73,15 @@ public static class HostSuccession
         if (conLai.Count == 0)
             return null;
 
-        var chuMoi = await ChonNguoiKeAsync(db, meetingId, conLai, identity, ct);
+        var chuMoi = await ChonPhoPhongAsync(db, meetingId, conLai, ct);
+        if (chuMoi is null)
+        {
+            logger.LogInformation(
+                "Cuoc hop {MeetingId}: chu phong {ChuCu} da roi, khong co pho phong nao o lai - phong tam VO CHU",
+                meetingId, chuCu);
+            return null;
+        }
+
         if (!await DoiChuAsync(db, meetingId, chuCu, chuMoi.UserId, ct))
             return null;
 
@@ -139,38 +148,20 @@ public static class HostSuccession
         return true;
     }
 
-    // Pho phong truoc, roi moi den nguoi vao som nhat (uu tien tai khoan da
-    // dang ky).
+    // Pho phong dang con o trong phong, vao som nhat neu co nhieu nguoi.
+    // Tra ve null = khong co ai du tu cach ke -> phong vo chu (xem dau file).
     //
-    // FAIL-OPEN o buoc thu hai: Identity khong tra loi duoc thi
-    // ResolveUsersAsync tra ve rong (no tu nuot loi), luc do lay luon nguoi
-    // vao som nhat. Mot su co cua Identity khong duoc phep de cuoc hop nam lai
-    // trang thai vo chu - do moi la cai dat hon.
-    private static async Task<MeetingParticipant> ChonNguoiKeAsync(
-        MediaDbContext db, long meetingId, List<MeetingParticipant> conLai,
-        IdentityClient identity, CancellationToken ct)
+    // conLai da sap xep theo JoinedAt roi, nen Find lay dung nguoi vao som
+    // nhat. Khach van duoc len: chinh chu phong da chon ho, khong phai may
+    // doan.
+    private static async Task<MeetingParticipant?> ChonPhoPhongAsync(
+        MediaDbContext db, long meetingId, List<MeetingParticipant> conLai, CancellationToken ct)
     {
-        // Pho phong duoc chi dinh thi khoi phai doan theo thu tu vao phong -
-        // ke ca khi nguoi do la khach, vi chinh chu phong da chon ho.
         var pho = await db.MeetingPermissions
             .Where(x => x.MeetingId == meetingId && x.PermissionType == PermissionType.CoHost)
             .Select(x => x.UserId)
             .ToListAsync(ct);
-        if (pho.Count > 0)
-        {
-            var ke = conLai.Find(p => pho.Contains(p.UserId));
-            if (ke is not null)
-                return ke;
-        }
 
-        if (conLai.Count == 1)
-            return conLai[0];
-
-        var users = await identity.ResolveUsersAsync(conLai.ConvertAll(p => p.UserId));
-        var thanhVien = conLai.Find(p =>
-            users.TryGetValue(p.UserId, out var u) &&
-            !string.Equals(u.UserType, "guest", StringComparison.OrdinalIgnoreCase));
-
-        return thanhVien ?? conLai[0];
+        return pho.Count == 0 ? null : conLai.Find(p => pho.Contains(p.UserId));
     }
 }
