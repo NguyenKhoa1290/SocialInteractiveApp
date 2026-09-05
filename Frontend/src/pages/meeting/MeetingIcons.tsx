@@ -11,6 +11,27 @@
 
 type P = { size?: number };
 
+// Gach cheo "dang tat / dang bi cam".
+//
+// Ve kem MOT VIEN mau nen cua nut: gach va than hinh cung la mau trang, nen
+// cho nao gach di de len than hinh (camera, khung man hinh) thi hai cai tan
+// vao nhau, nhin ra thanh mot cai duoi thua chu khong ra dau cam. Do duoc
+// bang anh chup phong to - o nut "cam chia se" gach gan nhu bien mat.
+//
+// Nut nao muon co vien thi dat --nen-nut bang chinh mau nen cua no; cho nao
+// khong dat (thanh doc trong phong hop) thi vien trong suot, y het truoc day.
+function GachCheo() {
+  return (
+    <path
+      d="M3 3.6 21.6 20.4l-1.5 1.6L1.5 5.2 3 3.6Z"
+      stroke="var(--nen-nut, transparent)"
+      strokeWidth="2.4"
+      strokeLinejoin="round"
+      paintOrder="stroke"
+    />
+  );
+}
+
 // Nut do: ket thuc cuoc hop cho tat ca. Trong Figma o nay moi la mot hinh
 // chu nhat bo tron lam cho ("Call Disconnected"), chua co net ben trong.
 export function IconCallEnd({ size = 30 }: P) {
@@ -31,7 +52,7 @@ export function IconCamera({ size = 32, off = false }: P & { off?: boolean }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M3.2 5.6h10.4c1 0 1.8.8 1.8 1.8v9.2c0 1-.8 1.8-1.8 1.8H3.2c-1 0-1.8-.8-1.8-1.8V7.4c0-1 .8-1.8 1.8-1.8Z" />
       <path d="M17.2 10.2 22.4 6v12l-5.2-4.2v-3.6Z" />
-      {off && <path d="M3 3.6 21.6 20.4l-1.5 1.6L1.5 5.2 3 3.6Z" />}
+      {off && <GachCheo />}
     </svg>
   );
 }
@@ -42,7 +63,7 @@ export function IconMicrophone({ size = 30, off = false }: P & { off?: boolean }
       <rect x="8.8" y="1.8" width="6.4" height="12.2" rx="3.2" />
       <path d="M5 10.6v1.4a7 7 0 0 0 14 0v-1.4h-2.1v1.4a4.9 4.9 0 0 1-9.8 0v-1.4H5Z" />
       <path d="M10.9 19.6h2.2v2.6h-2.2z" />
-      {off && <path d="M3 3.6 21.6 20.4l-1.5 1.6L1.5 5.2 3 3.6Z" />}
+      {off && <GachCheo />}
     </svg>
   );
 }
@@ -71,7 +92,7 @@ export function IconScreenShare({ size = 34, off = false }: P & { off?: boolean 
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M2.4 3.4h19.2c.8 0 1.4.6 1.4 1.4v11c0 .8-.6 1.4-1.4 1.4H2.4c-.8 0-1.4-.6-1.4-1.4v-11c0-.8.6-1.4 1.4-1.4Zm9.6 2.2-4.6 4.6h3v4.2h3.2v-4.2h3L12 5.6Z" />
       <path d="M7 19h10v1.8H7z" />
-      {off && <path d="M3 3.6 21.6 20.4l-1.5 1.6L1.5 5.2 3 3.6Z" />}
+      {off && <GachCheo />}
     </svg>
   );
 }

@@ -1744,14 +1744,19 @@
 
 .mpop-pill-teal {
   background: var(--calli-teal-dark);
+  /* Cho gach cheo "cam" biet mau nen de ve vien - xem GachCheo trong
+     MeetingIcons.tsx. */
+  --nen-nut: var(--calli-teal-dark);
 }
 
 .mpop-pill-do {
   background: rgba(255, 0, 0, 0.73);
+  --nen-nut: rgb(107, 0, 0);
 }
 
 .mpop-pill-xam {
   background: var(--calli-muted);
+  --nen-nut: var(--calli-muted);
 }
 
 .mpop-pill:hover:not(:disabled) {
