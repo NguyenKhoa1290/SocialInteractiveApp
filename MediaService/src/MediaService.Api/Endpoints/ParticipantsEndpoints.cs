@@ -26,9 +26,9 @@ public static class ParticipantsEndpoints
         return (meeting, null);
     }
 
-    // Chu phong HOAC dong chu phong. Day la cua cho gan het thao tac quan tri:
-    // duyet phong cho, duoi nguoi, cap/thu quyen le, tat mic ca phong, sua cai
-    // dat phong, ket thuc cuoc hop.
+    // Chu phong HOAC dong chu phong. Chi dung cho DUNG BA VIEC cua dong chu:
+    // duyet/tu choi phong cho, va tat mic/camera ca phong (o MeetingsEndpoints).
+    // Moi thao tac quan tri khac van la RequireHostAsync - xem HostAuthorization.
     private static async Task<(Meeting? meeting, IResult? error)> RequireDieuKhienAsync(
         long meetingId, ClaimsPrincipal principal, MediaDbContext db)
     {
@@ -163,12 +163,12 @@ public static class ParticipantsEndpoints
             MediaDbContext db, LiveKitService liveKit,
             IdentityClient identity, ILoggerFactory loggerFactory) =>
         {
-            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
 
-            // Dong chu co quyen duoi nguoi, nhung KHONG duoi duoc chu phong -
-            // khong thi hai dong chu bat tay nhau la lat duoc chu phong khoi
-            // chinh cuoc hop cua ho.
+            // Ke ca chu phong cung khong tu moi minh ra: muon di thi bam "Roi
+            // khoi". Duong nay di qua LiveKit RemoveParticipant nen mot cu bam
+            // nham o day khong giong nut roi phong.
             if (userId == meeting!.HostId)
                 return Results.Json(new ErrorResponse("forbidden", "Khong the moi Chu phong hop ra khoi phong"), statusCode: 403);
 
@@ -195,21 +195,12 @@ public static class ParticipantsEndpoints
             long meetingId, long userId, GrantPermissionRequest req, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit) =>
         {
-            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
+            var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             PermissionType permType;
             try { permType = MeetingPermission.FromString(req.PermissionType); }
             catch (ArgumentException) { return Results.BadRequest(new ErrorResponse("invalid_request", "permissionType khong hop le")); }
-
-            // Phong Dong chu phong la viec RIENG cua chu phong that: dong chu
-            // duoc cap moi quyen le, nhung khong duoc tu nhan them dong chu -
-            // khong thi mot dong chu tu nhan them dong minh la chu phong that
-            // mat kiem soat chinh cuoc hop cua ho.
-            if (permType == PermissionType.CoHost && meeting!.HostId != principal.GetUserId()!.Value)
-                return Results.Json(
-                    new ErrorResponse("forbidden", "Chi Chu phong hop duoc phong hoac thu quyen Dong chu phong"),
-                    statusCode: 403);
 
             // Chu phong da co san moi quyen - phong chinh minh lam dong chu la
             // mot hang thua, con lam roi lai vuong khi doi chu.
@@ -248,21 +239,12 @@ public static class ParticipantsEndpoints
             long meetingId, long userId, string permissionType, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit) =>
         {
-            var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
+            var (_, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
 
             PermissionType permType;
             try { permType = MeetingPermission.FromString(permissionType); }
             catch (ArgumentException) { return Results.BadRequest(new ErrorResponse("invalid_request", "permissionType khong hop le")); }
-
-            // Phong Dong chu phong la viec RIENG cua chu phong that: dong chu
-            // duoc cap moi quyen le, nhung khong duoc tu nhan them dong chu -
-            // khong thi mot dong chu tu nhan them dong minh la chu phong that
-            // mat kiem soat chinh cuoc hop cua ho.
-            if (permType == PermissionType.CoHost && meeting!.HostId != principal.GetUserId()!.Value)
-                return Results.Json(
-                    new ErrorResponse("forbidden", "Chi Chu phong hop duoc phong hoac thu quyen Dong chu phong"),
-                    statusCode: 403);
 
             var perm = await db.MeetingPermissions.FirstOrDefaultAsync(p =>
                 p.MeetingId == meetingId && p.UserId == userId && p.PermissionType == permType);
@@ -327,23 +309,16 @@ public static class ParticipantsEndpoints
         if (phong.HostId == userId)
             return (true, true, true);
 
-        var quyen = await db.MeetingPermissions
+        // Dong chu phong KHONG duoc mien tru o day: ho la nguoi DIEU PHOI
+        // (duyet phong cho, tat mic/cam mot lan), khong phai chu phong thu hai.
+        // Cai dat chung cua phong ap len ho y het moi nguoi khac.
+        var denied = await db.MeetingPermissions
             .Where(p => p.MeetingId == meetingId && p.UserId == userId &&
                         (p.PermissionType == PermissionType.NoMic ||
                          p.PermissionType == PermissionType.NoCamera ||
-                         p.PermissionType == PermissionType.NoScreenShare ||
-                         p.PermissionType == PermissionType.CoHost))
+                         p.PermissionType == PermissionType.NoScreenShare))
             .Select(p => p.PermissionType)
             .ToListAsync();
-
-        // Dong chu phong dieu khien cuoc hop thay chu phong, nen khong the bi
-        // cai dat chung cua phong bit mieng. Muon khoa mic mot dong chu thi
-        // chu phong that thu quyen dong chu truoc da - cung mot suy nghi voi
-        // viec chu phong luon duoc phep.
-        if (quyen.Contains(PermissionType.CoHost))
-            return (true, true, true);
-
-        var denied = quyen;
 
         return (
             phong.AllowMic && !denied.Contains(PermissionType.NoMic),

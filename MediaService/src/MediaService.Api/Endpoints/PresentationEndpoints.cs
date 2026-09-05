@@ -70,15 +70,12 @@ public static class PresentationEndpoints
             //   - mini app: mac dinh KHONG (mo ung dung la chieu len man hinh
             //     ca phong), va la quyet dinh CUA CA PHONG chu khong cap le
             //     tung nguoi nua - dung theo ban thiet ke 140:645.
-            // Dong chu phong co du quyen cua chu phong, ke ca hai cai nay.
-            var dieuKhien = await HostAuthorization.DieuKhienDuocAsync(db, meeting, callerId);
-
             bool allowed;
             string tenQuyen;
             if (req.Kind == "screen")
             {
                 tenQuyen = "chia se man hinh";
-                allowed = dieuKhien ||
+                allowed = meeting.HostId == callerId ||
                     (meeting.AllowScreenShare && !await db.MeetingPermissions.AnyAsync(p =>
                         p.MeetingId == meetingId && p.UserId == callerId &&
                         p.PermissionType == PermissionType.NoScreenShare));
@@ -86,7 +83,7 @@ public static class PresentationEndpoints
             else
             {
                 tenQuyen = "mo ung dung";
-                allowed = dieuKhien || meeting.AllowMiniApp;
+                allowed = meeting.HostId == callerId || meeting.AllowMiniApp;
             }
 
             if (!allowed)
@@ -136,9 +133,9 @@ public static class PresentationEndpoints
             if (current is null)
                 return Results.NoContent(); // khong ai trinh bay - idempotent
 
-            // Chinh nguoi dang trinh bay, hoac Chu phong / Dong chu phong (de
-            // go ket khi nguoi trinh bay mat mang ma khong kip tat).
-            if (current.UserId != callerId && !await HostAuthorization.DieuKhienDuocAsync(db, meeting, callerId))
+            // Chinh nguoi dang trinh bay, hoac Chu phong (de go ket khi nguoi
+            // trinh bay mat mang ma khong kip tat).
+            if (current.UserId != callerId && meeting.HostId != callerId)
                 return Results.Json(new ErrorResponse("forbidden", "Chi nguoi dang trinh bay hoac Chu phong duoc dung trinh bay"), statusCode: 403);
 
             await store.ClearAsync(meetingId);

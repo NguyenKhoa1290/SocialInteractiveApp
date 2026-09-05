@@ -258,7 +258,9 @@ export function MeetingRoomPage() {
   // Media Service). Chi rieng viec phong/thu chinh quyen nay la cua chu phong
   // THAT - nen ben duoi van con dung isHost o dung mot cho.
   const laDongChu = myPermissions.includes("co_host");
-  const dieuKhienDuoc = isHost || laDongChu;
+  // Dong chu chi lam duoc BA viec: duyet phong cho, tat mic ca phong, tat cam
+  // ca phong. Moi thu con lai van la isHost - xem HostAuthorization.cs.
+  const truotPhongCho = isHost || laDongChu;
   const liveUserIds = new Set<number>();
   if (room) {
     // Chinh minh khong nam trong remoteParticipants.
@@ -284,15 +286,15 @@ export function MeetingRoomPage() {
   //
   // Mo ung dung thi KHONG cap le tung nguoi nua - la quyet dinh cua ca phong,
   // dung theo ban thiet ke 140:645.
-  const canUseMiniApp = dieuKhienDuoc || (meeting?.allowMiniApp ?? false);
+  const canUseMiniApp = isHost || (meeting?.allowMiniApp ?? false);
   const canShareScreen =
-    dieuKhienDuoc || ((meeting?.allowScreenShare ?? true) && !myPermissions.includes("no_screen_share"));
+    isHost || ((meeting?.allowScreenShare ?? true) && !myPermissions.includes("no_screen_share"));
   // Mac dinh ai cung bat duoc mic/camera - chu phong THU quyen thi moi co
   // hang trong meeting_permissions. Day chi la de hien dung giao dien; cho
   // chan that su la LiveKit (xem LiveKitService.ApplyPublishPermissionsAsync),
   // vi an nut chi ngan nguoi dung binh thuong.
-  const micAllowed = dieuKhienDuoc || ((meeting?.allowMic ?? true) && !myPermissions.includes("no_mic"));
-  const camAllowed = dieuKhienDuoc || ((meeting?.allowCamera ?? true) && !myPermissions.includes("no_camera"));
+  const micAllowed = isHost || ((meeting?.allowMic ?? true) && !myPermissions.includes("no_mic"));
+  const camAllowed = isHost || ((meeting?.allowCamera ?? true) && !myPermissions.includes("no_camera"));
 
   // --- Ket noi phong -------------------------------------------------------
   useEffect(() => {
@@ -532,7 +534,7 @@ export function MeetingRoomPage() {
     if (dongChuRef.current !== null && dongChuRef.current !== laDongChu && !isHost) {
       setNotice(
         laDongChu
-          ? "Bạn vừa được phong làm đồng chủ phòng - bạn có mọi quyền điều khiển cuộc họp này."
+          ? "Bạn vừa được phong làm đồng chủ phòng - bạn duyệt được người vào và tắt được mic/camera cả phòng, và sẽ thay chủ phòng khi họ rời đi."
           : "Chủ phòng vừa thu lại quyền đồng chủ phòng của bạn.",
       );
     }
@@ -1165,7 +1167,7 @@ export function MeetingRoomPage() {
   // Danh sach ban be chi can khi chu phong that su mo bang dieu khien de
   // moi - tai san luc vao phong la mot request thua cho phan lon phien hop.
   useEffect(() => {
-    if (!showPeople || !dieuKhienDuoc || friends.length > 0) return;
+    if (!showPeople || !isHost || friends.length > 0) return;
     friendApi
       .list()
       .then((res) => setFriends(res.data))
@@ -1173,7 +1175,7 @@ export function MeetingRoomPage() {
         // Khong moi duoc ban be thi van con duong tao link - khong dang de
         // dung mot bao loi do chen ngang cuoc hop.
       });
-  }, [showPeople, dieuKhienDuoc, friends.length]);
+  }, [showPeople, isHost, friends.length]);
 
   const renderTile = (t: Tile) => {
     if (t.kind === "iptv")
@@ -1233,7 +1235,7 @@ export function MeetingRoomPage() {
     ? {
         chu: `${presentation.nickname} đang phát ${presentation.kind === "screen" ? "màn hình" : "nội dung"}`,
         nut: [
-          ...(presentation.userId === currentUserId || dieuKhienDuoc
+          ...(presentation.userId === currentUserId || isHost
             ? [{ chu: "Dừng", bam: () => void handleStopPresentation() }]
             : []),
           { chu: gridOverride ? "Dạng khung" : "Dạng lưới", bam: () => setGridOverride((v) => !v) },
@@ -1437,7 +1439,7 @@ export function MeetingRoomPage() {
         <IptvChannelPicker
           meetingId={meetingId}
           dangPhat={dangChayMiniApp ? (presentation?.channelName ?? null) : null}
-          dieuKhienDuoc={presentation?.userId === currentUserId || dieuKhienDuoc}
+          dieuKhienDuoc={presentation?.userId === currentUserId || isHost}
           tuyChon={tuyChonPhat}
           onDoiTuyChon={setTuyChonPhat}
           onPick={handlePickChannel}
@@ -1459,7 +1461,7 @@ export function MeetingRoomPage() {
           nut tron 66px vien #85AEB0. Thu tu lay dung tu thiet ke: ket thuc,
           camera, mic, chat, nguoi tham gia, chia se man hinh, media, cai dat. */}
       <nav className="mroom-rail" aria-label="Điều khiển cuộc họp">
-        {dieuKhienDuoc && (
+        {isHost && (
           <button className="mroom-btn mroom-btn-ket" onClick={handleEnd} title="Kết thúc cho tất cả">
             <IconCallEnd />
           </button>
@@ -1558,7 +1560,7 @@ export function MeetingRoomPage() {
               : null
           }
           tenNguoiChieu={presentation?.nickname ?? ""}
-          dungDuoc={!!presentation && (presentation.userId === currentUserId || dieuKhienDuoc)}
+          dungDuoc={!!presentation && (presentation.userId === currentUserId || isHost)}
           onDungChieu={handleStopPresentation}
           onClose={() => setShowSettings(false)}
         />
@@ -1571,7 +1573,7 @@ export function MeetingRoomPage() {
           waiting={waiting}
           friends={friends}
           currentUserId={currentUserId}
-          dieuKhienDuoc={dieuKhienDuoc}
+          truotPhongCho={truotPhongCho}
           laChuPhongThat={isHost}
           anhCua={anhCua}
           volumes={volumes}

@@ -363,17 +363,16 @@ paths:
                   type: string
                   enum: [share_screen, mini_app, focus_mode, no_mic, no_camera, no_screen_share, co_host]
                   description: >
-                    co_host = Đồng chủ phòng: có mọi quyền điều khiển cuộc họp
-                    và là người kế vị đầu tiên khi chủ phòng rời đi. Riêng
-                    co_host thì CHỈ chủ phòng thật cấp/thu được (403 nếu người
-                    gọi là đồng chủ phòng).
+                    co_host = Đồng chủ phòng: người điều phối. Chỉ làm được ba
+                    việc - duyệt/từ chối phòng chờ, tắt mic cả phòng, tắt camera
+                    cả phòng - và là người kế vị đầu tiên khi chủ phòng rời đi.
+                    Không kết thúc được cuộc họp, không cấm được ai, không đuổi
+                    người, không sửa cài đặt phòng.
       responses:
         "201":
           description: Đã cấp quyền
         "403":
-          description: >-
-            Người gọi không phải Chủ phòng / Đồng chủ phòng; hoặc đang cấp
-            co_host mà người gọi không phải Chủ phòng thật
+          description: Người gọi không phải Chủ phòng họp
 
     delete:
       tags: [Participants]

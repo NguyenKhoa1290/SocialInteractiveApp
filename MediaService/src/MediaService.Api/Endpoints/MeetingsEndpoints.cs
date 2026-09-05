@@ -325,8 +325,11 @@ public static class MeetingsEndpoints
                 return Results.NotFound();
 
             var callerId = principal.GetUserId()!.Value;
-            if (!await HostAuthorization.DieuKhienDuocAsync(db, meeting, callerId))
-                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hoac Dong chu phong duoc ket thuc"), statusCode: 403);
+            // CHI chu phong that. Dong chu khong ket thuc duoc cuoc hop chung
+            // nao chu phong con day - ma khi chu phong roi that thi chinh ho
+            // duoc dua len lam chu (HostSuccession), luc do bam duoc.
+            if (meeting.HostId != callerId)
+                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hop duoc ket thuc"), statusCode: 403);
 
             meeting.Status = MeetingStatus.Ended;
             meeting.EndedAt = DateTimeOffset.UtcNow;
@@ -412,8 +415,8 @@ public static class MeetingsEndpoints
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null)
                 return Results.NotFound();
-            if (!await HostAuthorization.DieuKhienDuocAsync(db, meeting, principal.GetUserId()!.Value))
-                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hoac Dong chu phong duoc doi cai dat"), statusCode: 403);
+            if (meeting.HostId != principal.GetUserId()!.Value)
+                return Results.Json(new ErrorResponse("forbidden", "Chi Chu phong hop duoc doi cai dat"), statusCode: 403);
             if (meeting.Status != MeetingStatus.Active)
                 return Results.Json(new ErrorResponse("meeting_ended", "Cuoc hop da ket thuc"), statusCode: 409);
 

@@ -16,7 +16,7 @@ export function MeetingPeopleDialog({
   waiting,
   friends,
   currentUserId,
-  dieuKhienDuoc,
+  truotPhongCho,
   laChuPhongThat,
   anhCua,
   volumes,
@@ -40,9 +40,10 @@ export function MeetingPeopleDialog({
   waiting: WaitingParticipant[];
   friends: Friend[];
   currentUserId: number | undefined;
-  // Chu phong HOAC dong chu phong - mo het thao tac quan tri.
-  dieuKhienDuoc: boolean;
-  // Rieng chu phong THAT: chi ho phong/thu duoc quyen dong chu phong.
+  // Chu phong HOAC dong chu phong. Dong chu chi lam duoc ba viec: duyet phong
+  // cho, tat mic ca phong, tat cam ca phong.
+  truotPhongCho: boolean;
+  // Chu phong THAT - moi thao tac quan tri con lai deu doi cai nay.
   laChuPhongThat: boolean;
   anhCua: Record<number, string | null>;
   volumes: Record<number, number>;
@@ -90,31 +91,31 @@ export function MeetingPeopleDialog({
           nhan="Cho phép bật cam"
           bat={meeting?.allowCamera ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowCamera: v })}
-          khoa={!dieuKhienDuoc}
+          khoa={!laChuPhongThat}
         />
         <HangTac
           nhan="Cho phép bật mic"
           bat={meeting?.allowMic ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowMic: v })}
-          khoa={!dieuKhienDuoc}
+          khoa={!laChuPhongThat}
         />
         <HangTac
           nhan="Cho phép chia sẻ màn hình"
           bat={meeting?.allowScreenShare ?? true}
           doi={(v) => onDoiCaiDatPhong({ allowScreenShare: v })}
-          khoa={!dieuKhienDuoc}
+          khoa={!laChuPhongThat}
         />
         <HangTac
           nhan="Cho phép một thành viên không phải chủ phòng bắt đầu ứng dụng"
           bat={meeting?.allowMiniApp ?? false}
           doi={(v) => onDoiCaiDatPhong({ allowMiniApp: v })}
-          khoa={!dieuKhienDuoc}
+          khoa={!laChuPhongThat}
         />
         <HangTac
           nhan="Bật phòng chờ"
           bat={meeting?.requiresApproval ?? true}
           doi={(v) => onDoiCaiDatPhong({ requiresApproval: v })}
-          khoa={!dieuKhienDuoc || dangDoiDuyet}
+          khoa={!truotPhongCho || dangDoiDuyet}
         />
         <p className="mpop-ghi-chu">
           {meeting?.requiresApproval
@@ -127,7 +128,7 @@ export function MeetingPeopleDialog({
 
   return (
     <MeetingPopup title="Quản lý thành viên" onClose={onClose} width={1000}>
-      {dieuKhienDuoc && waiting.length > 0 && (
+      {truotPhongCho && waiting.length > 0 && (
         <>
           <h3 className="mpop-nhan">Danh sách Thành viên đang đợi</h3>
           <label className="mpop-tim">
@@ -156,7 +157,10 @@ export function MeetingPeopleDialog({
 
       <div className="mpop-dau">
         <h3 className="mpop-nhan">Danh sách Thành viên</h3>
-        {dieuKhienDuoc && (
+        {/* Tat mic/cam ca phong: TAT mot lan, ai cung bat lai duoc - khac
+            han "Cấm mic" o tung hang (thu quyen). Dong chu phong lam duoc
+            viec nay, nhung khong cam duoc ai. */}
+        {truotPhongCho && (
           <>
             <button type="button" className="mpop-pill mpop-pill-do" onClick={() => onMuteAll(true, false)}>
               Tắt tất cả mic
@@ -164,6 +168,10 @@ export function MeetingPeopleDialog({
             <button type="button" className="mpop-pill mpop-pill-do" onClick={() => onMuteAll(false, true)}>
               Tắt tất cả cam
             </button>
+          </>
+        )}
+        {laChuPhongThat && (
+          <>
             <button type="button" className="mpop-pill mpop-pill-teal" onClick={() => setMoMoi((v) => !v)}>
               Mời bạn bè
             </button>
@@ -210,7 +218,7 @@ export function MeetingPeopleDialog({
         </div>
       )}
 
-      {(!dieuKhienDuoc || waiting.length === 0) && (
+      {(!truotPhongCho || waiting.length === 0) && (
         <label className="mpop-tim">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.8" stroke="currentColor" strokeWidth="2.2" />
@@ -243,8 +251,8 @@ export function MeetingPeopleDialog({
                   onClick={() => onTogglePermission(p, "co_host")}
                   title={
                     cam("co_host")
-                      ? "Thu lại quyền điều khiển cuộc họp của người này"
-                      : "Cho người này mọi quyền của chủ phòng, và là người thay bạn khi bạn rời đi"
+                      ? "Thu lại quyền đồng chủ phòng của người này"
+                      : "Cho người này duyệt phòng chờ và tắt mic/camera cả phòng, và làm người thay bạn khi bạn rời đi"
                   }
                 >
                   {cam("co_host") ? "Thu quyền đồng chủ" : "Phong đồng chủ"}
@@ -252,7 +260,7 @@ export function MeetingPeopleDialog({
               </span>
             )}
 
-            {dieuKhienDuoc && nguoiKhac && !laChu(p) && (
+            {laChuPhongThat && nguoiKhac && !laChu(p) && (
               <span className="mpop-nut">
                 <button
                   type="button"

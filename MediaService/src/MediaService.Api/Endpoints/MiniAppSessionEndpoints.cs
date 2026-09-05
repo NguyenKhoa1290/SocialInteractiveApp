@@ -14,8 +14,8 @@ public static class MiniAppSessionEndpoints
     // "Cho phep mot thanh vien khong phai chu phong bat dau ung dung" trong
     // ban thiet ke (Figma 140:645). Mac dinh TAT: mo mot ung dung la chieu
     // len man hinh cua ca phong.
-    private static async Task<bool> CanUseMiniAppAsync(MediaDbContext db, Meeting meeting, long userId) =>
-        meeting.AllowMiniApp || await HostAuthorization.DieuKhienDuocAsync(db, meeting, userId);
+    private static Task<bool> CanUseMiniAppAsync(MediaDbContext db, Meeting meeting, long userId) =>
+        Task.FromResult(meeting.HostId == userId || meeting.AllowMiniApp);
 
     public static void MapMiniAppSessionEndpoints(this WebApplication app)
     {

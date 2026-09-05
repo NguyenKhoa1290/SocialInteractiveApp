@@ -3669,17 +3669,22 @@ biến mất: `POST /leave`, `kick` (chủ tự mời mình ra), và `Participan
 
 **Đồng chủ phòng (`co_host`)**
 
-Ranh giới quyền — đồng chủ có **mọi quyền điều khiển cuộc họp** (duyệt phòng chờ, đuổi người,
-cấp/thu các quyền lẻ, tắt mic cả phòng, sửa cài đặt phòng, kết thúc cuộc họp, gỡ kẹt người trình
-bày), và không bị cài đặt chung của phòng bịt mic/cam/chia sẻ. Chủ phòng **thật** giữ riêng ba
-điều, cả ba đều để không ai lật được chủ phòng:
+Đồng chủ là người **điều phối**, không phải chủ phòng thứ hai. Làm được đúng **ba việc**:
 
-1. Chỉ chủ phòng thật **phong/thu** được chính quyền `co_host` (403 nếu đồng chủ thử tự nhân bản).
-2. **Không ai đuổi được chủ phòng** (403 ở `kick`).
-3. Không ai thu được mic/camera/chia sẻ màn hình của chủ phòng (luật cũ, có từ trước).
+1. Duyệt / từ chối người ở phòng chờ.
+2. Tắt mic cả phòng (một lần — mọi người bật lại được).
+3. Tắt camera cả phòng (một lần).
 
-Muốn khoá mic một đồng chủ thì phải thu quyền đồng chủ trước — cùng một suy nghĩ với việc chủ
-phòng luôn được phép.
+…và là **người kế vị thứ nhất** khi chủ phòng rời đi. Ngoài ra không gì khác, và đây là ranh giới
+cố ý:
+
+- **Không kết thúc được cuộc họp.** Chừng nào chủ phòng còn đó thì chỉ họ đóng được phòng; mà khi
+  chủ phòng rời thật thì đồng chủ được đưa lên làm chủ, lúc đó bấm được. Không cần đường tắt nào ở giữa.
+- **Không cấm được ai** (`no_mic` / `no_camera` / `no_screen_share`). *Tắt* khác *cấm*: tắt là một
+  lần, cấm là thu quyền — thu quyền là việc của chủ phòng.
+- **Không đuổi người, không sửa cài đặt phòng, không phong đồng chủ khác, không dừng trình bày của người khác.**
+- **Không được miễn trừ cài đặt chung của phòng**: `allow_mic = false` thì đồng chủ cũng không bật
+  được mic, y hệt mọi người.
 
 Để ở `meeting_permissions` chứ **không** ở `meeting_participants.role`, vì hàng participant sinh
 mới mỗi lần vào phòng: đồng chủ rớt mạng ra vào lại sẽ mất chức. Hàng permission sống theo cả cuộc

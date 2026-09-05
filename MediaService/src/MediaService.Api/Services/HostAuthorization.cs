@@ -4,23 +4,33 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MediaService.Api.Services;
 
-// "Ai duoc dieu khien cuoc hop nay" - chu phong THAT, hoac dong chu phong.
+// Dong chu phong ("pho phong") - nguoi DIEU PHOI, khong phai chu phong thu hai.
 //
-// VI SAO CO DONG CHU PHONG: chu roi phong thi HostSuccession trao quyen cho
-// nguoi vao som nhat con o lai - dung de phong khong bao gio vo chu, nhung
-// nguoi duoc trao la ai thi hoan toan do thu tu vao phong quyet dinh. Dong chu
-// phong la duong de chu phong NOI TRUOC ai se thay minh, va cung la de co hai
-// nguoi cung cam trich trong luc hop (duyet phong cho, duoi nguoi) thay vi don
-// het vao mot nguoi.
+// VI SAO CO: chu roi phong thi HostSuccession trao quyen cho nguoi vao som
+// nhat con o lai - dung de phong khong bao gio vo chu, nhung nguoi duoc trao
+// la ai thi hoan toan do thu tu vao phong quyet dinh. Dong chu la duong de chu
+// phong NOI TRUOC ai se thay minh, va de bot viec truc phong cho khi chinh chu
+// phong dang ban trinh bay.
 //
-// RANH GIOI: dong chu co du quyen dieu khien cuoc hop, nhung chu phong THAT
-// giu rieng ba dieu, va ca ba deu la de khong ai lat duoc chu phong:
+// DONG CHU LAM DUOC DUNG BA VIEC:
 //
-//   1. Chi chu phong phong/thu duoc chinh quyen dong chu (POST/DELETE
-//      permissions voi co_host).
-//   2. Khong ai duoi duoc chu phong.
-//   3. Khong ai thu duoc mic/camera/chia se man hinh cua chu phong (luat cu,
-//      da co tu truoc).
+//   1. Duyet / tu choi nguoi o phong cho.
+//   2. Tat mic ca phong (mot lan, moi nguoi bat lai duoc).
+//   3. Tat camera ca phong (mot lan).
+//
+// va la NGUOI KE VI THU NHAT khi chu phong roi di (xem HostSuccession).
+//
+// NGOAI RA KHONG GI KHAC - day la ranh gioi co y, khong phai thieu sot:
+//
+//   - KHONG ket thuc duoc cuoc hop. Chung nao chu phong con day thi chi ho
+//     dong duoc phong; ma khi chu phong roi that thi dong chu duoc dua len
+//     lam chu, luc do bam duoc. Khong can duong tat nao o giua.
+//   - KHONG cam duoc ai (no_mic / no_camera / no_screen_share). "Tat" khac
+//     "cam": tat la mot lan, cam la thu quyen - thu quyen la viec cua chu phong.
+//   - KHONG duoi nguoi, KHONG sua cai dat phong, KHONG phong dong chu khac,
+//     KHONG dung trinh bay cua nguoi khac.
+//   - KHONG duoc mien tru cai dat chung cua phong: allow_mic = false thi dong
+//     chu cung khong bat duoc mic, y het moi nguoi.
 public static class HostAuthorization
 {
     public static async Task<bool> LaDongChuAsync(
@@ -28,8 +38,7 @@ public static class HostAuthorization
         await db.MeetingPermissions.AnyAsync(
             p => p.MeetingId == meetingId && p.UserId == userId && p.PermissionType == PermissionType.CoHost, ct);
 
-    // Chu phong that thi khoi hoi CSDL - duong nay chay o moi thao tac quan
-    // tri nen bot duoc mot cau truy van la bot that.
+    // Chu phong that thi khoi hoi CSDL.
     public static async Task<bool> DieuKhienDuocAsync(
         MediaDbContext db, Meeting meeting, long userId, CancellationToken ct = default) =>
         meeting.HostId == userId || await LaDongChuAsync(db, meeting.Id, userId, ct);

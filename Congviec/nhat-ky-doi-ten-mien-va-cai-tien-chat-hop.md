@@ -319,20 +319,18 @@ họp cũng chỉ đúng một người cầm trịch - chủ phòng bận trìn
 
 **Đã làm.** Nút **"Phong đồng chủ"** trên từng hàng người trong bảng Quản lý thành viên.
 
-Đồng chủ có **mọi quyền điều khiển cuộc họp**: duyệt/từ chối phòng chờ, đuổi người, cấp và thu các
-quyền lẻ, tắt mic cả phòng, sửa cài đặt phòng, kết thúc cuộc họp, gỡ kẹt người đang trình bày. Và
-không bị cài đặt chung của phòng bịt mic/cam/chia sẻ - cùng một suy nghĩ với "chủ phòng luôn được
-phép": người đang cầm trịch mà bị bịt miệng thì vô lý.
+Đồng chủ là người **điều phối**, không phải chủ phòng thứ hai - làm được đúng **ba việc**: duyệt/từ
+chối phòng chờ, tắt mic cả phòng, tắt camera cả phòng. Cộng với việc là **người kế vị thứ nhất**.
 
-Chủ phòng **thật** giữ riêng ba điều, cả ba đều để không ai lật được chủ phòng:
-
-| Giữ riêng | Nếu không có |
+| Không làm được | Vì sao |
 |---|---|
-| Chỉ chủ phòng thật phong/thu được `co_host` | một đồng chủ tự nhân bản thêm đồng chủ, chủ phòng mất kiểm soát chính cuộc họp của mình |
-| Không ai đuổi được chủ phòng | hai đồng chủ bắt tay nhau là đuổi được chủ ra khỏi phòng của họ |
-| Không ai thu mic/cam của chủ phòng | luật cũ, có từ trước |
+| Kết thúc cuộc họp | chừng nào chủ phòng còn đó thì chỉ họ đóng được phòng. Chủ phòng rời thật thì đồng chủ **thành chủ**, lúc đó bấm được - không cần đường tắt nào ở giữa |
+| Cấm mic/cam/chia sẻ của ai | *tắt* khác *cấm*: tắt là một lần ai cũng bật lại được, cấm là thu quyền - thu quyền là việc của chủ phòng |
+| Đuổi người, sửa cài đặt phòng, phong đồng chủ khác, dừng trình bày của người khác | đều là quyền của chủ phòng |
+| Tự miễn trừ cài đặt chung của phòng | `allow_mic = false` thì đồng chủ cũng không bật được mic, y hệt mọi người |
 
-Muốn khoá mic một đồng chủ thì phải **thu quyền đồng chủ trước**.
+Hai điều còn giữ nguyên từ trước: không ai đuổi được chủ phòng, và không ai thu được mic/cam của
+chủ phòng.
 
 **Kế vị**: đồng chủ đứng **trước** luật "người vào sớm nhất". Nhiều đồng chủ thì lấy người vào sớm
 nhất trong số họ - kể cả khách vào bằng link, vì chính chủ phòng đã chọn đích danh, không việc gì
