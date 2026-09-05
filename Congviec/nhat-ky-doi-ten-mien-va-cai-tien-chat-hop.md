@@ -40,9 +40,10 @@ headless, không ước lượng từ ảnh chụp.
 11. [Khách không tạo được nhóm](#11-khách-không-tạo-được-nhóm)
 12. [Xác thực email khi đăng ký](#12-xác-thực-email-khi-đăng-ký)
 13. [Vá lỗ hổng Microsoft.OpenApi](#13-vá-lỗ-hổng-microsoftopenapi)
-14. [Bẫy đã vấp](#14-bẫy-đã-vấp)
-15. [Việc còn phải làm](#15-việc-còn-phải-làm)
-16. [Ghi chú vận hành](#16-ghi-chú-vận-hành)
+14. [Nhóm: lối vào quản trị thành viên](#14-nhóm-lối-vào-quản-trị-thành-viên)
+15. [Bẫy đã vấp](#15-bẫy-đã-vấp)
+16. [Việc còn phải làm](#16-việc-còn-phải-làm)
+17. [Ghi chú vận hành](#17-ghi-chú-vận-hành)
 
 ---
 
@@ -172,7 +173,7 @@ dài), thẻ nền `#F4F8F9` bo 16 viền `#293546`; dòng dưới là **thanh t
 khoá tua.
 
 CSS để **file riêng** (`file-message.css`) chứ không nhét vào `workspace.css` —
-xem mục 14.
+xem mục 15.
 
 **Đo được.** File 3 giây: không còn `<audio controls>` nào, màu đúng
 (`rgb(133,174,176)` / `rgb(41,53,70)`), bấm nút phát thật (0 → 1.97s), bấm lại
@@ -350,7 +351,7 @@ thì hàng `co_host` bị xoá, để giao diện không hiện một người v
 
 **Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
 mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
-sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 14.
+sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 15.
 
 Giao diện chỉ cần thêm một biến: vòng poll 4 giây vốn đã trả về `permissions` của từng người, nên
 `co_host` tới nơi miễn phí. Người vừa được phong (hoặc vừa bị thu) được **báo thành lời** - không
@@ -570,11 +571,53 @@ k3s kubectl -n chat-app exec deploy/media --   sh -c 'grep -o "Microsoft.OpenApi
 ```
 
 Cả sáu service đều trả `2.7.5`. Lần này grep được vì `.deps.json` là **tệp văn bản** — khác với bẫy
-"đừng grep DLL" ở mục 14.
+"đừng grep DLL" ở mục 15.
 
 ---
 
-## 14. Bẫy đã vấp
+## 14. Nhóm: lối vào quản trị thành viên
+
+Câu hỏi rất ngắn: *"phong nhóm phó như thế nào nhỉ?"* — và hoá ra câu trả lời đúng là **không làm
+được từ chỗ bạn đang đứng**.
+
+Bảng nhóm bên phải màn chat chỉ dựng đúng hai nút *Cấm chat* / *Xóa*, không hiện vai trò của ai,
+và không có đường nào sang trang quản trị. Nút phong/truất Phó nhóm nằm ở
+[WorkspaceMembersPage](../Frontend/src/pages/workspace/WorkspaceMembersPage.tsx) tại
+`/workspaces/:id` — mà lối vào duy nhất tới đó là **Hồ sơ → "Quản lý nhóm"**, một đường mà chính mã
+nguồn đã tự nhận là tạm ([settings.css](../Frontend/src/pages/settings.css)): *"KHÔNG có trong bản
+thiết kế… để tạm ở đây làm đường phụ, xoá đi khi màn danh sách nhóm xong."*
+
+Kết quả là có **hai màn danh sách nhóm song song**: cái trong chat mở thẳng cuộc trò chuyện, cái ở
+`/workspaces` mới là chỗ quản trị — và người dùng đứng ở nơi hợp lý nhất để phong phó lại là nơi duy
+nhất không làm được.
+
+**Đã làm.** Nút *Thêm* trơ trọi thành nút ***Tùy chỉnh*** thả xuống hai mục: *Thêm thành viên* và
+*Quản lý thành viên* (dẫn thẳng sang trang có nút phong/truất). Menu đóng khi bấm ra ngoài — nghe ở
+**giai đoạn capture** để menu đóng *trước* khi cú bấm rơi vào thứ phía sau nó — hoặc khi bấm Esc.
+
+**Một lỗi phân quyền lộ ra khi làm.** Nút *Thêm* cũ hiện theo `isLeader`, nhưng thêm thành viên là
+quyền của **cả Phó nhóm** (UC-20), và server cũng cho — `WorkspaceEndpoints` chỉ chặn `role='member'`.
+Tức là giao diện chặt hơn cả đặc tả lẫn API: Phó nhóm không thêm được ai dù được phép. Giờ đi theo
+`canEditGroup` (Trưởng hoặc Phó), khớp với ba nơi.
+
+| Vai | Thấy gì trong menu |
+|---|---|
+| Trưởng nhóm | Thêm thành viên · Quản lý thành viên |
+| Phó nhóm | Thêm thành viên · Quản lý thành viên |
+| Nhóm viên | Quản lý thành viên |
+
+**Đo trên hệ thống thật:** 18/18 với ba trình duyệt thật (ba vai, ba kỳ vọng khác nhau), cộng 7/7
+cho cả đường đi từ đầu đến cuối — từ màn chat bấm *Tùy chỉnh* → *Quản lý thành viên* → *Phong Phó
+nhóm*, rồi **đối chiếu lại bằng API** chứ không tin một mình giao diện.
+
+**Số đo bắt được thứ mắt bỏ qua.** Ảnh chụp nhìn "cũng được", nhưng đo ra chữ trong menu chỉ
+**10,4px** và màu teal trên nền trắng chỉ cho **~3:1** — dưới chuẩn AA (4.5:1) cho chữ thường. Lý do
+là tôi lấy `13px` từ `.cw-pill`: cỡ đó vừa cho một cái *chip*, không vừa cho chữ để **đọc**. Sửa
+thành `15px` và dùng màu chữ của panel (`--calli-navy`).
+
+---
+
+## 15. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
 
@@ -589,7 +632,7 @@ Ghi lại để lần sau không mất công dò:
   thường nhưng đang chạy mã cũ**. Nơi có câu trả lời thật là
   `describe rs <replicaset-moi>` chứ không phải `describe deploy` hay log pod.
   Gỡ tạm bằng cách xoá pod cũ để nhường 256Mi. Máy thật có 15Gi và chỉ dùng 29%,
-  nên trần 2Gi là tự đặt chứ không phải giới hạn phần cứng — xem mục 15.2.
+  nên trần 2Gi là tự đặt chứ không phải giới hạn phần cứng — xem mục 16.2.
 
 - **`cert.pem` của cloudflared gắn theo ZONE, không phải theo tài khoản.** Chạy
   `tunnel route dns <tunnel> identity.callimeet.com` bằng cert của
@@ -649,9 +692,9 @@ Ghi lại để lần sau không mất công dò:
 
 ---
 
-## 15. Việc còn phải làm
+## 16. Việc còn phải làm
 
-### 15.1. Việc của chủ dự án (mình không có quyền)
+### 16.1. Việc của chủ dự án (mình không có quyền)
 
 | Việc | Vì sao gấp |
 |---|---|
@@ -662,7 +705,7 @@ Ghi lại để lần sau không mất công dò:
 | **Đổi mật khẩu SSH của máy Ubuntu** | Mật khẩu đã dán trong khung chat để mình chạy `ALTER TABLE` và đọc log. Việc đã xong, không cần nữa. |
 | **Dọn 8 email thử trong hộp thư** | Bài kiểm xác thực email gửi thật tới `khoabeoloidom+calli…@gmail.com` và `+ui…@gmail.com` — lọc theo dấu `+` là xoá gọn. |
 
-### 15.2. Nên làm
+### 16.2. Nên làm
 
 - **Trạng thái chưa đọc chỉ sống trong phiên.** Server chưa có mô hình *đã đọc
   theo từng người*, nên tải lại trang là mất hết chấm đỏ. Muốn giữ được thì cần
@@ -689,6 +732,9 @@ Ghi lại để lần sau không mất công dò:
   có 15Gi, đang dùng 29%, nên nới trần là an toàn; đó cũng là lựa chọn tốt hơn
   `maxSurge: 0` vì `maxSurge: 0` bắt phải tắt pod cũ trước, tức là mỗi lần triển
   khai có một quãng đứt dịch vụ thật.
+- **Hai màn danh sách nhóm vẫn song song tồn tại** (mục 14): cái trong chat và
+  `/workspaces`. Bản thiết kế định gộp làm một (node 100:22) nhưng màn đó chưa
+  dựng. Nút *Tùy chỉnh* mới đã nối được hai bên, nhưng đây vẫn là chỗ nên dọn.
 - **Bốn bài kiểm cũ trong scratchpad đã hỏng** vì còn gọi đăng ký một bước
   (`/auth/register` giờ trả 202 chứ không phải 201 kèm token):
   `test_chuphong.py`, `test_dongchu.py`, `test_chuthat.py`,
@@ -696,7 +742,7 @@ Ghi lại để lần sau không mất công dò:
   khoản **khách** nên không vướng — sửa mấy bài cũ theo hướng đó là chạy lại
   được.
 
-### 15.3. Carried over từ đợt trước
+### 16.3. Carried over từ đợt trước
 
 Vẫn còn nguyên: đo `.flv` **luồng trực tiếp** thật, và phần thiết kế còn dở
 (chat cá nhân, Mini App, cuộc họp).
@@ -715,7 +761,7 @@ không phải chịu thêm một request nào. Phải sửa hai chỗ:
 
 ---
 
-## 16. Ghi chú vận hành
+## 17. Ghi chú vận hành
 
 **Tên miền.** Hệ thống chạy ở `callimeet.com`, mỗi service một subdomain,
 frontend ở domain gốc. Tunnel vẫn là `e1f67fd0-…` (locally-managed), định tuyến
