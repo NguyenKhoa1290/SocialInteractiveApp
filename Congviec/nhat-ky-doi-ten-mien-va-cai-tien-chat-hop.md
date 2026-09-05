@@ -360,6 +360,21 @@ thì họ chỉ thấy một loạt nút tự mọc ra rồi tự biến mất.
   quyền thì hai nút đó biến mất kèm báo.
 - **Không phá phần cũ**: chạy lại nguyên bộ kế vị ở mục 10 - vẫn 19/19.
 
+**Tên gọi và dải nút.** Trên giao diện vai trò này gọi là **"Phó nhóm"**, nút phong/thu là *Phó
+nhóm* / *Truất quyền*. Trong CSDL và API vẫn là `co_host` - đổi tên hiển thị thì không phải đụng
+vào lược đồ.
+
+Năm nút quản trị ở từng hàng (*Phó nhóm · Cấm mic · Cấm camera · Cấm chia sẻ · Mời ra*) giờ là nút
+tròn **chỉ có biểu tượng màu trắng**. Chữ không mất: nó chuyển vào `title` + `aria-label`, nên rê
+chuột vẫn đọc được và trình đọc màn hình vẫn dùng đúng. Nút ở **phòng chờ** (*Đuổi* / *Cho phép*)
+giữ nguyên chữ - đó là một cặp quyết định, đọc chữ nhanh hơn đoán hình.
+
+Một chi tiết chỉ lộ ra khi **chụp phóng to**: gạch chéo "cấm" và thân hình cùng là màu trắng, nên
+chỗ nào gạch đè lên thân hình thì hai cái tan vào nhau - ở nút *Cấm chia sẻ* gạch gần như biến mất,
+nút *Cấm camera* nhìn ra một cái đuôi thừa chứ không ra dấu cấm. Chữa bằng cách vẽ thêm một viền
+màu nền quanh gạch (`--nen-nut` do chính nút đặt, `paint-order: stroke`). Số đo không bắt được lỗi
+này: nút vẫn "có svg, màu trắng, đúng kích thước" - phải nhìn mới thấy.
+
 **Một vòng sửa lại giữa chừng.** Bản đầu cho đồng chủ *mọi* quyền của chủ phòng (kể cả kết thúc
 cuộc họp và cấm mic từng người) - đã chạy được 17/17 rồi mới siết lại theo yêu cầu. Ranh giới hiện
 tại gọn hơn và cũng dễ giải thích hơn: **tắt** là việc của người điều phối, **cấm** là việc của chủ
