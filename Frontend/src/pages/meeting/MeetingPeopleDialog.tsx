@@ -288,7 +288,7 @@ export function MeetingPeopleDialog({
                   }
                   onClick={() => onTogglePermission(p, "co_host")}
                 >
-                  <IconPhoNhom size={19} ha={cam("co_host")} />
+                  <IconPhoNhom size={22} ha={cam("co_host")} />
                 </NutIcon>
 
                 <NutIcon
@@ -296,7 +296,7 @@ export function MeetingPeopleDialog({
                   nhan={cam("no_mic") ? "Bỏ cấm mic" : "Cấm mic"}
                   onClick={() => onTogglePermission(p, "no_mic")}
                 >
-                  <IconMicrophone size={19} off={!cam("no_mic")} />
+                  <IconMicrophone size={22} off={!cam("no_mic")} />
                 </NutIcon>
 
                 <NutIcon
@@ -304,7 +304,7 @@ export function MeetingPeopleDialog({
                   nhan={cam("no_camera") ? "Bỏ cấm camera" : "Cấm camera"}
                   onClick={() => onTogglePermission(p, "no_camera")}
                 >
-                  <IconCamera size={19} off={!cam("no_camera")} />
+                  <IconCamera size={22} off={!cam("no_camera")} />
                 </NutIcon>
 
                 <NutIcon
@@ -312,11 +312,11 @@ export function MeetingPeopleDialog({
                   nhan={cam("no_screen_share") ? "Bỏ cấm chia sẻ màn hình" : "Cấm chia sẻ màn hình"}
                   onClick={() => onTogglePermission(p, "no_screen_share")}
                 >
-                  <IconScreenShare size={19} off={!cam("no_screen_share")} />
+                  <IconScreenShare size={22} off={!cam("no_screen_share")} />
                 </NutIcon>
 
                 <NutIcon bat={false} nhan="Mời ra khỏi phòng" onClick={() => onKick(p.userId)}>
-                  <IconDoiRa size={19} />
+                  <IconDoiRa size={22} />
                 </NutIcon>
               </span>
             )}

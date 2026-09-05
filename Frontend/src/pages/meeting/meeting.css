@@ -1731,15 +1731,15 @@
   white-space: nowrap;
 }
 
-/* Ban chi co bieu tuong: ep thanh o vuong bo tron thay vi vien thuoc, va
-   canh giua hinh ben trong. Hinh dung `currentColor` nen tu an theo mau chu
-   trang cua .mpop-pill - khong phai dat mau rieng. */
+/* Ban chi co bieu tuong. GIU NGUYEN khuon vien thuoc cua nut co chu (cung
+   chieu cao, cung padding) - chi thay chu bang hinh, khong bop thanh nut tron.
+   Mau trang nga thay vi trang tinh: dung --calli-surface-2 san co trong bo mau,
+   diu hon mot chut tren nen teal. */
 .mpop-pill-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(34px * var(--s));
-  padding: 0;
+  color: var(--calli-surface-2);
 }
 
 .mpop-pill-teal {
