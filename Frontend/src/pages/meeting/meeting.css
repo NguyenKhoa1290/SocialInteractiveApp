@@ -1731,6 +1731,17 @@
   white-space: nowrap;
 }
 
+/* Ban chi co bieu tuong: ep thanh o vuong bo tron thay vi vien thuoc, va
+   canh giua hinh ben trong. Hinh dung `currentColor` nen tu an theo mau chu
+   trang cua .mpop-pill - khong phai dat mau rieng. */
+.mpop-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(34px * var(--s));
+  padding: 0;
+}
+
 .mpop-pill-teal {
   background: var(--calli-teal-dark);
 }

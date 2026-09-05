@@ -534,8 +534,8 @@ export function MeetingRoomPage() {
     if (dongChuRef.current !== null && dongChuRef.current !== laDongChu && !isHost) {
       setNotice(
         laDongChu
-          ? "Bạn vừa được phong làm đồng chủ phòng - bạn duyệt được người vào và tắt được mic/camera cả phòng, và sẽ thay chủ phòng khi họ rời đi."
-          : "Chủ phòng vừa thu lại quyền đồng chủ phòng của bạn.",
+          ? "Bạn vừa được phong làm phó nhóm - bạn duyệt được người vào và tắt được mic/camera cả phòng, và sẽ thay chủ phòng khi họ rời đi."
+          : "Chủ phòng vừa truất quyền phó nhóm của bạn.",
       );
     }
     dongChuRef.current = laDongChu;

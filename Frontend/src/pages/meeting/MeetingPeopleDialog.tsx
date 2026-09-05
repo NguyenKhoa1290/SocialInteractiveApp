@@ -1,8 +1,41 @@
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { MeetingPopup, HangTac } from "./MeetingPopup";
+import { IconCamera, IconDoiRa, IconMicrophone, IconPhoNhom, IconScreenShare } from "./MeetingIcons";
 import type { Meeting, MeetingParticipant, PermissionType, WaitingParticipant } from "../../types/media";
 import type { Friend } from "../../types/friend";
+
+// Nut tron CHI CO BIEU TUONG cho dai nut quan tri o tung hang. Chu khong mat
+// di: no chuyen vao title (hien khi re chuot) va aria-label (trinh doc man
+// hinh). Bo chu ma khong de lai gi thi nguoi chua quen icon phai doan.
+//
+// `bat` = viec nay CHUA lam (nut mau teal, bam vao la cam/phong); false =
+// da lam roi (nut xam, bam vao la go ra). Mau giu nguyen nhu ban co chu.
+function NutIcon({
+  bat,
+  nhan,
+  moTa,
+  onClick,
+  children,
+}: {
+  bat: boolean;
+  nhan: string;
+  moTa?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`mpop-pill mpop-pill-icon${bat ? " mpop-pill-teal" : " mpop-pill-xam"}`}
+      onClick={onClick}
+      title={moTa ?? nhan}
+      aria-label={nhan}
+    >
+      {children}
+    </button>
+  );
+}
 
 // Popup "Quan ly thanh vien" - Figma 140:497 (danh sach), 140:774 (co nguoi
 // dang cho) va 140:645 (Cai dat phong).
@@ -238,54 +271,53 @@ export function MeetingPeopleDialog({
             <Avatar userId={p.userId} nickname={p.nickname} avatarUpdatedAt={anhCua[p.userId]} size={68} />
             <span className="mpop-ten">
               {p.nickname}
-              {laChu(p) ? <em> · Chủ phòng</em> : cam2(p, "co_host") ? <em> · Đồng chủ phòng</em> : null}
+              {laChu(p) ? <em> · Chủ phòng</em> : cam2(p, "co_host") ? <em> · Phó nhóm</em> : null}
             </span>
 
-            {/* Phong/thu dong chu phong la viec RIENG cua chu phong that -
-                dong chu khong tu nhan them dong duoc. */}
+            {/* Ca dai nut nay la cua chu phong THAT: pho nhom khong tu
+                nhan them pho nhom, cung khong cam/duoi ai. */}
             {laChuPhongThat && nguoiKhac && !laChu(p) && (
               <span className="mpop-nut">
-                <button
-                  type="button"
-                  className={`mpop-pill${cam("co_host") ? " mpop-pill-xam" : " mpop-pill-teal"}`}
-                  onClick={() => onTogglePermission(p, "co_host")}
-                  title={
+                <NutIcon
+                  bat={!cam("co_host")}
+                  nhan={cam("co_host") ? "Truất quyền" : "Phó nhóm"}
+                  moTa={
                     cam("co_host")
-                      ? "Thu lại quyền đồng chủ phòng của người này"
-                      : "Cho người này duyệt phòng chờ và tắt mic/camera cả phòng, và làm người thay bạn khi bạn rời đi"
+                      ? "Truất quyền phó nhóm của người này"
+                      : "Phó nhóm - duyệt phòng chờ, tắt mic/camera cả phòng, và thay bạn khi bạn rời đi"
                   }
+                  onClick={() => onTogglePermission(p, "co_host")}
                 >
-                  {cam("co_host") ? "Thu quyền đồng chủ" : "Phong đồng chủ"}
-                </button>
-              </span>
-            )}
+                  <IconPhoNhom size={19} ha={cam("co_host")} />
+                </NutIcon>
 
-            {laChuPhongThat && nguoiKhac && !laChu(p) && (
-              <span className="mpop-nut">
-                <button
-                  type="button"
-                  className={`mpop-pill${cam("no_mic") ? " mpop-pill-xam" : " mpop-pill-teal"}`}
+                <NutIcon
+                  bat={!cam("no_mic")}
+                  nhan={cam("no_mic") ? "Bỏ cấm mic" : "Cấm mic"}
                   onClick={() => onTogglePermission(p, "no_mic")}
                 >
-                  {cam("no_mic") ? "Bỏ cấm mic" : "Cấm mic"}
-                </button>
-                <button
-                  type="button"
-                  className={`mpop-pill${cam("no_camera") ? " mpop-pill-xam" : " mpop-pill-teal"}`}
+                  <IconMicrophone size={19} off={!cam("no_mic")} />
+                </NutIcon>
+
+                <NutIcon
+                  bat={!cam("no_camera")}
+                  nhan={cam("no_camera") ? "Bỏ cấm camera" : "Cấm camera"}
                   onClick={() => onTogglePermission(p, "no_camera")}
                 >
-                  {cam("no_camera") ? "Bỏ cấm cam" : "Cấm cam"}
-                </button>
-                <button
-                  type="button"
-                  className={`mpop-pill${cam("no_screen_share") ? " mpop-pill-xam" : " mpop-pill-teal"}`}
+                  <IconCamera size={19} off={!cam("no_camera")} />
+                </NutIcon>
+
+                <NutIcon
+                  bat={!cam("no_screen_share")}
+                  nhan={cam("no_screen_share") ? "Bỏ cấm chia sẻ màn hình" : "Cấm chia sẻ màn hình"}
                   onClick={() => onTogglePermission(p, "no_screen_share")}
                 >
-                  {cam("no_screen_share") ? "Bỏ cấm chia sẻ" : "Cấm chia sẻ"}
-                </button>
-                <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => onKick(p.userId)}>
-                  Đuổi
-                </button>
+                  <IconScreenShare size={19} off={!cam("no_screen_share")} />
+                </NutIcon>
+
+                <NutIcon bat={false} nhan="Mời ra khỏi phòng" onClick={() => onKick(p.userId)}>
+                  <IconDoiRa size={19} />
+                </NutIcon>
               </span>
             )}
 

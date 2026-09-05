@@ -66,11 +66,40 @@ export function IconPeople({ size = 32 }: P) {
   );
 }
 
-export function IconScreenShare({ size = 34 }: P) {
+export function IconScreenShare({ size = 34, off = false }: P & { off?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M2.4 3.4h19.2c.8 0 1.4.6 1.4 1.4v11c0 .8-.6 1.4-1.4 1.4H2.4c-.8 0-1.4-.6-1.4-1.4v-11c0-.8.6-1.4 1.4-1.4Zm9.6 2.2-4.6 4.6h3v4.2h3.2v-4.2h3L12 5.6Z" />
       <path d="M7 19h10v1.8H7z" />
+      {off && <path d="M3 3.6 21.6 20.4l-1.5 1.6L1.5 5.2 3 3.6Z" />}
+    </svg>
+  );
+}
+
+// Phong / truat quyen Pho nhom: mot nguoi kem mui ten LEN (nang) hoac XUONG
+// (ha). Co y khong dung ngoi sao hay khien: hai nut nay la mot cap doi nhau,
+// nen phai nhin phat ra ngay cai nao dua len cai nao dua xuong.
+export function IconPhoNhom({ size = 20, ha = false }: P & { ha?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="8.6" cy="7.2" r="3.9" />
+      <path d="M1.4 19.8c0-3.7 3.2-6.1 7.2-6.1 1 0 2 .2 2.9.5v5.9H1.4v-.3Z" />
+      {ha ? (
+        <path d="M18.2 21.2 13.6 15h3.4v-5.2h2.4V15h3.4l-4.6 6.2Z" />
+      ) : (
+        <path d="M18.2 8.8 22.8 15h-3.4v5.2H17V15h-3.4l4.6-6.2Z" />
+      )}
+    </svg>
+  );
+}
+
+// Duoi khoi phong: mui ten di RA KHOI mot canh cua. Khong dung dau X - X de
+// danh cho "dong", con day la "cho ra ngoai".
+export function IconDoiRa({ size = 20 }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3.4 2.8h8.2V5H5.6v14h6v2.2H3.4V2.8Z" />
+      <path d="M15.8 7 14.2 8.6l2.2 2.3h-5.8v2.2h5.8l-2.2 2.3 1.6 1.6 5-5-5-5Z" />
     </svg>
   );
 }
