@@ -41,6 +41,7 @@ headless, không ước lượng từ ảnh chụp.
 12. [Xác thực email khi đăng ký](#12-xác-thực-email-khi-đăng-ký)
 13. [Vá lỗ hổng Microsoft.OpenApi](#13-vá-lỗ-hổng-microsoftopenapi)
 14. [Nhóm: lối vào quản trị thành viên](#14-nhóm-lối-vào-quản-trị-thành-viên)
+    - [14.1. Dọn đường phụ trong Cài đặt](#141-dọn-đường-phụ-trong-cài-đặt)
 15. [Bẫy đã vấp](#15-bẫy-đã-vấp)
 16. [Việc còn phải làm](#16-việc-còn-phải-làm)
 17. [Ghi chú vận hành](#17-ghi-chú-vận-hành)
@@ -615,6 +616,21 @@ nhóm*, rồi **đối chiếu lại bằng API** chứ không tin một mình g
 là tôi lấy `13px` từ `.cw-pill`: cỡ đó vừa cho một cái *chip*, không vừa cho chữ để **đọc**. Sửa
 thành `15px` và dùng màu chữ của panel (`--calli-navy`).
 
+### 14.1. Dọn đường phụ trong Cài đặt
+
+Có lối vào đúng chỗ rồi thì đường phụ hết nhiệm vụ: đã **bỏ mục "Quản lý nhóm"** khỏi trang Cài đặt,
+cùng CSS `.st-extra` đi kèm. Đúng việc mà chú thích trong `settings.css` dặn từ đầu — *"xoá đi khi
+màn danh sách nhóm xong"*.
+
+Bỏ một lối vào thì phải chắc **không cắt mất đường nào**, nên kiểm cả hai vế chứ không chỉ vế "đã
+biến mất": trang Cài đặt không còn chữ ấy, không còn thẻ `<a>` nào trỏ `/workspaces`, khối
+`.st-extra` biến khỏi DOM — **và** đường thay thế vẫn thông trọn vẹn: từ màn chat bấm *Tùy chỉnh* →
+*Quản lý thành viên* → `/workspaces/95`, rồi bấm *← Về danh sách nhóm* → `/workspaces` hiện đúng
+nhóm. 8/8 trên Chrome thật.
+
+Người chưa có nhóm nào cũng không kẹt: nút *Tạo nhóm mới* trong danh sách chat trỏ thẳng
+`/workspaces/new`, không đi qua `/workspaces`.
+
 ---
 
 ## 15. Bẫy đã vấp
@@ -734,7 +750,8 @@ Ghi lại để lần sau không mất công dò:
   khai có một quãng đứt dịch vụ thật.
 - **Hai màn danh sách nhóm vẫn song song tồn tại** (mục 14): cái trong chat và
   `/workspaces`. Bản thiết kế định gộp làm một (node 100:22) nhưng màn đó chưa
-  dựng. Nút *Tùy chỉnh* mới đã nối được hai bên, nhưng đây vẫn là chỗ nên dọn.
+  dựng. Nút *Tùy chỉnh* đã nối được hai bên và đường phụ trong Cài đặt đã dọn
+  (mục 14.1), nên không còn ai bị kẹt — nhưng gộp hai màn thì vẫn chưa làm.
 - **Bốn bài kiểm cũ trong scratchpad đã hỏng** vì còn gọi đăng ký một bước
   (`/auth/register` giờ trả 202 chứ không phải 201 kèm token):
   `test_chuphong.py`, `test_dongchu.py`, `test_chuthat.py`,
