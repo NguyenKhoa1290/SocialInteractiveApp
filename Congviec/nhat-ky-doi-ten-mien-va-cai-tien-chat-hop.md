@@ -27,7 +27,7 @@ headless, không ước lượng từ ảnh chụp.
 7. [Phòng họp: người đang nói lên đầu và sáng viền](#7-phòng-họp-người-đang-nói-lên-đầu-và-sáng-viền)
 8. [Phát file âm thanh trực tiếp trong IPTV](#8-phát-file-âm-thanh-trực-tiếp-trong-iptv)
 9. [Sửa vặt](#9-sửa-vặt)
-10. [Phòng vô chủ: chuyển quyền chủ phòng](#10-phòng-vô-chủ-chuyển-quyền-chủ-phòng)
+10. [Phòng vô chủ: đồng chủ phòng và chuyển quyền](#10-phòng-vô-chủ-đồng-chủ-phòng-và-chuyển-quyền)
 11. [Bẫy đã vấp](#11-bẫy-đã-vấp)
 12. [Việc còn phải làm](#12-việc-còn-phải-làm)
 13. [Ghi chú vận hành](#13-ghi-chú-vận-hành)
@@ -260,7 +260,7 @@ tiếp (12.03 → 15.05s).
 
 ---
 
-## 10. Phòng vô chủ: chuyển quyền chủ phòng
+## 10. Phòng vô chủ: đồng chủ phòng và chuyển quyền
 
 **Vấn đề.** `meetings.host_id` được đặc tả là *"bất biến trong suốt phiên"* (mục 7.2 tài liệu kiến
 trúc). Chủ phòng rời đi thì cột đó vẫn trỏ vào người đã đi, và **mọi thứ đi qua `RequireHostAsync`
@@ -310,6 +310,57 @@ sát cách nhau 60 giây, để một lần F5 hay một cú nghẽn mạng khô
 lại, trong khoảng đó phòng vẫn tạm thời vô chủ - chấp nhận được so với việc đuổi nhầm quyền của một
 người chỉ đang nối lại mạng.
 
+
+### 10.1. Đồng chủ phòng - nói trước ai sẽ thay mình
+
+Luật kế vị ở trên đã lấp được lỗ hổng, nhưng chọn người thay hoàn toàn **máy móc**: ai vào sớm
+nhất thì người đó lên. Chủ phòng không có cách nào nói trước "người này thay tôi", và suốt cuộc
+họp cũng chỉ đúng một người cầm trịch - chủ phòng bận trình bày thì không ai duyệt phòng chờ.
+
+**Đã làm.** Nút **"Phong đồng chủ"** trên từng hàng người trong bảng Quản lý thành viên.
+
+Đồng chủ có **mọi quyền điều khiển cuộc họp**: duyệt/từ chối phòng chờ, đuổi người, cấp và thu các
+quyền lẻ, tắt mic cả phòng, sửa cài đặt phòng, kết thúc cuộc họp, gỡ kẹt người đang trình bày. Và
+không bị cài đặt chung của phòng bịt mic/cam/chia sẻ - cùng một suy nghĩ với "chủ phòng luôn được
+phép": người đang cầm trịch mà bị bịt miệng thì vô lý.
+
+Chủ phòng **thật** giữ riêng ba điều, cả ba đều để không ai lật được chủ phòng:
+
+| Giữ riêng | Nếu không có |
+|---|---|
+| Chỉ chủ phòng thật phong/thu được `co_host` | một đồng chủ tự nhân bản thêm đồng chủ, chủ phòng mất kiểm soát chính cuộc họp của mình |
+| Không ai đuổi được chủ phòng | hai đồng chủ bắt tay nhau là đuổi được chủ ra khỏi phòng của họ |
+| Không ai thu mic/cam của chủ phòng | luật cũ, có từ trước |
+
+Muốn khoá mic một đồng chủ thì phải **thu quyền đồng chủ trước**.
+
+**Kế vị**: đồng chủ đứng **trước** luật "người vào sớm nhất". Nhiều đồng chủ thì lấy người vào sớm
+nhất trong số họ - kể cả khách vào bằng link, vì chính chủ phòng đã chọn đích danh, không việc gì
+để tiêu chí máy móc phủ quyết. Lên làm chủ thật thì hàng `co_host` bị xoá, để giao diện không hiện
+một người vừa là chủ vừa là đồng chủ.
+
+**Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
+mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
+sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 11.
+
+Giao diện chỉ cần thêm một biến: vòng poll 4 giây vốn đã trả về `permissions` của từng người, nên
+`co_host` tới nơi miễn phí. Người vừa được phong (hoặc vừa bị thu) được **báo thành lời** - không
+thì họ chỉ thấy một loạt nút tự mọc ra rồi tự biến mất.
+
+**Đo được trên hệ thống thật:**
+
+- **API 17/17.** Trước khi phong thì 403 · phong xong thì đồng chủ xem được phòng chờ, sửa được cài
+  đặt, tắt được mic cả phòng, cấp và thu được quyền lẻ · đồng chủ **không** phong được đồng chủ
+  khác (403), **không** tự thu quyền của mình (403), **không** đuổi được chủ phòng (403) · người
+  thường vẫn 403 · **chủ rời thì đồng chủ lên, dù người kia vào phòng trước** · lên chủ thì hàng
+  `co_host` biến mất và `role` thành `host` · chủ mới phong được đồng chủ tiếp · chủ cũ quay lại
+  chỉ là người thường.
+- **Trình duyệt 11/11.** Hai Chrome thật: nút "Phong đồng chủ" chỉ hiện với chủ phòng thật · bấm
+  xong hàng đó ghi *"· Đồng chủ phòng"* và nút đổi thành "Thu quyền đồng chủ" · màn hình bên kia
+  mọc nút "Kết thúc cho tất cả" kèm băng báo · **đồng chủ mở bảng quản lý thì hàng của chủ phòng
+  không có nút "Đuổi" lẫn "Phong đồng chủ"** · thu quyền thì nút quản trị biến mất kèm báo.
+- **Không phá phần cũ**: chạy lại nguyên bộ kế vị ở mục 10 - vẫn 19/19.
+
 ---
 
 ## 11. Bẫy đã vấp
@@ -349,6 +400,11 @@ Ghi lại để lần sau không mất công dò:
   19/19 — frontend đã deploy xong trong khi pod `media` còn đang cuốn. Mốc
   chắc chắn là chờ *hành vi mới của chính service đó*, đừng lấy hash bundle
   frontend làm mốc cho một thay đổi ở backend.
+- **CHECK constraint là thứ dễ quên nhất khi thêm giá trị enum.** `permission_type` có
+  `CHECK (... IN (...))`; thêm `co_host` trong C# mà không nới ràng buộc thì nút "Phong đồng chủ"
+  trả 500 (`23514 check_violation`) chứ không phải lỗi rõ ràng nào. Nới **trước** khi ảnh mới lên;
+  ảnh cũ chạy với ràng buộc rộng hơn vẫn bình thường vì CHECK chỉ chặn lúc ghi. Lệnh nằm ở
+  `Tainguyen/infra/HUONG-DAN-DEPLOY.md`.
 
 ---
 
