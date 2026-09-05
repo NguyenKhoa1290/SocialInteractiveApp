@@ -461,6 +461,48 @@
   gap: calc(4px * var(--s));
 }
 
+/* Menu tha xuong cua nut "Tuy chinh" (dau danh sach thanh vien).
+   Boc phai la `relative` de menu neo theo dung NUT chu khong theo ca panel;
+   panel co the cuon, neo sai thi menu troi mot noi. */
+.cw-menu-boc {
+  position: relative;
+  display: inline-flex;
+}
+
+.cw-menu {
+  position: absolute;
+  top: calc(100% + 6px * var(--s));
+  right: 0;
+  z-index: 20;
+  min-width: calc(168px * var(--s));
+  display: flex;
+  flex-direction: column;
+  padding: calc(4px * var(--s));
+  border-radius: var(--r-sm);
+  background: #fff;
+  border: 1px solid var(--calli-teal);
+  box-shadow: 0 calc(6px * var(--s)) calc(18px * var(--s)) rgb(0 0 0 / 0.14);
+}
+
+.cw-menu-muc {
+  border: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: calc(13px * var(--s));
+  color: var(--calli-teal-dark);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: calc(8px * var(--s)) calc(10px * var(--s));
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.cw-menu-muc:hover,
+.cw-menu-muc:focus-visible {
+  background: var(--calli-surface-2);
+}
+
 /* Mui ten gap/mo mot muc (Figma "Keyboard arrow down": khung 32x32, net mau
    #85AEB0). Hinh luon ve huong xuong; gap lai thi xoay -90 do thanh chi sang
    phai - dung quy uoc cua <details>, va la HINH DUY NHAT nen hai trang thai

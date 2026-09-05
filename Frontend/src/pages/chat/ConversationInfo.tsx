@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
@@ -25,6 +26,79 @@ function NutGap({ mo, doi, ten }: { mo: boolean; doi: () => void; ten: string })
     >
       <IconCaret />
     </button>
+  );
+}
+
+// Nut "Tuy chinh" o dau danh sach thanh vien: mot nut, tha xuong hai viec.
+//
+// Truoc day cho la mot nut "Them" tro tro. Van de la viec quan tri nang hon -
+// phong/truat Pho nhom - lai nam o mot TRANG KHAC (/workspaces/:id) ma tu man
+// chat khong co duong nao sang, nen nguoi dung dung ngay o cho hop ly nhat de
+// phong pho lai la cho duy nhat khong lam duoc. Gom hai viec vao mot cho.
+function MenuTuyChinh({
+  themDuoc,
+  onThem,
+  workspaceId,
+}: {
+  themDuoc: boolean;
+  onThem?: () => void;
+  workspaceId?: number | null;
+}) {
+  const [mo, setMo] = useState(false);
+  const boc = useRef<HTMLSpanElement | null>(null);
+
+  // Bam ra ngoai / bam Esc thi dong. Gan o giai doan BAT (capture) de menu
+  // dong truoc khi cu bam roi vao thu khac phia sau no.
+  useEffect(() => {
+    if (!mo) return;
+    const ngoai = (e: MouseEvent) => {
+      if (!boc.current?.contains(e.target as Node)) setMo(false);
+    };
+    const phim = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMo(false);
+    };
+    document.addEventListener("mousedown", ngoai, true);
+    document.addEventListener("keydown", phim);
+    return () => {
+      document.removeEventListener("mousedown", ngoai, true);
+      document.removeEventListener("keydown", phim);
+    };
+  }, [mo]);
+
+  return (
+    <span className="cw-menu-boc" ref={boc}>
+      <button
+        type="button"
+        className="cw-pill"
+        onClick={() => setMo((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={mo}
+      >
+        Tùy chỉnh
+      </button>
+      {mo && (
+        <div className="cw-menu" role="menu">
+          {themDuoc && onThem && (
+            <button
+              type="button"
+              role="menuitem"
+              className="cw-menu-muc"
+              onClick={() => {
+                setMo(false);
+                onThem();
+              }}
+            >
+              Thêm thành viên
+            </button>
+          )}
+          {workspaceId != null && (
+            <Link role="menuitem" className="cw-menu-muc" to={`/workspaces/${workspaceId}`} onClick={() => setMo(false)}>
+              Quản lý thành viên
+            </Link>
+          )}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -251,13 +325,19 @@ export function ConversationInfo({
         <>
           <div className="cw-info-head">
             <span className="cw-info-label">Danh sách người trong nhóm</span>
-            {/* Thu tu lay dung tu thiet ke: mui ten truoc, nut "Them" sau. */}
+            {/* Thu tu lay dung tu thiet ke: mui ten truoc, nut hanh dong sau. */}
             <span className="cw-info-head-acts">
               <NutGap mo={hienThanhVien} doi={() => setHienThanhVien((v) => !v)} ten="danh sách người trong nhóm" />
-              {isLeader && onAddMember && (
-                <button className="cw-pill" onClick={onAddMember}>
-                  Thêm
-                </button>
+              {(canEditGroup || workspaceId != null) && (
+                <MenuTuyChinh
+                  // Them thanh vien la quyen cua CA Pho nhom (UC-20), khong
+                  // rieng Truong nhom - server cung cho (WorkspaceEndpoints
+                  // chi chan role='member'). Truoc day cho hien theo isLeader
+                  // nen Pho nhom khong them duoc ai du duoc phep.
+                  themDuoc={!!canEditGroup}
+                  onThem={onAddMember}
+                  workspaceId={workspaceId}
+                />
               )}
             </span>
           </div>
