@@ -43,9 +43,10 @@ headless, không ước lượng từ ảnh chụp.
 14. [Nhóm: lối vào quản trị thành viên](#14-nhóm-lối-vào-quản-trị-thành-viên)
     - [14.1. Dọn đường phụ trong Cài đặt](#141-dọn-đường-phụ-trong-cài-đặt)
     - [14.2. Chốt: KHÔNG gộp hai màn danh sách nhóm](#142-chốt-không-gộp-hai-màn-danh-sách-nhóm)
-15. [Bẫy đã vấp](#15-bẫy-đã-vấp)
-16. [Việc còn phải làm](#16-việc-còn-phải-làm)
-17. [Ghi chú vận hành](#17-ghi-chú-vận-hành)
+15. [Trần kích thước tệp: chặn sớm hơn, và chặn cả ảnh](#15-trần-kích-thước-tệp-chặn-sớm-hơn-và-chặn-cả-ảnh)
+16. [Bẫy đã vấp](#16-bẫy-đã-vấp)
+17. [Việc còn phải làm](#17-việc-còn-phải-làm)
+18. [Ghi chú vận hành](#18-ghi-chú-vận-hành)
 
 ---
 
@@ -175,7 +176,7 @@ dài), thẻ nền `#F4F8F9` bo 16 viền `#293546`; dòng dưới là **thanh t
 khoá tua.
 
 CSS để **file riêng** (`file-message.css`) chứ không nhét vào `workspace.css` —
-xem mục 15.
+xem mục 16.
 
 **Đo được.** File 3 giây: không còn `<audio controls>` nào, màu đúng
 (`rgb(133,174,176)` / `rgb(41,53,70)`), bấm nút phát thật (0 → 1.97s), bấm lại
@@ -353,7 +354,7 @@ thì hàng `co_host` bị xoá, để giao diện không hiện một người v
 
 **Chỗ lưu: `meeting_permissions`, không phải `meeting_participants.role`.** Hàng participant sinh
 mới mỗi lần vào phòng, nên để ở `role` thì đồng chủ rớt mạng vào lại là mất chức. Hàng permission
-sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 15.
+sống theo cả cuộc họp. Giá phải trả là một lần đổi lược đồ - xem mục 16.
 
 Giao diện chỉ cần thêm một biến: vòng poll 4 giây vốn đã trả về `permissions` của từng người, nên
 `co_host` tới nơi miễn phí. Người vừa được phong (hoặc vừa bị thu) được **báo thành lời** - không
@@ -573,7 +574,7 @@ k3s kubectl -n chat-app exec deploy/media --   sh -c 'grep -o "Microsoft.OpenApi
 ```
 
 Cả sáu service đều trả `2.7.5`. Lần này grep được vì `.deps.json` là **tệp văn bản** — khác với bẫy
-"đừng grep DLL" ở mục 15.
+"đừng grep DLL" ở mục 16.
 
 ---
 
@@ -659,7 +660,45 @@ Nối hai màn bằng **một lối đi** (nút *Tùy chỉnh*) đúng hơn là 
 
 ---
 
-## 15. Bẫy đã vấp
+## 15. Trần kích thước tệp: chặn sớm hơn, và chặn cả ảnh
+
+Bắt đầu từ một câu hỏi về lạm dụng: *"có người dùng server làm NAS bằng cách tạo nhiều nhóm rồi tải
+file 1GB lên thì sao?"* Lần theo đường tải lên thì ra ba chuyện.
+
+**Một kết luận sai của tôi, ghi lại vì cách vấp đáng nhớ.** Tôi báo rằng luật "video <50MB, voice
+<25MB" chỉ sống ở frontend. **Sai** — `ConversationEndpoints` đã có `VideoMaxBytes`/`VoiceMaxBytes`
+và kiểm ở bước gắn tệp vào tin nhắn. Lý do trượt: tôi tìm theo dạng `50 * 1024` viết trong
+TypeScript, còn C# viết `50L * 1024`, có hậu tố `L`. **Tìm hằng số bằng cách gõ lại con số thì phải
+tính tới việc mỗi ngôn ngữ viết một kiểu**; tìm theo *tên* (`VideoMax`) mới là cách chắc.
+
+Ba chỗ hở thật thì vẫn còn:
+
+| Chỗ hở | Vì sao đáng sửa |
+|---|---|
+| **Ảnh không có trần ở đâu cả** | Kể cả lớp kiểm ở bước gắn tin nhắn cũng chỉ nhìn Video/Voice. Khai `fileType='image'` là đi qua hết — hai trần kia thành vô nghĩa |
+| **Kiểm ở bước gắn tin nhắn là quá muộn** | Hàng `files` được tạo và `storage_used_bytes` bị trừ **ngay** ở `POST /files/upload-url`, rồi client mới đẩy byte lên MinIO. Tới lúc gắn tin nhắn mới từ chối thì đĩa và hạn mức đều đã mất |
+| **`sizeBytes <= 0` chưa ai chặn** | Con số này đi thẳng vào hạn mức và vào cột `size_bytes`. Giá trị âm làm hỏng sổ sách chứ không chỉ hỏng một lần tải lên |
+
+**Đã làm.** Thêm lớp kiểm ở `POST /files/upload-url` — sớm nhất có thể — và gom hai bản sao hằng số
+về `Models/FileLimits.cs`. Trần cho ảnh dùng **chung ngưỡng với video (50MB)** chứ không bịa số mới:
+lấy một mức đã được duyệt thì dễ bảo vệ hơn, và nó rộng rãi cho cả ảnh máy điện thoại lẫn ảnh chụp
+màn hình dài.
+
+Giữ kiểm ở **cả hai** lớp, có chủ đích: lớp một chặn sớm, lớp hai cho những hàng `files` sinh ra
+trước khi có lớp một. Frontend giữ nguyên vai trò báo trước (thêm ngưỡng ảnh cho khớp) — nó cho
+người dùng biết ngay lúc chọn tệp, còn server mới là nơi nói câu cuối.
+
+**Đo trên hệ thống thật:** 11/11 qua phòng họp tạm, 6/6 qua chat 1-1 — gọi thẳng API bằng Python,
+đúng con đường mà kẻ lạm dụng đi, không có frontend nào trong luồng. Kèm kiểm chiều ngược lại: ảnh
+3MB, video 40MB, voice 20MB vẫn gửi được bình thường, không chặn nhầm người dùng thật.
+
+**Còn hai chỗ chưa đụng, ghi ở mục 17.2:** chat 1-1 vẫn **không có hạn mức tổng** nào, và
+`sizeBytes` vẫn là con số **do client tự khai** — chưa ai đối chiếu với kích thước thật của vật thể
+trên MinIO.
+
+---
+
+## 16. Bẫy đã vấp
 
 Ghi lại để lần sau không mất công dò:
 
@@ -674,7 +713,7 @@ Ghi lại để lần sau không mất công dò:
   thường nhưng đang chạy mã cũ**. Nơi có câu trả lời thật là
   `describe rs <replicaset-moi>` chứ không phải `describe deploy` hay log pod.
   Gỡ tạm bằng cách xoá pod cũ để nhường 256Mi. Máy thật có 15Gi và chỉ dùng 29%,
-  nên trần 2Gi là tự đặt chứ không phải giới hạn phần cứng — xem mục 16.2.
+  nên trần 2Gi là tự đặt chứ không phải giới hạn phần cứng — xem mục 17.2.
 
 - **`cert.pem` của cloudflared gắn theo ZONE, không phải theo tài khoản.** Chạy
   `tunnel route dns <tunnel> identity.callimeet.com` bằng cert của
@@ -734,9 +773,9 @@ Ghi lại để lần sau không mất công dò:
 
 ---
 
-## 16. Việc còn phải làm
+## 17. Việc còn phải làm
 
-### 16.1. Việc của chủ dự án (mình không có quyền)
+### 17.1. Việc của chủ dự án (mình không có quyền)
 
 | Việc | Vì sao gấp |
 |---|---|
@@ -747,7 +786,7 @@ Ghi lại để lần sau không mất công dò:
 | **Đổi mật khẩu SSH của máy Ubuntu** | Mật khẩu đã dán trong khung chat để mình chạy `ALTER TABLE` và đọc log. Việc đã xong, không cần nữa. |
 | **Dọn 8 email thử trong hộp thư** | Bài kiểm xác thực email gửi thật tới `khoabeoloidom+calli…@gmail.com` và `+ui…@gmail.com` — lọc theo dấu `+` là xoá gọn. |
 
-### 16.2. Nên làm
+### 17.2. Nên làm
 
 - **Trạng thái chưa đọc chỉ sống trong phiên.** Server chưa có mô hình *đã đọc
   theo từng người*, nên tải lại trang là mất hết chấm đỏ. Muốn giữ được thì cần
@@ -768,6 +807,16 @@ Ghi lại để lần sau không mất công dò:
   đã dọn sạch.
 - **Còn một tài khoản khách tên `sds`** (id 339) — không phải mình tạo nên để
   nguyên. Nếu là tài khoản thử của bạn thì xoá được.
+- **Chat 1-1 chưa có hạn mức tổng nào.** Nhánh kiểm hạn mức chỉ có `Group` và
+  `Meeting`; P2P rơi thẳng qua. Trần từng tệp (mục 15) đã chặn tệp lớn, nhưng
+  *nhiều* tệp nhỏ thì vẫn không có gì cản — hai tài khoản kết bạn với nhau là
+  có một kênh lưu trữ không đáy.
+- **`sizeBytes` là con số do client tự khai, chưa ai đối chiếu.** URL ký sẵn chỉ
+  ràng buộc phương thức + khoá + hạn dùng, **không** ràng buộc `Content-Length`,
+  và không chỗ nào hỏi lại MinIO xem vật thể thật to bao nhiêu. Nếu đúng như
+  đọc mã (chưa bắn thử) thì khai 1KB rồi đẩy lên lớn hơn là được — mà như vậy
+  thì mọi hạn mức đều chỉ là thoả thuận danh dự. Chữa: ký kèm `Content-Length`,
+  hoặc gọi `HeadObject` sau khi tải xong rồi ghi lại kích thước thật.
 - **Nới `quota-app` lên 3Gi** (hoặc đặt `maxSurge: 0` cho các Deployment). Hiện
   trần 2Gi vừa khít số pod đang chạy, nên **mọi lần cuộn cả cụm đều sẽ kẹt ở
   service cuối cùng** — đợt này là `admin`, lần sau có thể là service khác. Máy
@@ -781,7 +830,7 @@ Ghi lại để lần sau không mất công dò:
   khoản **khách** nên không vướng — sửa mấy bài cũ theo hướng đó là chạy lại
   được.
 
-### 16.3. Carried over từ đợt trước
+### 17.3. Carried over từ đợt trước
 
 Vẫn còn nguyên: đo `.flv` **luồng trực tiếp** thật, và phần thiết kế còn dở
 (chat cá nhân, Mini App, cuộc họp).
@@ -800,7 +849,7 @@ không phải chịu thêm một request nào. Phải sửa hai chỗ:
 
 ---
 
-## 17. Ghi chú vận hành
+## 18. Ghi chú vận hành
 
 **Tên miền.** Hệ thống chạy ở `callimeet.com`, mỗi service một subdomain,
 frontend ở domain gốc. Tunnel vẫn là `e1f67fd0-…` (locally-managed), định tuyến

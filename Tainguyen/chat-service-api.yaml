@@ -351,6 +351,11 @@ paths:
                   type: integer
                   format: int64
       responses:
+        "413":
+          description: >-
+            Tệp vượt trần của loại đó — video 50MB, voice 25MB, ảnh 50MB
+            (mã lỗi `file_too_large`). Kiểm ở ĐÂY chứ không đợi tới bước gắn
+            tin nhắn: hạn mức bị trừ ngay khi cấp URL này.
         "200":
           description: URL upload tạm thời + fileId để tham chiếu sau
           content:

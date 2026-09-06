@@ -1927,6 +1927,21 @@ service (C#/.NET) chưa viết.*
 - [x] `UNIQUE INDEX idx_workspace_one_leader`
 - [x] Trigger `trg_cascade_delete_workspace_on_leader_leave`
 
+**Trần kích thước tệp — kiểm ở HAI lớp, có chủ đích.** Nguồn sự thật duy nhất là
+`ChatService.Api/Models/FileLimits.cs` (video 50MB, voice 25MB, ảnh 50MB; tài liệu không có trần
+riêng vì hạn mức nhóm đã là trần của nó).
+
+- **Lớp một — `POST /files/upload-url`**, sớm nhất có thể. Quan trọng về chi phí: hàng `files` được
+  tạo và `storage_used_bytes` bị trừ **ngay** ở bước này, rồi client mới bắt đầu đẩy byte lên MinIO.
+  Chặn ở bước gắn tin nhắn là đã muộn — đĩa và hạn mức đều mất rồi.
+- **Lớp hai — `POST /conversations/{id}/messages`**, giữ lại cho những hàng `files` tạo ra trước khi
+  có lớp một.
+
+**Ảnh trước đây không có trần ở đâu cả** — kể cả lớp hai cũng chỉ kiểm Video/Voice, nên khai
+`fileType='image'` là đi qua hết và hai trần kia thành vô nghĩa. Dùng chung ngưỡng với video (50MB)
+chứ không bịa số mới. Kèm theo: `sizeBytes <= 0` giờ bị chặn (400) — con số đó đi thẳng vào hạn mức
+và vào cột `size_bytes`, giá trị âm làm hỏng sổ sách chứ không chỉ hỏng một lần tải lên.
+
 **API**
 - [x] `GET /workspaces` — **tự đề xuất, thiếu sót phát hiện khi build Frontend F1** ("Danh sách nhóm
       của tôi"): OpenAPI spec gốc chỉ có CRUD theo `{workspaceId}` cụ thể, không có endpoint liệt kê
@@ -2792,7 +2807,8 @@ Phase 3, chưa làm.*
 - [x] `GET /conversations/{conversationId}` — chặn 403 nếu không phải participant
 - [x] `GET /conversations/{conversationId}/messages`
 - [x] `POST /conversations/{conversationId}/messages` — chặn `type=file` trong P2P (422), chặn
-      video >50MB / voice >25MB (413, **chưa có nén tự động**, chỉ từ chối thẳng)
+      video >50MB / voice >25MB / **ảnh >50MB** (413, **chưa có nén tự động**, chỉ từ chối thẳng).
+      Đây là **lớp hai**; lớp một nằm ở `POST /files/upload-url` — xem ngay dưới
 - [x] `DELETE /conversations/{conversationId}/messages/{messageId}` — **giả định cho P2P:** chỉ
       người gửi tự xoá được (bản gốc quy định "chỉ Trưởng nhóm", chỉ áp dụng cho Group)
 - [x] `PATCH /conversations/{conversationId}/messages/{messageId}` — **tự đề xuất, không có trong
