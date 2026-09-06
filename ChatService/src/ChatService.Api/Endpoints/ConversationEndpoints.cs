@@ -10,8 +10,6 @@ namespace ChatService.Api.Endpoints;
 
 public static class ConversationEndpoints
 {
-    private const long VideoMaxBytes = 50L * 1024 * 1024;
-    private const long VoiceMaxBytes = 25L * 1024 * 1024;
 
     // Khung thoi gian cho phep tu SUA tin nhan cua chinh minh (tu de xuat,
     // tai lieu goc chua chot con so nay).
@@ -356,10 +354,16 @@ public static class ConversationEndpoints
                 if (file is null || file.ConversationId != conversationId)
                     return Results.BadRequest(new ErrorResponse("invalid_file", "fileId khong hop le hoac khong thuoc conversation nay"));
 
-                if (type == MessageType.Video && file.SizeBytes > VideoMaxBytes)
-                    return Results.Json(new ErrorResponse("video_too_large", "Video vuot qua 50MB (nen tu dong CHUA duoc cai dat)"), statusCode: 413);
-                if (type == MessageType.Voice && file.SizeBytes > VoiceMaxBytes)
-                    return Results.Json(new ErrorResponse("voice_too_large", "Voice vuot qua 25MB"), statusCode: 413);
+                // Lop hai cua tran kich thuoc (lop mot o POST /files/upload-url).
+                // Kiem theo file.FileType chu khong theo `type` cua tin nhan: do
+                // moi la loai da duoc kiem luc cap URL, va la mot luat duy nhat
+                // cho ca hai lop. Xem Models/FileLimits.cs.
+                var tranTep = FileLimits.ChoLoai(file.FileType);
+                if (tranTep is not null && file.SizeBytes > tranTep.Value.Tran)
+                    return Results.Json(new ErrorResponse(
+                        "file_too_large",
+                        $"{tranTep.Value.Ten} tối đa {FileLimits.DoiSangChuoi(tranTep.Value.Tran)} — tệp này {FileLimits.DoiSangChuoi(file.SizeBytes)}."),
+                        statusCode: 413);
             }
 
             // Tin duoc tra loi phai nam trong CHINH hoi thoai nay. Khong kiem
