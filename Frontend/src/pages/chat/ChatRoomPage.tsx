@@ -45,8 +45,12 @@ import "./chat.css";
 // khong go lech chuoi o hai noi doc/ghi.
 const KHOA_AN_THONG_TIN = "cw-an-thong-tin";
 
+// Bao SOM cho nguoi dung - server moi la noi noi cau cuoi (FileEndpoints
+// TranChoLoai). Ba con so phai khop nhau; lech thi nguoi dung bi tu choi sau
+// khi da cho tai len xong, dung cai ma cho nay sinh ra de tranh.
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
+const IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 
 export function ChatRoomPage() {
   const { id } = useParams();
@@ -771,6 +775,10 @@ export function ChatRoomPage() {
     }
     if (type === "voice" && file.size > VOICE_MAX_BYTES) {
       setError("Voice vượt quá 25MB");
+      return;
+    }
+    if (type === "image" && file.size > IMAGE_MAX_BYTES) {
+      setError("Ảnh vượt quá 50MB");
       return;
     }
     if (type === "file" && conversation?.type === "p2p") {

@@ -33,6 +33,20 @@ public static class FileEndpoints
             if (conversation.Type == ConversationType.P2P && fileType == FileType.File)
                 return Results.Json(new ErrorResponse("file_not_supported_in_p2p", "Chat 1-1 khong ho tro gui File"), statusCode: 422);
 
+            // Kich thuoc phai hop le TRUOC moi thu khac: con so nay di thang
+            // vao han muc va vao cot size_bytes, mot gia tri am hay 0 lam hong
+            // so sach chu khong chi hong mot lan tai len.
+            if (req.SizeBytes <= 0)
+                return Results.BadRequest(new ErrorResponse("invalid_request", "sizeBytes phai lon hon 0"));
+
+            // Tran cho tung tep - xem TranChoLoai() o cuoi file.
+            var tran = TranChoLoai(fileType);
+            if (tran is not null && req.SizeBytes > tran.Value.Tran)
+                return Results.Json(new ErrorResponse(
+                    "file_too_large",
+                    $"{tran.Value.Ten} tối đa {Human(tran.Value.Tran)} — tệp này {Human(req.SizeBytes)}."),
+                    statusCode: 413);
+
             // UC-29: kiem tra quota + trang thai khoa cua nhom TRUOC khi cho
             // upload - vi trigger DB cong storage_used_bytes ngay khi insert
             // vao bang files (khong doi toi luc gan vao message), phai chan
@@ -392,6 +406,37 @@ public static class FileEndpoints
 
     // Han muc tep cua MOT PHONG HOP TAM. Xem cho dung no o tren.
     private const long MeetingRoomQuotaBytes = 2L * 1024 * 1024 * 1024;
+
+    // --- Tran cho TUNG tep ------------------------------------------------
+    //
+    // Luat chung cua he thong (UC-25/27): video < 50MB, voice < 25MB. Truoc
+    // day hai con so nay CHI song o frontend (ChatRoomPage.tsx
+    // VIDEO_MAX_BYTES / VOICE_MAX_BYTES) - tuc la luat do chinh ben bi han
+    // che tu thi hanh. Voi nguoi dung that thi khong sao va con tot hon (bao
+    // truoc, khoi tai len roi moi biet bi tu choi), nhung ai goi thang
+    // POST /files/upload-url bang curl thi khong co gi chan ca - ma chat 1-1
+    // lai KHONG co han muc nao do phia sau.
+    //
+    // ANH cung phai co tran, du dac ta khong cho con so rieng. Neu chi chan
+    // video/voice thi ke lam dung chi viec khai fileType='image' la di qua
+    // het, va cai tran vua dat thanh vo nghia. Dung chung nguong voi video
+    // (50MB) chu khong bia mot con so moi: lay mot muc DA duoc duyet thi de
+    // bao ve hon, va no rong rai cho anh may dien thoai lan anh chup man hinh
+    // dai.
+    //
+    // Tep TAI LIEU khong co tran rieng - han muc nhom la tran cua no, dung
+    // theo UC-27 (va chat 1-1 thi khong nhan tai lieu, chan ngay o tren).
+    private const long VideoMaxBytes = 50L * 1024 * 1024;
+    private const long VoiceMaxBytes = 25L * 1024 * 1024;
+    private const long ImageMaxBytes = 50L * 1024 * 1024;
+
+    private static (long Tran, string Ten)? TranChoLoai(FileType loai) => loai switch
+    {
+        FileType.Video => (VideoMaxBytes, "Video"),
+        FileType.Voice => (VoiceMaxBytes, "Tệp âm thanh"),
+        FileType.Image => (ImageMaxBytes, "Ảnh"),
+        _ => null,
+    };
 
     // Doi byte sang chuoi nguoi doc duoc. Dat o day chu khong dung mot thu
     // vien: chi phuc vu thong bao loi, khong dang keo them phu thuoc.
