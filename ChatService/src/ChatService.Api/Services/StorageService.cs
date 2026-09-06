@@ -137,6 +137,20 @@ public class StorageService
     public string GeneratePresignedUploadUrl(string provider, string objectKey, long sizeBytes) =>
         Presign(provider, objectKey, HttpVerb.PUT, PresignExpiryFor(sizeBytes));
 
+    // Presigned PUT khong rang buoc kich thuoc object theo gia tri client khai
+    // trong request xin URL. HEAD o phia server la nguon su that duy nhat de
+    // quyet dinh file co duoc gan vao tin nhan va tinh vao quota hay khong.
+    public async Task<long> GetObjectSizeAsync(string provider, string objectKey, CancellationToken ct = default)
+    {
+        var entry = ClientFor(provider);
+        var response = await entry.Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+        {
+            BucketName = entry.Opts.BucketName,
+            Key = objectKey,
+        }, ct);
+        return response.ContentLength;
+    }
+
     // --- Tai len nhieu phan (multipart) ---------------------------------
     //
     // VI SAO CAN: he thong ra Internet qua Cloudflare Tunnel, va Cloudflare

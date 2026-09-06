@@ -106,7 +106,9 @@ public record UploadUrlResponse(
     string? FileName = null,
     long SizeBytes = 0);
 
-public record CompleteUploadRequest(string UploadId);
+// uploadId NULL = tep nho tai mot lan. Tep lon phai gui dung uploadId ma
+// server da tao luc cap URL; khong chap nhan ma do client tu gan.
+public record CompleteUploadRequest(string? UploadId);
 
 // UploadId cho phep NULL: luc trang bi dong, client goi buoc huy nay bang
 // mot request "keepalive" toi gian va server da tu luu upload_id trong bang

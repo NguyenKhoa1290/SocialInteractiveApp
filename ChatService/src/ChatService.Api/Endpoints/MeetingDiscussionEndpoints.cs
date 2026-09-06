@@ -172,6 +172,12 @@ public static class MeetingDiscussionEndpoints
                 file = await db.Files.FindAsync(req.FileId.Value);
                 if (file is null || file.ConversationId != conversationId)
                     return Results.BadRequest(new ErrorResponse("invalid_file", "fileId khong hop le hoac khong thuoc conversation nay"));
+                if (file.UploadedBy != userId)
+                    return Results.Json(new ErrorResponse("forbidden", "Chi nguoi tai len moi duoc gan tep vao tin nhan"), statusCode: 403);
+                if (file.UploadVerifiedAt is null)
+                    return Results.Json(new ErrorResponse("upload_not_verified", "Tep chua duoc xac minh kich thuoc that"), statusCode: 409);
+                if (file.MessageId is not null)
+                    return Results.Json(new ErrorResponse("file_already_attached", "Tep nay da duoc gan vao mot tin nhan"), statusCode: 409);
             }
 
             var message = new Message

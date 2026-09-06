@@ -150,7 +150,9 @@ export function MeetingDiscussion({
         (loaded, total) => setUpload({ name: file.name, loaded, total }),
         track,
       );
-      if (urlRes.uploadId) await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
+      // Backend HEAD kich thuoc that cho ca upload mot lan va multipart
+      // truoc khi cho phep gan tep vao thao luan.
+      await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {

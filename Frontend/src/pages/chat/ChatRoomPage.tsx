@@ -815,9 +815,9 @@ export function ChatRoomPage() {
         (loaded, total) => setUpload({ name: file.name, loaded, total }),
         track,
       );
-      // Tep lon duoc tai len theo nhieu phan - chua ghep thi object CHUA ton
-      // tai tren kho, nen buoc nay bat buoc truoc khi gan vao tin nhan.
-      if (slot.uploadId) await chatApi.completeUpload(slot.fileId, slot.uploadId);
+      // Multipart duoc ghep va CA upload mot lan deu duoc backend HEAD o
+      // buoc nay. Khong xac minh xong thi khong the gan vao tin nhan.
+      await chatApi.completeUpload(slot.fileId, slot.uploadId);
       await chatApi.sendFileMessage(conversationId, type as Exclude<MessageType, "text" | "system">, slot.fileId);
     } catch (err) {
       // Bao huy ngay: dung luong duoc tra lai trong tich tac thay vi doi bo

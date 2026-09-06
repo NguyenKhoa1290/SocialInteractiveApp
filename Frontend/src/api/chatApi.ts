@@ -279,8 +279,10 @@ export const chatApi = {
   // o danh sach. Tra ve nguyen ban ma hoa, client tu giai ma.
   lastMessages: () => chatHttp.get<LastMessage[]>("/conversations/last-messages"),
 
-  completeUpload: (fileId: number, uploadId: string) =>
-    chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId }),
+  // Goi cho CA upload mot lan va multipart: backend HEAD object o day,
+  // khong tin sizeBytes ma trinh duyet khai bao luc xin URL.
+  completeUpload: (fileId: number, uploadId?: string | null) =>
+    chatHttp.post<void>(`/files/${fileId}/complete-upload`, { uploadId: uploadId ?? null }),
 
   // uploadId khong bat buoc: server da tu luu trong bang files.
   abortUpload: (fileId: number, uploadId?: string | null) =>

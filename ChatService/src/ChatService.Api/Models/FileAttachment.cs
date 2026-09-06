@@ -27,6 +27,10 @@ public class FileAttachment
     public string? UploadId { get; set; }
     public FileType FileType { get; set; }
     public long SizeBytes { get; set; }
+    // Chi duoc dat sau khi Chat Service doc HEAD tu kho luu tru va doi chieu
+    // kich thuoc that. Hang chua co cot nay khong duoc gan vao tin nhan: gia
+    // tri size_bytes luc moi xin URL do client tu khai.
+    public DateTimeOffset? UploadVerifiedAt { get; set; }
     public DateTimeOffset UploadedAt { get; set; }
 
     // Lan cuoi client bao lan tai len nay van dang chay. NULL = chua bao gio

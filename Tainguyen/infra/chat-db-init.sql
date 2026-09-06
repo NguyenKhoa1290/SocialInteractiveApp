@@ -223,6 +223,10 @@ CREATE TABLE files (
   --
   -- NULL = file nho, tai mot lan, khong co multipart nao.
   upload_id        VARCHAR(255),
+  -- NULL khi client moi chi nhan URL; chi Chat Service duoc dat sau khi HEAD
+  -- object tu MinIO. Khong cho phep gan file vao tin nhan truoc moc nay vi
+  -- size_bytes ban dau la gia tri client tu khai.
+  upload_verified_at TIMESTAMPTZ,
   -- Kho luu tru chua file: 'home' = MinIO may nha, 'cloud' = R2/S3.
   -- Chon theo dung luong luc upload (Storage:HomeMaxBytes) roi giu nguyen -
   -- file khong tu di chuyen, nen day la nguon su that duy nhat khi tai ve.

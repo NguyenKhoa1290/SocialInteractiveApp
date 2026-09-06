@@ -176,7 +176,7 @@ public static class FileEndpoints
         // hoac goi POST .../abort-upload.
         app.MapPost("/files/{fileId:long}/complete-upload", async (
             long fileId, CompleteUploadRequest req, ClaimsPrincipal principal,
-            ChatDbContext db, StorageService storage) =>
+            ChatDbContext db, StorageService storage, ILoggerFactory loggerFactory) =>
         {
             var userId = GetUserId(principal)!.Value;
             var file = await db.Files.FindAsync(fileId);
@@ -188,18 +188,78 @@ public static class FileEndpoints
             if (file.UploadedBy != userId)
                 return Results.Json(new ErrorResponse("forbidden", "Khong phai nguoi tai len tep nay"), statusCode: 403);
 
-            if (string.IsNullOrWhiteSpace(req.UploadId))
-                return Results.BadRequest(new ErrorResponse("invalid_request", "Thieu uploadId"));
+            // Hoan tat la idempotent de client co the thu lai neu mat ket noi
+            // sau khi server da HEAD object nhung truoc khi nhan duoc 204.
+            if (file.UploadVerifiedAt is not null)
+                return Results.NoContent();
 
+            if (file.MessageId is not null)
+                return Results.Json(new ErrorResponse("already_sent", "Tep nay da duoc gui"), statusCode: 409);
+
+            var logger = loggerFactory.CreateLogger(typeof(FileEndpoints));
+
+            // Upload mot lan khong co uploadId; multipart phai dung dung ma
+            // server da tao. Khong lay ma do tu client de tranh hoan tat mot
+            // phien upload khac cua cung object key.
+            if (file.UploadId is null)
+            {
+                if (!string.IsNullOrWhiteSpace(req.UploadId))
+                    return Results.BadRequest(new ErrorResponse("invalid_request", "Tep tai mot lan khong dung uploadId"));
+            }
+            else
+            {
+                if (!string.Equals(file.UploadId, req.UploadId, StringComparison.Ordinal))
+                    return Results.BadRequest(new ErrorResponse("invalid_request", "uploadId khong hop le"));
+
+                try
+                {
+                    await storage.CompleteMultipartAsync(file.StorageProvider, file.ObjectKey, file.UploadId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Khong ghep duoc multipart upload cho file {FileId}", file.Id);
+                    return Results.UnprocessableEntity(new ErrorResponse("complete_failed", "Khong ghep duoc cac phan cua tep"));
+                }
+            }
+
+            // Presigned PUT khong rang buoc Content-Length. Day la diem tin
+            // cay DUY NHAT: doc metadata tu MinIO sau khi upload, truoc khi
+            // bat ky endpoint nao duoc phep gan file vao tin nhan.
+            long actualSize;
             try
             {
-                await storage.CompleteMultipartAsync(file.StorageProvider, file.ObjectKey, req.UploadId);
+                actualSize = await storage.GetObjectSizeAsync(file.StorageProvider, file.ObjectKey);
             }
             catch (Exception ex)
             {
-                return Results.UnprocessableEntity(new ErrorResponse("complete_failed", $"Khong ghep duoc cac phan: {ex.Message}"));
+                logger.LogWarning(ex, "Khong doc duoc kich thuoc that cua file {FileId}", file.Id);
+                await ReleasePendingAsync(db, storage, logger, file);
+                return Results.UnprocessableEntity(new ErrorResponse("upload_verification_failed", "Khong xac minh duoc tep da tai len"));
             }
 
+            var limit = FileLimits.ChoLoai(file.FileType);
+            if (actualSize <= 0 || (limit is not null && actualSize > limit.Value.Tran))
+            {
+                await ReleasePendingAsync(db, storage, logger, file);
+                return Results.Json(new ErrorResponse(
+                    "file_too_large",
+                    limit is null
+                        ? "Tep tai len khong hop le"
+                        : $"{limit.Value.Ten} toi da {Human(limit.Value.Tran)} - kich thuoc that cua tep la {Human(actualSize)}."),
+                    statusCode: 413);
+            }
+
+            var reconciled = await ReconcileVerifiedSizeAsync(db, file, actualSize);
+            if (!reconciled)
+            {
+                await ReleasePendingAsync(db, storage, logger, file);
+                return Results.Json(new ErrorResponse(
+                    "storage_quota_exceeded",
+                    "Kich thuoc that cua tep vuot qua dung luong con trong cua cuoc tro chuyen."),
+                    statusCode: 507);
+            }
+
+            await ConversationEndpoints.LockIfAtOrOverQuotaAsync(db, file.ConversationId, logger);
             return Results.NoContent();
         }).RequireAuthorization();
 
@@ -267,6 +327,14 @@ public static class FileEndpoints
             var userId = GetUserId(principal)!.Value;
             var file = await db.Files.FindAsync(fileId);
             if (file is null)
+                return Results.NotFound();
+
+            // URL PUT da ky chi de ghi; khong cap URL GET cho object dang
+            // upload/chua gan tin nhan. Dieu nay chan viec dung fileId nhu
+            // mot o NAS tam thoi trong khi server chua HEAD va chap nhan tep.
+            // File cu da gui truoc khi co cot upload_verified_at van co
+            // message_id nen khong bi mat kha nang tai ve.
+            if (file.MessageId is null)
                 return Results.NotFound();
 
             var conversation = await db.Conversations.FindAsync(file.ConversationId);
@@ -380,19 +448,30 @@ public static class FileEndpoints
         db.Files.Remove(file);
         await db.SaveChangesAsync(ct);
 
+        // Multipart da duoc complete co the van con UploadId trong hang DB
+        // (vi du loi ngay sau khi MinIO complete). Huy multipart luc nay se
+        // bao khong tim thay, nhung object that VAN PHAI bi xoa. Vi vay hai
+        // thao tac tach rieng, khong dung else nhu truoc.
+        if (!string.IsNullOrEmpty(uploadId))
+        {
+            try
+            {
+                await storage.AbortMultipartAsync(provider, key, uploadId, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Khong huy duoc multipart {Key}; co the da complete", key);
+            }
+        }
+
         try
         {
-            // Tep lon di duong nhieu phan: object chinh CHUA TUNG ton tai,
-            // cai dang an dia la cac phan da tai len - phai huy dich danh.
-            if (!string.IsNullOrEmpty(uploadId))
-                await storage.AbortMultipartAsync(provider, key, uploadId, ct);
-            else
-                await storage.DeleteObjectAsync(provider, key, ct);
+            await storage.DeleteObjectAsync(provider, key, ct);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex,
-                "Da tra {Size} byte cho hoi thoai {ConversationId} nhung khong don duoc {Key}",
+                "Da tra {Size} byte cho hoi thoai {ConversationId} nhung khong xoa duoc object {Key}",
                 size, conversationId, key);
         }
 
@@ -402,6 +481,60 @@ public static class FileEndpoints
         logger.LogInformation(
             "Da huy lan tai len do dang: file {FileId} ({Size} byte) cua hoi thoai {ConversationId}",
             id, size, conversationId);
+    }
+
+    // So byte luc xin URL chi la reservation. Sau HEAD, thay reservation
+    // bang kich thuoc that trong CSDL va trong bo dem quota cua Group. Lenh
+    // UPDATE co dieu kien giu phep tinh nay an toan khi nhieu nguoi cung
+    // complete upload mot luc.
+    private static async Task<bool> ReconcileVerifiedSizeAsync(
+        ChatDbContext db, FileAttachment file, long actualSize, CancellationToken ct = default)
+    {
+        var reservedSize = file.SizeBytes;
+        var delta = actualSize - reservedSize;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+        if (delta != 0)
+        {
+            var conversation = await db.Conversations.FindAsync([file.ConversationId], ct);
+            if (conversation?.Type == ConversationType.Group)
+            {
+                var settings = db.GroupChatSettings.Where(s => s.ConversationId == file.ConversationId);
+                if (delta > 0)
+                    settings = settings.Where(s => s.StorageUsedBytes <= s.StorageQuotaBytes - delta);
+
+                var changed = await settings.ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.StorageUsedBytes, x => x.StorageUsedBytes + delta)
+                    .SetProperty(x => x.UpdatedAt, _ => DateTimeOffset.UtcNow), ct);
+                if (changed != 1)
+                {
+                    await transaction.RollbackAsync(ct);
+                    return false;
+                }
+            }
+            else if (conversation?.Type == ConversationType.Meeting && delta > 0)
+            {
+                // Phong hop tam khong co bo dem, nen doi chieu tong da giu
+                // cho (bao gom chinh file nay) voi phan chenh lech that.
+                var used = await db.Files
+                    .Where(f => f.ConversationId == file.ConversationId)
+                    .SumAsync(f => (long?)f.SizeBytes, ct) ?? 0L;
+                if (used > MeetingRoomQuotaBytes - delta)
+                {
+                    await transaction.RollbackAsync(ct);
+                    return false;
+                }
+            }
+        }
+
+        file.SizeBytes = actualSize;
+        file.UploadId = null;
+        file.UploadVerifiedAt = DateTimeOffset.UtcNow;
+        file.LastHeartbeatAt = null;
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
     }
 
     // Han muc tep cua MOT PHONG HOP TAM. Xem cho dung no o tren.

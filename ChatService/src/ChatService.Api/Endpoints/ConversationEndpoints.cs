@@ -93,6 +93,27 @@ public static class ConversationEndpoints
 
         logger.LogInformation(
             "Mo khoa group conversation {ConversationId}: dung luong con {Used}/{Quota} byte",
+                conversationId, settings.StorageUsedBytes, settings.StorageQuotaBytes);
+    }
+
+    // Dung khi kich thuoc that sau HEAD lam dung luong cham (hoac vuot) moc
+    // quota. Request xin URL da khoa o truong hop thong thuong, nhung delta
+    // sau xac minh can tu cap nhat trang thai nay mot cach ro rang.
+    internal static async Task LockIfAtOrOverQuotaAsync(ChatDbContext db, long conversationId, ILogger logger)
+    {
+        var settings = await db.GroupChatSettings.FindAsync(conversationId);
+        if (settings is null) return;
+        await db.Entry(settings).ReloadAsync();
+
+        if (settings.IsLocked || settings.StorageUsedBytes < settings.StorageQuotaBytes)
+            return;
+
+        settings.IsLocked = true;
+        settings.StorageExpiresAt = DateTimeOffset.UtcNow.AddDays(3);
+        settings.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
+        logger.LogInformation(
+            "Khoa group conversation {ConversationId}: dung luong {Used}/{Quota} byte",
             conversationId, settings.StorageUsedBytes, settings.StorageQuotaBytes);
     }
 
@@ -353,6 +374,13 @@ public static class ConversationEndpoints
                 file = await db.Files.FindAsync(req.FileId.Value);
                 if (file is null || file.ConversationId != conversationId)
                     return Results.BadRequest(new ErrorResponse("invalid_file", "fileId khong hop le hoac khong thuoc conversation nay"));
+
+                if (file.UploadedBy != userId)
+                    return Results.Json(new ErrorResponse("forbidden", "Chi nguoi tai len moi duoc gan tep vao tin nhan"), statusCode: 403);
+                if (file.UploadVerifiedAt is null)
+                    return Results.Json(new ErrorResponse("upload_not_verified", "Tep chua duoc xac minh kich thuoc that"), statusCode: 409);
+                if (file.MessageId is not null)
+                    return Results.Json(new ErrorResponse("file_already_attached", "Tep nay da duoc gan vao mot tin nhan"), statusCode: 409);
 
                 // Lop hai cua tran kich thuoc (lop mot o POST /files/upload-url).
                 // Kiem theo file.FileType chu khong theo `type` cua tin nhan: do

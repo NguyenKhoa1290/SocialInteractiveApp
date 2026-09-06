@@ -107,13 +107,21 @@ public class AbandonedUploadCleanupService(
 
         foreach (var file in pending)
         {
-            // Co nhip dap thi tin nhip dap: no noi ve HIEN TAI, con han
-            // presign chi la mot du doan dat ra tu luc bat dau.
-            var deadline = file.LastHeartbeatAt is { } beat
-                ? beat.Add(HeartbeatTimeout)
-                : file.UploadedAt
-                    .AddSeconds(storage.PresignExpiryFor(file.SizeBytes))
-                    .Add(Grace);
+            // Heartbeat chi keo dai den han tuyet doi cua URL da ky. Neu
+            // khong, ke xau co the khai bao file nho, PUT object rat lon va
+            // dap mai de giu object chua qua xac minh vo han.
+            var absoluteDeadline = file.UploadedAt
+                .AddSeconds(storage.PresignExpiryFor(file.SizeBytes))
+                .Add(Grace);
+            var deadline = file.UploadVerifiedAt is { } verifiedAt
+                // Da HEAD xong nhung khong gui tin nhan thi chi la object mo
+                // coi da xac minh; cho nguoi dung mot cua so ngan de retry.
+                ? verifiedAt.AddMinutes(15)
+                : file.LastHeartbeatAt is { } beat
+                    ? (beat.Add(HeartbeatTimeout) < absoluteDeadline
+                        ? beat.Add(HeartbeatTimeout)
+                        : absoluteDeadline)
+                    : absoluteDeadline;
             if (now < deadline) continue; // van con co hoi hoan tat
 
             var (id, size, conversationId) = (file.Id, file.SizeBytes, file.ConversationId);
