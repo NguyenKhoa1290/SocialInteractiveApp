@@ -1006,11 +1006,14 @@
   aspect-ratio: 440 / 256;
 }
 
-/* Focus mode: dai o nho nam ngang duoi khung lon (frame 118:1080). */
+/* Focus mode: dai o nho nam doc ben phai khung lon (frame 118:1080).
+   Phan trang nam DUOI danh sach: dat o giua cot lam nguoi dung de nham
+   voi nut dieu khien va che khu vuc xem nguoi hop. */
 .mroom-dai {
   flex: none;
   display: flex;
-  gap: calc(37px * var(--s));
+  flex-direction: column;
+  gap: calc(12px * var(--s));
   height: calc(var(--s));
 }
 
@@ -1021,6 +1024,21 @@
   grid-auto-rows: 100%;
   gap: calc(10px * var(--s));
   justify-content: start;
+}
+
+/* Chi doi pager trong dai o cua che do tap trung. Luoi thuong van dung cot
+   lat trang doc o ben phai, con dai nay la danh sach nguoi hop nen can nut
+   o cuoi danh sach de doc va bam theo chieu tu tren xuong duoi. */
+.mroom-dai .mroom-pager {
+  width: auto;
+  height: calc(52px * var(--s));
+  flex-direction: row;
+  justify-content: center;
+  padding: 0 calc(16px * var(--s));
+}
+
+.mroom-dai .mroom-pager-nut {
+  flex: none;
 }
 
 /* Dai bao "ai dang trinh bay / dang ghim ai". Ban cu son mau ho phach cua mot

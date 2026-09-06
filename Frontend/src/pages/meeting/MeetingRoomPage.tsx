@@ -1264,8 +1264,8 @@ export function MeetingRoomPage() {
     );
   };
 
-  // Cot lat trang - Figma "Frame 60" ben trai thanh doc: mot cot cao mo,
-  // so trang o dinh, hai mui ten o giua.
+  // Dieu huong cac trang o. Trong che do tap trung, CSS dat khoi nay ngay
+  // duoi danh sach nguoi hop de mui ten khong chen vao giua cot o nho.
   // Khoi giua thanh tren: dang chieu gi, va nhung nut di kem. null = khong
   // co gi de bao. Ghim va trinh bay dung chung mot cho vi khong bao gio xay
   // ra cung luc - dang trinh bay thi ghim bi tat (xem stageParticipant).
