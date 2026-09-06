@@ -538,6 +538,27 @@ spec:
           env:
             - {{name: MINIO_ROOT_USER, value: "{MINIO_AK}"}}
             - {{name: MINIO_ROOT_PASSWORD, value: "{MINIO_SK}"}}
+            # LUOI AN TOAN cho nhung lan tai nhieu phan bo do.
+            #
+            # Chat Service da co AbandonedUploadCleanupService tu don - va no
+            # don TU TE hon vi con hoan lai storage_used_bytes. Nhung no tim
+            # theo HANG trong bang `files`; hang nao bi xoa thang (ket thuc
+            # cuoc hop don kho, cascade xoa hoi thoai, hoac sua tay bang SQL)
+            # thi lan tai nhieu phan ben MinIO khong con ai tro toi de huy.
+            #
+            # Hai bien nay bat MinIO tu huy. Con so chon co can cu chu khong
+            # bia: URL ky san song toi da 6 tieng (StorageService
+            # MaxPresignExpirySeconds = 21600) - qua moc do thi khong ai tai
+            # tiep duoc nua nen giu lai la vo nghia. Dat 12h de tang ung dung
+            # LUON duoc don truoc, MinIO chi la luoi do phia sau. Quet moi
+            # tieng thay vi 6 tieng mac dinh.
+            #
+            # Day la MAC DINH cua MinIO (24h/6h) duoc ghi ra THANH CAU HINH:
+            # de nguyen thi no van chay, nhung doi ban MinIO la doi theo ma
+            # khong ai hay, va dem sang may khac thi khong co gi noi rang he
+            # thong nay dua vao no.
+            - {{name: MINIO_API_STALE_UPLOADS_EXPIRY, value: "12h"}}
+            - {{name: MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL, value: "1h"}}
           ports:
             - containerPort: 9000
             - containerPort: 9001

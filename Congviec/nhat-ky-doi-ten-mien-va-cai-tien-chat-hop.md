@@ -692,6 +692,15 @@ người dùng biết ngay lúc chọn tệp, còn server mới là nơi nói c�
 đúng con đường mà kẻ lạm dụng đi, không có frontend nào trong luồng. Kèm kiểm chiều ngược lại: ảnh
 3MB, video 40MB, voice 20MB vẫn gửi được bình thường, không chặn nhầm người dùng thật.
 
+**Dọn kèm: MinIO tự huỷ lần tải nhiều phần bỏ dở.** Đo trước khi sửa — 13 vật thể trên đĩa so với
+13 hàng trong bảng `files`, khớp chính xác, phần dở dang đúng 4KB. Tức là kho đang sạch, nhưng thứ
+đang dọn nó là **mặc định của MinIO** chứ không phải cấu hình của dự án. Đã ghi thành cấu hình
+(`MINIO_API_STALE_UPLOADS_EXPIRY=12h`, quét mỗi giờ) trong `gen-manifests.py` — chi tiết và lý do
+chọn 12h ở [HUONG-DAN-DEPLOY.md](../Tainguyen/infra/HUONG-DAN-DEPLOY.md). Lý do phải làm: dịch vụ
+dọn nền của Chat Service tìm theo **hàng** trong bảng `files`, nên hàng nào bị xoá thẳng (kết thúc
+cuộc họp, cascade, hoặc sửa tay bằng SQL — chính tôi vừa làm lúc dọn dữ liệu thử) thì lần tải nhiều
+phần bên MinIO không còn ai trỏ tới để huỷ.
+
 **Còn hai chỗ chưa đụng, ghi ở mục 17.2:** chat 1-1 vẫn **không có hạn mức tổng** nào, và
 `sizeBytes` vẫn là con số **do client tự khai** — chưa ai đối chiếu với kích thước thật của vật thể
 trên MinIO.

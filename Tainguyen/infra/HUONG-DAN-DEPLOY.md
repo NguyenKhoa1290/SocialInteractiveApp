@@ -852,6 +852,31 @@ kiểu gì cũng có một chỗ sai chính tả mà không ai phát hiện.
 **Hai namespace** để áp được ResourceQuota 60/30/10 (mục 5.4): `chat-data` (6 DB + Redis + Kafka +
 RabbitMQ + MinIO) và `chat-app` (6 service + frontend).
 
+**`all.yaml` bị `.gitignore`** vì generator nhét khoá MinIO/Postgres từ `secrets.env` vào. Nên khi
+dựng trên máy mới: **sửa `gen-manifests.py`, không sửa `all.yaml`** — file kia sinh lại là mất hết.
+
+#### MinIO: tự huỷ lần tải nhiều phần bỏ dở
+
+Hai biến trong khối `minio` của `gen-manifests.py`:
+
+```yaml
+- {name: MINIO_API_STALE_UPLOADS_EXPIRY, value: "12h"}
+- {name: MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL, value: "1h"}
+```
+
+**Vì sao cần:** Chat Service đã có `AbandonedUploadCleanupService` tự dọn, và nó dọn *tử tế hơn* vì
+còn hoàn lại `storage_used_bytes`. Nhưng nó tìm theo **hàng** trong bảng `files`; hàng nào bị xoá
+thẳng — kết thúc cuộc họp dọn kho, cascade xoá hội thoại, hoặc sửa tay bằng SQL — thì lần tải nhiều
+phần bên MinIO không còn ai trỏ tới để huỷ, và nó nằm lại vĩnh viễn.
+
+**Vì sao là 12h:** URL ký sẵn sống tối đa **6 tiếng** (`StorageService.MaxPresignExpirySeconds =
+21600`). Qua mốc đó thì không ai tải tiếp được nữa nên giữ lại là vô nghĩa. Đặt 12h để tầng ứng dụng
+**luôn** được dọn trước, MinIO chỉ là lưới đỡ phía sau.
+
+**Đây là mặc định của MinIO (24h/6h) được ghi ra thành cấu hình.** Để nguyên thì nó vẫn chạy —
+nhưng đổi bản MinIO là đổi theo mà không ai hay, và đem sang máy khác thì không có gì nói rằng hệ
+thống này đang dựa vào nó.
+
 #### Xoay vòng toàn bộ bí mật (sau khi phát hiện rò rỉ trên repo công khai)
 
 Repo `SocialInteractiveApp` là **public** và 4 commit đầu đã chứa bí mật. Tách bí mật khỏi cấu hình
