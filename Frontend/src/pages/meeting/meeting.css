@@ -992,18 +992,50 @@
   width: calc(50% - var(--mroom-khe) / 2);
 }
 
-/* Tu nam nguoi tro len: luoi 3 cot, o giu ty le 440x256 va xep tu tren
-   xuong - KHONG keo gian cho day cot, dung nhu frame 136:337 (nam nguoi thi
-   hang duoi chi co hai o va phia duoi con trong). */
+/* Tu nam nguoi tro len: luoi 3 cot. Frame "Man hinh cuoc hop >9 nguoi -
+   khuon chinh" can tat ca o cua mot trang nam TRON trong vung hop. Ban cu
+   khoa ty le 440/256 theo be rong, nen o man hinh thap hang thu ba tran xuong
+   duoi va bi cat. Chia hang theo chieu cao con lai de giu du 3x3 o moi trang. */
 .mroom-grid-nhieu {
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: min-content;
-  align-content: start;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
   gap: calc(36px * var(--s)) calc(81px * var(--s));
 }
 
+.mroom-grid-nhieu-2 {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.mroom-grid-nhieu-3 {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
 .mroom-grid-nhieu .meet-tile {
-  aspect-ratio: 440 / 256;
+  /* Chieu cao da do luoi chia theo viewport quyet dinh. */
+  aspect-ratio: auto;
+}
+
+/* Cua so thap (vi du laptop mo them thanh cong cu) van phai hien tron ten
+   trong ca 3 hang. Chi thu nho noi dung cua luoi dong nguoi; cac frame it
+   nguoi va man hinh binh thuong giu nguyen kich thuoc Figma 122px. */
+@media (max-height: 760px) {
+  .mroom-grid-nhieu .meet-tile-placeholder {
+    gap: calc(8px * var(--s));
+  }
+
+  .mroom-grid-nhieu .meet-tile-avatar {
+    width: calc(84px * var(--s)) !important;
+    height: calc(84px * var(--s)) !important;
+  }
+
+  .mroom-grid-nhieu .meet-tile-avatar-tay {
+    font-size: calc(36px * var(--s));
+  }
+
+  .mroom-grid-nhieu .meet-tile-ten {
+    font-size: calc(18px * var(--s));
+  }
 }
 
 /* Focus mode: dai o nho nam doc ben phai khung lon (frame 118:1080).

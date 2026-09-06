@@ -1049,10 +1049,11 @@ export function MeetingRoomPage() {
 
   // Bo cuc luoi doi theo SO O, dung nhu cac frame rieng trong thiet ke:
   //   1 -> mot o to     2 -> hai cot      3 -> hai tren, mot duoi canh giua
-  //   4 -> luoi 2x2     >=5 -> luoi 3 cot, o co ty le 440x256
+  //   4 -> luoi 2x2     5-6 -> ba cot, hai hang     >=7 -> ba hang.
   // Lay theo TONG so o chu khong phai so o dang hien: neu khong, trang cuoi
   // cua mot phong dong (con 3 o) se phong to len roi trang truoc lai thu
   // nho - lat trang mot cai la ca man nhay kich thuoc.
+  const soHangLuoiNhieu = gridTiles.length <= 6 ? 2 : 3;
   const kieuLuoi =
     gridTiles.length <= 1
       ? "mroom-grid-1"
@@ -1062,7 +1063,7 @@ export function MeetingRoomPage() {
           ? "mroom-grid-3"
           : gridTiles.length === 4
             ? "mroom-grid-4"
-            : "mroom-grid-nhieu";
+            : `mroom-grid-nhieu mroom-grid-nhieu-${soHangLuoiNhieu}`;
 
   const visibleKey = visibleTiles
     .filter((t) => t.kind === "participant" && !t.isLocal)
