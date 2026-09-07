@@ -309,9 +309,9 @@ export function ConversationList({
           const daLaBan = (friends ?? []).some((f) => f.userId === u.id);
           return (
             <div key={u.id} className="cw-card">
-              <Avatar userId={u.id} nickname={u.nickname} avatarUpdatedAt={u.avatarUpdatedAt} size={68} />
+              <Avatar userId={u.id} nickname={u.displayName} avatarUpdatedAt={u.avatarUpdatedAt} size={68} />
               <div className="cw-card-body">
-                <p className="cw-card-name">{u.nickname}</p>
+                <p className="cw-card-name">{u.displayName}</p>
               </div>
               {daLaBan ? (
                 <button className="cw-pill" onClick={() => void moChat(u.id)} disabled={dangMo === u.id}>
@@ -364,9 +364,9 @@ export function ConversationList({
             )}
             {loiMoi.map((r) => (
               <div key={r.id} className="cw-card">
-                <Avatar userId={r.userId} nickname={r.nickname} avatarUpdatedAt={r.avatarUpdatedAt} size={68} />
+                <Avatar userId={r.userId} nickname={r.displayName} avatarUpdatedAt={r.avatarUpdatedAt} size={68} />
                 <div className="cw-card-body">
-                  <p className="cw-card-name">{r.nickname}</p>
+                  <p className="cw-card-name">{r.displayName}</p>
                   <p className="cw-card-sub">Muốn kết bạn với bạn</p>
                 </div>
                 <span className="cw-invite-acts">

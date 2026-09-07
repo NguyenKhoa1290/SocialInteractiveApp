@@ -202,7 +202,10 @@ export function ChatRoomPage() {
         } else if (peerUserId) {
           const { data } = await friendApi.list();
           const b = data.find((f) => f.userId === peerUserId);
-          if (!huy && b) setPeer({ ten: b.nickname, anh: b.avatarUpdatedAt });
+          // `nickname` la handle duy nhat; chat rieng phai hien ten tu do
+          // nhu danh sach ban be va panel thong tin, khong de lo USER_… sau
+          // migration tach hai truong.
+          if (!huy && b) setPeer({ ten: b.displayName, anh: b.avatarUpdatedAt });
         }
       } catch {
         // Khong lay duoc ten thi vẫn hien duong lui ("Nguoi dung 42") - khong
