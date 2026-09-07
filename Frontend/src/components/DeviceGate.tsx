@@ -2,8 +2,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import wordmark from "../assets/calli/calli-wordmark.svg";
 import "./device-gate.css";
 
-// Calli duoc ve cho man hinh may tinh 1920x1080 (xem --s trong index.css).
-// File nay chan hai truong hop khong dung duoc:
+// Phong hop hien van duoc ve cho man hinh may tinh 1920x1080 (xem --s trong
+// index.css). Rieng cac man app thong thuong da co bo cuc dien thoai, nen
+// lop nay chi duoc bat o cac route phong hop (xem App.tsx).
+//
+// Khi duoc bat, file nay chan hai truong hop khong dung duoc:
 //
 //   1. Dien thoai / may tinh bang - ke ca khi bat "che do may tinh"
 //   2. Cua so may tinh bi keo qua hep
@@ -79,7 +82,7 @@ function ManBao({
   );
 }
 
-export function DeviceGate({ children }: { children: ReactNode }) {
+export function DeviceGate({ children, blockNarrow = false }: { children: ReactNode; blockNarrow?: boolean }) {
   // Thiet bi khong doi giua chung mot phien, nen chi do MOT lan. Do lai moi
   // lan render vua thua vua khien man hinh chop khi trinh duyet doi cau tra
   // loi cho matchMedia luc dang xoay may.
@@ -87,22 +90,25 @@ export function DeviceGate({ children }: { children: ReactNode }) {
 
   const [rong, setRong] = useState(() => window.innerWidth);
   useEffect(() => {
-    if (diDong) return;
+    if (!blockNarrow || diDong) return;
     const doLai = () => setRong(window.innerWidth);
     window.addEventListener("resize", doLai);
     return () => window.removeEventListener("resize", doLai);
-  }, [diDong]);
+  }, [blockNarrow, diDong]);
+
+  // Chat, nhom, ho so va mini app co giao dien man hep. Khong render lop
+  // phu o day de AppShell va ChatWorkspace tu xu ly responsive.
+  if (!blockNarrow) return <>{children}</>;
 
   if (diDong)
     return (
-      <ManBao tieuDe="Calli chưa hỗ trợ điện thoại">
+      <ManBao tieuDe="Phòng họp chưa hỗ trợ điện thoại">
         <p>
-          Ứng dụng hiện chỉ chạy trên máy tính. Hãy mở lại trang này bằng máy tính để trò chuyện và tham
-          gia cuộc họp.
+          Phần nhắn tin đã dùng được trên điện thoại, nhưng giao diện cuộc họp đang được hoàn thiện.
+          Hãy mở lại liên kết này bằng máy tính để tham gia cuộc họp.
         </p>
         <p className="dgate-phu">
-          Bật “Trang cho máy tính” trong trình duyệt cũng chưa dùng được - giao diện vẫn cần một màn hình
-          rộng thật sự.
+          Bật “Trang cho máy tính” trong trình duyệt cũng chưa đủ để dùng phần cuộc họp.
         </p>
       </ManBao>
     );

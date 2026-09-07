@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LandingPage } from "./pages/landing/LandingPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -34,6 +34,7 @@ import { useKeyStore } from "./store/keyStore";
 import { scheduleTokenRefresh } from "./lib/tokenScheduler";
 import { loadPersistedKey } from "./lib/crypto/keyPersistence";
 import { chatApi } from "./api/chatApi";
+import { DeviceGate } from "./components/DeviceGate";
 
 export default function App() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -61,6 +62,19 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  // Giao dien hop (ca trang vao hop bang link) chua duoc responsive. Cac
+  // route khac, dac biet la ba panel chat, phai duoc mo tren dien thoai.
+  const chanManHep = location.pathname.startsWith("/meetings/");
+
+  return (
+    <DeviceGate blockNarrow={chanManHep}>
       <Routes>
         {/* Ban thiet ke ve cac man xac thuc la POPUP chong len trang chu,
             khong phai trang rieng. Nen moi duong dan o day van la duong dan
@@ -250,6 +264,6 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
-    </BrowserRouter>
+    </DeviceGate>
   );
 }

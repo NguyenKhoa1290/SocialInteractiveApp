@@ -2,16 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { DeviceGate } from './components/DeviceGate.tsx'
 
-// DeviceGate boc NGOAI <App> chu khong nam trong no: tren dien thoai thi App
-// khong duoc mount chut nao. Neu boc ben trong thi useEffect dau App van
-// chay - lap lich lam moi token, doi lai khoa E2EE, goi
-// recoverAbandonedUploads - cho mot phien ma nguoi dung khong the dung.
+// DeviceGate nam canh Routes (xem App.tsx), vi chi phong hop tam thoi chua
+// co giao dien dien thoai. Cac man app con lai duoc mount binh thuong tren
+// man hep de dung bo cuc responsive.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <DeviceGate>
-      <App />
-    </DeviceGate>
+    <App />
   </StrictMode>,
 )
