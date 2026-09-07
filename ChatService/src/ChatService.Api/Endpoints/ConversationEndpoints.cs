@@ -490,7 +490,7 @@ public static class ConversationEndpoints
             // TUNG thanh vien tren MOI tin nhan.
             var recipients = await RecipientsAsync(conversation, userId, workspaceClient);
             recipients = [.. recipients.Where(id => !presence.IsViewing(conversationId, id))];
-            await notifyPublisher.PublishAsync(conversationId, message.Id, userId, req.Type, GetNickname(principal), recipients);
+            await notifyPublisher.PublishAsync(conversationId, message.Id, userId, req.Type, GetDisplayName(principal), recipients);
 
             return Results.Created($"/conversations/{conversationId}/messages/{message.Id}", response);
         });
@@ -896,9 +896,10 @@ public static class ConversationEndpoints
         return members is null ? [] : [.. members.Select(m => m.UserId).Where(id => id != excludeUserId)];
     }
 
-    // JWT do Identity Service phat co san claim "nickname" - dung de thong bao
+    // JWT do Identity Service phat co san display_name - dung de thong bao
     // doc duoc ten nguoi gui ma khong phai goi sang Identity.
-    internal static string? GetNickname(ClaimsPrincipal principal) => principal.FindFirstValue("nickname");
+    internal static string? GetDisplayName(ClaimsPrincipal principal) =>
+        principal.FindFirstValue("display_name") ?? principal.FindFirstValue("nickname");
 
     internal static async Task<bool> IsLeaderAsync(Conversation conversation, long userId, WorkspaceClient workspaceClient)
     {

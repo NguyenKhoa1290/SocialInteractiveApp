@@ -8,7 +8,7 @@ namespace IdentityService.Api.Services;
 //
 // Luu MAT KHAU DA HASH chu khong phai mat khau goc: Redis khong ma hoa o
 // tang luu tru, va mot ban dump Redis khong duoc phep lam lo mat khau cua ai.
-public record PendingRegistration(string Email, string PasswordHash, string Nickname, string Otp);
+public record PendingRegistration(string Email, string PasswordHash, string DisplayName, string Otp);
 
 // Luu OTP (quen mat khau, UC-05) va session/logout blocklist trong Redis.
 // Theo ghi chu trong tai lieu roadmap muc 3.2: "Ma OTP de xuat luu trong Redis

@@ -89,7 +89,7 @@ export function MeetingRoomPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentUserId = useAuthStore((s) => s.user?.id);
-  const nickname = useAuthStore((s) => s.user?.nickname);
+  const nickname = useAuthStore((s) => s.user?.displayName);
 
   // Token LiveKit co the da duoc trang truoc (tao hop / vao bang link) lay
   // san va truyen qua router state - dung lai de khoi goi thua 1 vong.
@@ -770,7 +770,7 @@ export function MeetingRoomPage() {
     try {
       await meetingApi.createInvite(meetingId, "direct", friend.userId);
       setInvitedIds((prev) => new Set(prev).add(friend.userId));
-      setNotice(`Đã gửi lời mời tới ${friend.nickname}`);
+      setNotice(`Đã gửi lời mời tới ${friend.displayName}`);
     } catch (err) {
       setError(extractApiError(err, "Không mời được bạn này"));
     } finally {

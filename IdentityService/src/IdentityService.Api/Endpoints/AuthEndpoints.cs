@@ -40,8 +40,11 @@ public static class AuthEndpoints
             RegisterRequest req, IdentityDbContext db, RedisAuthStore store,
             IEmailSender email, ILoggerFactory loggerFactory) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password) || string.IsNullOrWhiteSpace(req.Nickname))
-                return Results.BadRequest(new ErrorResponse("invalid_request", "Email, password va nickname la bat buoc"));
+            if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Email va password la bat buoc"));
+
+            if (!NicknamePolicy.TryNormalizeDisplayName(req.DisplayName, out var displayName))
+                return Results.BadRequest(new ErrorResponse("invalid_display_name", "Ten hien thi bat buoc, toi da 50 ky tu va khong chua ky tu dieu khien"));
 
             if (req.Password.Length < 8)
                 return Results.BadRequest(new ErrorResponse("weak_password", "Mat khau toi thieu 8 ky tu"));
@@ -55,21 +58,14 @@ public static class AuthEndpoints
             if (exists)
                 return Results.Conflict(new ErrorResponse("email_taken", "Email da duoc dang ky"));
 
-            // Nickname phai duy nhat toan he thong (tu bo sung, xem
-            // identity-db-init.sql idx_users_nickname_lower) - can cho tim
-            // kiem ban be theo nickname khong bi lan giua nhieu nguoi.
-            var nicknameTaken = await db.Users.AnyAsync(u => u.Nickname.ToLower() == req.Nickname.ToLower());
-            if (nicknameTaken)
-                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
-
             var ma = Random.Shared.Next(0, 1_000_000).ToString("D6");
             await store.StorePendingRegistrationAsync(
-                new PendingRegistration(req.Email, BCrypt.Net.BCrypt.HashPassword(req.Password), req.Nickname, ma),
+                new PendingRegistration(req.Email, BCrypt.Net.BCrypt.HashPassword(req.Password), displayName, ma),
                 DangKyTtl);
 
             try
             {
-                await email.SendRegistrationOtpAsync(req.Email, ma, req.Nickname);
+                await email.SendRegistrationOtpAsync(req.Email, ma, displayName);
             }
             catch (Exception ex)
             {
@@ -114,22 +110,17 @@ public static class AuthEndpoints
             }
 
             // Kiem lai mot lan nua: 10 phut vua roi du de nguoi khac lay mat
-            // email hoac nickname do.
+            // email do.
             if (await db.Users.AnyAsync(u => u.Email == pending.Email))
             {
                 await store.DeletePendingRegistrationAsync(req.Email);
                 return Results.Conflict(new ErrorResponse("email_taken", "Email da duoc dang ky"));
             }
-            if (await db.Users.AnyAsync(u => u.Nickname.ToLower() == pending.Nickname.ToLower()))
-            {
-                await store.DeletePendingRegistrationAsync(req.Email);
-                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
-            }
-
             var user = new User
             {
                 UserType = UserType.Registered,
-                Nickname = pending.Nickname,
+                Nickname = NicknamePolicy.CreateGeneratedNickname(),
+                DisplayName = pending.DisplayName,
                 Email = pending.Email,
                 // Mat khau da hash tu luc bam "Dang ky" - Redis khong bao gio
                 // giu mat khau goc.
@@ -167,7 +158,7 @@ public static class AuthEndpoints
             // ra thay hai ma khac nhau thi chi to roi.
             try
             {
-                await email.SendRegistrationOtpAsync(pending.Email, pending.Otp, pending.Nickname);
+                await email.SendRegistrationOtpAsync(pending.Email, pending.Otp, pending.DisplayName);
             }
             catch (Exception ex)
             {
@@ -201,20 +192,18 @@ public static class AuthEndpoints
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
 
-        // UC-04: Truy cap dang Guest - chi can nickname
+        // UC-04: Truy cap dang Guest - chi can ten hien thi. Handle duy nhat
+        // duoc sinh tren server, nen ten hien thi trung van vao duoc.
         auth.MapPost("/guest", async (GuestRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Nickname) || req.Nickname.Length > 50)
-                return Results.BadRequest(new ErrorResponse("invalid_request", "Nickname bat buoc, toi da 50 ky tu"));
-
-            var nicknameTaken = await db.Users.AnyAsync(u => u.Nickname.ToLower() == req.Nickname.ToLower());
-            if (nicknameTaken)
-                return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
+            if (!NicknamePolicy.TryNormalizeDisplayName(req.DisplayName, out var displayName))
+                return Results.BadRequest(new ErrorResponse("invalid_display_name", "Ten hien thi bat buoc, toi da 50 ky tu va khong chua ky tu dieu khien"));
 
             var user = new User
             {
                 UserType = UserType.Guest,
-                Nickname = req.Nickname,
+                Nickname = NicknamePolicy.CreateGeneratedNickname(),
+                DisplayName = displayName,
                 Status = UserStatus.Active,
                 CreatedAt = DateTimeOffset.UtcNow,
                 LastActiveAt = DateTimeOffset.UtcNow,
@@ -253,7 +242,7 @@ public static class AuthEndpoints
                 await db.SaveChangesAsync();
                 var tok = jwt.IssueToken(existingUser);
                 await kafka.PublishAuthEventAsync("login", existingUser.Id, existingUser.Email, "registered");
-                return Results.Ok(new OAuthSuccessResponse(tok.AccessToken, UserResponse.FromEntity(existingUser), IsNewUser: false, RequiresNickname: false));
+                return Results.Ok(new OAuthSuccessResponse(tok.AccessToken, UserResponse.FromEntity(existingUser), IsNewUser: false, RequiresDisplayName: false));
             }
 
             // Email tu provider da ton tai voi phuong thuc dang ky khac - CHUA CHOT xu ly
@@ -264,8 +253,11 @@ public static class AuthEndpoints
             var newUser = new User
             {
                 UserType = UserType.Registered,
-                Nickname = $"user_{Guid.NewGuid():N}"[..12], // tam, bat buoc doi qua PATCH /users/me/nickname
-                Email = null, // KHONG tu lay email lam dinh danh chinh - nickname bat buoc nhap rieng theo UC-07/08
+                Nickname = NicknamePolicy.CreateGeneratedNickname(),
+                // Khong lay email/OAuth provider lam ten cong khai. Frontend
+                // chuyen nguoi dung toi man chon ten hien thi ngay sau do.
+                DisplayName = "Nguoi dung",
+                Email = null,
                 Status = UserStatus.Active,
                 CreatedAt = DateTimeOffset.UtcNow,
                 LastActiveAt = DateTimeOffset.UtcNow,
@@ -281,7 +273,7 @@ public static class AuthEndpoints
 
             var newTok = jwt.IssueToken(newUser);
             await kafka.PublishAuthEventAsync("register", newUser.Id, newUser.Email, "registered");
-            return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresNickname: true));
+            return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresDisplayName: true));
         });
 
         // UC-05 buoc 1-2: Gui OTP qua email

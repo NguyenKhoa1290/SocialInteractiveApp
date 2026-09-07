@@ -117,6 +117,45 @@
   outline-offset: 2px;
 }
 
+.st-handle,
+.st-handle-input {
+  color: var(--text-m);
+  font-family: var(--sans);
+  font-size: calc(18px * var(--s));
+  font-weight: 700;
+}
+
+.st-handle {
+  border: 1px solid var(--calli-teal-dark);
+  border-radius: var(--r-pill);
+  background: var(--accent-bg);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.st-handle:hover {
+  background: var(--calli-teal);
+}
+
+.st-handle-input {
+  width: min(360px, 100%);
+  height: calc(42px * var(--s));
+  padding: 0 12px;
+  border: 2px solid var(--calli-navy-soft);
+  border-radius: var(--r-md);
+  text-align: center;
+  text-transform: uppercase;
+  box-sizing: border-box;
+}
+
+.st-handle-note {
+  max-width: 36ch;
+  color: var(--text-m);
+  font-size: calc(14px * var(--s));
+  margin: -10px 0 0;
+  text-align: center;
+}
+
 /* Hai nut 198x65 bo 20, bong lech (4,4) */
 .st-btn {
   min-width: calc(198px * var(--s));

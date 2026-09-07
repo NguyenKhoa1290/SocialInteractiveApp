@@ -48,7 +48,7 @@ export function AdminShell({ title, children }: { title: string; children: React
           <Link to="/app" className="adm-link-plain">
             ← Về ứng dụng
           </Link>
-          <span className="adm-user">{user?.nickname}</span>
+          <span className="adm-user">{user?.displayName}</span>
           <button onClick={handleLogout} className="adm-btn adm-btn-ghost">
             Đăng xuất
           </button>

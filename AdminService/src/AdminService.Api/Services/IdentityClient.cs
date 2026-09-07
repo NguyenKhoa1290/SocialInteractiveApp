@@ -6,7 +6,7 @@ public class IdentityClientOptions
 }
 
 public record AdminUserInfo(
-    long Id, string UserType, string Nickname, string? Email, string Status,
+    long Id, string UserType, string Nickname, string DisplayName, string? Email, string Status,
     bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt);
 
 public record PaginatedAdminUsers(List<AdminUserInfo> Items, int Total, int Page, int PageSize);

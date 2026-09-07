@@ -18,7 +18,7 @@ export function RegisterPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [nickname, setNickname] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,7 @@ export function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await authApi.register(email, password, nickname);
+      const { data } = await authApi.register(email, password, displayName);
       setChoGuiLai(data.guiLaiSauGiay);
       setGhiChu(`Đã gửi mã xác thực tới ${data.email}. Mã có hiệu lực trong ${Math.round(data.ttlGiay / 60)} phút.`);
       setBuoc("ma");
@@ -80,7 +80,7 @@ export function RegisterPage() {
       // khi chup man hinh bai kiem).
       const maLoi = apiErrorCode(err);
       if (maLoi === "registration_expired" || maLoi === "too_many_attempts"
-          || maLoi === "email_taken" || maLoi === "nickname_taken") {
+          || maLoi === "email_taken") {
         setBuoc("nhap");
         setMa("");
         setGhiChu(null);
@@ -195,10 +195,10 @@ export function RegisterPage() {
 
         <label className="auth-field">
           <input
-            placeholder="Tên tài khoản"
-            aria-label="Tên tài khoản"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
+            placeholder="Tên hiển thị"
+            aria-label="Tên hiển thị"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
             required
             className="auth-input"
           />

@@ -129,7 +129,7 @@ export function FriendsPage() {
           {results.length === 0 && <p className="friend-empty">Không tìm thấy ai</p>}
           {results.map((u) => (
             <div key={u.id} className="friend-row">
-              <span>{u.nickname}</span>
+              <span>{u.displayName} <small>@{u.nickname}</small></span>
               {friendIds.has(u.id) ? (
                 <span className="friend-badge">Đã là bạn bè</span>
               ) : outgoingIds.has(u.id) ? (
@@ -149,7 +149,7 @@ export function FriendsPage() {
           <h2>Lời mời kết bạn ({incoming.length})</h2>
           {incoming.map((r) => (
             <div key={r.id} className="friend-row">
-              <span>{r.nickname}</span>
+              <span>{r.displayName} <small>@{r.nickname}</small></span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="friend-btn-primary" disabled={busyId === r.id} onClick={() => handleAccept(r.id)}>
                   Chấp nhận
@@ -168,7 +168,7 @@ export function FriendsPage() {
         {friends.length === 0 && <p className="friend-empty">Chưa có ai trong danh sách bạn bè</p>}
         {friends.map((f) => (
           <div key={f.userId} className="friend-row">
-            <span>{f.nickname}</span>
+            <span>{f.displayName} <small>@{f.nickname}</small></span>
             <div style={{ display: "flex", gap: 6 }}>
               <button className="friend-btn-primary" disabled={busyId === f.userId} onClick={() => handleStartChat(f.userId)}>
                 Nhắn tin

@@ -7,7 +7,10 @@ CREATE TABLE users (
   id              BIGSERIAL PRIMARY KEY,
   user_type       VARCHAR(20) NOT NULL
                     CHECK (user_type IN ('guest','registered')),
-  nickname        VARCHAR(50) NOT NULL,
+  -- Handle duy nhat, duoc he thong sinh san va co the doi qua ho so.
+  nickname        VARCHAR(24) NOT NULL,
+  -- Ten hien thi tu nguoi dung (landing/registration), duoc phep trung.
+  display_name    VARCHAR(50) NOT NULL,
   email           VARCHAR(255) UNIQUE,
   password_hash   VARCHAR(255),
   status          VARCHAR(20) NOT NULL DEFAULT 'active'
@@ -43,12 +46,8 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email
   ON users(email) WHERE email IS NOT NULL;
 
--- Nickname phai duy nhat toan he thong (khong phan biet hoa/thuong) - tu bo
--- sung khi them tinh nang ban be (tim theo nickname, xem FriendsEndpoints.cs):
--- neu trung nickname, ket qua tim kiem se lan lon giua nhieu nguoi khac
--- nhau. Ap dung cho CA Guest lan Registered - Guest chiem 1 nickname thi
--- nguoi khac (ke ca dang ky that) khong dung duoc cho toi khi Guest do bi
--- don dep (6 thang khong hoat dong, xem GuestCleanupService).
+-- Handle phai duy nhat toan he thong (khong phan biet hoa/thuong). Ten hien
+-- thi khong nam trong index nay, vi no duoc phep trung.
 CREATE UNIQUE INDEX idx_users_nickname_lower
   ON users (LOWER(nickname));
 

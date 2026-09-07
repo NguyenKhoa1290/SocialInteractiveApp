@@ -14,9 +14,8 @@ import { Avatar } from "../components/Avatar";
 import { resizeAvatar } from "../lib/imageResize";
 import "./settings.css";
 
-// Man "Thong tin" - noi banh rang tren thanh dieu huong dan toi.
-// Dung theo Figma node 111:589: anh dai dien lon, ten ben duoi, roi hai nut
-// "Dang xuat" (do) va "Che do quan tri" (den, chi hien voi admin).
+// Ho so tach ro rang ten hien thi va handle: ten hien thi la thu nguoi khac
+// thay trong phong hop/chat; handle @... la dinh danh duy nhat de tim kiem.
 export function ProfilePage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -25,7 +24,8 @@ export function ProfilePage() {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const isAdmin = accessToken !== null && decodeJwtIsAdmin(accessToken);
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<"display" | "nickname" | null>(null);
+  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [nickname, setNickname] = useState(user?.nickname ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -33,25 +33,52 @@ export function ProfilePage() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  async function handleSave(e: React.FormEvent) {
+  async function saveDisplayName(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !accessToken) return;
-    const ten = nickname.trim();
-    if (ten === "" || ten === user.nickname) {
-      setEditing(false);
-      setNickname(user.nickname);
+    const value = displayName.trim();
+    if (!value || value === user.displayName) {
+      setDisplayName(user.displayName);
+      setEditing(null);
       return;
     }
+
     setError(null);
     setSaved(false);
     setSaving(true);
     try {
-      await authApi.updateNickname(ten);
-      setAuth(accessToken, { ...user, nickname: ten });
+      const { data } = await authApi.updateDisplayName(value);
+      setAuth(accessToken, data);
       setSaved(true);
-      setEditing(false);
+      setEditing(null);
     } catch (err) {
-      setError(extractApiError(err, "Không đổi được tên"));
+      setError(extractApiError(err, "Không đổi được tên hiển thị"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveNickname(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !accessToken) return;
+    const value = nickname.trim();
+    if (!value || value === user.nickname) {
+      setNickname(user.nickname);
+      setEditing(null);
+      return;
+    }
+
+    setError(null);
+    setSaved(false);
+    setSaving(true);
+    try {
+      const { data } = await authApi.updateNickname(value);
+      setAuth(accessToken, data);
+      setNickname(data.nickname);
+      setSaved(true);
+      setEditing(null);
+    } catch (err) {
+      setError(extractApiError(err, "Không đổi được biệt danh"));
     } finally {
       setSaving(false);
     }
@@ -63,9 +90,6 @@ export function ProfilePage() {
     setSaved(false);
     setAvatarBusy(true);
     try {
-      // Cat vuong + nen ngay tai day. Anh may dien thoai 3-8MB gui thang len
-      // thi vua ton bang thong vua de dut giua chung; sau buoc nay chi con
-      // vai chuc KB. Xem lib/imageResize.ts.
       const { blob } = await resizeAvatar(file);
       const { data } = await authApi.uploadAvatar(blob);
       setAuth(accessToken, data);
@@ -96,18 +120,18 @@ export function ProfilePage() {
     try {
       await authApi.logout();
     } catch {
-      // token co the da het han - van cho logout phia client binh thuong
+      // Token co the da het han, van xoa session local binh thuong.
     }
     stopTokenRefresh();
     clearAuth();
     clearPersistedKey();
     useKeyStore.getState().clearKeys();
-    // Khong dong hub thi ket noi cu van giu JWT cu va tiep tuc nhan thong bao
-    // cua tai khoan vua thoat - nguoi dang nhap sau se thay chung.
     await stopNotificationHub();
     useNotificationStore.getState().clear();
     navigate("/");
   }
+
+  const shownDisplayName = user?.displayName ?? "Người dùng";
 
   return (
     <AppShell>
@@ -115,22 +139,17 @@ export function ProfilePage() {
         <div className="st-avatar-wrap">
           <Avatar
             userId={user?.id ?? 0}
-            nickname={user?.nickname}
+            nickname={shownDisplayName}
             avatarUpdatedAt={user?.avatarUpdatedAt}
             size={340}
             className="st-avatar"
           />
-
-          {/* Huy hieu "+" dung nhu ban thiet ke (node 111:589): 40x40, nen
-              #56959E. Cai <input type="file"> that duoc giau di - no khong
-              the tao kieu duoc, nen boc trong mot nut de dieu khien. */}
           <button
             type="button"
             className="st-avatar-add"
             onClick={() => fileRef.current?.click()}
             disabled={avatarBusy}
             aria-label={user?.avatarUpdatedAt ? "Đổi ảnh đại diện" : "Thêm ảnh đại diện"}
-            title={user?.avatarUpdatedAt ? "Đổi ảnh đại diện" : "Thêm ảnh đại diện"}
           >
             +
           </button>
@@ -140,11 +159,9 @@ export function ProfilePage() {
             accept="image/png,image/jpeg,image/webp"
             hidden
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              // Xoa gia tri de chon LAI DUNG tep vua roi van kich hoat onChange
-              // - neu khong, nguoi dung cat lai cung mot anh se khong thay gi.
+              const file = e.target.files?.[0];
               e.target.value = "";
-              if (f) void handleAvatar(f);
+              if (file) void handleAvatar(file);
             }}
           />
         </div>
@@ -156,13 +173,12 @@ export function ProfilePage() {
           </button>
         )}
 
-        {editing ? (
-          <form onSubmit={handleSave}>
+        {editing === "display" ? (
+          <form onSubmit={saveDisplayName}>
             <input
               className="st-name-input"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              onBlur={handleSave}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
               maxLength={50}
               autoFocus
               aria-label="Tên hiển thị"
@@ -174,25 +190,53 @@ export function ProfilePage() {
               type="button"
               className="st-name-btn"
               onClick={() => {
-                setNickname(user?.nickname ?? "");
+                setDisplayName(user?.displayName ?? "");
                 setSaved(false);
-                setEditing(true);
+                setEditing("display");
               }}
-              title="Bấm để đổi tên"
+              title="Đổi tên hiển thị"
             >
-              {user?.nickname ?? "Người dùng"}
+              {shownDisplayName}
             </button>
           </p>
         )}
 
+        {editing === "nickname" ? (
+          <form onSubmit={saveNickname}>
+            <input
+              className="st-handle-input"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value.toUpperCase())}
+              maxLength={24}
+              autoFocus
+              aria-label="Biệt danh duy nhất"
+              pattern="[A-Z][A-Z0-9_]{2,23}"
+              title="3-24 ký tự A-Z, 0-9 hoặc _, bắt đầu bằng chữ cái"
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="st-handle"
+            onClick={() => {
+              setNickname(user?.nickname ?? "");
+              setSaved(false);
+              setEditing("nickname");
+            }}
+            title="Đổi biệt danh"
+          >
+            @{user?.nickname ?? "USER"}
+          </button>
+        )}
+
+        <p className="st-handle-note">Biệt danh là duy nhất và dùng để tìm kiếm.</p>
         {saving && <p className="st-msg">Đang lưu…</p>}
         {error && <p className="st-msg st-msg-err">{error}</p>}
-        {saved && !error && <p className="st-msg st-msg-ok">Đã đổi tên</p>}
+        {saved && !error && <p className="st-msg st-msg-ok">Đã lưu thay đổi</p>}
 
         <button type="button" className="st-btn st-btn-logout" onClick={handleLogout}>
           Đăng xuất
         </button>
-
         {isAdmin && (
           <Link to="/admin/users" className="st-btn st-btn-admin">
             Chế độ quản trị

@@ -70,12 +70,12 @@ export function NavRail({ activeTab }: { activeTab?: RailTab }) {
         <Link
           to="/app/profile"
           className={`rail-avatar${location.pathname === "/app/profile" ? " active" : ""}`}
-          aria-label={`Trang cá nhân của ${user?.nickname ?? "bạn"}`}
-          title={user?.nickname ?? "Cá nhân"}
+          aria-label={`Trang cá nhân của ${user?.displayName ?? "bạn"}`}
+          title={user?.displayName ?? "Cá nhân"}
         >
           <Avatar
             userId={user?.id ?? 0}
-            nickname={user?.nickname}
+            nickname={user?.displayName}
             avatarUpdatedAt={user?.avatarUpdatedAt}
             size={48}
           />

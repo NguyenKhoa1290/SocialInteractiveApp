@@ -44,7 +44,7 @@ public static class FriendsEndpoints
                     existing.Status = FriendshipStatus.Accepted;
                     existing.RespondedAt = DateTimeOffset.UtcNow;
                     await db.SaveChangesAsync();
-                    return Results.Ok(new FriendResponse(addressee.Id, addressee.Nickname, existing.RespondedAt.Value, addressee.AvatarUpdatedAt));
+                    return Results.Ok(new FriendResponse(addressee.Id, addressee.Nickname, addressee.DisplayName, existing.RespondedAt.Value, addressee.AvatarUpdatedAt));
                 }
 
                 return Results.Conflict(new ErrorResponse("request_already_sent", "Da gui loi moi ket ban truoc do, dang cho phan hoi"));
@@ -61,7 +61,7 @@ public static class FriendsEndpoints
             await db.SaveChangesAsync();
 
             return Results.Created($"/friends/requests/{friendship.Id}",
-                new FriendRequestResponse(friendship.Id, addressee.Id, addressee.Nickname, friendship.CreatedAt, addressee.AvatarUpdatedAt));
+                new FriendRequestResponse(friendship.Id, addressee.Id, addressee.Nickname, addressee.DisplayName, friendship.CreatedAt, addressee.AvatarUpdatedAt));
         });
 
         // Loi moi NGUOI KHAC gui cho minh, dang cho minh phan hoi.
@@ -76,14 +76,14 @@ public static class FriendsEndpoints
             // Chi ba cot: nap ca thuc the User se keo theo cot anh (avatar_bytes).
             var users = await db.Users
                 .Where(u => requesterIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .Select(u => new { u.Id, u.Nickname, u.DisplayName, u.AvatarUpdatedAt })
                 .ToDictionaryAsync(u => u.Id, u => u);
 
             var result = rows.Select(r =>
             {
                 var u = users.GetValueOrDefault(r.RequesterId);
                 return new FriendRequestResponse(
-                    r.Id, r.RequesterId, u?.Nickname ?? $"user_{r.RequesterId}", r.CreatedAt, u?.AvatarUpdatedAt);
+                    r.Id, r.RequesterId, u?.Nickname ?? $"user_{r.RequesterId}", u?.DisplayName ?? $"user_{r.RequesterId}", r.CreatedAt, u?.AvatarUpdatedAt);
             });
             return Results.Ok(result);
         });
@@ -101,14 +101,14 @@ public static class FriendsEndpoints
             // Chi ba cot: nap ca thuc the User se keo theo cot anh (avatar_bytes).
             var users = await db.Users
                 .Where(u => addresseeIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .Select(u => new { u.Id, u.Nickname, u.DisplayName, u.AvatarUpdatedAt })
                 .ToDictionaryAsync(u => u.Id, u => u);
 
             var result = rows.Select(r =>
             {
                 var u = users.GetValueOrDefault(r.AddresseeId);
                 return new FriendRequestResponse(
-                    r.Id, r.AddresseeId, u?.Nickname ?? $"user_{r.AddresseeId}", r.CreatedAt, u?.AvatarUpdatedAt);
+                    r.Id, r.AddresseeId, u?.Nickname ?? $"user_{r.AddresseeId}", u?.DisplayName ?? $"user_{r.AddresseeId}", r.CreatedAt, u?.AvatarUpdatedAt);
             });
             return Results.Ok(result);
         });
@@ -125,7 +125,7 @@ public static class FriendsEndpoints
             await db.SaveChangesAsync();
 
             var requester = await db.Users.FindAsync(request.RequesterId);
-            return Results.Ok(new FriendResponse(request.RequesterId, requester?.Nickname ?? $"user_{request.RequesterId}", request.RespondedAt.Value, requester?.AvatarUpdatedAt));
+            return Results.Ok(new FriendResponse(request.RequesterId, requester?.Nickname ?? $"user_{request.RequesterId}", requester?.DisplayName ?? $"user_{request.RequesterId}", request.RespondedAt.Value, requester?.AvatarUpdatedAt));
         });
 
         // Dung chung cho "tu choi loi moi den" (nguoi nhan) va "huy loi moi
@@ -159,14 +159,14 @@ public static class FriendsEndpoints
             // danh sach chi can ten.
             var users = await db.Users
                 .Where(u => friendIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.Nickname, u.AvatarUpdatedAt })
+                .Select(u => new { u.Id, u.Nickname, u.DisplayName, u.AvatarUpdatedAt })
                 .ToDictionaryAsync(u => u.Id, u => u);
 
             var result = rows.Select(r =>
             {
                 var friendId = r.RequesterId == userId ? r.AddresseeId : r.RequesterId;
                 var u = users.GetValueOrDefault(friendId);
-                return new FriendResponse(friendId, u?.Nickname ?? $"user_{friendId}", r.RespondedAt ?? r.CreatedAt, u?.AvatarUpdatedAt);
+                return new FriendResponse(friendId, u?.Nickname ?? $"user_{friendId}", u?.DisplayName ?? $"user_{friendId}", r.RespondedAt ?? r.CreatedAt, u?.AvatarUpdatedAt);
             });
             return Results.Ok(result);
         });

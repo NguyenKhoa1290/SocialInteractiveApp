@@ -23,7 +23,7 @@ export function LoginPage() {
   function afterOAuthSuccess(data: OAuthSuccessResponse) {
     setAuth(data.accessToken, data.user);
     scheduleTokenRefresh(data.accessToken);
-    navigate(data.requiresNickname ? "/nickname" : "/app");
+    navigate(data.requiresDisplayName ? "/nickname" : "/app");
   }
 
   async function handleSubmit(e: React.FormEvent) {

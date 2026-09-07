@@ -7,6 +7,7 @@ export interface AdminUserInfo {
   id: number;
   userType: "guest" | "registered";
   nickname: string;
+  displayName: string;
   email: string | null;
   status: AdminUserStatus;
   isAdmin: boolean;
@@ -28,6 +29,7 @@ export interface AdminUserDetail {
   id: number;
   userType: "guest" | "registered";
   nickname: string;
+  displayName: string;
   email: string | null;
   status: AdminUserStatus;
   createdAt: string;

@@ -5,13 +5,13 @@ public class IdentityClientOptions
     public string BaseUrl { get; set; } = "http://localhost:5194";
 }
 
-public record UserPublicInfo(long Id, string Nickname, string UserType);
+public record UserPublicInfo(long Id, string Nickname, string DisplayName, string UserType);
 
-// Email khong nam trong UserPublicInfo (chi co trong JWT claim nickname,
+// Email khong nam trong UserPublicInfo (chi co trong JWT claim display_name,
 // khong co email) - dung endpoint admin-detail co san (xay cho Admin
 // Service, Phase 4) de lay email khi can chia se dinh danh day du cho
 // user da dang nhap (UC theo muc 7.1 "Chia se dinh danh").
-public record UserAdminDetail(long Id, string UserType, string Nickname, string? Email);
+public record UserAdminDetail(long Id, string UserType, string Nickname, string DisplayName, string? Email);
 
 // Goi sang Identity Service qua /internal/* (khong qua API Gateway public) -
 // cung quy uoc voi WorkSpace/Chat/SpamTracking/Admin Service.

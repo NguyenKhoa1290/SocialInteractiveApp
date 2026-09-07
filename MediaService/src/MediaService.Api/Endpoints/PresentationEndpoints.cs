@@ -100,10 +100,10 @@ public static class PresentationEndpoints
                  directUri.Scheme is not ("http" or "https")))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "channelUrl phai bat dau bang http:// hoac https://"));
 
-            var nickname = principal.GetNickname();
+            var displayName = principal.GetDisplayName();
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
-                callerId, resolved?.Nickname ?? nickname, req.Kind, req.AppId, DateTimeOffset.UtcNow,
+                callerId, resolved?.DisplayName ?? displayName, req.Kind, req.AppId, DateTimeOffset.UtcNow,
                 req.ChannelId, req.ChannelName, req.ChannelUrl, req.ClearKey);
 
             // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu

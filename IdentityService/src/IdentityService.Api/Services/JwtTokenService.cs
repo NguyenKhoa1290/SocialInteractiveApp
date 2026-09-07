@@ -36,6 +36,7 @@ public class JwtTokenService(JwtOptions options)
             new(JwtRegisteredClaimNames.Jti, jti),
             new("user_type", user.UserType == UserType.Guest ? "guest" : "registered"),
             new("nickname", user.Nickname),
+            new("display_name", user.DisplayName),
         };
 
         // role=admin chi duoc gan khi User.IsAdmin=true (Phase 4, Admin Service

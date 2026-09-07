@@ -61,7 +61,7 @@ export function AdminUsersPage() {
   }
 
   async function handleDelete(user: AdminUserDetail) {
-    if (!window.confirm(`Xoá vĩnh viễn tài khoản "${user.nickname}"? Không thể hoàn tác.`)) return;
+    if (!window.confirm(`Xoá vĩnh viễn tài khoản "${user.displayName}" (@${user.nickname})? Không thể hoàn tác.`)) return;
     setBusy(true);
     setDetailError(null);
     try {
@@ -126,7 +126,8 @@ export function AdminUsersPage() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Biệt danh</th>
+                    <th>Tên hiển thị</th>
+                    <th>Biệt danh</th>
                   <th>Email</th>
                   <th>Loại</th>
                   <th>Trạng thái</th>
@@ -139,9 +140,10 @@ export function AdminUsersPage() {
                   <tr key={u.id} className={selected?.id === u.id ? "selected" : undefined}>
                     <td className="adm-mono">{u.id}</td>
                     <td>
-                      {u.nickname}
+                      {u.displayName}
                       {u.isAdmin && <span className="adm-badge adm-badge-admin">Admin</span>}
                     </td>
+                    <td className="adm-mono">@{u.nickname}</td>
                     <td className="adm-muted">{u.email ?? "-"}</td>
                     <td>{u.userType === "guest" ? "Khách" : "Đã đăng ký"}</td>
                     <td>
@@ -189,7 +191,7 @@ export function AdminUsersPage() {
         <section className="adm-panel">
           <div className="adm-panel-head">
             <h2>
-              {selected.nickname} <span className="adm-mono adm-muted">#{selected.id}</span>
+              {selected.displayName} <span className="adm-mono adm-muted">@{selected.nickname} · #{selected.id}</span>
             </h2>
             <button className="adm-btn adm-btn-ghost" onClick={() => setSelected(null)}>
               Đóng
@@ -199,6 +201,8 @@ export function AdminUsersPage() {
           <dl className="adm-kv">
             <dt>Email</dt>
             <dd>{selected.email ?? "-"}</dd>
+            <dt>Biệt danh</dt>
+            <dd className="adm-mono">@{selected.nickname}</dd>
             <dt>Loại tài khoản</dt>
             <dd>{selected.userType === "guest" ? "Khách vãng lai" : "Đã đăng ký"}</dd>
             <dt>Trạng thái</dt>

@@ -5,7 +5,7 @@ public class IdentityClientOptions
     public string BaseUrl { get; set; } = "http://localhost:5194";
 }
 
-public record UserPublicInfo(long Id, string Nickname, string UserType);
+public record UserPublicInfo(long Id, string Nickname, string DisplayName, string UserType);
 
 // Goi sang Identity Service qua /internal/* - cung quy uoc voi WorkSpace/
 // Media/SpamTracking/Admin Service.

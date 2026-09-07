@@ -4,22 +4,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Api.Endpoints;
 
-public record UserPublicInfo(long Id, string Nickname, string UserType)
+public record UserPublicInfo(long Id, string Nickname, string DisplayName, string UserType)
 {
     public static UserPublicInfo FromEntity(User u) => new(
-        u.Id, u.Nickname, u.UserType == Models.UserType.Guest ? "guest" : "registered");
+        u.Id, u.Nickname, u.DisplayName, u.UserType == Models.UserType.Guest ? "guest" : "registered");
 }
 
 // Dung boi Admin Service (GET /admin/users, GET /admin/users/{id}) - day du
 // hon UserPublicInfo vi can ca email/status/thoi gian cho man hinh quan tri.
 public record AdminUserInfo(
-    long Id, string UserType, string Nickname, string? Email, string Status,
+    long Id, string UserType, string Nickname, string DisplayName, string? Email, string Status,
     bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt)
 {
     public static AdminUserInfo FromEntity(User u) => new(
         u.Id,
         u.UserType == Models.UserType.Guest ? "guest" : "registered",
         u.Nickname,
+        u.DisplayName,
         u.Email,
         u.Status == UserStatus.Locked ? "locked" : "active",
         u.IsAdmin,

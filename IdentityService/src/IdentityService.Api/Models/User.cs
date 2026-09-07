@@ -16,7 +16,12 @@ public class User
 {
     public long Id { get; set; }
     public UserType UserType { get; set; }
+    // Dinh danh cong khai duy nhat (dang @USERNAME). He thong tao san luc
+    // dang ky, nhung chu tai khoan co the doi theo quy tac NicknamePolicy.
     public string Nickname { get; set; } = string.Empty;
+    // Ten nguoi dung muon hien tren giao dien. Khong dung de tim/phan quyen
+    // va duoc phep trung voi nguoi khac.
+    public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? PasswordHash { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;

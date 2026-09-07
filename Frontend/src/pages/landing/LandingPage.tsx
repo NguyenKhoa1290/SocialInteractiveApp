@@ -58,7 +58,7 @@ const SOCIAL = [
 export function LandingPage({ overlay }: { overlay?: ReactNode }) {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [nickname, setNickname] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -67,7 +67,7 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
   // tai" trong ban thiet ke chinh la 409 ma /auth/guest tra ve.
   async function handleGuest(e: React.FormEvent) {
     e.preventDefault();
-    const name = nickname.trim();
+    const name = displayName.trim();
     if (!name) return;
     setError(null);
     setLoading(true);
@@ -122,14 +122,14 @@ export function LandingPage({ overlay }: { overlay?: ReactNode }) {
           <form onSubmit={handleGuest} className="lp-hero-form">
             <input
               className="lp-input"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="Tên người dùng"
-              aria-label="Tên người dùng"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Tên hiển thị"
+              aria-label="Tên hiển thị"
               maxLength={50}
             />
             {error && <p className="lp-error">{error}</p>}
-            <button type="submit" className="lp-btn-arrow" disabled={loading || nickname.trim() === ""}>
+            <button type="submit" className="lp-btn-arrow" disabled={loading || displayName.trim() === ""}>
               {loading ? "Đang vào…" : "Bắt đầu ngay"}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M13.2 4.8 20.4 12l-7.2 7.2-1.7-1.7 4.3-4.3H3.6v-2.4h12.2l-4.3-4.3 1.7-1.7Z" />

@@ -121,7 +121,7 @@ export function ConversationList({
         // Frontend tu doi chieu voi hai danh sach da co san.
         const map: Record<string, { ten: string; userId?: number; wsId?: number; anh?: string | null }> = {};
         for (const f of friendsRes.data) {
-          map[`u${f.userId}`] = { ten: f.nickname, userId: f.userId, anh: f.avatarUpdatedAt ?? null };
+          map[`u${f.userId}`] = { ten: f.displayName, userId: f.userId, anh: f.avatarUpdatedAt ?? null };
         }
         for (const w of wsRes.data) map[`w${w.id}`] = { ten: w.name, wsId: w.id, anh: w.avatarUpdatedAt };
         setNames(map);
@@ -181,7 +181,7 @@ export function ConversationList({
   // API), va loc chinh danh sach ban be dang co (loc tai cho).
   const banHienThi = useMemo(() => {
     const ten = q.trim().toLowerCase();
-    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten));
+    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten) || f.displayName.toLowerCase().includes(ten));
   }, [friends, q]);
 
   // MOT cu bam ra ca cuoc hop: tao phong tam, sinh link moi, chep link vao
@@ -412,10 +412,10 @@ export function ConversationList({
                   disabled={dangMo === f.userId}
                 >
                   <AvatarConDot con={!!(c && unread[c.id])}>
-                    <Avatar userId={f.userId} nickname={f.nickname} avatarUpdatedAt={f.avatarUpdatedAt} size={68} />
+              <Avatar userId={f.userId} nickname={f.displayName} avatarUpdatedAt={f.avatarUpdatedAt} size={68} />
                   </AvatarConDot>
                   <div className="cw-card-body">
-                    <p className="cw-card-name">{f.nickname}</p>
+                <p className="cw-card-name">{f.displayName}</p>
                     <p className="cw-card-sub">
                       {dangMo === f.userId
                         ? "Đang mở…"

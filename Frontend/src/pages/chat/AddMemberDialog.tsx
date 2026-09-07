@@ -55,7 +55,7 @@ export function AddMemberDialog({
 
   const hienThi = useMemo(() => {
     const ten = q.trim().toLowerCase();
-    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten));
+    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten) || f.displayName.toLowerCase().includes(ten));
   }, [friends, q]);
 
   async function them(f: Friend) {
@@ -63,9 +63,9 @@ export function AddMemberDialog({
     setDangThem(f.userId);
     try {
       await workspaceApi.addMember(workspaceId, f.userId);
-      onAdded({ userId: f.userId, nickname: f.nickname, avatarUpdatedAt: f.avatarUpdatedAt });
+      onAdded({ userId: f.userId, nickname: f.displayName, avatarUpdatedAt: f.avatarUpdatedAt });
     } catch (err) {
-      setError(extractApiError(err, `Không thêm được ${f.nickname}`));
+      setError(extractApiError(err, `Không thêm được ${f.displayName}`));
     } finally {
       setDangThem(null);
     }
@@ -104,8 +104,8 @@ export function AddMemberDialog({
           const oTrongNhom = daO.has(f.userId);
           return (
             <div key={f.userId} className="am-row">
-              <Avatar userId={f.userId} nickname={f.nickname} avatarUpdatedAt={f.avatarUpdatedAt} size={56} />
-              <span className="am-name">{f.nickname}</span>
+              <Avatar userId={f.userId} nickname={f.displayName} avatarUpdatedAt={f.avatarUpdatedAt} size={56} />
+              <span className="am-name">{f.displayName}</span>
               {oTrongNhom ? (
                 // Van HIEN nguoi da o trong nhom, chi khoa nut lai - an di thi
                 // nguoi dung khong hieu vi sao tim mai khong thay ban minh.

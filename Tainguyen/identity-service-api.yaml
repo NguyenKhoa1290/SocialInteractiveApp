@@ -124,9 +124,9 @@ paths:
                     properties:
                       isNewUser:
                         type: boolean
-                      requiresNickname:
+                      requiresDisplayName:
                         type: boolean
-                        description: true nếu là user mới, cần gọi PATCH /users/me/nickname trước khi dùng đầy đủ tính năng
+                        description: true nếu là user mới, cần gọi PATCH /users/me/display-name trước khi dùng đầy đủ tính năng
         "403":
           description: Tài khoản đang bị khoá vì spam
           content:
@@ -148,7 +148,7 @@ paths:
     post:
       tags: [Authentication]
       summary: Truy cập dạng Guest
-      description: Tham chiếu UC-04. Không cần email/mật khẩu, chỉ cần nickname.
+      description: Không cần email/mật khẩu, chỉ cần tên hiển thị. Handle duy nhất được hệ thống tự sinh.
       security: []
       requestBody:
         required: true
@@ -156,9 +156,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [nickname]
+              required: [displayName]
               properties:
-                nickname:
+                displayName:
                   type: string
                   minLength: 1
                   maxLength: 50
@@ -288,7 +288,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, nickname]
+              required: [email, password, displayName]
               properties:
                 email:
                   type: string
@@ -297,7 +297,7 @@ paths:
                   type: string
                   format: password
                   minLength: 8
-                nickname:
+                displayName:
                   type: string
                   minLength: 1
                   maxLength: 50
@@ -427,10 +427,8 @@ paths:
   /users/me/nickname:
     patch:
       tags: [Profile]
-      summary: Đặt/đổi nickname
-      description: >-
-        Bắt buộc gọi ngay sau khi đăng ký/đăng nhập OAuth lần đầu
-        (khi `requiresNickname: true`), có thể gọi lại bất kỳ lúc nào để đổi tên hiển thị.
+      summary: Đặt/đổi biệt danh duy nhất
+      description: Handle duy nhất, gồm 3-24 ký tự A-Z, 0-9 hoặc `_`; bắt đầu bằng chữ cái.
       requestBody:
         required: true
         content:
@@ -440,6 +438,32 @@ paths:
               required: [nickname]
               properties:
                 nickname:
+                  type: string
+                  minLength: 3
+                  maxLength: 24
+                  pattern: '^[A-Z][A-Z0-9_]{2,23}$'
+      responses:
+        "200":
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/display-name:
+    patch:
+      tags: [Profile]
+      summary: Đặt/đổi tên hiển thị
+      description: Tên hiển thị được phép trùng; không dùng để định danh hay tìm kiếm.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
                   type: string
                   minLength: 1
                   maxLength: 50
@@ -664,6 +688,10 @@ components:
           format: int64
         nickname:
           type: string
+          description: Handle duy nhất để tìm kiếm và @mention
+        displayName:
+          type: string
+          description: Tên hiển thị, được phép trùng
         avatarUpdatedAt:
           type: string
           format: date-time
@@ -681,6 +709,10 @@ components:
           enum: [guest, registered]
         nickname:
           type: string
+          description: Handle duy nhất để tìm kiếm và @mention
+        displayName:
+          type: string
+          description: Tên hiển thị, được phép trùng
         email:
           type: string
           format: email
@@ -701,6 +733,8 @@ components:
           type: integer
           format: int64
         nickname:
+          type: string
+        displayName:
           type: string
         userType:
           type: string

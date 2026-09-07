@@ -16,7 +16,7 @@ const POLL_MS = 3000;
 export function JoinMeetingPage() {
   const { token: inviteToken } = useParams();
   const navigate = useNavigate();
-  const nickname = useAuthStore((s) => s.user?.nickname);
+  const nickname = useAuthStore((s) => s.user?.displayName);
   const accessToken = useAuthStore((s) => s.accessToken);
   const setAuth = useAuthStore((s) => s.setAuth);
 
@@ -55,7 +55,7 @@ export function JoinMeetingPage() {
       const { data } = await authApi.guest(guestNickname.trim());
       setAuth(data.accessToken, data.user);
       scheduleTokenRefresh(data.accessToken);
-      await joinWith(data.user.nickname);
+      await joinWith(data.user.displayName);
     } catch (err) {
       setPhase("ready");
       setError(extractApiError(err, "Không vào được cuộc họp"));

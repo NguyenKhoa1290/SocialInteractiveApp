@@ -134,7 +134,7 @@ public static class MeetingDiscussionEndpoints
 
             var result = messages.Select(m => MessageResponse.FromEntity(
                 m,
-                senderDisplayName: m.SenderId is not null && senders.TryGetValue(m.SenderId.Value, out var u) ? u.Nickname : null,
+                senderDisplayName: m.SenderId is not null && senders.TryGetValue(m.SenderId.Value, out var u) ? u.DisplayName : null,
                 fileId: fileIds.TryGetValue(m.Id, out var fid) ? fid : null));
 
             return Results.Ok(result);
@@ -227,7 +227,7 @@ public static class MeetingDiscussionEndpoints
             var senders = await identity.ResolveUsersAsync([userId]);
             var response = MessageResponse.FromEntity(
                 message,
-                senderDisplayName: senders.TryGetValue(userId, out var u) ? u.Nickname : null,
+                senderDisplayName: senders.TryGetValue(userId, out var u) ? u.DisplayName : null,
                 fileId: file?.Id);
 
             // Broadcast vao group RIENG cua cuoc hop (khong phai group cua
@@ -282,7 +282,7 @@ public static class MeetingDiscussionEndpoints
             var senders = await identity.ResolveUsersAsync([userId]);
             var response = MessageResponse.FromEntity(
                 message,
-                senderDisplayName: senders.TryGetValue(userId, out var u) ? u.Nickname : null);
+                senderDisplayName: senders.TryGetValue(userId, out var u) ? u.DisplayName : null);
 
             // Su kien rieng de MeetingRoomPage khong coi mot lan sua la tin
             // moi va tang cham thong bao chua doc khi panel dang dong.

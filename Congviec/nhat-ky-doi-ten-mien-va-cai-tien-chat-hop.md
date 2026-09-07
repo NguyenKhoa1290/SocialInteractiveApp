@@ -47,6 +47,8 @@ headless, không ước lượng từ ảnh chụp.
 16. [Bẫy đã vấp](#16-bẫy-đã-vấp)
 17. [Việc còn phải làm](#17-việc-còn-phải-làm)
 18. [Ghi chú vận hành](#18-ghi-chú-vận-hành)
+19. [Thảo luận trong phòng họp: trả lời và sửa tin nhắn](#19-thảo-luận-trong-phòng-họp-trả-lời-và-sửa-tin-nhắn)
+20. [Tách biệt danh duy nhất và tên hiển thị](#20-tách-biệt-danh-duy-nhất-và-tên-hiển-thị)
 
 ---
 
@@ -902,3 +904,123 @@ tài khoản** (`DELETE /users/me` → 405) và **không xoá được hội tho
 (→ 405), nên tài khoản `@example.invalid` và hội thoại 1-1 mồ côi tích lại,
 phải quét bằng SQL. Nhóm và cuộc họp thì xoá được qua API (kéo theo cả tệp
 trong MinIO).
+
+---
+
+## 19. Thảo luận trong phòng họp: trả lời và sửa tin nhắn
+
+**Đợt làm ngày 07/09/2026** — Frontend (React) và Chat Service (.NET)
+
+### Vấn đề
+
+Panel **Thảo luận** trong phòng họp trước đây chỉ gửi/nhận tin nhắn cơ bản.
+Trong khi đó chat nhóm đã có trả lời, trích dẫn tin gốc, chỉnh sửa tin nhắn
+Text và đồng bộ cập nhật cho người đang mở hội thoại. Sự thiếu nhất quán này
+làm luồng thảo luận trong cuộc họp khó theo dõi khi có nhiều chủ đề cùng lúc.
+
+### Đã làm
+
+- Thêm **Trả lời** cho tin nhắn phòng họp. Tin mới lưu `replyToId`; giao diện
+  hiện khối trích dẫn gồm người gửi và tóm tắt tin gốc. Bấm khối này cuộn tới
+  tin gốc và nháy viền để dễ nhận ra.
+- Thêm thanh **Đang trả lời** phía trên khung soạn, có nút bỏ trả lời.
+- Thêm **Sửa** cho tin Text của chính người gửi. Nội dung sửa tại chỗ, có Lưu,
+  Hủy, phím Enter để lưu và Escape để hủy; tin đã sửa có nhãn `(đã sửa)`.
+- Tái sử dụng quy tắc của chat nhóm: chỉ sender được sửa, chỉ Text được sửa,
+  và cửa sổ sửa là **15 phút** sau thời điểm gửi.
+- Thêm API `PATCH /conversations/{conversationId}/meetings/{meetingId}/messages/{messageId}`
+  cùng `UpdateMeetingMessageRequest`. Tin phòng họp không E2EE nên request chỉ
+  mang nội dung bản rõ, không yêu cầu nonce E2EE.
+- Bổ sung `replyToId` vào `POST` tin nhắn phòng họp. Backend kiểm tra tin được
+  trích dẫn thuộc **đúng conversation và đúng meeting**; vì vậy request giả mạo
+  không thể trích dẫn/làm lộ nội dung của chat chính hay cuộc họp khác.
+- Phát SignalR `MeetingMessageEdited` riêng. Client thay bản ghi hiện có thay
+  vì coi đây là tin mới; vì vậy `MeetingRoomPage` không tăng số tin chưa đọc
+  khi một tin cũ được sửa.
+
+Các file chính:
+
+- `ChatService/src/ChatService.Api/Endpoints/MeetingDiscussionEndpoints.cs`
+- `ChatService/src/ChatService.Api/Endpoints/ChatDtos.cs`
+- `Frontend/src/api/chatApi.ts`
+- `Frontend/src/lib/chatHub.ts`
+- `Frontend/src/pages/meeting/MeetingDiscussion.tsx`
+- `Frontend/src/pages/meeting/discussion.css`
+
+### Kiểm tra và triển khai
+
+- Commit: `3794304` — `Add meeting discussion reply and edit`.
+- Local: `npm run build`, `npm run lint`, và `dotnet build
+  ChatService.Api.csproj --no-restore` đều đạt. Lint chỉ còn cảnh báo cũ ở
+  `IptvPlayer*`, không do thay đổi này.
+- GitHub Actions: [CI](https://github.com/NguyenKhoa1290/SocialInteractiveApp/actions/runs/34088781859)
+  và [Build & Push images](https://github.com/NguyenKhoa1290/SocialInteractiveApp/actions/runs/34088781815)
+  đều thành công.
+- Sau image-watcher cập nhật cluster: pod Chat và Frontend mới đều `Running`;
+  `https://chat.callimeet.com/health` trả `200 {"status":"ok"}`.
+- Kiểm tra route production không kèm token: PATCH endpoint mới trả **401**
+  (route tồn tại và yêu cầu xác thực); đường dẫn giả tương ứng trả **404**.
+
+### Kiểm thử giao diện thật
+
+Kiểm thử bằng Chromium headless chạy qua SSH/Cloudflare tunnel, phòng **#202**.
+Khách kiểm thử `Kiem thu chat` đã:
+
+1. Gửi `Tin goc kiem thu reply edit 3794304`.
+2. Trả lời tin đó; thanh trả lời hiển thị đúng tin gốc và tin mới có một khối
+   trích dẫn.
+3. Sửa tin trả lời thành `Tin tra loi da sua thanh cong`; giao diện hiển thị
+   đúng nhãn `(đã sửa)`.
+
+Không có lỗi API/giao diện trong cả ba bước. Ảnh chụp kết quả ở
+[`artifacts/meeting-chat-reply-edit-3794304.png`](../artifacts/meeting-chat-reply-edit-3794304.png).
+Không thực hiện thao tác rời phòng, thu hồi/xóa tin kiểm thử hay xóa khách
+kiểm thử.
+
+---
+
+## 20. Tách biệt danh duy nhất và tên hiển thị
+
+**Đợt làm ngày 07/09/2026** — Frontend (React), Identity, Chat, Media,
+Workspace và Admin Service (.NET)
+
+### Vấn đề
+
+Trước đây hệ thống dùng một trường `nickname` cho cả tên người dùng nhìn thấy
+và định danh tài khoản. Điều này buộc tên hiển thị phải không trùng nhau, trong
+khi ở một sản phẩm tự do, nhiều người có thể cùng dùng một tên quen thuộc.
+Ngược lại, hệ thống vẫn cần một định danh gọn, duy nhất và có thể tìm/đề cập.
+
+### Đã làm
+
+- Tách dữ liệu người dùng thành **biệt danh** (`nickname`) và **tên hiển thị**
+  (`displayName`). Biệt danh là duy nhất không phân biệt hoa/thường; tên hiển
+  thị được phép trùng.
+- Biệt danh mới được server tự sinh theo dạng `USER_…`; người dùng vẫn sửa
+  được qua `PATCH /users/me/nickname`, với quy tắc 3–24 ký tự, bắt đầu bằng chữ
+  cái và chỉ nhận `A-Z`, `0-9`, `_`. Server chuẩn hóa thành chữ hoa và CSDL có
+  unique index là lớp bảo vệ cuối cùng khi có request đồng thời.
+- Landing page, đăng ký và tham gia với tư cách Guest nay nhận **tên hiển thị**.
+  Màn hồ sơ tách riêng thao tác sửa tên hiển thị và sửa `@biệt_danh`.
+- Bổ sung `displayName` vào JWT, hợp đồng API Identity và API nội bộ. Chat,
+  danh sách hội thoại/nhóm, phòng họp, lời mời, thông báo, Media và trang quản
+  trị đều ưu tiên hiển thị tên hiển thị, đồng thời vẫn giữ biệt danh để nhận diện
+  tài khoản.
+- Thêm migration
+  `Tainguyen/infra/identity-db-add-display-name.sql`. Migration **không xóa
+  người dùng** hay thay ID: nickname cũ được giữ thành tên hiển thị, còn biệt
+  danh được cấp lại ổn định từ ID (`USER_` + ID đệm số). Nhờ đó quan hệ bạn bè,
+  nhóm, cuộc họp và tin nhắn cũ vẫn tham chiếu đúng tài khoản.
+- Cập nhật schema khởi tạo mới và `identity-service-api.yaml` để cài mới hay
+  triển khai lại đều dùng đúng mô hình hai trường.
+
+### Kiểm tra cục bộ
+
+- `npm run lint`: đạt; còn 4 cảnh báo cũ ở `IptvPlayer*`, không do thay đổi
+  này.
+- `npx tsc --noEmit -p tsconfig.app.json` và `npm run build`: đạt.
+- `dotnet build --no-restore` đạt cho Identity, Workspace, Chat, Media và
+  Admin Service, không có warning/error mới.
+- Docker Desktop không chạy trên máy phát triển nên chưa thể làm smoke test API
+  bằng compose tại chỗ. Kiểm tra runtime/API/giao diện được thực hiện sau khi
+  image CI triển khai lên môi trường test.

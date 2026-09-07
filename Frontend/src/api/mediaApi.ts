@@ -31,8 +31,8 @@ export const meetingApi = {
   // nhat ngay sau khi host duyet, doc xong la mat).
   get: (meetingId: number) => mediaHttp.get<MeetingWithCallerStatus>(`/meetings/${meetingId}`),
 
-  joinInChat: (meetingId: number, nickname?: string) =>
-    mediaHttp.post<JoinResult>(`/meetings/${meetingId}/join`, { nickname: nickname ?? null }),
+  joinInChat: (meetingId: number, displayName?: string) =>
+    mediaHttp.post<JoinResult>(`/meetings/${meetingId}/join`, { displayName: displayName ?? null }),
 
   // Chi chu phong goi duoc. Truong nao khong truyen thi gui null = khong
   // dong toi - server phan biet "dat false" voi "bo qua" bang chinh cho do.
@@ -108,8 +108,8 @@ export const meetingApi = {
 
   previewInvite: (inviteToken: string) => mediaHttp.get<MeetingPreview>(`/meetings/join/${inviteToken}`),
 
-  joinByInvite: (inviteToken: string, nickname?: string) =>
-    mediaHttp.post<JoinResult>(`/meetings/join/${inviteToken}`, { nickname: nickname ?? null }),
+  joinByInvite: (inviteToken: string, displayName?: string) =>
+    mediaHttp.post<JoinResult>(`/meetings/join/${inviteToken}`, { displayName: displayName ?? null }),
 };
 
 export const iptvApi = {

@@ -13,7 +13,10 @@ export type UserStatus = "active" | "locked";
 export interface AuthUser {
   id: number;
   userType: UserType;
+  /** Handle duy nhat, dung cho tim kiem va @mention. */
   nickname: string;
+  /** Ten tu do hien tren giao dien; co the trung nguoi khac. */
+  displayName: string;
   email: string | null;
   status: UserStatus;
   createdAt: string;
@@ -27,6 +30,7 @@ export interface AuthUser {
 export interface PublicUser {
   id: number;
   nickname: string;
+  displayName: string;
   avatarUpdatedAt: string | null;
 }
 
@@ -37,7 +41,7 @@ export interface AuthSuccessResponse {
 
 export interface OAuthSuccessResponse extends AuthSuccessResponse {
   isNewUser: boolean;
-  requiresNickname: boolean;
+  requiresDisplayName: boolean;
 }
 
 export interface ApiErrorBody {

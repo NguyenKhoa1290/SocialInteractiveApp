@@ -9,7 +9,7 @@ import { AuthLayout, ErrorText } from "./AuthLayout";
 export function GuestPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [nickname, setNickname] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +18,7 @@ export function GuestPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data } = await authApi.guest(nickname);
+      const { data } = await authApi.guest(displayName);
       setAuth(data.accessToken, data.user);
       scheduleTokenRefresh(data.accessToken);
       navigate("/app");
@@ -33,9 +33,9 @@ export function GuestPage() {
     <AuthLayout title="Vào với tư cách Guest">
       <form onSubmit={handleSubmit}>
         <input
-          placeholder="Nickname"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
+          placeholder="Tên hiển thị"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
           required
           maxLength={50}
           className="auth-input"

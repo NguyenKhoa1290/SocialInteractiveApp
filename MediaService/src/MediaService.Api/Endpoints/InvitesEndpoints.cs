@@ -64,7 +64,7 @@ public static class InvitesEndpoints
             // cho viec nay, luc he thong chua co tang notification. Gio da co
             // thi giu ca hai la bao trung mot su kien tren hai duong.
             if (type == InviteType.Direct)
-                await publisher.PublishAsync(meetingId, req.InvitedUserId!.Value, callerId, invite.InviteToken, principal.GetNickname());
+                await publisher.PublishAsync(meetingId, req.InvitedUserId!.Value, callerId, invite.InviteToken, principal.GetDisplayName());
 
             return Results.Created($"/meetings/{meetingId}/invites/{invite.Id}", InviteResponse.FromEntity(invite));
         }).RequireAuthorization();
@@ -101,7 +101,7 @@ public static class InvitesEndpoints
                                    && !xemLaChu && !xemLaPho;
 
             return Results.Ok(new MeetingPreviewResponse(
-                meeting.Id, host?.Nickname ?? $"user_{meeting.HostId}", activeCount, requiresApproval));
+                meeting.Id, host?.DisplayName ?? $"user_{meeting.HostId}", activeCount, requiresApproval));
         });
 
         app.MapPost("/meetings/join/{inviteToken}", async (
@@ -131,7 +131,7 @@ public static class InvitesEndpoints
                     db, meeting, callerId, loggerFactory.CreateLogger(nameof(HostSuccession)));
                 var (rejoinMic, rejoinCam, rejoinShare) = await ParticipantsEndpoints.LoadPublishFlagsAsync(db, meeting.Id, callerId);
                 var rejoinToken = liveKit.GenerateAccessToken(
-                    meeting.Id, callerId, req?.Nickname ?? principal.GetNickname(),
+                    meeting.Id, callerId, req?.DisplayName ?? principal.GetDisplayName(),
                     (await identity.ResolveUserDetailAsync(callerId))?.Email,
                     TimeSpan.FromHours(6), rejoinMic, rejoinCam, rejoinShare);
                 return Results.Ok(new JoinResultResponse("approved", rejoinToken, liveKit.ClientUrl, meeting.Id));
@@ -141,7 +141,7 @@ public static class InvitesEndpoints
             if (activeCount >= meeting.MaxParticipants)
                 return Results.Json(new ErrorResponse("room_full", "Phong da dat gioi han so nguoi"), statusCode: 409);
 
-            var nickname = req?.Nickname ?? principal.GetNickname();
+            var nickname = req?.DisplayName ?? principal.GetDisplayName();
             // Cung quy tac voi phan xem truoc o tren - phai giong nhau, khong
             // thi nguoi dung thay "vao thang duoc" roi lai bi day vao phong cho.
             var requiresApproval = invite.InviteType == InviteType.Link && meeting.RequiresApproval

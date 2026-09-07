@@ -86,7 +86,7 @@ public static class MeetingsEndpoints
 
             if (req.Mode == "in_chat" && req.ConversationId is not null)
             {
-                var nickname = principal.GetNickname();
+                var nickname = principal.GetDisplayName();
                 var conversationId = req.ConversationId.Value;
 
                 // Hai duong bao, cho HAI nhom nguoi khac nhau - khong trung:
@@ -212,7 +212,7 @@ public static class MeetingsEndpoints
                     return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc hoi thoai cua cuoc hop nay"), statusCode: 403);
             }
 
-            var nickname = req?.Nickname ?? principal.GetNickname();
+            var nickname = req?.DisplayName ?? principal.GetDisplayName();
 
             if (existing is null)
             {

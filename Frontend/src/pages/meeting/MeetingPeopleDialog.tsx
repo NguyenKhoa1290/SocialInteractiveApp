@@ -230,8 +230,8 @@ export function MeetingPeopleDialog({
               const trongPhong = participants.some((p) => p.userId === f.userId);
               return (
                 <div key={f.userId} className="mpop-hang-moi">
-                  <Avatar userId={f.userId} nickname={f.nickname} avatarUpdatedAt={f.avatarUpdatedAt} size={44} />
-                  <span className="mpop-ten-moi">{f.nickname}</span>
+                  <Avatar userId={f.userId} nickname={f.displayName} avatarUpdatedAt={f.avatarUpdatedAt} size={44} />
+                  <span className="mpop-ten-moi">{f.displayName}</span>
                   {trongPhong ? (
                     <span className="mpop-ghi-chu">Đang trong phòng</span>
                   ) : (

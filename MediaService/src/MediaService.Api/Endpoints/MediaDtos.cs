@@ -63,7 +63,9 @@ public record InviteResponse(long Id, string Type, string InviteToken, DateTimeO
         i.Id, i.InviteType == InviteType.Link ? "link" : "direct", i.InviteToken, i.ExpiresAt);
 }
 
-public record JoinMeetingRequest(string? Nickname);
+// Ten nay chi la ten HIEN THI trong phien LiveKit. Handle cua tai khoan duoc
+// phat hanh boi Identity Service, khong nhan tu client o endpoint hop.
+public record JoinMeetingRequest(string? DisplayName);
 
 public record JoinResultResponse(string Status, string? LivekitToken, string? LivekitUrl, long MeetingId);
 

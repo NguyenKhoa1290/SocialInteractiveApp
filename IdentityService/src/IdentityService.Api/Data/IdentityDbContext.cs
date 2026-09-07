@@ -26,6 +26,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
                     v => v == UserType.Guest ? "guest" : "registered",
                     v => v == "guest" ? UserType.Guest : UserType.Registered);
             entity.Property(u => u.Nickname).HasColumnName("nickname");
+            entity.Property(u => u.DisplayName).HasColumnName("display_name");
             entity.Property(u => u.Email).HasColumnName("email");
             entity.Property(u => u.PasswordHash).HasColumnName("password_hash");
             entity.Property(u => u.Status)

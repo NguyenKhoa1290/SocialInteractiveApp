@@ -7,10 +7,10 @@ public class IdentityClientOptions
     public string BaseUrl { get; set; } = "http://localhost:5194";
 }
 
-public record UserPublicInfo(long Id, string Nickname, string UserType);
+public record UserPublicInfo(long Id, string Nickname, string DisplayName, string UserType);
 
 // Goi sang Identity Service qua /internal/* (khong qua API Gateway public)
-// de resolve nickname theo user_id - dung theo mo ta lien ket logic cross-DB
+// de resolve ten hien thi theo user_id - dung theo mo ta lien ket logic cross-DB
 // trong tai lieu roadmap muc 1 va 5.3 (schema WorkspaceMember.nickname).
 public class IdentityClient(HttpClient httpClient, IdentityClientOptions options, ILogger<IdentityClient> logger)
 {

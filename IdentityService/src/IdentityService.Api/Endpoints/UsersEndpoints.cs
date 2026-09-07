@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using IdentityService.Api.Data;
+using IdentityService.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Api.Endpoints;
@@ -22,12 +23,15 @@ public static class UsersEndpoints
             return user is null ? Results.NotFound() : Results.Ok(UserResponse.FromEntity(user));
         });
 
-        // Bat buoc goi sau dang ky/dang nhap OAuth lan dau (requiresNickname=true),
-        // co the goi lai bat ky luc nao de doi ten hien thi.
+        // Handle (@nickname) la duy nhat toan he thong va co the doi, nhung
+        // khong phai ten hien thi. Tat ca tai khoan bat dau voi handle do
+        // server sinh tu dong.
         users.MapPatch("/me/nickname", async (UpdateNicknameRequest req, ClaimsPrincipal principal, IdentityDbContext db) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Nickname) || req.Nickname.Length > 50)
-                return Results.BadRequest(new ErrorResponse("invalid_request", "Nickname bat buoc, toi da 50 ky tu"));
+            if (!NicknamePolicy.TryNormalizeNickname(req.Nickname, out var nickname))
+                return Results.BadRequest(new ErrorResponse(
+                    "invalid_nickname",
+                    "Biet danh gom 3-24 ky tu A-Z, 0-9 hoac _, va phai bat dau bang chu cai"));
 
             var userId = GetUserId(principal);
             if (userId is null)
@@ -37,11 +41,33 @@ public static class UsersEndpoints
             if (user is null)
                 return Results.NotFound();
 
-            var nicknameTaken = await db.Users.AnyAsync(u => u.Id != userId && u.Nickname.ToLower() == req.Nickname.ToLower());
+            var nicknameTaken = await db.Users.AnyAsync(u => u.Id != userId && u.Nickname.ToLower() == nickname.ToLower());
             if (nicknameTaken)
                 return Results.Conflict(new ErrorResponse("nickname_taken", "Nickname da co nguoi su dung"));
 
-            user.Nickname = req.Nickname;
+            user.Nickname = nickname;
+            await db.SaveChangesAsync();
+            return Results.Ok(UserResponse.FromEntity(user));
+        });
+
+        // Ten hien thi la phan nguoi dung nhap o landing/ho so. Khong co rang
+        // buoc duy nhat: hai nguoi co the cung hien la "Nguyen Khoa".
+        users.MapPatch("/me/display-name", async (UpdateDisplayNameRequest req, ClaimsPrincipal principal, IdentityDbContext db) =>
+        {
+            if (!NicknamePolicy.TryNormalizeDisplayName(req.DisplayName, out var displayName))
+                return Results.BadRequest(new ErrorResponse(
+                    "invalid_display_name",
+                    "Ten hien thi bat buoc, toi da 50 ky tu va khong chua ky tu dieu khien"));
+
+            var userId = GetUserId(principal);
+            if (userId is null)
+                return Results.Unauthorized();
+
+            var user = await db.Users.FindAsync(userId.Value);
+            if (user is null)
+                return Results.NotFound();
+
+            user.DisplayName = displayName;
             await db.SaveChangesAsync();
             return Results.Ok(UserResponse.FromEntity(user));
         });
@@ -100,7 +126,7 @@ public static class UsersEndpoints
 
             var rows = await db.Users
                 .Where(u => danhSach.Contains(u.Id))
-                .Select(u => new PublicUserResponse(u.Id, u.Nickname, u.AvatarUpdatedAt))
+                .Select(u => new PublicUserResponse(u.Id, u.Nickname, u.DisplayName, u.AvatarUpdatedAt))
                 .ToListAsync();
 
             return Results.Ok(rows);

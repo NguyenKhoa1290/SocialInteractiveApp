@@ -181,7 +181,7 @@ public static class WorkspaceEndpoints
             var userInfos = await identity.ResolveUsersAsync(members.Select(m => m.UserId));
             var result = members.Select(m => new WorkspaceMemberResponse(
                 m.UserId,
-                userInfos.GetValueOrDefault(m.UserId)?.Nickname ?? $"user_{m.UserId}",
+                userInfos.GetValueOrDefault(m.UserId)?.DisplayName ?? $"user_{m.UserId}",
                 WorkspaceMember.RoleToString(m.Role),
                 m.JoinedAt));
 

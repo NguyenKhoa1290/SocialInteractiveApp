@@ -91,7 +91,7 @@ public static class ParticipantsEndpoints
 
             return Results.Ok(active.Select(p => new MeetingParticipantResponse(
                 p.UserId,
-                users.TryGetValue(p.UserId, out var u) ? u.Nickname : $"user_{p.UserId}",
+                users.TryGetValue(p.UserId, out var u) ? u.DisplayName : $"user_{p.UserId}",
                 p.Role == ParticipantRole.Host ? "host" : "participant",
                 p.JoinedAt,
                 [.. permissions.Where(x => x.UserId == p.UserId).Select(x => MeetingPermission.ToStringValue(x.PermissionType))])));

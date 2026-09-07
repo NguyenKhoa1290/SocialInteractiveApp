@@ -6,8 +6,8 @@ export const authApi = {
     identityHttp.post<AuthSuccessResponse>("/auth/login", { email, password }),
 
   // Buoc 1: CHUA tao tai khoan, chi gui ma xac thuc qua mail (202).
-  register: (email: string, password: string, nickname: string) =>
-    identityHttp.post<RegisterPending>("/auth/register", { email, password, nickname }),
+  register: (email: string, password: string, displayName: string) =>
+    identityHttp.post<RegisterPending>("/auth/register", { email, password, displayName }),
 
   // Buoc 2: nhap dung ma thi tai khoan moi thuc su duoc tao (201 + token).
   verifyRegistration: (email: string, otp: string) =>
@@ -16,8 +16,8 @@ export const authApi = {
   resendRegistration: (email: string) =>
     identityHttp.post<RegisterPending>("/auth/register/resend", { email }),
 
-  guest: (nickname: string) =>
-    identityHttp.post<AuthSuccessResponse>("/auth/guest", { nickname }),
+  guest: (displayName: string) =>
+    identityHttp.post<AuthSuccessResponse>("/auth/guest", { displayName }),
 
   oauth: (provider: "google" | "facebook", oauthToken: string) =>
     identityHttp.post<OAuthSuccessResponse>(`/auth/oauth/${provider}`, { oauthToken }),
@@ -48,5 +48,8 @@ export const authApi = {
   deleteAvatar: () => identityHttp.delete<AuthUser>("/users/me/avatar"),
 
   updateNickname: (nickname: string) =>
-    identityHttp.patch<void>("/users/me/nickname", { nickname }),
+    identityHttp.patch<AuthUser>("/users/me/nickname", { nickname }),
+
+  updateDisplayName: (displayName: string) =>
+    identityHttp.patch<AuthUser>("/users/me/display-name", { displayName }),
 };

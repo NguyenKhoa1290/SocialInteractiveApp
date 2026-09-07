@@ -5,15 +5,14 @@ import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { AuthLayout, ErrorText } from "./AuthLayout";
 
-// Dung sau dang ky/dang nhap OAuth lan dau (UC-07/08) - server tra
-// requiresNickname=true vi OAuth KHONG tu lay ten tu provider lam nickname
-// chinh thuc (xem AuthEndpoints.cs /auth/oauth/{provider}).
+// OAuth da duoc server cap san handle duy nhat; nguoi dung chi chon ten hien
+// thi cong khai trong buoc dau tien nay.
 export function NicknamePage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [nickname, setNickname] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,8 +22,8 @@ export function NicknamePage() {
     setError(null);
     setLoading(true);
     try {
-      await authApi.updateNickname(nickname);
-      setAuth(accessToken, { ...user, nickname });
+      const { data } = await authApi.updateDisplayName(displayName);
+      setAuth(accessToken, data);
       navigate("/app");
     } catch (err) {
       setError(extractApiError(err, "Không đổi được nickname"));
@@ -34,12 +33,12 @@ export function NicknamePage() {
   }
 
   return (
-    <AuthLayout title="Chọn nickname">
+    <AuthLayout title="Chọn tên hiển thị">
       <form onSubmit={handleSubmit}>
         <input
-          placeholder="Nickname"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
+          placeholder="Tên hiển thị"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
           required
           maxLength={50}
           className="auth-input"
