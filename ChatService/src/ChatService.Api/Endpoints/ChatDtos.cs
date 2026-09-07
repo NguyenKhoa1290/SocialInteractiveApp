@@ -48,6 +48,11 @@ public record CreateMessageRequest(string Type, string? Content, long? FileId, s
 // THAY THE toan bo token cu cua tin nhan nay.
 public record UpdateMessageRequest(string Content, string ContentNonce, List<string>? SearchTokens);
 
+// Thao luan trong phong hop khong ma hoa dau cuoi (co the co khach moi), nen
+// sua tin chi can noi dung ban ro. Tach DTO nay khoi UpdateMessageRequest de
+// khong vo tinh bat client phong hop phai gui nonce E2EE.
+public record UpdateMeetingMessageRequest(string Content);
+
 public record MessageResponse(
     long Id, long ConversationId, long? SenderId, string? SenderDisplayName, string Type, string? Content,
     long? FileId, bool IsDeleted, DateTimeOffset CreatedAt, bool IsEncrypted, string? ContentNonce, string? RecipientEncryptedKey,

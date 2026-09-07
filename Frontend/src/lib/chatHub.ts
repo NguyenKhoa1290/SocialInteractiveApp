@@ -144,3 +144,11 @@ export async function onMeetingMessageReceived(handler: (msg: Message) => void) 
   conn.on("MeetingMessageReceived", handler);
   return () => conn.off("MeetingMessageReceived", handler);
 }
+
+// Tach khoi su kien tin moi de man hinh phong hop khong tang so tin chua doc
+// khi ai do chi sua mot tin nhan da ton tai.
+export async function onMeetingMessageEdited(handler: (msg: Message) => void) {
+  const conn = await getChatConnection();
+  conn.on("MeetingMessageEdited", handler);
+  return () => conn.off("MeetingMessageEdited", handler);
+}

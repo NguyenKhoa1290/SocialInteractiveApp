@@ -258,11 +258,15 @@ export const chatApi = {
       params: { before, limit },
     }),
 
-  sendMeetingText: (conversationId: number, meetingId: number, content: string) =>
+  sendMeetingText: (conversationId: number, meetingId: number, content: string, replyToId?: number | null) =>
     chatHttp.post<Message>(`/conversations/${conversationId}/meetings/${meetingId}/messages`, {
       type: "text",
       content,
+      replyToId: replyToId ?? null,
     }),
+
+  editMeetingText: (conversationId: number, meetingId: number, messageId: number, content: string) =>
+    chatHttp.patch<Message>(`/conversations/${conversationId}/meetings/${meetingId}/messages/${messageId}`, { content }),
 
   sendMeetingFile: (
     conversationId: number,

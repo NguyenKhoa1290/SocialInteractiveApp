@@ -28,6 +28,10 @@ namespace ChatService.Api.Endpoints;
 // 3. Quyen truy cap hai nhanh (xem CanAccessAsync).
 public static class MeetingDiscussionEndpoints
 {
+    // Giu cung quy tac voi chat nhom: chi sua noi dung trong mot khoang ngan
+    // sau khi gui de tranh viet lai lich su thao luan da qua lau.
+    private static readonly TimeSpan EditWindow = TimeSpan.FromMinutes(15);
+
     // Thanh vien nhom: vao duoc BAT KE cuoc hop con dien ra hay da ket thuc
     // (theo lua chon cua nguoi dung du an: "giu lai, van nhan tiep duoc").
     //
@@ -180,6 +184,21 @@ public static class MeetingDiscussionEndpoints
                     return Results.Json(new ErrorResponse("file_already_attached", "Tep nay da duoc gan vao mot tin nhan"), statusCode: 409);
             }
 
+            // Chi duoc trich dan tin trong DUNG luong thao luan cua cuoc hop
+            // nay. Kiem ca MeetingId de mot request gia mao khong the lam lo
+            // noi dung chat chinh hay thao luan cua cuoc hop khac trong nhom.
+            long? replyToId = null;
+            if (req.ReplyToId is not null)
+            {
+                var hopLe = await db.Messages.AnyAsync(m =>
+                    m.Id == req.ReplyToId &&
+                    m.ConversationId == conversationId &&
+                    m.MeetingId == meetingId);
+                if (!hopLe)
+                    return Results.BadRequest(new ErrorResponse("invalid_reply", "Tin nhan duoc tra loi khong thuoc thao luan cua cuoc hop nay"));
+                replyToId = req.ReplyToId;
+            }
+
             var message = new Message
             {
                 ConversationId = conversationId,
@@ -189,6 +208,7 @@ public static class MeetingDiscussionEndpoints
                 Content = req.Content,
                 IsEncrypted = false,
                 ContentNonce = null,
+                ReplyToId = replyToId,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             db.Messages.Add(message);
@@ -222,6 +242,52 @@ public static class MeetingDiscussionEndpoints
 
             return Results.Created(
                 $"/conversations/{conversationId}/meetings/{meetingId}/messages/{message.Id}", response);
+        });
+
+        // Sua tin nhan Text trong thao luan. Quy tac quyen va cua so 15 phut
+        // giong chat nhom, nhung CanAccessAsync van giu dung cach phan biet
+        // thanh vien nhom voi khach moi cua phong hop.
+        group.MapPatch("/messages/{messageId:long}", async (
+            long conversationId, long meetingId, long messageId, UpdateMeetingMessageRequest req,
+            ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient,
+            MediaServiceClient mediaClient, IdentityClient identity, IHubContext<ChatHub> hub) =>
+        {
+            var userId = GetUserId(principal)!.Value;
+            var conversation = await db.Conversations.FindAsync(conversationId);
+            if (conversation is null)
+                return Results.NotFound();
+            if (!await CanAccessAsync(conversation, meetingId, userId, workspaceClient, mediaClient))
+                return Results.Json(new ErrorResponse("forbidden", "Ban khong co quyen sua thao luan cua cuoc hop nay"), statusCode: 403);
+
+            var message = await db.Messages.SingleOrDefaultAsync(m =>
+                m.Id == messageId &&
+                m.ConversationId == conversationId &&
+                m.MeetingId == meetingId);
+            if (message is null || message.IsDeleted)
+                return Results.NotFound();
+            if (message.SenderId != userId)
+                return Results.Json(new ErrorResponse("forbidden", "Chi nguoi gui duoc sua tin nhan nay"), statusCode: 403);
+            if (message.Type != MessageType.Text)
+                return Results.Json(new ErrorResponse("not_editable", "Chi tin nhan Text moi sua duoc"), statusCode: 422);
+            if (DateTimeOffset.UtcNow - message.CreatedAt > EditWindow)
+                return Results.Json(new ErrorResponse("edit_window_expired", $"Chi sua duoc trong {EditWindow.TotalMinutes} phut sau khi gui"), statusCode: 422);
+            if (string.IsNullOrWhiteSpace(req.Content))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Noi dung tin nhan khong duoc trong"));
+
+            message.Content = req.Content.Trim();
+            message.IsEdited = true;
+            message.EditedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+
+            var senders = await identity.ResolveUsersAsync([userId]);
+            var response = MessageResponse.FromEntity(
+                message,
+                senderDisplayName: senders.TryGetValue(userId, out var u) ? u.Nickname : null);
+
+            // Su kien rieng de MeetingRoomPage khong coi mot lan sua la tin
+            // moi va tang cham thong bao chua doc khi panel dang dong.
+            await hub.Clients.Group(ChatHub.MeetingGroupName(meetingId)).SendAsync("MeetingMessageEdited", response);
+            return Results.Ok(response);
         });
     }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { UploadTracker } from "../../api/chatApi";
-import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageReceived } from "../../lib/chatHub";
+import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageEdited, onMeetingMessageReceived } from "../../lib/chatHub";
 import { useAuthStore } from "../../store/authStore";
 import { extractApiError } from "../../lib/apiError";
 import { FileMessageContent } from "../chat/FileMessageContent";
@@ -45,6 +45,10 @@ export function MeetingDiscussion({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const [uploading, setUploading] = useState<MessageType | null>(null);
   const [upload, setUpload] = useState<UploadState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +58,7 @@ export function MeetingDiscussion({
   useEffect(() => {
     let cancelled = false;
     let unsub: (() => void) | undefined;
+    let unsubEdited: (() => void) | undefined;
 
     async function setup() {
       try {
@@ -67,6 +72,11 @@ export function MeetingDiscussion({
           // - bo qua ban echo de khong hien 2 lan.
           setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
         });
+        unsubEdited = await onMeetingMessageEdited((msg) => {
+          // Sua tin khong phai tin moi: chi thay ban ghi dang co, tranh tao
+          // mot ban sao neu ket noi SignalR vao lai muon.
+          setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
+        });
       } catch (err) {
         if (!cancelled) setError(extractApiError(err, "Không tải được thảo luận"));
       } finally {
@@ -78,6 +88,7 @@ export function MeetingDiscussion({
     return () => {
       cancelled = true;
       unsub?.();
+      unsubEdited?.();
       if (tuVaoNhom) leaveMeetingDiscussion(meetingId).catch(() => {});
     };
   }, [conversationId, meetingId, tuVaoNhom]);
@@ -92,13 +103,50 @@ export function MeetingDiscussion({
     setSending(true);
     setError(null);
     try {
-      const res = await chatApi.sendMeetingText(conversationId, meetingId, text.trim());
+      const res = await chatApi.sendMeetingText(conversationId, meetingId, text.trim(), replyTo?.id);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
       setText("");
+      setReplyTo(null);
     } catch (err) {
       setError(extractApiError(err, "Không gửi được tin nhắn"));
     } finally {
       setSending(false);
+    }
+  }
+
+  function tomTat(m: Message) {
+    if (m.isDeleted) return "Tin nhắn đã được thu hồi";
+    if (m.type === "text") return m.content || "Tin nhắn";
+    return m.type === "image" ? "Hình ảnh" : m.type === "video" ? "Video" : m.type === "voice" ? "Tin nhắn âm thanh" : "Tệp đính kèm";
+  }
+
+  function nhayToi(messageId: number) {
+    const target = document.getElementById(`disc-message-${messageId}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.classList.remove("disc-flash");
+    requestAnimationFrame(() => target?.classList.add("disc-flash"));
+  }
+
+  function startEdit(m: Message) {
+    setReplyTo(null);
+    setEditingId(m.id);
+    setEditText(m.content ?? "");
+  }
+
+  async function handleSaveEdit(m: Message) {
+    const content = editText.trim();
+    if (!content || savingEdit) return;
+    setSavingEdit(true);
+    setError(null);
+    try {
+      const res = await chatApi.editMeetingText(conversationId, meetingId, m.id, content);
+      setMessages((prev) => prev.map((x) => (x.id === res.data.id ? res.data : x)));
+      setEditingId(null);
+      setEditText("");
+    } catch (err) {
+      setError(extractApiError(err, "Khong the sua tin nhan (co the da qua 15 phut)"));
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -180,14 +228,59 @@ export function MeetingDiscussion({
           })
           .map((m) => {
           const mine = m.senderId === currentUserId;
+          const reply = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) : undefined;
+          const canReply = !m.isDeleted;
+          const canEdit = mine && m.type === "text" && !m.isDeleted;
           return (
-            <div key={m.id} className={`disc-row${mine ? " mine" : ""}`}>
+            <div key={m.id} id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}`}>
+              {m.replyToId != null && (
+                <button
+                  type="button"
+                  className="disc-quote"
+                  onClick={() => nhayToi(m.replyToId!)}
+                  title="Tới tin nhắn gốc"
+                >
+                  <span className="disc-quote-who">{reply?.senderDisplayName ?? (reply?.senderId === currentUserId ? "Bạn" : "Tin nhắn")}</span>
+                  <span className="disc-quote-text">{reply ? tomTat(reply) : "Tin nhắn cũ"}</span>
+                </button>
+              )}
               <div className="disc-bubble">
                 {!mine && <div className="disc-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</div>}
                 {m.isDeleted ? (
                   <em className="disc-deleted">(đã xoá)</em>
+                ) : editingId === m.id ? (
+                  <div className="disc-edit">
+                    <input
+                      autoFocus
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleSaveEdit(m);
+                        }
+                        if (e.key === "Escape") {
+                          setEditingId(null);
+                          setEditText("");
+                        }
+                      }}
+                      disabled={savingEdit}
+                      aria-label="Nội dung tin nhắn"
+                    />
+                    <div className="disc-edit-actions">
+                      <button type="button" className="disc-act" onClick={() => void handleSaveEdit(m)} disabled={savingEdit || !editText.trim()}>
+                        Lưu
+                      </button>
+                      <button type="button" className="disc-act" onClick={() => { setEditingId(null); setEditText(""); }} disabled={savingEdit}>
+                        Hủy
+                      </button>
+                    </div>
+                  </div>
                 ) : m.type === "text" ? (
-                  m.content
+                  <>
+                    {m.content}
+                    {m.isEdited && <span className="disc-edited"> (đã sửa)</span>}
+                  </>
                 ) : m.fileId != null ? (
                   <FileMessageContent fileId={m.fileId} type={m.type} />
                 ) : (
@@ -195,6 +288,12 @@ export function MeetingDiscussion({
                 )}
                 <div className="disc-time">{new Date(m.createdAt).toLocaleTimeString("vi-VN")}</div>
               </div>
+              {(canReply || canEdit) && editingId !== m.id && (
+                <div className="disc-acts">
+                  {canReply && <button type="button" className="disc-act" onClick={() => { setEditingId(null); setReplyTo(m); }}>Trả lời</button>}
+                  {canEdit && <button type="button" className="disc-act" onClick={() => startEdit(m)}>Sửa</button>}
+                </div>
+              )}
             </div>
           );
         })}
@@ -202,6 +301,16 @@ export function MeetingDiscussion({
       </div>
 
       {error && <p className="disc-error">{error}</p>}
+
+      {replyTo && (
+        <div className="disc-reply-bar">
+          <span className="disc-reply-label">Đang trả lời</span>
+          <span className="disc-reply-text">{tomTat(replyTo)}</span>
+          <button type="button" className="disc-reply-x" onClick={() => setReplyTo(null)} aria-label="Bỏ trả lời">
+            ×
+          </button>
+        </div>
+      )}
 
       {/* MOT dai duy nhat: o nhap + bon nut dinh kem + nut gui, dung theo
           Frame 38 cua thiet ke. Ban cu la mot form rieng cong mot hang nhan
