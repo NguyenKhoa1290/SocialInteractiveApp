@@ -30,6 +30,12 @@
   border-left: 0;
 }
 
+/* Thanh chuyen panel chi co tren dien thoai; de no khong tham gia luoi ba cot
+   cua desktop. */
+.cw-mobile-tabs {
+  display: none;
+}
+
 /* Chi phan danh sach cuon, con o tim kiem va cac nut o tren dung yen. */
 .cw-scroll {
   flex: 1;
@@ -609,9 +615,9 @@
 
 /* --- Man hep ------------------------------------------------------------ */
 /*
-   Duoi 1200px bo panel phai (thong tin xem qua nut o dau trang); duoi 900px
-   chi hien MOT panel mot luc - dang o hoi thoai thi hien khung chat, khong
-   thi hien danh sach. Nhoi ba cot vao man dien thoai thi cot nao cung vo dung.
+   Duoi 1200px tam an panel phai de cot chat con cho; duoi 900px, ba cot
+   chuyen thanh BA MAN RIENG. Thanh .cw-mobile-tabs chon cot dang xem, nen
+   khong phai ep ba cot desktop vao be rong cua dien thoai.
 */
 
 @media (max-width: 1200px) {
@@ -631,20 +637,138 @@
 
 @media (max-width: 900px) {
   .cw {
-    grid-template-columns: minmax(0, 1fr);
-    height: calc(100svh - var(--rail-h));
+    display: flex;
+    flex-direction: column;
+    height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom));
   }
 
-  .cw-col-list {
+  .cw-mobile-tabs {
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: calc(6px * var(--s));
+    padding: calc(10px * var(--s)) calc(12px * var(--s));
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .cw-mobile-tabs button {
+    min-width: 0;
+    min-height: calc(36px * var(--s));
+    padding: calc(6px * var(--s));
+    border: 1px solid var(--accent-border);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--calli-navy);
+    font: 600 calc(14px * var(--s)) / 1.2 var(--sans);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .cw-mobile-tabs button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .cw-mobile-tabs button:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .cw-col {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .cw-col-list,
+  .cw-col-chat,
+  .cw-col-info {
     display: none;
   }
 
-  .cw.cw-no-active .cw-col-list {
+  .cw.cw-mobile-list .cw-col-list {
     display: flex;
   }
 
-  .cw.cw-no-active .cw-col-chat {
-    display: none;
+  .cw.cw-mobile-chat .cw-col-chat {
+    display: flex;
+  }
+
+  /* Ghi de rule an panel thong tin cua breakpoint 1200px va ca tuy chon gap
+     tren desktop: o mobile day la man thu ba, khong phai mot cot dang chiem
+     cho can phai nho lai. */
+  .cw.cw-mobile-info .cw-col-info {
+    display: flex;
+  }
+
+  .cw-left-top {
+    padding: calc(18px * var(--s)) calc(16px * var(--s)) 0;
+    gap: calc(14px * var(--s));
+  }
+
+  .cw-scroll {
+    padding: calc(12px * var(--s)) calc(16px * var(--s)) calc(16px * var(--s));
+    gap: calc(12px * var(--s));
+  }
+
+  .cw-card {
+    min-height: calc(76px * var(--s));
+    padding: calc(10px * var(--s));
+  }
+
+  .cw-card-name {
+    font-size: calc(21px * var(--s));
+  }
+
+  .cw-card-sub {
+    font-size: calc(16px * var(--s));
+  }
+
+  .cw-head {
+    margin: calc(14px * var(--s)) calc(16px * var(--s)) 0;
+  }
+
+  .cw-head .avatar {
+    width: calc(52px * var(--s));
+    height: calc(52px * var(--s));
+    font-size: calc(22px * var(--s));
+  }
+
+  .cw-head-actions {
+    gap: calc(2px * var(--s));
+  }
+
+  .cw-msgs {
+    padding: calc(16px * var(--s));
+    gap: calc(12px * var(--s));
+  }
+
+  .cw-composer {
+    gap: calc(8px * var(--s));
+    margin: 0 calc(12px * var(--s)) calc(12px * var(--s));
+    padding: calc(8px * var(--s)) calc(12px * var(--s));
+  }
+
+  .cw-composer-input {
+    min-height: calc(46px * var(--s));
+    font-size: calc(20px * var(--s));
+  }
+
+  .cw-attach {
+    gap: calc(14px * var(--s));
+  }
+
+  .cw-info {
+    padding: calc(24px * var(--s)) calc(16px * var(--s));
+  }
+
+  .cw-info-name {
+    font-size: calc(28px * var(--s));
+  }
+
+  .fm-file {
+    min-width: 0;
   }
 }
 

@@ -4,7 +4,7 @@
    ma khong them thong tin nao. */
 :root {
   --rail-w: calc(96px * var(--s));
-  --rail-h: calc(64px * var(--s)); /* khi nam ngang duoi day tren man hep */
+  --rail-h: calc(84px * var(--s)); /* khi nam ngang duoi day tren man hep */
 }
 
 .shell {
@@ -174,37 +174,69 @@
     right: 0;
     width: 100%;
     flex: none;
-    height: var(--rail-h);
+    height: calc(var(--rail-h) + env(safe-area-inset-bottom));
     flex-direction: row;
     justify-content: space-around;
     align-items: center;
     gap: 0;
-    padding: 0 8px;
+    padding: calc(3px * var(--s)) calc(6px * var(--s)) env(safe-area-inset-bottom);
     border-top: 1px solid var(--panel-border);
   }
 
   .rail-top,
   .rail-mid,
   .rail-bottom {
-    flex-direction: row;
-    width: auto;
-    margin: 0;
-    gap: 4px;
+    display: contents;
   }
 
+  .rail-avatar,
+  .rail-item {
+    flex: 1 1 0;
+    width: auto;
+    max-width: calc(68px * var(--s));
+    height: calc(72px * var(--s));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(2px * var(--s));
+    padding: calc(3px * var(--s));
+  }
 
   .rail-avatar .avatar {
-    width: calc(38px * var(--s));
-    height: calc(38px * var(--s));
-    font-size: calc(16px * var(--s));
+    width: calc(36px * var(--s));
+    height: calc(36px * var(--s));
+    font-size: calc(15px * var(--s));
   }
 
-  .rail-item {
-    width: calc(46px * var(--s));
-    height: calc(46px * var(--s));
+  .rail-item svg {
+    width: calc(24px * var(--s));
+    height: calc(24px * var(--s));
+  }
+
+  .rail-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    color: inherit;
+    font-size: calc(11px * var(--s));
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .rail-dot {
+    top: calc(8px * var(--s));
+    right: calc(10px * var(--s));
+  }
+
+  .rail-badge {
+    top: calc(3px * var(--s));
+    right: calc(6px * var(--s));
   }
 
   .shell-main {
-    padding: 16px 16px calc(var(--rail-h) + 16px);
+    padding: 16px 16px calc(var(--rail-h) + env(safe-area-inset-bottom) + 16px);
   }
 }
