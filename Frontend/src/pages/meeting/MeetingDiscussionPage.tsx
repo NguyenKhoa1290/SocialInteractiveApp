@@ -12,11 +12,15 @@ export function MeetingDiscussionPage() {
 
   return (
     <AppShell>
-      <Link to={`/app/chat/${conversationId}`} className="chat-back-link">
-        ← Về phòng chat
-      </Link>
-      <h2>Thảo luận · Cuộc họp #{mid}</h2>
-      <MeetingDiscussion conversationId={conversationId} meetingId={mid} />
+      <section className="meeting-discussion-page">
+        <header className="meeting-discussion-page-head">
+          <Link to={`/app/chat/${conversationId}`} className="chat-back-link">
+            ← Về phòng chat
+          </Link>
+          <h2>Thảo luận · Cuộc họp #{mid}</h2>
+        </header>
+        <MeetingDiscussion conversationId={conversationId} meetingId={mid} />
+      </section>
     </AppShell>
   );
 }
