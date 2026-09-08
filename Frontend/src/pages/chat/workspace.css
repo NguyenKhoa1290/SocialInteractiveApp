@@ -283,14 +283,6 @@
   box-sizing: border-box;
 }
 
-/* Khoi day cua composer: gom canh bao E2EE, thanh tra loi va o soan. De o
-   desktop no van la cot flex nen canh bao giu dung canh giua nhu truoc. */
-.cw-compose-area {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-}
-
 .cw-composer-input {
   flex: 1;
   min-width: 0;
@@ -755,32 +747,6 @@
   .cw-msgs {
     padding: calc(16px * var(--s));
     gap: calc(12px * var(--s));
-  }
-
-  /* Canh bao E2EE can van de nhin thay, nhung khong duoc tham gia flex
-     layout cua cot chat: no tung day ca composer len tren o mobile. Dua no
-     ra lop noi phia tren composer; khoang dem cua danh sach tin ben duoi dam
-     bao tin cuoi cung van cuon len tren canh bao nay. */
-  .cw-compose-area {
-    position: relative;
-  }
-
-  .cw-e2ee-note {
-    position: absolute;
-    z-index: 1;
-    right: calc(12px * var(--s));
-    bottom: 100%;
-    left: calc(12px * var(--s));
-    margin: 0 0 calc(6px * var(--s));
-    padding: calc(5px * var(--s)) calc(10px * var(--s));
-    border-radius: var(--r-sm);
-    background: color-mix(in srgb, var(--bg) 92%, var(--calli-muted));
-    text-align: center;
-    line-height: 1.35;
-  }
-
-  .cw-msgs-co-canh-bao-e2ee {
-    padding-bottom: calc(72px * var(--s));
   }
 
   .cw-composer {

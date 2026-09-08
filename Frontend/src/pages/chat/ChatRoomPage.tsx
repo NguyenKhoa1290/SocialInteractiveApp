@@ -68,10 +68,9 @@ export function ChatRoomPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [decrypted, setDecrypted] = useState<Record<number, string>>({});
   // P2P: chi 1 nguoi con lai. Group: toan bo thanh vien DA dang ky public
-  // key (thanh vien chua thiet lap E2EE se bi loai khoi fan-out, khong
-  // nhan duoc tin Text - xem missingKeyCount).
+  // key (thanh vien chua thiet lap E2EE se bi loai khoi fan-out va khong
+  // nhan duoc tin Text).
   const [publicKeys, setPublicKeys] = useState<Map<number, Uint8Array>>(new Map());
-  const [missingKeyCount, setMissingKeyCount] = useState(0);
   const [isLeader, setIsLeader] = useState(false);
   // Rong hon isLeader: doi ten va doi ANH nhom la quyen cua ca Pho nhom
   // (UC-18), trong khi xoa nhom / duoi thanh vien thi chi Truong nhom.
@@ -380,7 +379,7 @@ export function ChatRoomPage() {
         const res = await keysApi.getPublicKey(otherId);
         setPublicKeys(new Map([[otherId, publicKeyFromBase64(res.data.publicKey)]]));
       } catch {
-        setMissingKeyCount(1);
+        // Khong co public key thi khong the gui Text cho nguoi nay.
       }
     }
 
@@ -401,7 +400,6 @@ export function ChatRoomPage() {
       const map = new Map<number, Uint8Array>();
       for (const k of keysRes.data) map.set(k.userId, publicKeyFromBase64(k.publicKey));
       setPublicKeys(map);
-      setMissingKeyCount(memberIds.length - map.size);
     }
 
     if (conversation.type === "p2p") loadP2PKey();
@@ -880,20 +878,6 @@ export function ChatRoomPage() {
   // tep khong duoc ma hoa dau cuoi.
   const coTheGuiChu = privateKey !== null && publicKeys.size > 0;
 
-  // Chi hien MOT canh bao E2EE gan khung soan. Truoc day khi ca nhom chua
-  // co khoa thi hai dong canh bao cung hien, vua trung y vua day composer
-  // len tren man hinh hep.
-  const thongBaoE2EE =
-    publicKeys.size === 0
-      ? conversation?.type === "p2p"
-        ? "Người này chưa thiết lập E2EE, chưa gửi được tin nhắn Text."
-        : "Chưa có thành viên nào (kể cả bạn) thiết lập E2EE trong nhóm này."
-      : missingKeyCount > 0 && conversation?.type === "group"
-        ? `${missingKeyCount} thành viên chưa thiết lập E2EE sẽ không nhận được tin nhắn Text.`
-        : null;
-  const dangBiCamChat = conversation?.type === "group" && currentUserId !== undefined && mutedUserIds.has(currentUserId);
-  const hienThongBaoE2EE = thongBaoE2EE !== null && !dangBiCamChat;
-
   const tenHoiThoai =
     peer?.ten ??
     (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
@@ -1163,7 +1147,7 @@ export function ChatRoomPage() {
         </Modal>
       )}
 
-      <div className={`cw-msgs${hienThongBaoE2EE ? " cw-msgs-co-canh-bao-e2ee" : ""}`}>
+      <div className="cw-msgs">
         {/* Dang tim thi khung tin nhan hien KET QUA thay vi lich su - khong
             chen them mot bang nua day tin nhan xuong nhu ban truoc. */}
         {searchResults !== null && (
@@ -1310,7 +1294,7 @@ export function ChatRoomPage() {
       {error && <p className="chat-error">{error}</p>}
       {uploading && !upload && <p className="chat-text-note">Đang gửi {uploading}…</p>}
 
-      {dangBiCamChat ? (
+      {conversation?.type === "group" && currentUserId && mutedUserIds.has(currentUserId) ? (
         <p className="chat-text-note">Bạn đang bị cấm chat trong nhóm này.</p>
       ) : (
         <>
@@ -1321,14 +1305,7 @@ export function ChatRoomPage() {
 
               Cac nut dinh kem BIEN MAT khi dang go: thiet ke ve o nhap gian tu
               455 ra 761 khi co chu, tuc nhuong cho cho viec dang lam. */}
-          <div className="cw-compose-area">
-            {hienThongBaoE2EE && (
-              <p className="chat-text-note cw-e2ee-note" role="status">
-                {thongBaoE2EE}
-              </p>
-            )}
-
-            {/* Dang tra loi ai: hien ngay tren khung soan, bam X de bo. */}
+          {/* Dang tra loi ai: hien ngay tren khung soan, bam X de bo. */}
             {replyTo && (
               <div className="cw-reply-bar">
                 <span className="cw-reply-label">Đang trả lời</span>
@@ -1346,17 +1323,19 @@ export function ChatRoomPage() {
               </div>
             )}
 
-            <form
-              className="cw-composer"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleSendText(e);
-              }}
-            >
+          <form
+            className="cw-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSendText(e);
+            }}
+          >
             <textarea
               ref={composerRef}
               className="cw-composer-input"
-              placeholder={coTheGuiChu ? "Nhập tin nhắn" : "Cần mở khoá E2EE để gửi tin nhắn chữ"}
+              placeholder="Nhập tin nhắn"
+              aria-label={coTheGuiChu ? "Nhập tin nhắn" : "Cần thiết lập E2EE để gửi tin nhắn chữ"}
+              title={coTheGuiChu ? undefined : "Thiết lập E2EE trong popup tài khoản để gửi tin nhắn chữ"}
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               rows={1}
@@ -1399,8 +1378,7 @@ export function ChatRoomPage() {
             <button className="cw-send" type="submit" disabled={sendingText || textInput.trim() === "" || !coTheGuiChu} title="Gửi">
               <IconSend />
             </button>
-            </form>
-          </div>
+          </form>
         </>
       )}
 
