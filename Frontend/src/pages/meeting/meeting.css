@@ -2274,6 +2274,14 @@
     min-height: 0;
   }
 
+  /* Trên điện thoại chỉ phần nội dung của Mini App ngắn hơn 5%. Khung stage
+     vẫn giữ phần diện tích còn lại để dải khán giả và pager không bị dồn,
+     đồng thời video tiếp tục dùng `object-fit: contain` thay vì bị méo. */
+  .mroom-focus > .meet-stage-app > .meet-app-stage {
+    flex: 0 1 95%;
+    height: 95%;
+  }
+
   .mroom-focus .mroom-dai {
     width: 100%;
     /* Hai hang o can du chieu cao cho avatar va ten. Pager co hang rieng
