@@ -45,6 +45,9 @@ export function MiniAppPage() {
   const [timPlaylist, setTimPlaylist] = useState("");
   const [timKenh, setTimKenh] = useState("");
   const [trangKenh, setTrangKenh] = useState(0);
+  // Tren dien thoai, ba cot desktop tro thanh ba trang. Giu trang hien tai
+  // o component de viec doi trang khong lam mat tu khoa tim hay du lieu da tai.
+  const [trangMobile, setTrangMobile] = useState<0 | 1 | 2>(0);
   const [hienThemPlaylist, setHienThemPlaylist] = useState(false);
   const [hienThongTin, setHienThongTin] = useState(false);
   const [themKenhVao, setThemKenhVao] = useState<number | null>(null);
@@ -243,7 +246,15 @@ export function MiniAppPage() {
   function veHangPlaylist(l: IptvChannelList) {
     return (
       <div key={l.id} className={`ma-row${l.id === dangChon ? " active" : ""}`}>
-        <button className="ma-row-main" onClick={() => setDangChon(l.id)}>
+        <button
+          className="ma-row-main"
+          onClick={() => {
+            setDangChon(l.id);
+            // Da chon playlist thi buoc ke tiep hop ly tren dien thoai la xem
+            // kenh cua no; tren desktop state nay khong anh huong ba cot.
+            setTrangMobile(2);
+          }}
+        >
           {l.name}
         </button>
         {l.canEdit && (
@@ -258,8 +269,29 @@ export function MiniAppPage() {
   return (
     <AppShell activeTab="miniapp">
       <div className="ma">
+        {/* Tren dien thoai chi hien mot cot moi luc. Thanh nay la dieu huong
+            giua ba trang, khong phai phan trang kenh IPTV o cot cuoi. */}
+        <nav className="ma-mobile-pager" aria-label="Các bước Mini App">
+          {([
+            [0, "Mini App"],
+            [1, "Playlist"],
+            [2, "Kênh"],
+          ] as const).map(([trang, nhan]) => (
+            <button
+              key={trang}
+              type="button"
+              className={`ma-mobile-page${trangMobile === trang ? " active" : ""}`}
+              aria-current={trangMobile === trang ? "page" : undefined}
+              onClick={() => setTrangMobile(trang)}
+            >
+              <span className="ma-mobile-page-number" aria-hidden="true">{trang + 1}</span>
+              {nhan}
+            </button>
+          ))}
+        </nav>
+
         {/* --- Panel 1: danh sách Mini App --- */}
-        <div className="ma-col">
+        <div className={`ma-col${trangMobile === 0 ? " ma-mobile-active" : ""}`}>
           <div className="ma-search">
             <IconSearch />
             <input placeholder="Tìm kiếm Mini App" aria-label="Tìm kiếm Mini App" disabled />
@@ -276,7 +308,7 @@ export function MiniAppPage() {
         </div>
 
         {/* --- Panel 2: playlist --- */}
-        <div className="ma-col">
+        <div className={`ma-col${trangMobile === 1 ? " ma-mobile-active" : ""}`}>
           <div className="ma-search">
             <IconSearch />
             <input
@@ -311,7 +343,7 @@ export function MiniAppPage() {
         </div>
 
         {/* --- Panel 3: kênh --- */}
-        <div className="ma-col">
+        <div className={`ma-col${trangMobile === 2 ? " ma-mobile-active" : ""}`}>
           <div className="ma-search">
             <IconSearch />
             <input
@@ -480,6 +512,7 @@ export function MiniAppPage() {
               setError(null);
               setGhiChu("Đã thêm playlist.");
             }
+            setTrangMobile(2);
             void napDanhSach(listId);
           }}
         />

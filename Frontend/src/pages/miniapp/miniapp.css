@@ -29,6 +29,13 @@
   border-right: 0;
 }
 
+/* Thanh buoc chi xuat hien tren dien thoai, noi ba cot desktop thanh ba trang
+   rieng biet. De trong DOM o desktop nhung an bang CSS giup ca hai che do
+   dung chung mot state va khong nhan ban noi dung. */
+.ma-mobile-pager {
+  display: none;
+}
+
 /* Ô tìm 440x37, nền #B7B6BA bo 6 - cùng khuôn với ô tìm ở màn chat. */
 .ma-search {
   display: flex;
@@ -380,17 +387,89 @@
   margin-top: calc(8px * var(--s));
 }
 
-/* Màn hẹp: ba cột xếp dọc thay vì bóp cho vừa. */
-@media (max-width: 1100px) {
+/* Dien thoai: thanh dieu huong chinh da nam ngang o day, nen ba cot cung phai
+   thanh ba trang. Xep doc khien nguoi dung phai cuon qua ca playlist moi toi
+   duoc kenh va de mat vi tri dang lam viec. */
+@media (max-width: 900px) {
   .ma {
+    height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom));
     grid-template-columns: minmax(0, 1fr);
-    overflow-y: auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .ma-mobile-pager {
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: calc(8px * var(--s));
+    padding: calc(12px * var(--s)) calc(16px * var(--s));
+    border-bottom: 1px solid var(--calli-surface);
+    background: var(--bg);
+  }
+
+  .ma-mobile-page {
+    min-width: 0;
+    min-height: calc(44px * var(--s));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(6px * var(--s));
+    padding: calc(7px * var(--s));
+    border: 1px solid var(--calli-teal);
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--calli-navy);
+    font-family: var(--sans);
+    font-size: calc(14px * var(--s));
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ma-mobile-page.active {
+    background: var(--calli-teal);
+    color: #fff;
+  }
+
+  .ma-mobile-page:focus-visible {
+    outline: 2px solid var(--calli-teal-dark);
+    outline-offset: 2px;
+  }
+
+  .ma-mobile-page-number {
+    display: grid;
+    place-items: center;
+    width: calc(18px * var(--s));
+    height: calc(18px * var(--s));
+    border-radius: 50%;
+    background: rgba(47, 60, 82, 0.12);
+    font-size: calc(11px * var(--s));
+  }
+
+  .ma-mobile-page.active .ma-mobile-page-number {
+    background: rgba(255, 255, 255, 0.22);
   }
 
   .ma-col {
-    overflow: visible;
+    display: none;
+    grid-column: 1;
+    grid-row: 2;
+    overflow-y: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--calli-surface);
+    border-bottom: 0;
+    padding: calc(20px * var(--s)) calc(16px * var(--s)) calc(24px * var(--s));
+  }
+
+  .ma-col.ma-mobile-active {
+    display: flex;
+  }
+
+  .ma-banner {
+    bottom: calc(var(--rail-h) + env(safe-area-inset-bottom) + calc(16px * var(--s)));
+    max-width: calc(100% - calc(32px * var(--s)));
+    box-sizing: border-box;
+    text-align: center;
   }
 }
 
