@@ -2,23 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import wordmark from "../assets/calli/calli-wordmark.svg";
 import "./device-gate.css";
 
-// Phong hop hien van duoc ve cho man hinh may tinh 1920x1080 (xem --s trong
-// index.css). Rieng cac man app thong thuong da co bo cuc dien thoai. Tuy
-// nhien, ca hai van can mot gioi han vat ly de khong dua nguoi dung vao mot
+// Tat ca man hinh deu co bo cuc responsive, ke ca phong hop tren dien thoai.
+// Tuy nhien van can mot gioi han vat ly de khong dua nguoi dung vao mot
 // khung qua nho / qua dai ma giao dien khong con doc duoc.
 //
-// O route phong hop, file nay con chan them hai truong hop khong dung duoc:
-//
-//   1. Dien thoai / may tinh bang - ke ca khi bat "che do may tinh"
-//   2. Cua so may tinh bi keo qua hep
-//
-// Hai truong hop xu ly KHAC nhau, co y:
-//   - Dien thoai thi khong dung duoc va cung khong sua duoc, nen thay han
-//     noi dung: khong mount ung dung, khong mo ket noi LiveKit/SignalR nao.
-//   - Cua so hep chi la tam thoi. O do ung dung VAN chay ben duoi, chi phu
-//     mot lop bao len tren. Neu thao ung dung ra thi ai dang hop ma lo keo
-//     nho cua so se bi ngat khoi phong - dung mot cai nhac nho ma cat cuoc
-//     goi cua nguoi ta la khong duoc.
+// Rieng phong hop tren may tinh can chieu rong toi thieu de giu duoc bo cuc
+// desktop. Dien thoai dung bo cuc rieng, nen KHONG ap dung gioi han nay cho
+// thiet bi cam ung. Lop bao chi phu len ung dung dang chay, de viec doi kich
+// thuoc cua so khong lam ngat ket noi dang hop.
 
 // Do rong toi thieu cua PHONG HOP (px CSS).
 //
@@ -146,28 +137,10 @@ export function DeviceGate({ children, blockNarrow = false }: { children: ReactN
     );
   }
 
-  if (diDong)
-    return blockNarrow ? (
-      <ManBao tieuDe="Phòng họp chưa hỗ trợ điện thoại">
-        <p>
-          Phần nhắn tin đã dùng được trên điện thoại, nhưng giao diện cuộc họp đang được hoàn thiện.
-          Hãy mở lại liên kết này bằng máy tính để tham gia cuộc họp.
-        </p>
-        <p className="dgate-phu">
-          Bật “Trang cho máy tính” trong trình duyệt cũng chưa đủ để dùng phần cuộc họp.
-        </p>
-      </ManBao>
-    ) : lyDo ? (
-      <>
-        {children}
-        <PopupPhongTo />
-      </>
-    ) : <>{children}</>;
-
   return (
     <>
       {children}
-      {blockNarrow && khung.rong < RONG_TOI_THIEU ? (
+      {blockNarrow && !diDong && khung.rong < RONG_TOI_THIEU ? (
         <ManBao tieuDe="Hãy mở rộng cửa sổ">
           <p>
             Phòng họp cần cửa sổ rộng ít nhất <b>{RONG_TOI_THIEU}px</b> để hiển thị đủ. Kéo rộng cửa sổ trình

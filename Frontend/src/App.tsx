@@ -69,7 +69,8 @@ export default function App() {
 function AppRoutes() {
   const location = useLocation();
   // Giao dien hop (ca trang vao hop bang link) chua duoc responsive. Cac
-  // route khac, dac biet la ba panel chat, phai duoc mo tren dien thoai.
+  // Tren desktop, phong hop can chieu rong toi thieu; tren dien thoai no co
+  // bo cuc rieng trong meeting.css nen khong bi chan boi DeviceGate.
   const chanManHep = location.pathname.startsWith("/meetings/");
 
   return (
