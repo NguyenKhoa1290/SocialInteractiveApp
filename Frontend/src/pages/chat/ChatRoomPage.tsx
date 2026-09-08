@@ -51,6 +51,7 @@ const KHOA_AN_THONG_TIN = "cw-an-thong-tin";
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 const IMAGE_MAX_BYTES = 50 * 1024 * 1024;
+const DOUBLE_ENTER_SEND_MS = 500;
 
 export function ChatRoomPage() {
   const { id } = useParams();
@@ -117,6 +118,9 @@ export function ChatRoomPage() {
   // ma chong cache gan vao dia chi anh - nen dung chung mot o.
   const [peer, setPeer] = useState<{ ten: string; anh: string | null } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  // Enter thu nhat da xuong dong nhung van co the tro thanh "double Enter"
+  // neu lan thu hai den nhanh hon nua giay.
+  const lastEnterAtRef = useRef<number | null>(null);
   // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
   // ngay tren khung soan, bam X de bo.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -505,6 +509,7 @@ export function ChatRoomPage() {
 
   async function handleSendText(e: React.FormEvent) {
     e.preventDefault();
+    lastEnterAtRef.current = null;
     if (!textInput.trim() || !privateKey || !conversation || publicKeys.size === 0) return;
     setSendingText(true);
     setError(null);
@@ -567,6 +572,38 @@ export function ChatRoomPage() {
   function startEdit(m: Message) {
     setEditingId(m.id);
     setEditText(decrypted[m.id] ?? "");
+  }
+
+  function handleComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter") {
+      // Bat ky thao tac go chu nao giua hai lan Enter deu bat dau mot nhom
+      // moi, tranh gui nham sau khi nguoi dung vua viet them noi dung.
+      lastEnterAtRef.current = null;
+      return;
+    }
+
+    // Shift+Enter, phim giu, va luc dang go bang IME (Vietnamese/Chinese/...)
+    // luon la xuong dong binh thuong; khong duoc coi la cu chi gui tin.
+    if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.repeat || e.nativeEvent.isComposing) {
+      lastEnterAtRef.current = null;
+      return;
+    }
+
+    const now = performance.now();
+    const lastEnterAt = lastEnterAtRef.current;
+    // Dung < (khong phai <=): dung 0,5 giay theo yeu cau thi la hai dong,
+    // con phai bam nhanh hon 0,5 giay moi gui.
+    if (lastEnterAt !== null && now - lastEnterAt < DOUBLE_ENTER_SEND_MS) {
+      lastEnterAtRef.current = null;
+      if (textInput.trim() && !sendingText) {
+        e.preventDefault();
+        void handleSendText(e as unknown as React.FormEvent);
+      }
+      return;
+    }
+
+    // Khong preventDefault: trinh duyet tu chen dong moi ngay o lan dau.
+    lastEnterAtRef.current = now;
   }
 
   async function handleSaveEdit(m: Message) {
@@ -1337,20 +1374,18 @@ export function ChatRoomPage() {
               aria-label={coTheGuiChu ? "Nhập tin nhắn" : "Cần thiết lập E2EE để gửi tin nhắn chữ"}
               title={coTheGuiChu ? undefined : "Thiết lập E2EE trong popup tài khoản để gửi tin nhắn chữ"}
               value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
+              onChange={(e) => {
+                const inputType = (e.nativeEvent as InputEvent).inputType;
+                // Enter dau tien tao insertLineBreak; giu moc thoi gian cho
+                // Enter thu hai. Paste/xoa/go chu thi huy moc nay.
+                if (inputType !== "insertLineBreak" && inputType !== "insertParagraph") {
+                  lastEnterAtRef.current = null;
+                }
+                setTextInput(e.target.value);
+              }}
               rows={1}
               disabled={!coTheGuiChu}
-              onKeyDown={(e) => {
-                // Enter gui, Shift+Enter xuong dong - quy uoc quen thuoc cua
-                // moi ung dung nhan tin. Khong co no thi Enter chi xuong dong
-                // va nguoi dung phai voi chuot ra nut gui sau moi cau.
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (textInput.trim() && !sendingText) {
-                    void handleSendText(e as unknown as React.FormEvent);
-                  }
-                }
-              }}
+              onKeyDown={handleComposerKeyDown}
             />
 
             {textInput.trim() === "" && (
