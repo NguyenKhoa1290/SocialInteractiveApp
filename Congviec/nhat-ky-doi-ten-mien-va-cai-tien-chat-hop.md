@@ -49,6 +49,7 @@ headless, không ước lượng từ ảnh chụp.
 18. [Ghi chú vận hành](#18-ghi-chú-vận-hành)
 19. [Thảo luận trong phòng họp: trả lời và sửa tin nhắn](#19-thảo-luận-trong-phòng-họp-trả-lời-và-sửa-tin-nhắn)
 20. [Tách biệt danh duy nhất và tên hiển thị](#20-tách-biệt-danh-duy-nhất-và-tên-hiển-thị)
+21. [Hoàn thiện thao tác mobile và ảnh đại diện](#21-hoàn-thiện-thao-tác-mobile-và-ảnh-đại-diện)
 
 ---
 
@@ -1024,3 +1025,94 @@ Ngược lại, hệ thống vẫn cần một định danh gọn, duy nhất v�
 - Docker Desktop không chạy trên máy phát triển nên chưa thể làm smoke test API
   bằng compose tại chỗ. Kiểm tra runtime/API/giao diện được thực hiện sau khi
   image CI triển khai lên môi trường test.
+
+---
+
+## 21. Hoàn thiện thao tác mobile và ảnh đại diện
+
+**Đợt làm ngày 08/09/2026** — Frontend (React)
+
+### 21.1. Thảo luận cuộc họp: Enter để xuống dòng, double Enter để gửi
+
+Khung soạn của `MeetingDiscussion` được đổi từ `input` sang `textarea`, dùng
+cùng quy ước với chat nhóm:
+
+- Enter một lần tạo dòng mới;
+- Enter thứ hai nhanh hơn 0,5 giây gửi tin;
+- Enter cách từ 0,5 giây tạo thêm một dòng;
+- Shift+Enter, IME, phím giữ và mọi thao tác gõ/dán/xóa xen giữa luôn là nhập
+  bình thường, không bị hiểu nhầm là lệnh gửi.
+
+Ô nhập tự cao theo nội dung nhưng chặn tối đa để không che danh sách thảo luận.
+Tin Text giữ nguyên xuống dòng sau khi gửi. Áp dụng đồng thời cho panel trong
+phòng họp và trang xem thảo luận riêng.
+
+Commit: `1e70d2d` — `Use double Enter in meeting discussion`.
+
+### 21.2. Mini App trên điện thoại
+
+Ba cột desktop của Mini App được chuyển thành ba trang riêng trên điện thoại:
+**Mini App**, **Playlist**, **Kênh**. Thanh bước nằm trên đầu vùng nội dung;
+mỗi lúc chỉ một trang hiện và tự cuộn độc lập. Khi chọn hoặc vừa tạo playlist,
+app chuyển thẳng sang trang Kênh.
+
+Phân trang **danh sách kênh IPTV đã được bỏ lại** theo yêu cầu: tất cả kênh
+hiện trong một danh sách cuộn dọc, không chia thành trang. Thanh ba bước chỉ
+dùng để chuyển giữa ba vùng chức năng, không phải pager của kênh.
+
+Commits:
+
+- `adf97e6` — `Paginate mobile Mini App panels`;
+- `c5ab0e1` — `Restore scrollable IPTV channel list`.
+
+### 21.3. Popup thêm thành viên nhóm trên điện thoại
+
+Nguyên nhân popup không hiện: `AddMemberDialog` được khai báo trong nội dung
+panel Chat. Trên điện thoại, khi người dùng mở tab Thông tin để bấm
+**Tùy chỉnh → Thêm thành viên**, panel Chat có `display: none`, kéo popup ẩn
+theo dù state đã bật.
+
+Popup này nay được render bằng React portal vào `document.body`, vì vậy lớp
+phủ luôn nằm trên toàn màn hình và không phụ thuộc panel đang hiển thị. Luồng
+lấy danh sách bạn bè, kiểm tra người đã ở nhóm, quyền backend và API thêm thành
+viên không đổi.
+
+Commit: `648d889` — `Show add-member dialog above mobile chat panels`.
+
+### 21.4. Avatar trên Trang cá nhân
+
+Bỏ viền đen đánh dấu trạng thái active/hover quanh avatar ở thanh điều hướng.
+Viền này đặc biệt lệch trên thanh ngang điện thoại; avatar giờ chỉ hiển thị
+hình tròn gốc của component `Avatar`, không có vòng tròn phụ.
+
+Commit: `a987b12` — `Remove profile avatar active border`.
+
+### 21.5. Popup chọn vùng ảnh vuông dùng chung
+
+Thay vì cắt tự động chính giữa ngay sau khi chọn tệp, thêm
+`AvatarCropDialog` dùng chung cho:
+
+- đổi ảnh đại diện ở Trang cá nhân;
+- đổi ảnh nhóm trong panel thông tin chat;
+- chọn ảnh khi tạo nhóm mới.
+
+Popup có khung xem trước **vuông**, kéo ảnh để đổi vị trí, slider để zoom và
+hai nút Hủy / Dùng ảnh này. Nó được portal ra `document.body`, nên cả khi mở
+từ panel Thông tin trên điện thoại cũng không bị panel khác che khuất.
+
+Vùng cắt được lưu theo pixel của ảnh gốc rồi truyền cho `cropAvatar()`. Hàm
+vẫn vẽ bằng canvas, xuất WebP/JPEG theo các mức chất lượng cũ và chỉ chấp nhận
+blob không quá **256 KB** trước khi gọi API upload. `resizeAvatar()` cũ được
+giữ làm fallback cắt giữa cho nơi gọi tương lai chưa dùng popup.
+
+Commit: `8c77a5b` — `Add shared avatar crop dialog`.
+
+### Kiểm tra cục bộ và trạng thái triển khai
+
+Sau mỗi cụm thay đổi đã chạy `npm run lint`, `npx tsc --noEmit -p
+tsconfig.app.json` và `npm run build`; tất cả đạt. Lint chỉ còn các cảnh báo
+cũ trong `IptvPlayer*`, không phát sinh từ các thay đổi trên.
+
+Các commit từ `adf97e6` đến `8c77a5b` đang ở nhánh cục bộ tại thời điểm ghi
+nhật ký này; chưa đẩy lên GitHub hoặc xác nhận trên môi trường public trong
+đợt này.
