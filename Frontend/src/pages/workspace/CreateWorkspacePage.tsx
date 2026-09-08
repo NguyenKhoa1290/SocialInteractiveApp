@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
-import { resizeAvatar } from "../../lib/imageResize";
 import { AppShell } from "../../components/AppShell";
+import { AvatarCropDialog } from "../../components/AvatarCropDialog";
 import { useAuthStore } from "../../store/authStore";
 import "./workspace.css";
 
@@ -22,6 +22,7 @@ export function CreateWorkspacePage() {
   // khong duoc bam "Tao nhom" lan nua (se ra nhom trung), chi con duong vao.
   const [daTao, setDaTao] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [anhCanCat, setAnhCanCat] = useState<File | null>(null);
 
   useEffect(() => {
     return () => {
@@ -29,16 +30,9 @@ export function CreateWorkspacePage() {
     };
   }, [anh]);
 
-  async function chonAnh(file: File) {
+  function chonAnh(blob: Blob) {
     setError(null);
-    try {
-      // Cat vuong + nen ngay tai trinh duyet, cung ham voi anh dai dien nguoi
-      // dung - server chi nhan toi 256KB.
-      const { blob } = await resizeAvatar(file);
-      setAnh({ blob, xem: URL.createObjectURL(blob) });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không đọc được ảnh");
-    }
+    setAnh({ blob, xem: URL.createObjectURL(blob) });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -118,7 +112,7 @@ export function CreateWorkspacePage() {
               const f = e.target.files?.[0];
               // Xoa gia tri de chon LAI DUNG tep vua roi van kich hoat onChange.
               e.target.value = "";
-              if (f) void chonAnh(f);
+              if (f) setAnhCanCat(f);
             }}
           />
         </div>
@@ -142,6 +136,15 @@ export function CreateWorkspacePage() {
           </button>
         )}
       </form>
+
+      {anhCanCat && (
+        <AvatarCropDialog
+          file={anhCanCat}
+          title="Chọn vùng ảnh nhóm"
+          onClose={() => setAnhCanCat(null)}
+          onCropped={chonAnh}
+        />
+      )}
     </AppShell>
   );
 }

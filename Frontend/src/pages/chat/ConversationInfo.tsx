@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
-import { resizeAvatar } from "../../lib/imageResize";
 import { Avatar } from "../../components/Avatar";
+import { AvatarCropDialog } from "../../components/AvatarCropDialog";
 import { ImageViewer } from "../../components/ImageViewer";
 import { IconCaret } from "./ComposerIcons";
 import type { FileMeta } from "../../types/chat";
@@ -170,20 +170,18 @@ export function ConversationInfo({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [anhBan, setAnhBan] = useState(false);
   const [anhLoi, setAnhLoi] = useState<string | null>(null);
+  const [anhCanCat, setAnhCanCat] = useState<File | null>(null);
   const doiDuocAnh = laNhom && canEditGroup === true && typeof workspaceId === "number";
 
-  async function doiAnhNhom(file: File) {
+  async function doiAnhNhom(blob: Blob) {
     if (typeof workspaceId !== "number") return;
     setAnhLoi(null);
     setAnhBan(true);
     try {
-      // Cat vuong + nen ngay tai trinh duyet, dung ham dung cho anh dai dien
-      // nguoi dung: cung mot khung tron, cung nguong 256KB ma server nhan.
-      const { blob } = await resizeAvatar(file);
       const { data } = await workspaceApi.uploadAvatar(workspaceId, blob);
       onGroupAvatarChanged?.(data.avatarUpdatedAt);
     } catch (err) {
-      // resizeAvatar nem Error thuong (khong co `response`), loi mang thi co.
+      // Popup cat anh nem Error thuong (khong co `response`), loi mang thi co.
       setAnhLoi(err instanceof Error && !("response" in err)
         ? err.message
         : extractApiError(err, "Không đổi được ảnh nhóm"));
@@ -308,7 +306,7 @@ export function ConversationInfo({
                 // Xoa gia tri de chon LAI DUNG tep vua roi van kich hoat
                 // onChange - neu khong, cat lai cung mot anh se khong thay gi.
                 e.target.value = "";
-                if (f) void doiAnhNhom(f);
+                if (f) setAnhCanCat(f);
               }}
             />
           </>
@@ -422,6 +420,15 @@ export function ConversationInfo({
           name={xem.fileName}
           kind={xem.fileType === "video" ? "video" : "image"}
           onClose={() => setXem(null)}
+        />
+      )}
+
+      {anhCanCat && (
+        <AvatarCropDialog
+          file={anhCanCat}
+          title="Chọn vùng ảnh nhóm"
+          onClose={() => setAnhCanCat(null)}
+          onCropped={doiAnhNhom}
         />
       )}
     </div>

@@ -1,0 +1,94 @@
+/* Popup cat avatar dung chung. Khung xem truoc LUON vuong, nhung avatar khi
+   hien thi van la hinh tron do component Avatar dam nhiem. */
+.ac-help {
+  margin: 0;
+  color: var(--text-m);
+  font-size: 16px;
+}
+
+.ac-stage {
+  position: relative;
+  align-self: center;
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--calli-surface);
+  border: 2px solid var(--calli-navy-line);
+  box-sizing: border-box;
+  touch-action: none;
+  user-select: none;
+}
+
+.ac-stage.ac-ready {
+  cursor: grab;
+}
+
+.ac-stage.ac-ready:active {
+  cursor: grabbing;
+}
+
+.ac-image {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ac-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, transparent 33%, rgb(255 255 255 / 0.48) 33%, rgb(255 255 255 / 0.48) 33.6%, transparent 33.6%, transparent 66.4%, rgb(255 255 255 / 0.48) 66.4%, rgb(255 255 255 / 0.48) 67%, transparent 67%),
+    linear-gradient(to bottom, transparent 33%, rgb(255 255 255 / 0.48) 33%, rgb(255 255 255 / 0.48) 33.6%, transparent 33.6%, transparent 66.4%, rgb(255 255 255 / 0.48) 66.4%, rgb(255 255 255 / 0.48) 67%, transparent 67%);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+
+.ac-zoom {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--calli-navy);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ac-zoom input[type="range"] {
+  min-width: 0;
+  accent-color: var(--calli-teal-dark);
+}
+
+.ac-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.ac-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ac-actions .md-btn {
+  min-width: 150px;
+  height: 52px;
+  font-size: 18px;
+}
+
+@media (max-width: 620px) {
+  .ac-stage {
+    width: min(100%, 360px);
+  }
+
+  .ac-actions {
+    justify-content: stretch;
+  }
+
+  .ac-actions .md-btn {
+    flex: 1 1 140px;
+  }
+}

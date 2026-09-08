@@ -11,7 +11,7 @@ import { stopNotificationHub } from "../lib/notificationHub";
 import { useNotificationStore } from "../store/notificationStore";
 import { AppShell } from "../components/AppShell";
 import { Avatar } from "../components/Avatar";
-import { resizeAvatar } from "../lib/imageResize";
+import { AvatarCropDialog } from "../components/AvatarCropDialog";
 import "./settings.css";
 
 // Ho so tach ro rang ten hien thi va handle: ten hien thi la thu nguoi khac
@@ -31,6 +31,7 @@ export function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarToCrop, setAvatarToCrop] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   async function saveDisplayName(e: React.FormEvent) {
@@ -84,13 +85,12 @@ export function ProfilePage() {
     }
   }
 
-  async function handleAvatar(file: File) {
+  async function handleAvatar(blob: Blob) {
     if (!user || !accessToken) return;
     setError(null);
     setSaved(false);
     setAvatarBusy(true);
     try {
-      const { blob } = await resizeAvatar(file);
       const { data } = await authApi.uploadAvatar(blob);
       setAuth(accessToken, data);
     } catch (err) {
@@ -161,7 +161,7 @@ export function ProfilePage() {
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (file) void handleAvatar(file);
+              if (file) setAvatarToCrop(file);
             }}
           />
         </div>
@@ -243,6 +243,15 @@ export function ProfilePage() {
           </Link>
         )}
       </div>
+
+      {avatarToCrop && (
+        <AvatarCropDialog
+          file={avatarToCrop}
+          title="Chọn vùng ảnh đại diện"
+          onClose={() => setAvatarToCrop(null)}
+          onCropped={handleAvatar}
+        />
+      )}
     </AppShell>
   );
 }
