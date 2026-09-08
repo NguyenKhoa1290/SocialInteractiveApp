@@ -116,7 +116,7 @@
   font-family: var(--sans);
   font-size: calc(13px * var(--s));
   font-weight: 500;
-  padding: calc(7px * var(--s)) calc(14px * var(--s));
+  padding: calc(1px * var(--s)) calc(14px * var(--s));
   cursor: pointer;
   white-space: nowrap;
   text-decoration: none;
