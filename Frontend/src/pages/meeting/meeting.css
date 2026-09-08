@@ -2015,6 +2015,11 @@
   .mpop-hang {
     gap: calc(10px * var(--s));
   }
+  .mpop-chat-ten em{
+    font-size: calc(11px * var(--s));
+    font-style: normal;
+    font-weight: 200;
+  }
 }
 
 /* Ca cai o la nut ghim - ban thiet ke khong ve nut ghim o dau, ma bo han
