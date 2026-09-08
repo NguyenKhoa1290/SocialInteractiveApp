@@ -2281,9 +2281,9 @@
     width: 100%;
     height: calc(
       95% - max(
-          min(36.1%, calc(266px * var(--s))),
+          min(40.1%, calc(270px * var(--s))),
           calc(161.5px * var(--sr))
-        ) - calc(11.4px * var(--s))
+        ) - calc(90.4px * var(--s))
     );
     flex: none;
   }
@@ -2339,7 +2339,7 @@
 
   .mroom-dai .mroom-pager {
     height: calc(42px * var(--sr));
-    min-height: calc(42px * var(--sr));
+    min-height: calc(63px * var(--sr));
   }
 
   /* Mui ten chi nho hon tren dien thoai; pager desktop va kich thuoc vung
