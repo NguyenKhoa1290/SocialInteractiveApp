@@ -486,29 +486,6 @@
   min-width: 0;
 }
 
-/* Phan trang danh sach kenh IPTV. Dat sau cac nhom trong cot thu ba de thu
-   tu doc van la: nhom -> kenh -> chuyen trang; khong chen nut vao giua ten
-   nhom va cac kenh cua no. */
-.ma-channel-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: calc(10px * var(--s));
-  margin-top: calc(8px * var(--s));
-  padding: calc(14px * var(--s)) calc(10px * var(--s)) 0;
-  border-top: 1px solid var(--calli-muted);
-}
-
-.ma-channel-pager-label {
-  color: var(--text-m);
-  font-size: calc(14px * var(--s));
-}
-
-.ma-channel-pager-actions {
-  display: flex;
-  gap: calc(8px * var(--s));
-}
 /* AppShell dat padding 24px cho noi dung - man ba panel phai tran vien va cao
    dung bang man hinh, giong man chat (xem .shell-main:has(.cw)). */
 .shell-main:has(.ma) {
