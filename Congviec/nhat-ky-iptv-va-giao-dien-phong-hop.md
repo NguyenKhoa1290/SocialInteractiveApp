@@ -335,3 +335,41 @@ nhóm, hội thoại, cuộc họp, playlist, và **object trong MinIO**. Hai ch
 
 Mức nền đúng của hệ thống hiện tại: 4 nhóm thật (21, 23, 24, 35), 5 hội thoại
 thật, 2 tệp thật trong MinIO, 0 mồ côi.
+
+---
+
+## 10. Focus mode trên điện thoại: thu gọn Mini App, mở rộng dải người họp
+
+**Mục tiêu.** Trong Focus mode trên điện thoại, Mini App/phần trình bày nằm
+trên dải người xem 2 × 2. Khung Mini App ban đầu chiếm quá nhiều chiều cao;
+nếu chỉ thu nhỏ phần `<video>` thì nền xám bao quanh vẫn cao và hai hàng người
+họp bên dưới vẫn chật. Yêu cầu cuối là thu ngắn **toàn bộ khung xám** 5%, giữ
+nguyên chiều rộng, rồi dùng phần chiều cao trả lại cho dải người họp.
+
+**Cách làm.** Ở breakpoint tối đa 900px, `.meet-stage-app` được đặt chiều cao
+bằng 95% phần chiều cao mà stage nhận trước đây (sau khi trừ dải người họp và
+khoảng cách). Công thức cũng tính tới `min-height` của dải người họp để không
+vỡ ở màn hình thấp. Phần tử kề sau `.meet-stage-app + .mroom-dai` đổi sang
+`flex: 1 1 auto`, nhờ vậy nhận đúng khoảng không vừa giải phóng.
+
+`.meet-app-stage` trở lại `flex: 1; height: auto`, nên phần phát lấp đầy khung
+xám mới theo chiều dọc và giữ nguyên chiều rộng. Video vẫn dùng
+`object-fit: contain`, vì vậy không bị kéo méo hoặc cắt nội dung.
+
+**Đo trên bản public, 384 × 854.**
+
+| Thành phần | Trước | Sau |
+|---|---:|---:|
+| Khung xám Mini App | 319,02 × 541,20 | **319,02 × 514,13** |
+| Dải người họp | 319,02 × 224,00 | **319,02 × 251,08** |
+| Mỗi ô người họp | 155,50 × 92,38 | **155,50 × 105,91** |
+| Pager | đáy 842,81 | **vẫn đáy 842,81** |
+
+Chiều rộng của khung xám được giữ nguyên; phần cao giảm 27,07px được cộng cho
+hai hàng người họp. Kiểm tra runtime xác nhận `stageFlex = 0 0 auto` và
+`audienceFlex = 1 1 auto`, nên quy tắc này không ảnh hưởng Focus mode desktop
+hoặc các chế độ họp không có Mini App.
+
+**Phát hành.** Commit `f8373d7` — `Resize mobile mini app wrapper`. Lint,
+TypeScript (`tsc --noEmit`), production build, CI và pipeline build/deploy đều
+thành công; CSS public là `index-BsS9Eb8V.css`.
