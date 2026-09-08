@@ -336,24 +336,38 @@
 }
 
 /* O nhap dang pill mong, DAI HET thanh: flex 1 de phinh chiem het cho con lai
-   thay vi giu mot be rong co dinh. */
-.disc-compose input[type="text"] {
+   thay vi giu mot be rong co dinh. Textarea de Enter xuong dong; JS dat cao
+   theo scrollHeight, co chan tren de thanh soan khong chiem het panel. */
+.disc-compose-input {
   box-sizing: border-box;
   flex: 1;
   min-width: 0;
-  height: calc(49px * var(--s));
-  padding: 0 calc(16px * var(--s));
+  min-height: calc(49px * var(--s));
+  max-height: calc(173px * var(--s));
+  padding: calc(10px * var(--s)) calc(16px * var(--s));
   border: 0;
   border-radius: var(--r-pill);
   background: var(--calli-muted);
   color: var(--calli-navy);
   font-family: var(--sans);
   font-size: calc(24px * var(--s));
+  line-height: 1.25;
+  resize: none;
+  overflow-y: auto;
 }
 
-.disc-compose input[type="text"]:focus {
+.disc-compose-input.tall {
+  border-radius: calc(22px * var(--s));
+}
+
+.disc-compose-input:focus {
   outline: 2px solid var(--calli-teal-dark);
   outline-offset: 1px;
+}
+
+.disc-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .disc-icon {

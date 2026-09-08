@@ -13,6 +13,7 @@ import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
+const DOUBLE_ENTER_SEND_MS = 500;
 
 // Luong thao luan cua 1 cuoc hop. Dung chung cho ca 2 cho: trang thao luan
 // rieng (mo tu phong chat) va panel ben trong phong hop.
@@ -54,6 +55,10 @@ export function MeetingDiscussion({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  // Enter dau tien da xuong dong nhung van co the tro thanh "double Enter"
+  // neu lan thu hai den nhanh hon nua giay.
+  const lastEnterAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,8 +102,19 @@ export function MeetingDiscussion({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // O nhap phinh theo noi dung nhung co chan tren de khong day danh sach tin
+  // ra khoi panel thảo luận trong phòng họp.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+    el.classList.toggle("tall", el.scrollHeight > 70);
+  }, [text]);
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
+    lastEnterAtRef.current = null;
     if (!text.trim()) return;
     setSending(true);
     setError(null);
@@ -112,6 +128,35 @@ export function MeetingDiscussion({
     } finally {
       setSending(false);
     }
+  }
+
+  function handleComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter") {
+      // Go them chu, dan hoac xoa giua hai lan Enter thi bat dau mot nhom moi.
+      lastEnterAtRef.current = null;
+      return;
+    }
+
+    // Shift+Enter, phim giu, va luc dang go bang IME luon la xuong dong binh
+    // thuong; chi hai lan Enter thuong bam nhanh hon 0,5 giay moi gui tin.
+    if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.repeat || e.nativeEvent.isComposing) {
+      lastEnterAtRef.current = null;
+      return;
+    }
+
+    const now = performance.now();
+    const lastEnterAt = lastEnterAtRef.current;
+    if (lastEnterAt !== null && now - lastEnterAt < DOUBLE_ENTER_SEND_MS) {
+      lastEnterAtRef.current = null;
+      if (text.trim() && !sending) {
+        e.preventDefault();
+        void handleSend(e as unknown as React.FormEvent);
+      }
+      return;
+    }
+
+    // Khong preventDefault: trinh duyet chen dong moi o lan Enter dau tien.
+    lastEnterAtRef.current = now;
   }
 
   function tomTat(m: Message) {
@@ -278,7 +323,7 @@ export function MeetingDiscussion({
                   </div>
                 ) : m.type === "text" ? (
                   <>
-                    {m.content}
+                    <span className="disc-text">{m.content}</span>
                     {m.isEdited && <span className="disc-edited"> (đã sửa)</span>}
                   </>
                 ) : m.fileId != null ? (
@@ -316,11 +361,23 @@ export function MeetingDiscussion({
           Frame 38 cua thiet ke. Ban cu la mot form rieng cong mot hang nhan
           emoji rieng ben duoi - hai tang chiem gap doi chieu cao. */}
       <form className="disc-compose" onSubmit={handleSend}>
-        <input
-          type="text"
+        <textarea
+          ref={composerRef}
+          className="disc-compose-input"
           placeholder="Nhập tin nhắn"
+          aria-label="Nhập tin nhắn"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            const inputType = (e.nativeEvent as InputEvent).inputType;
+            // Enter dau tien tao insertLineBreak, con viet/dan/xoa thi khong
+            // duoc de no bi hieu thanh Enter thu hai.
+            if (inputType !== "insertLineBreak" && inputType !== "insertParagraph") {
+              lastEnterAtRef.current = null;
+            }
+            setText(e.target.value);
+          }}
+          onKeyDown={handleComposerKeyDown}
+          rows={1}
           disabled={sending}
         />
 
