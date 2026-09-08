@@ -56,19 +56,12 @@
 }
 
 
-/* Vong tron do chinh component Avatar ve (xem components/Avatar.tsx); o day
-   chi lo phan vien danh dau dang o trang ca nhan. */
+/* Avatar tu ve hinh tron. Khong them vien trang thai o day: tren thanh ngang
+   dien thoai, vien den khi dang o trang ca nhan de lech voi cac tab con lai. */
 .rail-avatar {
   display: block;
   line-height: 0;
-  border-radius: var(--r-pill);
-  border: 2px solid transparent;
   text-decoration: none;
-}
-
-.rail-avatar.active,
-.rail-avatar:hover {
-  border-color: var(--rail-icon);
 }
 
 .rail-item {
