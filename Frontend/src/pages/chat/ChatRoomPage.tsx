@@ -880,6 +880,20 @@ export function ChatRoomPage() {
   // tep khong duoc ma hoa dau cuoi.
   const coTheGuiChu = privateKey !== null && publicKeys.size > 0;
 
+  // Chi hien MOT canh bao E2EE gan khung soan. Truoc day khi ca nhom chua
+  // co khoa thi hai dong canh bao cung hien, vua trung y vua day composer
+  // len tren man hinh hep.
+  const thongBaoE2EE =
+    publicKeys.size === 0
+      ? conversation?.type === "p2p"
+        ? "Người này chưa thiết lập E2EE, chưa gửi được tin nhắn Text."
+        : "Chưa có thành viên nào (kể cả bạn) thiết lập E2EE trong nhóm này."
+      : missingKeyCount > 0 && conversation?.type === "group"
+        ? `${missingKeyCount} thành viên chưa thiết lập E2EE sẽ không nhận được tin nhắn Text.`
+        : null;
+  const dangBiCamChat = conversation?.type === "group" && currentUserId !== undefined && mutedUserIds.has(currentUserId);
+  const hienThongBaoE2EE = thongBaoE2EE !== null && !dangBiCamChat;
+
   const tenHoiThoai =
     peer?.ten ??
     (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
@@ -1149,7 +1163,7 @@ export function ChatRoomPage() {
         </Modal>
       )}
 
-      <div className="cw-msgs">
+      <div className={`cw-msgs${hienThongBaoE2EE ? " cw-msgs-co-canh-bao-e2ee" : ""}`}>
         {/* Dang tim thi khung tin nhan hien KET QUA thay vi lich su - khong
             chen them mot bang nua day tin nhan xuong nhu ban truoc. */}
         {searchResults !== null && (
@@ -1296,53 +1310,49 @@ export function ChatRoomPage() {
       {error && <p className="chat-error">{error}</p>}
       {uploading && !upload && <p className="chat-text-note">Đang gửi {uploading}…</p>}
 
-      {conversation?.type === "group" && currentUserId && mutedUserIds.has(currentUserId) ? (
+      {dangBiCamChat ? (
         <p className="chat-text-note">Bạn đang bị cấm chat trong nhóm này.</p>
       ) : (
         <>
           {/* Man nhap mat khau ma hoa da chuyen len AppShell duoi dang popup,
               hoi ngay sau khi dang nhap. O day chi con khung soan tin. */}
-          {publicKeys.size === 0 && (
-            <p className="chat-text-note">
-              {conversation?.type === "p2p"
-                ? "Người này chưa thiết lập E2EE, chưa gửi được tin nhắn Text."
-                : "Chưa có thành viên nào (kể cả bạn) thiết lập E2EE trong nhóm này."}
-            </p>
-          )}
-          {missingKeyCount > 0 && conversation?.type === "group" && (
-            <p className="chat-text-note">{missingKeyCount} thành viên chưa thiết lập E2EE sẽ không nhận được tin nhắn Text.</p>
-          )}
-
           {/* MOT khung duy nhat chua ca o nhap lan cac nut dinh kem, dung nhu
               ban thiet ke - truoc day la hai thanh roi nhau xep chong len.
 
               Cac nut dinh kem BIEN MAT khi dang go: thiet ke ve o nhap gian tu
               455 ra 761 khi co chu, tuc nhuong cho cho viec dang lam. */}
-          {/* Dang tra loi ai: hien ngay tren khung soan, bam X de bo. */}
-          {replyTo && (
-            <div className="cw-reply-bar">
-              <span className="cw-reply-label">Đang trả lời</span>
-              <span className="cw-reply-text">{tomTat(replyTo)}</span>
-              <button
-                type="button"
-                className="cw-reply-x"
-                onClick={() => setReplyTo(null)}
-                aria-label="Bỏ trả lời"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-          )}
+          <div className="cw-compose-area">
+            {hienThongBaoE2EE && (
+              <p className="chat-text-note cw-e2ee-note" role="status">
+                {thongBaoE2EE}
+              </p>
+            )}
 
-          <form
-            className="cw-composer"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleSendText(e);
-            }}
-          >
+            {/* Dang tra loi ai: hien ngay tren khung soan, bam X de bo. */}
+            {replyTo && (
+              <div className="cw-reply-bar">
+                <span className="cw-reply-label">Đang trả lời</span>
+                <span className="cw-reply-text">{tomTat(replyTo)}</span>
+                <button
+                  type="button"
+                  className="cw-reply-x"
+                  onClick={() => setReplyTo(null)}
+                  aria-label="Bỏ trả lời"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            <form
+              className="cw-composer"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSendText(e);
+              }}
+            >
             <textarea
               ref={composerRef}
               className="cw-composer-input"
@@ -1389,7 +1399,8 @@ export function ChatRoomPage() {
             <button className="cw-send" type="submit" disabled={sendingText || textInput.trim() === "" || !coTheGuiChu} title="Gửi">
               <IconSend />
             </button>
-          </form>
+            </form>
+          </div>
         </>
       )}
 
