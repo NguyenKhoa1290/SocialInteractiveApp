@@ -1411,35 +1411,38 @@
 }
 
 /* --- Man hep ------------------------------------------------------------
-   Duoi 900px thanh doc nam ngang o day man, cot lat trang tut xuong duoi
-   luoi. Nhoi mot thanh 137px vao man dien thoai la an mat gan nua be ngang. */
+   Mốc 900px dùng chung với MeetingRoomPage. Thanh công cụ vẫn đặt DỌC ở
+   cạnh phải để nhất quán với thao tác trong phòng họp; chỉ thu hẹp bề rộng
+   để không chiếm phần lớn màn hình điện thoại. */
 
 @media (max-width: 900px) {
   .mroom {
-    --mroom-rail: 0px;
+    --mroom-rail: calc(72px * var(--sr));
+    --mroom-khe: calc(12px * var(--s));
   }
 
   .mroom-rail {
-    top: auto;
+    top: var(--mroom-top);
     right: 0;
     bottom: 0;
-    left: 0;
-    width: auto;
-    height: calc(76px * var(--s));
-    flex-direction: row;
-    gap: calc(14px * var(--s));
-    padding: 0 calc(10px * var(--s));
-    overflow-x: auto;
-    overflow-y: hidden;
+    left: auto;
+    width: var(--mroom-rail);
+    height: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: calc(12px * var(--sr));
+    padding: calc(12px * var(--sr)) 0;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .mroom-body,
   .mroom-center {
-    bottom: calc(76px * var(--s));
+    bottom: 0;
   }
 
   .mroom-body {
-    padding: calc(16px * var(--s));
+    padding: calc(14px * var(--s));
   }
 
   .mroom-luoi-hang {
@@ -1449,10 +1452,10 @@
 
   .mroom-pager {
     width: auto;
-    height: calc(52px * var(--s));
+    height: calc(46px * var(--s));
     flex-direction: row;
     justify-content: center;
-    padding: 0 calc(16px * var(--s));
+    padding: 0 calc(12px * var(--s));
   }
 
   .mroom-pager-nut {
@@ -1470,7 +1473,7 @@
   .mroom .meet-side {
     top: calc(96px * var(--s));
     right: 0;
-    bottom: calc(76px * var(--s));
+    bottom: 0;
     width: 100%;
   }
 }
@@ -1980,13 +1983,31 @@
 
 @media (max-width: 900px) {
   .mpop {
-    top: calc(96px * var(--sr) + 8px);
-    left: 8px;
-    right: 8px;
-    bottom: calc(76px * var(--sr) + 8px);
+    inset: 0;
     transform: none;
     max-height: none;
-    width: auto !important;
+    width: 100% !important;
+    height: 100svh;
+    border-radius: 0;
+    box-shadow: none;
+    z-index: 50;
+  }
+
+  .mpop-head {
+    margin: max(calc(12px * var(--s)), env(safe-area-inset-top)) calc(12px * var(--s)) 0;
+  }
+
+  .mpop-than {
+    padding-right: calc(16px * var(--s));
+    padding-left: calc(16px * var(--s));
+    padding-bottom: max(calc(16px * var(--s)), env(safe-area-inset-bottom));
+  }
+
+  .mpop-title {
+    max-width: 58%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mpop-hang {
@@ -2233,4 +2254,63 @@
    phong tam (phong tam co han muc 2GB rieng). */
 .mpop-chat .disc-note {
   display: none;
+}
+
+/* Dien thoai: khung trinh bay nam tren, nguoi xem nam ben duoi. Khong dung
+   lai cot ngang cua desktop, vi no de lai mot dai o qua hep ben phai va lam
+   noi dung IPTV/man hinh bi thu nho qua muc. */
+@media (max-width: 900px) {
+  .mroom-body:has(.mroom-focus) {
+    padding: calc(14px * var(--s));
+  }
+
+  .mroom-focus {
+    flex-direction: column;
+    gap: calc(12px * var(--s));
+  }
+
+  .mroom-focus > .meet-stage {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .mroom-focus .mroom-dai {
+    width: 100%;
+    height: min(38%, calc(280px * var(--s)));
+    min-height: calc(170px * var(--sr));
+    flex: none;
+    gap: calc(8px * var(--s));
+  }
+
+  /* Bon nguoi xem toi da tren mot trang mobile = 2 x 2, ke ca khi tong so
+     nguoi trong phong lon hon bon va class desktop dang la `nhieu-3`. */
+  .mroom-focus .mroom-grid-dai,
+  .mroom-grid-nhieu.mroom-grid-nhieu-2,
+  .mroom-grid-nhieu.mroom-grid-nhieu-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: calc(10px * var(--s));
+  }
+
+  .mroom-focus .mroom-grid-dai {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .mroom-dai .mroom-pager {
+    height: calc(42px * var(--sr));
+    min-height: calc(42px * var(--sr));
+  }
+
+  /* MeetingChatDialog co class rieng dat chieu cao desktop 1080px; tren
+     dien thoai no phai tuan theo layer full-screen cua .mpop. */
+  .mpop.mpop-chat {
+    height: 100svh;
+  }
+
+  .mpop-chat-than {
+    margin-right: calc(16px * var(--s));
+    margin-left: calc(16px * var(--s));
+  }
 }

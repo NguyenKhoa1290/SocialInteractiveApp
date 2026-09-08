@@ -194,10 +194,13 @@ export function MeetingRoomPage() {
   // duoc subscribe; phan con lai huy dang ky nen LiveKit khong gui toi day.
   const [page, setPage] = useState(0);
   const [isNarrow, setIsNarrow] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
+    // Cung mot moc voi CSS cua phong hop. Neu JS dung 768px ma CSS doi bo
+    // cuc tu 900px thi vung 769-900 se co taskbar/mobile layout, nhung van
+    // render 9 o va subscribe qua nhieu camera.
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
   );
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
+    const mq = window.matchMedia("(max-width: 900px)");
     const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -1028,10 +1031,11 @@ export function MeetingRoomPage() {
     .sort((a, b) => hangTile(a[0]) - hangTile(b[0]) || a[1] - b[1])
     .map(([t]) => t);
 
-  // So o moi trang lay tu thiet ke: luoi thuong 3x3 = 9 (frame 116:773),
-  // focus mode la dai bon o duoi khung lon (frame 118:1080). Man hinh hep
-  // thi it hon nua.
-  const perPage = inFocusLayout ? (isNarrow ? 2 : 5) : isNarrow ? 4 : 9;
+  // So o moi trang lay tu thiet ke desktop: luoi thuong 3x3 = 9 (frame
+  // 116:773), focus mode la dai nam o (frame 118:1080). Tren dien thoai,
+  // bat ke dang luoi hay dang tap trung chi giu toi da bon o: video khong bi
+  // nho qua muc va LiveKit khong phai tai them luong ngoai man hinh.
+  const perPage = isNarrow ? 4 : inFocusLayout ? 5 : 9;
   const totalPages = Math.max(1, Math.ceil(gridTiles.length / perPage));
   const safePage = Math.min(page, totalPages - 1);
   const visibleTiles = gridTiles.slice(safePage * perPage, safePage * perPage + perPage);
