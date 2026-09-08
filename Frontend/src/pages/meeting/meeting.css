@@ -2307,6 +2307,29 @@
     flex: 1 1 auto;
   }
 
+  /* Man hinh chia se dung dung cac quy tac mobile cua the IPTV o tren:
+     giu nguyen be rong, thu ngan toan bo khung trinh bay va tra phan cao
+     con lai cho dai hai hang nguoi hop. Khong dung toi code IPTV. */
+  .mroom-focus > .meet-stage-screen {
+    width: 100%;
+    height: calc(
+      95% - max(
+          min(40.1%, calc(270px * var(--s))),
+          calc(161.5px * var(--sr))
+        ) - calc(90.4px * var(--s))
+    );
+    flex: none;
+  }
+
+  .mroom-focus > .meet-stage-screen > .meet-tile-stage {
+    flex: 1;
+    height: auto;
+  }
+
+  .mroom-focus > .meet-stage-screen + .mroom-dai {
+    flex: 1 1 auto;
+  }
+
   .mroom-focus .mroom-dai {
     width: 100%;
     /* Hai hang o can du chieu cao cho avatar va ten. Pager co hang rieng

@@ -1430,7 +1430,7 @@ export function MeetingRoomPage() {
                  nam ngay ben phai dai do. */
               <div className="mroom-focus">
                 {stageParticipant && (
-                  <div className="meet-stage">
+                  <div className={`meet-stage${stageIsScreen ? " meet-stage-screen" : ""}`}>
                     <ParticipantTile
                       participant={stageParticipant}
                       isLocal={stageParticipant === room?.localParticipant}
