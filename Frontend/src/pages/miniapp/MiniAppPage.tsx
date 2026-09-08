@@ -10,6 +10,11 @@ import { MiniAppIcon } from "./MiniAppIcon";
 import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
 import "./miniapp.css";
 
+// Danh sach M3U co the co hang tram kenh. Gioi han o day giu cot IPTV de
+// doc, va quan trong hon la khong render hang tram dong moi lan nguoi dung
+// go them mot ky tu vao o tim kiem.
+const KENH_MOI_TRANG = 8;
+
 // Màn Mini App - Figma node 90:173. Ba panel, trái sang phải:
 //   1. Danh sách Mini App (hiện chỉ có Calli IPTV là app thật)
 //   2. Danh sách Playlist: playlist riêng của mình, rồi mục "Admin Playlist"
@@ -39,6 +44,7 @@ export function MiniAppPage() {
 
   const [timPlaylist, setTimPlaylist] = useState("");
   const [timKenh, setTimKenh] = useState("");
+  const [trangKenh, setTrangKenh] = useState(0);
   const [hienThemPlaylist, setHienThemPlaylist] = useState(false);
   const [hienThongTin, setHienThongTin] = useState(false);
   const [themKenhVao, setThemKenhVao] = useState<number | null>(null);
@@ -106,6 +112,49 @@ export function MiniAppPage() {
       .map((g) => ({ ...g, channels: g.channels.filter((c) => c.channelName.toLowerCase().includes(q)) }))
       .filter((g) => g.channels.length > 0);
   }, [groups, timKenh]);
+
+  // Phan trang theo TONG so kenh cua playlist, nhung van gom lai theo nhom
+  // khi hien thi. Vi vay nguoi dung khong mat ngu canh "playlist con", va
+  // mot trang co the chua kenh cua nhieu nhom khac nhau.
+  const tongKenh = useMemo(
+    () => nhomHienThi?.reduce((tong, nhom) => tong + nhom.channels.length, 0) ?? 0,
+    [nhomHienThi],
+  );
+  const tongTrangKenh = Math.max(1, Math.ceil(tongKenh / KENH_MOI_TRANG));
+  const trangKenhHienTai = Math.min(trangKenh, tongTrangKenh - 1);
+  const nhomTrongTrang = useMemo(() => {
+    if (nhomHienThi === null) return null;
+
+    const dau = trangKenhHienTai * KENH_MOI_TRANG;
+    const idKenhTrongTrang = new Set(
+      nhomHienThi
+        .flatMap((nhom) => nhom.channels)
+        .slice(dau, dau + KENH_MOI_TRANG)
+        .map((kenh) => kenh.id),
+    );
+    const dangTim = timKenh.trim() !== "";
+
+    return nhomHienThi
+      .map((nhom) => ({
+        nhom,
+        kenh: nhom.channels.filter((kenh) => idKenhTrongTrang.has(kenh.id)),
+      }))
+      // Nhom rong van can hien khi khong tim kiem: nguoi co quyen quan ly
+      // phai co noi de them kenh dau tien vao nhom do.
+      .filter(({ nhom, kenh }) => kenh.length > 0 || (!dangTim && nhom.channels.length === 0))
+      .map(({ nhom, kenh }) => ({ ...nhom, channels: kenh }));
+  }, [nhomHienThi, timKenh, trangKenhHienTai]);
+
+  // Chon playlist khac hoac doi tu khoa tim kiem luon quay ve trang dau.
+  useEffect(() => {
+    setTrangKenh(0);
+  }, [dangChon, timKenh]);
+
+  // Neu vua xoa bot kenh khien trang hien tai vuot qua trang cuoi, kep no
+  // lai de khong tao ra mot trang trong.
+  useEffect(() => {
+    setTrangKenh((truoc) => Math.min(truoc, tongTrangKenh - 1));
+  }, [tongTrangKenh]);
 
   async function xoaPlaylist(l: IptvChannelList) {
     if (!window.confirm(`Xoá playlist “${l.name}”? Toàn bộ kênh trong đó sẽ mất.`)) return;
@@ -318,7 +367,7 @@ export function MiniAppPage() {
                 <p className="ma-empty">Không có kênh nào khớp “{timKenh.trim()}”.</p>
               )}
 
-              {nhomHienThi?.map((g) => (
+              {nhomTrongTrang?.map((g) => (
                 <div key={g.id} className = "channel-structure">
                   <div className="ma-section ma-section-row">
                     <span className="ma-group-name">{g.groupName}</span>
@@ -380,6 +429,34 @@ export function MiniAppPage() {
                   ))}
                 </div>
               ))}
+
+              {tongKenh > KENH_MOI_TRANG && (
+                <nav className="ma-channel-pager" aria-label="Phân trang danh sách kênh">
+                  <span className="ma-channel-pager-label" aria-live="polite">
+                    Trang {trangKenhHienTai + 1}/{tongTrangKenh} · {tongKenh} kênh
+                  </span>
+                  <span className="ma-channel-pager-actions">
+                    <button
+                      type="button"
+                      className="ma-pill ma-pill-sm"
+                      disabled={trangKenhHienTai === 0}
+                      onClick={() => setTrangKenh((trang) => Math.max(0, trang - 1))}
+                      aria-label="Trang kênh trước"
+                    >
+                      ← Trước
+                    </button>
+                    <button
+                      type="button"
+                      className="ma-pill ma-pill-sm"
+                      disabled={trangKenhHienTai >= tongTrangKenh - 1}
+                      onClick={() => setTrangKenh((trang) => Math.min(tongTrangKenh - 1, trang + 1))}
+                      aria-label="Trang kênh sau"
+                    >
+                      Sau →
+                    </button>
+                  </span>
+                </nav>
+              )}
             </>
           )}
         </div>
