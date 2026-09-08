@@ -2276,8 +2276,11 @@
 
   .mroom-focus .mroom-dai {
     width: 100%;
-    height: min(38%, calc(280px * var(--s)));
-    min-height: calc(170px * var(--sr));
+    /* Chua ca 2 hang khan gia, khoang cach va thanh phan trang. Giam nhe
+       dai nay so voi ban dau de pager luon nam tron trong viewport ngan;
+       khu vuc trinh bay ben tren nhan lai phan chieu cao con lai. */
+    height: min(35%, calc(260px * var(--s)));
+    min-height: calc(156px * var(--sr));
     flex: none;
     gap: calc(8px * var(--s));
   }
