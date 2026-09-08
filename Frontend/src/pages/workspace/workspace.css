@@ -132,6 +132,19 @@
   text-decoration: none;
 }
 
+.ws-back-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ws-back-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 .ws-section {
   margin-top: 28px;
   padding-top: 20px;

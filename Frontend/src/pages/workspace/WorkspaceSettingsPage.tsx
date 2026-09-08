@@ -57,7 +57,7 @@ export function WorkspaceSettingsPage() {
     setDeleteError(null);
     try {
       await workspaceApi.remove(workspaceId);
-      navigate("/workspaces");
+      navigate("/app/groups");
     } catch (err) {
       setDeleteError(extractApiError(err, "Không xoá được nhóm"));
     } finally {

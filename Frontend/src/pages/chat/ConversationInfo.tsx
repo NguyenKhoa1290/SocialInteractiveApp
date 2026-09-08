@@ -36,10 +36,9 @@ function NutGap({ mo, doi, ten }: { mo: boolean; doi: () => void; ten: string })
 // chat khong co duong nao sang, nen nguoi dung dung ngay o cho hop ly nhat de
 // phong pho lai la cho duy nhat khong lam duoc. Gom hai viec vao mot cho.
 //
-// Hai man danh sach nhom tach nhau (/app/groups doc tin, /workspaces quan tri)
-// la CHU DICH da chot, khong phai trung lap cho gop - day chinh la cai noi hai
-// ben lai. Ly do day du: Tainguyen/frontend-admin-page-dac-ta.md muc 5, "Hai
-// danh sach nhom".
+// Danh sach nhom chinh nam o /app/groups. Trang quan ly nay chi la diem den
+// tu menu Tuy chinh cua dung nhom dang mo, de khong tao them mot danh sach
+// Workspace tong song song.
 function MenuTuyChinh({
   themDuoc,
   onThem,

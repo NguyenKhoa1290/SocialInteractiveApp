@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { workspaceApi } from "../../api/workspaceApi";
 import { chatApi } from "../../api/chatApi";
 import { useAuthStore } from "../../store/authStore";
@@ -93,7 +93,7 @@ export function WorkspaceMembersPage() {
     try {
       await workspaceApi.removeMember(workspaceId, userId);
       if (userId === currentUserId) {
-        navigate("/workspaces");
+        navigate("/app/groups");
         return;
       }
       await load();
@@ -120,19 +120,29 @@ export function WorkspaceMembersPage() {
   if (!workspace || !members) {
     return (
       <AppShell activeTab="groups">
-        <Link to="/workspaces" className="ws-back-link">
-          ← Về danh sách nhóm
-        </Link>
+        <button
+          type="button"
+          className="ws-back-link ws-back-button"
+          disabled={busy}
+          onClick={() => void handleOpenGroupChat()}
+        >
+          ← Về chat nhóm
+        </button>
         {error ? <p className="ws-error">{error}</p> : <p>Đang tải...</p>}
       </AppShell>
     );
   }
 
   return (
-    <AppShell>
-      <Link to="/workspaces" className="ws-back-link">
-        ← Về danh sách nhóm
-      </Link>
+    <AppShell activeTab="groups">
+      <button
+        type="button"
+        className="ws-back-link ws-back-button"
+        disabled={busy}
+        onClick={() => void handleOpenGroupChat()}
+      >
+        ← Về chat nhóm
+      </button>
 
       <div className="ws-page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -142,9 +152,6 @@ export function WorkspaceMembersPage() {
           <h1>{workspace.name}</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="ws-btn-primary" disabled={busy} onClick={handleOpenGroupChat}>
-            Vào chat nhóm
-          </button>
           {canManage && (
             <button className="ws-btn-secondary" onClick={() => navigate(`/workspaces/${workspaceId}/settings`)}>
               Cài đặt nhóm

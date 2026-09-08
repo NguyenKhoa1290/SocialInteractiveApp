@@ -8,7 +8,6 @@ import { NicknamePage } from "./pages/auth/NicknamePage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
 import { AccountLockedPage } from "./pages/auth/AccountLockedPage";
 import { ComplaintsPage } from "./pages/ComplaintsPage";
-import { WorkspaceListPage } from "./pages/workspace/WorkspaceListPage";
 import { CreateWorkspacePage } from "./pages/workspace/CreateWorkspacePage";
 import { WorkspaceMembersPage } from "./pages/workspace/WorkspaceMembersPage";
 import { WorkspaceSettingsPage } from "./pages/workspace/WorkspaceSettingsPage";
@@ -182,14 +181,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/workspaces"
-          element={
-            <ProtectedRoute>
-              <WorkspaceListPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/workspaces" element={<Navigate to="/app/groups" replace />} />
         <Route
           path="/workspaces/new"
           element={

@@ -80,7 +80,7 @@ export function CreateWorkspacePage() {
           động, mà trưởng nhóm rời nhóm thì cả nhóm bị giải tán - cả nhóm sẽ mất theo. Hãy đăng ký
           một tài khoản, hoặc nhờ một nhóm có sẵn thêm bạn vào.
         </p>
-        <Link to="/workspaces" className="ws-btn-primary" style={{ textDecoration: "none" }}>
+        <Link to="/app/groups" className="ws-btn-primary" style={{ textDecoration: "none" }}>
           Về danh sách nhóm
         </Link>
       </AppShell>
