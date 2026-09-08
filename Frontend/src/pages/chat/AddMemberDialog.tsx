@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
@@ -71,7 +72,12 @@ export function AddMemberDialog({
     }
   }
 
-  return (
+  // ChatWorkspace dat noi dung chat va thong tin vao hai panel rieng. Tren
+  // dien thoai, khi dang xem panel Thong tin thi panel chat bi `display:none`;
+  // popup nay duoc kich hoat tu Thong tin nhung truoc do lai nam trong cay
+  // ChatRoom (panel chat), nen no cung bi an theo. Portal ra body de lop phu
+  // luon hien tren man hinh, bat ke nguoi dung dang o panel nao.
+  return createPortal(
     <Modal title="Thêm thành viên" onClose={onClose}>
       <div className="am-search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -119,6 +125,7 @@ export function AddMemberDialog({
           );
         })}
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   );
 }
