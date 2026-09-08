@@ -637,6 +637,11 @@
 
 @media (max-width: 900px) {
   .cw {
+    /* Figma goc la khung desktop. Giu nguyen --s=0.8 tren dien thoai lam
+       avatar, the tin he thong va khung soan cua nhom trong to hon mat do
+       desktop. Giam dong bo 10% o RIENG workspace de cac kich thuoc inline
+       cua Avatar cung di theo, thay vi sua roi rac tung thanh phan. */
+    --s: 0.72;
     display: flex;
     flex-direction: column;
     height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom));
