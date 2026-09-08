@@ -2276,11 +2276,11 @@
 
   .mroom-focus .mroom-dai {
     width: 100%;
-    /* Chua ca 2 hang khan gia, khoang cach va thanh phan trang. Giam nhe
-       dai nay so voi ban dau de pager luon nam tron trong viewport ngan;
-       khu vuc trinh bay ben tren nhan lai phan chieu cao con lai. */
-    height: min(35%, calc(260px * var(--s)));
-    min-height: calc(156px * var(--sr));
+    /* Hai hang o can du chieu cao cho avatar va ten. Pager co hang rieng
+       o day; phan trinh bay ben tren la phan tu flex va tu nhan phan chieu
+       cao con lai, nen khong duoc ep dai khan gia nho hon noi dung cua no. */
+    height: min(38%, calc(280px * var(--s)));
+    min-height: calc(170px * var(--sr));
     flex: none;
     gap: calc(8px * var(--s));
   }
