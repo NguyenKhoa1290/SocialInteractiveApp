@@ -2274,12 +2274,30 @@
     min-height: 0;
   }
 
-  /* Trên điện thoại chỉ phần nội dung của Mini App ngắn hơn 5%. Khung stage
-     vẫn giữ phần diện tích còn lại để dải khán giả và pager không bị dồn,
-     đồng thời video tiếp tục dùng `object-fit: contain` thay vì bị méo. */
+  /* Thu ngan 5% CHIEU CAO cua toan bo khung Mini App (ke ca nen xam), con
+     chieu rong van bang 100%. Cong thuc ben duoi bang 95% phan chieu cao
+     ma stage truoc day nhan duoc sau khi tru dai khan gia va khoang gap. */
+  .mroom-focus > .meet-stage-app {
+    width: 100%;
+    height: calc(
+      95% - max(
+          min(36.1%, calc(266px * var(--s))),
+          calc(161.5px * var(--sr))
+        ) - calc(11.4px * var(--s))
+    );
+    flex: none;
+  }
+
+  /* Tra noi dung Mini App ve day khung xam moi; khong co gi bi co theo
+     chieu ngang va video van giu dung ti le bang object-fit: contain. */
   .mroom-focus > .meet-stage-app > .meet-app-stage {
-    flex: 0 1 95%;
-    height: 95%;
+    flex: 1;
+    height: auto;
+  }
+
+  /* Chieu cao lay lai tu Mini App duoc trao cho dai 2 x 2 ben duoi. */
+  .mroom-focus > .meet-stage-app + .mroom-dai {
+    flex: 1 1 auto;
   }
 
   .mroom-focus .mroom-dai {
