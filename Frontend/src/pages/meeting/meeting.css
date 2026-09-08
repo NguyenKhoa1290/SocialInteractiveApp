@@ -2301,9 +2301,26 @@
     min-height: 0;
   }
 
+  /* O khan gia giu nguyen chieu cao de ten khong bi cat; chi thu nho avatar
+     mot bac de no khong chen vao dong ten tren man hinh thap. Can ghi de
+     len inline size cua <Avatar> va ca avatar chu cua khach vang lai. */
+  .mroom-focus .mroom-grid-dai .meet-tile-avatar,
+  .mroom-focus .mroom-grid-dai .meet-tile-avatar-tay {
+    width: calc(54px * var(--s)) !important;
+    height: calc(54px * var(--s)) !important;
+    font-size: calc(23px * var(--s)) !important;
+  }
+
   .mroom-dai .mroom-pager {
     height: calc(42px * var(--sr));
     min-height: calc(42px * var(--sr));
+  }
+
+  /* Mui ten chi nho hon tren dien thoai; pager desktop va kich thuoc vung
+     bam cua thanh dieu khien khac khong bi anh huong. */
+  .mroom-pager-nut button {
+    width: calc(30px * var(--s));
+    height: calc(30px * var(--s));
   }
 
   /* MeetingChatDialog co class rieng dat chieu cao desktop 1080px; tren
