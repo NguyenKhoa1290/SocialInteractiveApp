@@ -3,10 +3,11 @@ import wordmark from "../assets/calli/calli-wordmark.svg";
 import "./device-gate.css";
 
 // Phong hop hien van duoc ve cho man hinh may tinh 1920x1080 (xem --s trong
-// index.css). Rieng cac man app thong thuong da co bo cuc dien thoai, nen
-// lop nay chi duoc bat o cac route phong hop (xem App.tsx).
+// index.css). Rieng cac man app thong thuong da co bo cuc dien thoai. Tuy
+// nhien, ca hai van can mot gioi han vat ly de khong dua nguoi dung vao mot
+// khung qua nho / qua dai ma giao dien khong con doc duoc.
 //
-// Khi duoc bat, file nay chan hai truong hop khong dung duoc:
+// O route phong hop, file nay con chan them hai truong hop khong dung duoc:
 //
 //   1. Dien thoai / may tinh bang - ke ca khi bat "che do may tinh"
 //   2. Cua so may tinh bi keo qua hep
@@ -19,7 +20,7 @@ import "./device-gate.css";
 //     nho cua so se bi ngat khoi phong - dung mot cai nhac nho ma cat cuoc
 //     goi cua nguoi ta la khong duoc.
 
-// Do rong toi thieu (px CSS).
+// Do rong toi thieu cua PHONG HOP (px CSS).
 //
 // Con so nay la MUC THOAI MAI chu khong phai muc vo. Do tren he thong that:
 // khong trang nao tran ngang cho toi tan 640px, va phong hop tu chuyen thanh
@@ -28,6 +29,32 @@ import "./device-gate.css";
 // thoi khong lam phien: mot cua so chiem NUA man hinh 1920 la 960px - van
 // yen. Muon noi/that chat thi doi moi con so nay.
 const RONG_TOI_THIEU = 900;
+
+// Gioi han cua giao dien responsive thong thuong. 22:9 la ty le doc dai
+// nhat da duoc ho tro; vuot qua moc nay, cot noi dung qua hep so voi chieu
+// cao. Chieu nguoc lai cung chan khung qua ngang/thap (hon 22:9), vi thanh
+// soan va dieu huong se chen nhau theo chieu doc.
+const RONG_APP_TOI_THIEU = 360;
+const CAO_APP_TOI_THIEU = 400;
+const TY_LE_DOC_HEP_NHAT = 9 / 22;
+const TY_LE_NGANG_RONG_NHAT = 22 / 9;
+
+type Khung = { rong: number; cao: number };
+type LyDoPhongTo = "be" | "doc" | "ngang" | null;
+
+function layKhung(): Khung {
+  return { rong: window.innerWidth, cao: window.innerHeight };
+}
+
+function lyDoPhongTo({ rong, cao }: Khung): LyDoPhongTo {
+  if (rong < RONG_APP_TOI_THIEU || cao < CAO_APP_TOI_THIEU) return "be";
+  const tyLe = rong / cao;
+  // Dung mot sai so nho de 360x880 (= 9:22) khong bi chan boi sai so dau
+  // phay cua trinh duyet.
+  if (tyLe < TY_LE_DOC_HEP_NHAT - 0.01) return "doc";
+  if (tyLe > TY_LE_NGANG_RONG_NHAT + 0.01) return "ngang";
+  return null;
+}
 
 // Co phai dien thoai/may tinh bang khong.
 //
@@ -88,20 +115,39 @@ export function DeviceGate({ children, blockNarrow = false }: { children: ReactN
   // loi cho matchMedia luc dang xoay may.
   const [diDong] = useState(laDiDong);
 
-  const [rong, setRong] = useState(() => window.innerWidth);
+  const [khung, setKhung] = useState(layKhung);
   useEffect(() => {
-    if (!blockNarrow || diDong) return;
-    const doLai = () => setRong(window.innerWidth);
+    const doLai = () => setKhung(layKhung());
     window.addEventListener("resize", doLai);
-    return () => window.removeEventListener("resize", doLai);
-  }, [blockNarrow, diDong]);
+    window.addEventListener("orientationchange", doLai);
+    return () => {
+      window.removeEventListener("resize", doLai);
+      window.removeEventListener("orientationchange", doLai);
+    };
+  }, []);
 
-  // Chat, nhom, ho so va mini app co giao dien man hep. Khong render lop
-  // phu o day de AppShell va ChatWorkspace tu xu ly responsive.
-  if (!blockNarrow) return <>{children}</>;
+  const lyDo = lyDoPhongTo(khung);
+
+  function PopupPhongTo() {
+    const chuLyDo =
+      lyDo === "doc"
+        ? "Màn hình đang quá hẹp so với chiều cao."
+        : lyDo === "ngang"
+          ? "Màn hình đang quá ngang hoặc quá thấp."
+          : "Kích thước hiển thị hiện tại quá nhỏ.";
+    return (
+      <ManBao tieuDe="Hãy phóng to cửa sổ">
+        <p>{chuLyDo} Hãy xoay máy hoặc phóng to cửa sổ để tiếp tục.</p>
+        <p className="dgate-phu">
+          Giao diện cần tối thiểu {RONG_APP_TOI_THIEU}×{CAO_APP_TOI_THIEU}px và tỷ lệ trong khoảng 9:22 đến 22:9.
+          Hiện tại: {khung.rong}×{khung.cao}px.
+        </p>
+      </ManBao>
+    );
+  }
 
   if (diDong)
-    return (
+    return blockNarrow ? (
       <ManBao tieuDe="Phòng họp chưa hỗ trợ điện thoại">
         <p>
           Phần nhắn tin đã dùng được trên điện thoại, nhưng giao diện cuộc họp đang được hoàn thiện.
@@ -111,22 +157,29 @@ export function DeviceGate({ children, blockNarrow = false }: { children: ReactN
           Bật “Trang cho máy tính” trong trình duyệt cũng chưa đủ để dùng phần cuộc họp.
         </p>
       </ManBao>
-    );
+    ) : lyDo ? (
+      <>
+        {children}
+        <PopupPhongTo />
+      </>
+    ) : <>{children}</>;
 
   return (
     <>
       {children}
-      {rong < RONG_TOI_THIEU && (
+      {blockNarrow && khung.rong < RONG_TOI_THIEU ? (
         <ManBao tieuDe="Hãy mở rộng cửa sổ">
           <p>
-            Calli cần cửa sổ rộng ít nhất <b>{RONG_TOI_THIEU}px</b> để hiển thị đủ. Kéo rộng cửa sổ trình
+            Phòng họp cần cửa sổ rộng ít nhất <b>{RONG_TOI_THIEU}px</b> để hiển thị đủ. Kéo rộng cửa sổ trình
             duyệt là lời nhắc này tự biến mất.
           </p>
           <p className="dgate-phu">
-            Đang rộng {rong}px - thiếu {RONG_TOI_THIEU - rong}px.
+            Đang rộng {khung.rong}px - thiếu {RONG_TOI_THIEU - khung.rong}px.
           </p>
         </ManBao>
-      )}
+      ) : lyDo ? (
+        <PopupPhongTo />
+      ) : null}
     </>
   );
 }
