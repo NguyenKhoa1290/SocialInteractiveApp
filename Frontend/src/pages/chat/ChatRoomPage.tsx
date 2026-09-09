@@ -922,6 +922,17 @@ export function ChatRoomPage() {
     peer?.ten ??
     (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
 
+  // Chat Service co the chua kem senderDisplayName cho tin nhan 1-1 cu. Dau
+  // phong chat da resolve duoc nguoi kia tu danh sach ban be, nen dung lai
+  // chinh ten do thay vi de lo ID ky thuat "Nguoi dung 232" trong lich su.
+  function tenNguoiGuiTinNhan(message: Message | undefined) {
+    if (!message) return "Tin nhắn";
+    if (message.senderDisplayName) return message.senderDisplayName;
+    if (message.senderId === currentUserId) return "Bạn";
+    if (conversation?.type === "p2p" && message.senderId === peerUserId && peer?.ten) return peer.ten;
+    return message.senderId == null ? "Tin nhắn" : `Người dùng ${message.senderId}`;
+  }
+
   return (
     <ChatWorkspace
       hasActive
@@ -1232,7 +1243,7 @@ export function ChatRoomPage() {
               )}
             <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
               <div className="cw-bubble-wrap">
-                {showSender && <p className="cw-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</p>}
+                {showSender && <p className="cw-sender">{tenNguoiGuiTinNhan(m)}</p>}
 
                 {/* Khoi trich dan tin duoc tra loi. Tim trong danh sach dang
                     co; tin qua cu (chua nap toi) thi hien chu chung thay vi
@@ -1248,7 +1259,7 @@ export function ChatRoomPage() {
                         title="Tới tin nhắn gốc"
                       >
                         <span className="cw-quote-who">
-                          {goc?.senderDisplayName ?? (goc?.senderId === currentUserId ? "Bạn" : "Tin nhắn")}
+                          {tenNguoiGuiTinNhan(goc)}
                         </span>
                         <span className="cw-quote-text">{goc ? tomTat(goc) : "Tin nhắn cũ"}</span>
                       </button>
