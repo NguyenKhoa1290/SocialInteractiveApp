@@ -81,6 +81,20 @@
   align-items: flex-end;
 }
 
+/* Ten nguoi gui va trich dan dung o ngoai. Hang nay chi gom bong bong va
+   nut ba cham, nen nut can dung theo noi dung thay vi ca khoi tin nhan. */
+.disc-message-content {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  width: 100%;
+  min-width: 0;
+}
+
+.disc-row.mine .disc-message-content {
+  flex-direction: row-reverse;
+}
+
 /* Moc thoi gian nam giua lich su, chi xuat hien o dau mot luot chat moi. */
 .disc-time-separator {
   align-self: stretch;

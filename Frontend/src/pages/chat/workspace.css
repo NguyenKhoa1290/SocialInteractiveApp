@@ -833,8 +833,28 @@
   max-width: calc(442px * var(--s));
 }
 
+/* Phan chua nut ba cham can them mot chut chieu ngang de the tep 442px van
+   giu nguyen kich thuoc; neu ep nut vao max-width cu thi tep dai bi co lai. */
+.cw-bubble-wrap:has(.message-action-menu) {
+  max-width: calc(484px * var(--s));
+}
+
 .cw-row.mine .cw-bubble-wrap {
   align-items: flex-end;
+}
+
+/* Chi hang nay chua noi dung va ba cham. Ten nguoi gui / trich dan o tren
+   khong con keo nut vao giua ca cum tin nhan. */
+.cw-message-content {
+  display: flex;
+  align-items: center;
+  gap: calc(8px * var(--s));
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cw-row.mine .cw-message-content {
+  flex-direction: row-reverse;
 }
 
 /* Ten nguoi gui 13px w400, tren bong bong */

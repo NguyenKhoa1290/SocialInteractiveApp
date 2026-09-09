@@ -1255,63 +1255,68 @@ export function ChatRoomPage() {
                     );
                   })()}
 
-                {m.isDeleted ? (
-                  <div className="cw-bubble cw-bubble-deleted">Tin nhắn đã được thu hồi</div>
-                ) : editingId === m.id ? (
-                  <div className="cw-bubble">
-                    <input className="ws-input" style={{ marginBottom: 6 }} value={editText} onChange={(e) => setEditText(e.target.value)} />
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button className="cw-act" onClick={() => handleSaveEdit(m)}>
-                        Lưu
-                      </button>
-                      <button className="cw-act" onClick={() => setEditingId(null)}>
-                        Huỷ
-                      </button>
+                {/* Ten nguoi gui va trich dan nam ngoai hang nay. Nhu vay nut
+                    ba cham chi can giua voi bong bong noi dung, khong bi can
+                    giua voi ca ten + noi dung nhu truoc. */}
+                <div className="cw-message-content">
+                  {m.isDeleted ? (
+                    <div className="cw-bubble cw-bubble-deleted">Tin nhắn đã được thu hồi</div>
+                  ) : editingId === m.id ? (
+                    <div className="cw-bubble">
+                      <input className="ws-input" style={{ marginBottom: 6 }} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button className="cw-act" onClick={() => handleSaveEdit(m)}>
+                          Lưu
+                        </button>
+                        <button className="cw-act" onClick={() => setEditingId(null)}>
+                          Huỷ
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : m.type === "text" ? (
-                  <div className="cw-bubble">
-                    {decrypted[m.id] ?? "Đang giải mã…"}
-                    {m.isEdited && <span className="chat-msg-edited"> (đã sửa)</span>}
-                  </div>
-                ) : m.type === "system" ? (
-                  <SystemMessage
-                    content={m.content}
-                    conversationId={conversationId}
-                    activeMeetingId={activeMeeting?.id ?? null}
-                    onJoin={handleJoinMeeting}
-                  />
-                ) : m.fileId ? (
-                  // KHONG boc trong .cw-bubble: anh va the tep co khuon rieng
-                  // trong thiet ke (khung anh vien #85AEB0, the tep 442x92) -
-                  // long them mot nen mau nua thi thanh hai lop long nhau.
-                  <FileMessageContent fileId={m.fileId} type={m.type} />
-                ) : (
-                  <div className="cw-bubble">[{m.type}]</div>
-                )}
-              </div>
+                  ) : m.type === "text" ? (
+                    <div className="cw-bubble">
+                      {decrypted[m.id] ?? "Đang giải mã…"}
+                      {m.isEdited && <span className="chat-msg-edited"> (đã sửa)</span>}
+                    </div>
+                  ) : m.type === "system" ? (
+                    <SystemMessage
+                      content={m.content}
+                      conversationId={conversationId}
+                      activeMeetingId={activeMeeting?.id ?? null}
+                      onJoin={handleJoinMeeting}
+                    />
+                  ) : m.fileId ? (
+                    // KHONG boc trong .cw-bubble: anh va the tep co khuon rieng
+                    // trong thiet ke (khung anh vien #85AEB0, the tep 442x92) -
+                    // long them mot nen mau nua thi thanh hai lop long nhau.
+                    <FileMessageContent fileId={m.fileId} type={m.type} />
+                  ) : (
+                    <div className="cw-bubble">[{m.type}]</div>
+                  )}
 
-              {/* Mot nut ba cham thay cho day chip. Popup duoc dung chung voi
-                  chat phong hop va render o body nen khong bi cat tren mobile. */}
-              {coChip && editingId !== m.id && (
-                <MessageActionMenu
-                  open={openMessageMenuId === m.id}
-                  onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
-                  align={cuaMinh ? "end" : "start"}
-                  actions={[
-                    ...(traLoiDuoc
-                      ? [{ id: "reply", label: "Trả lời", onSelect: () => setReplyTo(m) }]
-                      : []),
-                    ...(suaDuoc ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
-                    ...(thuHoiDuoc
-                      ? [{ id: "recall", label: "Thu hồi", tone: "danger" as const, onSelect: () => void handleRecall(m.id) }]
-                      : []),
-                    ...(truongNhomXoaDuoc
-                      ? [{ id: "delete", label: "Xoá", tone: "danger" as const, onSelect: () => void handleLeaderDelete(m.id) }]
-                      : []),
-                  ] satisfies MessageAction[]}
-                />
-              )}
+                  {/* Popup render o body nen khong bi cat boi lich su cuon;
+                      nut nam trong hang noi dung de can dung chieu cao bong bong. */}
+                  {coChip && editingId !== m.id && (
+                    <MessageActionMenu
+                      open={openMessageMenuId === m.id}
+                      onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
+                      align={cuaMinh ? "end" : "start"}
+                      actions={[
+                        ...(traLoiDuoc
+                          ? [{ id: "reply", label: "Trả lời", onSelect: () => setReplyTo(m) }]
+                          : []),
+                        ...(suaDuoc ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
+                        ...(thuHoiDuoc
+                          ? [{ id: "recall", label: "Thu hồi", tone: "danger" as const, onSelect: () => void handleRecall(m.id) }]
+                          : []),
+                        ...(truongNhomXoaDuoc
+                          ? [{ id: "delete", label: "Xoá", tone: "danger" as const, onSelect: () => void handleLeaderDelete(m.id) }]
+                          : []),
+                      ] satisfies MessageAction[]}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
             </Fragment>
           );

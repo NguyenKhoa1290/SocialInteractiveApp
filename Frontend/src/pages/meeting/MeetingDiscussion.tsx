@@ -302,61 +302,65 @@ export function MeetingDiscussion({
                   <span className="disc-quote-text">{reply ? tomTat(reply) : "Tin nhắn cũ"}</span>
                 </button>
               )}
-              <div className="disc-bubble">
-                {m.isDeleted ? (
-                  <em className="disc-deleted">(đã xoá)</em>
-                ) : editingId === m.id ? (
-                  <div className="disc-edit">
-                    <input
-                      autoFocus
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void handleSaveEdit(m);
-                        }
-                        if (e.key === "Escape") {
-                          setEditingId(null);
-                          setEditText("");
-                        }
-                      }}
-                      disabled={savingEdit}
-                      aria-label="Nội dung tin nhắn"
-                    />
-                    <div className="disc-edit-actions">
-                      <button type="button" className="disc-act" onClick={() => void handleSaveEdit(m)} disabled={savingEdit || !editText.trim()}>
-                        Lưu
-                      </button>
-                      <button type="button" className="disc-act" onClick={() => { setEditingId(null); setEditText(""); }} disabled={savingEdit}>
-                        Hủy
-                      </button>
+              {/* Tach hang noi dung khoi ten va o trich dan de menu ba cham
+                  luon can giua theo chinh bong bong dang thao tac. */}
+              <div className="disc-message-content">
+                <div className="disc-bubble">
+                  {m.isDeleted ? (
+                    <em className="disc-deleted">(đã xoá)</em>
+                  ) : editingId === m.id ? (
+                    <div className="disc-edit">
+                      <input
+                        autoFocus
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleSaveEdit(m);
+                          }
+                          if (e.key === "Escape") {
+                            setEditingId(null);
+                            setEditText("");
+                          }
+                        }}
+                        disabled={savingEdit}
+                        aria-label="Nội dung tin nhắn"
+                      />
+                      <div className="disc-edit-actions">
+                        <button type="button" className="disc-act" onClick={() => void handleSaveEdit(m)} disabled={savingEdit || !editText.trim()}>
+                          Lưu
+                        </button>
+                        <button type="button" className="disc-act" onClick={() => { setEditingId(null); setEditText(""); }} disabled={savingEdit}>
+                          Hủy
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : m.type === "text" ? (
-                  <>
-                    <span className="disc-text">{m.content}</span>
-                    {m.isEdited && <span className="disc-edited"> (đã sửa)</span>}
-                  </>
-                ) : m.fileId != null ? (
-                  <FileMessageContent fileId={m.fileId} type={m.type} />
-                ) : (
-                  <em className="disc-deleted">(tệp không còn)</em>
+                  ) : m.type === "text" ? (
+                    <>
+                      <span className="disc-text">{m.content}</span>
+                      {m.isEdited && <span className="disc-edited"> (đã sửa)</span>}
+                    </>
+                  ) : m.fileId != null ? (
+                    <FileMessageContent fileId={m.fileId} type={m.type} />
+                  ) : (
+                    <em className="disc-deleted">(tệp không còn)</em>
+                  )}
+                </div>
+                {(canReply || canEdit) && editingId !== m.id && (
+                  <MessageActionMenu
+                    open={openMessageMenuId === m.id}
+                    onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
+                    align={mine ? "end" : "start"}
+                    actions={[
+                      ...(canReply
+                        ? [{ id: "reply", label: "Trả lời", onSelect: () => { setEditingId(null); setReplyTo(m); } }]
+                        : []),
+                      ...(canEdit ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
+                    ] satisfies MessageAction[]}
+                  />
                 )}
               </div>
-              {(canReply || canEdit) && editingId !== m.id && (
-                <MessageActionMenu
-                  open={openMessageMenuId === m.id}
-                  onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
-                  align={mine ? "end" : "start"}
-                  actions={[
-                    ...(canReply
-                      ? [{ id: "reply", label: "Trả lời", onSelect: () => { setEditingId(null); setReplyTo(m); } }]
-                      : []),
-                    ...(canEdit ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
-                  ] satisfies MessageAction[]}
-                />
-              )}
             </div>
             </Fragment>
           );
