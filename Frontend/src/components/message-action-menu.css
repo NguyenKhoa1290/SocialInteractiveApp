@@ -1,0 +1,97 @@
+/* Nut ba cham va popup thao tac dung chung cho moi loai hoi thoai. */
+.message-action-menu {
+  flex: none;
+  align-self: center;
+  line-height: 0;
+}
+
+.message-action-trigger {
+  display: grid;
+  width: calc(34px * var(--s));
+  height: calc(34px * var(--s));
+  min-width: 28px;
+  min-height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(42, 51, 68, 0.12);
+  color: var(--calli-navy);
+  cursor: pointer;
+}
+
+.message-action-trigger:hover,
+.message-action-trigger:focus-visible,
+.message-action-menu.is-open .message-action-trigger {
+  background: var(--calli-teal);
+  color: #fff;
+  outline: none;
+}
+
+.message-action-trigger:focus-visible {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--calli-teal-dark);
+}
+
+.message-action-trigger svg {
+  width: calc(20px * var(--s));
+  height: calc(20px * var(--s));
+  fill: currentColor;
+}
+
+.message-action-popover {
+  position: fixed;
+  z-index: 1100;
+  display: grid;
+  min-width: min(calc(184px * var(--s)), calc(100vw - 16px));
+  padding: calc(5px * var(--s));
+  border: 1px solid rgba(42, 51, 68, 0.16);
+  border-radius: calc(12px * var(--s));
+  background: #fff;
+  box-shadow: 0 calc(8px * var(--s)) calc(24px * var(--s)) rgba(20, 31, 46, 0.24);
+  line-height: normal;
+}
+
+.message-action-item {
+  width: 100%;
+  padding: calc(9px * var(--s)) calc(12px * var(--s));
+  border: 0;
+  border-radius: calc(8px * var(--s));
+  background: transparent;
+  color: var(--calli-navy);
+  font-family: var(--sans);
+  font-size: calc(15px * var(--s));
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.message-action-item:hover,
+.message-action-item:focus-visible {
+  background: rgba(133, 174, 176, 0.2);
+  outline: none;
+}
+
+.message-action-item.is-danger {
+  color: #c72d2d;
+}
+
+/* Chuot may tinh: giong Messenger, nut chi hien luc focus/re chuot vao tin.
+   Dien thoai khong co hover nen nut luon co mat de co the cham. */
+@media (hover: hover) and (pointer: fine) {
+  .cw-row .message-action-menu,
+  .disc-row .message-action-menu {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+
+  .cw-row:hover .message-action-menu,
+  .cw-row:focus-within .message-action-menu,
+  .disc-row:hover .message-action-menu,
+  .disc-row:focus-within .message-action-menu,
+  .message-action-menu.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

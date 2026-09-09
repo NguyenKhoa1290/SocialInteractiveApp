@@ -166,21 +166,6 @@
   font-weight: 400;
 }
 
-.disc-acts {
-  display: flex;
-  flex-direction: column;
-  gap: calc(5px * var(--s));
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-
-.disc-row:hover .disc-acts,
-.disc-row:focus-within .disc-acts {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* Dong bo chip thao tac voi chat nhom: nen #D2EFE6, vien xanh va bo tron. */
 .disc-act {
   border: 1px solid var(--calli-teal);

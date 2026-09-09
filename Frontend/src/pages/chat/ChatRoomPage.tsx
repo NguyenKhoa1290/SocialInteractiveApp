@@ -40,6 +40,7 @@ import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSepara
 import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
+import { MessageActionMenu, type MessageAction } from "../../components/MessageActionMenu";
 import "./chat.css";
 
 // Khoa localStorage nho trang thai gap thanh thong tin - dat ten mot cho de
@@ -125,6 +126,7 @@ export function ChatRoomPage() {
   // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
   // ngay tren khung soan, bam X de bo.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   // Ham huy lan tai len dang chay - do handleFileSelect gan vao.
   const cancelUploadRef = useRef<(() => void) | null>(null);
@@ -1289,32 +1291,26 @@ export function ChatRoomPage() {
                 )}
               </div>
 
-              {/* Chip hanh dong ben canh bong bong (Figma 111:391): 52x17, nen
-                  #D2EFE6, vien #85AEB0. Chi hien khi re chuot vao hang - de
-                  hien thuong truc thi moi tin deu keo theo hai cai nut. */}
+              {/* Mot nut ba cham thay cho day chip. Popup duoc dung chung voi
+                  chat phong hop va render o body nen khong bi cat tren mobile. */}
               {coChip && editingId !== m.id && (
-                <div className="cw-acts cw-more">
-                  {traLoiDuoc && (
-                    <button className="cw-act" onClick={() => setReplyTo(m)}>
-                      Trả lời
-                    </button>
-                  )}
-                  {suaDuoc && (
-                    <button className="cw-act" onClick={() => startEdit(m)}>
-                      Sửa
-                    </button>
-                  )}
-                  {thuHoiDuoc && (
-                    <button className="cw-act" onClick={() => handleRecall(m.id)}>
-                      Thu hồi
-                    </button>
-                  )}
-                  {truongNhomXoaDuoc && (
-                    <button className="cw-act" onClick={() => handleLeaderDelete(m.id)}>
-                      Xoá
-                    </button>
-                  )}
-                </div>
+                <MessageActionMenu
+                  open={openMessageMenuId === m.id}
+                  onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
+                  align={cuaMinh ? "end" : "start"}
+                  actions={[
+                    ...(traLoiDuoc
+                      ? [{ id: "reply", label: "Trả lời", onSelect: () => setReplyTo(m) }]
+                      : []),
+                    ...(suaDuoc ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
+                    ...(thuHoiDuoc
+                      ? [{ id: "recall", label: "Thu hồi", tone: "danger" as const, onSelect: () => void handleRecall(m.id) }]
+                      : []),
+                    ...(truongNhomXoaDuoc
+                      ? [{ id: "delete", label: "Xoá", tone: "danger" as const, onSelect: () => void handleLeaderDelete(m.id) }]
+                      : []),
+                  ] satisfies MessageAction[]}
+                />
               )}
             </div>
             </Fragment>

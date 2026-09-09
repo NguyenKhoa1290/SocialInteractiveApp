@@ -7,6 +7,7 @@ import { extractApiError } from "../../lib/apiError";
 import { FileMessageContent } from "../chat/FileMessageContent";
 import type { Message, MessageType } from "../../types/chat";
 import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
+import { MessageActionMenu, type MessageAction } from "../../components/MessageActionMenu";
 import { IconAttach, IconImage, IconSend } from "../chat/ComposerIcons";
 import { doanLoaiMedia } from "../../lib/mediaKind";
 import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
@@ -48,6 +49,7 @@ export function MeetingDiscussion({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -343,10 +345,17 @@ export function MeetingDiscussion({
                 )}
               </div>
               {(canReply || canEdit) && editingId !== m.id && (
-                <div className="disc-acts">
-                  {canReply && <button type="button" className="disc-act" onClick={() => { setEditingId(null); setReplyTo(m); }}>Trả lời</button>}
-                  {canEdit && <button type="button" className="disc-act" onClick={() => startEdit(m)}>Sửa</button>}
-                </div>
+                <MessageActionMenu
+                  open={openMessageMenuId === m.id}
+                  onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
+                  align={mine ? "end" : "start"}
+                  actions={[
+                    ...(canReply
+                      ? [{ id: "reply", label: "Trả lời", onSelect: () => { setEditingId(null); setReplyTo(m); } }]
+                      : []),
+                    ...(canEdit ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
+                  ] satisfies MessageAction[]}
+                />
               )}
             </div>
             </Fragment>

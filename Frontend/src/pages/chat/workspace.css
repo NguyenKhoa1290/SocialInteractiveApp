@@ -871,32 +871,6 @@
   opacity: 0.75;
 }
 
-/* Nut ba cham ben canh bong bong - chi hien khi re chuot vao hang. */
-.cw-more {
-  flex: none;
-  border: 0;
-  background: transparent;
-  color: var(--calli-teal);
-  cursor: pointer;
-  padding: calc(4px * var(--s));
-  line-height: 0;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-.cw-row:hover .cw-more,
-.cw-more:focus-visible {
-  opacity: 1;
-}
-
-/* Chip hanh dong 52x17, nen #D2EFE6, vien #85AEB0 1px, bo 8, chu 12 w500 */
-.cw-acts {
-  display: flex;
-  flex-direction: column;
-  gap: calc(9px * var(--s));
-  flex: none;
-}
-
 .cw-act {
   border: 1px solid var(--calli-teal);
   border-radius: calc(8px * var(--s));
