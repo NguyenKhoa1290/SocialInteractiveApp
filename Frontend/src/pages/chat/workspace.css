@@ -812,6 +812,16 @@
   flex-direction: row-reverse;
 }
 
+/* Moc gio o giua danh sach khi mot luot chat moi bat dau. */
+.cw-time-separator {
+  align-self: stretch;
+  color: rgba(42, 51, 68, 0.62);
+  font-size: calc(13px * var(--s));
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+}
+
 /* Rong 442 = be rong THE TEP trong thiet ke, khong phai 377 cua bong bong
    chu. Truoc day khung boc la 377 ma the tep lai max-width 442 - the lo ra
    ngoai va DE LEN cac chip hanh dong, lam chu bi cat thanh "Tr" / "Thu ho".

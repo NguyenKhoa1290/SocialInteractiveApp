@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import type { StorageInfo, TopupRequestInfo, UploadTracker } from "../../api/chatApi";
@@ -36,6 +36,7 @@ import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import { doanLoaiMedia } from "../../lib/mediaKind";
 import { useChatUnreadStore } from "../../store/chatUnreadStore";
+import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
 import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
@@ -1207,9 +1208,12 @@ export function ChatRoomPage() {
           </div>
         )}
 
-        {searchResults === null && messages.map((m) => {
+        {searchResults === null && messages.map((m, index) => {
           const cuaMinh = m.senderId === currentUserId;
           const laHeThong = m.type === "system";
+          const previous = messages[index - 1];
+          const showTime = !laHeThong && shouldShowChatTimeSeparator(m, previous);
+          const showSender = !laHeThong && !cuaMinh && shouldShowChatSender(m, previous, currentUserId);
           const suaDuoc = cuaMinh && m.type === "text" && !m.isDeleted;
           const thuHoiDuoc = cuaMinh && !m.isDeleted;
           const truongNhomXoaDuoc = isLeader && !cuaMinh && !m.isDeleted;
@@ -1218,9 +1222,15 @@ export function ChatRoomPage() {
           const traLoiDuoc = !laHeThong && !m.isDeleted;
           const coChip = traLoiDuoc || suaDuoc || thuHoiDuoc || truongNhomXoaDuoc;
           return (
-            <div key={m.id} id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
+            <Fragment key={m.id}>
+              {showTime && (
+                <time className="cw-time-separator" dateTime={m.createdAt}>
+                  {formatChatTimeSeparator(m.createdAt)}
+                </time>
+              )}
+            <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
               <div className="cw-bubble-wrap">
-                {m.senderDisplayName && !cuaMinh && <p className="cw-sender">{m.senderDisplayName}</p>}
+                {showSender && <p className="cw-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</p>}
 
                 {/* Khoi trich dan tin duoc tra loi. Tim trong danh sach dang
                     co; tin qua cu (chua nap toi) thi hien chu chung thay vi
@@ -1307,6 +1317,7 @@ export function ChatRoomPage() {
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
         {/* Tep dang tai len hien nhu MOT TIN NHAN trong mach hoi thoai

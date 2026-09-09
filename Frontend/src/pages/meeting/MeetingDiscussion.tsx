@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { UploadTracker } from "../../api/chatApi";
 import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageEdited, onMeetingMessageReceived } from "../../lib/chatHub";
@@ -9,6 +9,7 @@ import type { Message, MessageType } from "../../types/chat";
 import { UploadProgressBar, type UploadState } from "../../components/UploadProgressBar";
 import { IconAttach, IconImage, IconSend } from "../chat/ComposerIcons";
 import { doanLoaiMedia } from "../../lib/mediaKind";
+import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
 import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -258,26 +259,36 @@ export function MeetingDiscussion({
     }
   }
 
+  const visibleMessages = messages.filter((m) => {
+    const q = loc.trim().toLowerCase();
+    if (!q) return true;
+    return (m.content ?? "").toLowerCase().includes(q) ||
+      (m.senderDisplayName ?? "").toLowerCase().includes(q);
+  });
+
   return (
     <div className={`disc${compact ? " disc-compact" : ""}`}>
       <div className="disc-messages">
         {loading && <p className="disc-empty">Đang tải…</p>}
         {!loading && messages.length === 0 && <p className="disc-empty">Chưa có nội dung nào trong thảo luận.</p>}
 
-        {messages
-          .filter((m) => {
-            const q = loc.trim().toLowerCase();
-            if (!q) return true;
-            return (m.content ?? "").toLowerCase().includes(q) ||
-              (m.senderDisplayName ?? "").toLowerCase().includes(q);
-          })
-          .map((m) => {
+        {visibleMessages.map((m, index) => {
           const mine = m.senderId === currentUserId;
+          const previous = visibleMessages[index - 1];
+          const showTime = shouldShowChatTimeSeparator(m, previous);
+          const showSender = !mine && shouldShowChatSender(m, previous, currentUserId);
           const reply = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) : undefined;
           const canReply = !m.isDeleted;
           const canEdit = mine && m.type === "text" && !m.isDeleted;
           return (
-            <div key={m.id} id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}`}>
+            <Fragment key={m.id}>
+              {showTime && (
+                <time className="disc-time-separator" dateTime={m.createdAt}>
+                  {formatChatTimeSeparator(m.createdAt)}
+                </time>
+              )}
+            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}`}>
+              {showSender && <div className="disc-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</div>}
               {m.replyToId != null && (
                 <button
                   type="button"
@@ -290,7 +301,6 @@ export function MeetingDiscussion({
                 </button>
               )}
               <div className="disc-bubble">
-                {!mine && <div className="disc-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</div>}
                 {m.isDeleted ? (
                   <em className="disc-deleted">(đã xoá)</em>
                 ) : editingId === m.id ? (
@@ -331,7 +341,6 @@ export function MeetingDiscussion({
                 ) : (
                   <em className="disc-deleted">(tệp không còn)</em>
                 )}
-                <div className="disc-time">{new Date(m.createdAt).toLocaleTimeString("vi-VN")}</div>
               </div>
               {(canReply || canEdit) && editingId !== m.id && (
                 <div className="disc-acts">
@@ -340,6 +349,7 @@ export function MeetingDiscussion({
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
         <div ref={bottomRef} />
