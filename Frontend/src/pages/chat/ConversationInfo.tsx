@@ -419,6 +419,7 @@ export function ConversationInfo({
           src={urls[xem.id]}
           name={xem.fileName}
           kind={xem.fileType === "video" ? "video" : "image"}
+          sizeBytes={xem.sizeBytes}
           onClose={() => setXem(null)}
         />
       )}
