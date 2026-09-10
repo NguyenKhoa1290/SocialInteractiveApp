@@ -13,6 +13,9 @@ export interface AdminUserInfo {
   isAdmin: boolean;
   createdAt: string;
   lastActiveAt: string;
+  // Chi Guest co moc nay: GuestCleanupService xoa o luot quet 24h dau tien
+  // sau thoi diem nay neu khong phat sinh hoat dong moi.
+  guestExpiresAt: string | null;
 }
 
 export interface SpamViolation {
@@ -34,6 +37,7 @@ export interface AdminUserDetail {
   status: AdminUserStatus;
   createdAt: string;
   lastActiveAt: string;
+  guestExpiresAt: string | null;
   violations: SpamViolation[];
 }
 

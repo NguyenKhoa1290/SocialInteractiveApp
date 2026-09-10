@@ -284,7 +284,7 @@ export function ConversationList({
 
   function tenCua(c: ConversationSummary) {
     const k = c.type === "p2p" ? `u${c.otherUserId}` : `w${c.workspaceId}`;
-    return names[k]?.ten ?? (c.type === "p2p" ? `Người dùng ${c.otherUserId}` : `Nhóm ${c.workspaceId}`);
+    return names[k]?.ten ?? (c.type === "p2p" ? "Người dùng Calli" : `Nhóm ${c.workspaceId}`);
   }
 
   return (

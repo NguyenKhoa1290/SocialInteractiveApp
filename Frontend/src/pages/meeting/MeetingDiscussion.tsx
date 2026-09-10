@@ -290,7 +290,7 @@ export function MeetingDiscussion({
                 </time>
               )}
             <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}`}>
-              {showSender && <div className="disc-sender">{m.senderDisplayName ?? `Người dùng ${m.senderId}`}</div>}
+              {showSender && <div className="disc-sender">{m.senderDisplayName ?? "Người dùng Calli"}</div>}
               {m.replyToId != null && (
                 <button
                   type="button"
@@ -298,7 +298,7 @@ export function MeetingDiscussion({
                   onClick={() => nhayToi(m.replyToId!)}
                   title="Tới tin nhắn gốc"
                 >
-                  <span className="disc-quote-who">{reply?.senderDisplayName ?? (reply?.senderId === currentUserId ? "Bạn" : "Tin nhắn")}</span>
+                  <span className="disc-quote-who">{reply?.senderDisplayName ?? (reply?.senderId === currentUserId ? "Bạn" : "Người dùng Calli")}</span>
                   <span className="disc-quote-text">{reply ? tomTat(reply) : "Tin nhắn cũ"}</span>
                 </button>
               )}

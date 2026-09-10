@@ -132,6 +132,7 @@ export function AdminUsersPage() {
                   <th>Loại</th>
                   <th>Trạng thái</th>
                   <th>Hoạt động lần cuối</th>
+                  <th>Tự xoá Guest</th>
                   <th />
                 </tr>
               </thead>
@@ -148,10 +149,11 @@ export function AdminUsersPage() {
                     <td>{u.userType === "guest" ? "Khách" : "Đã đăng ký"}</td>
                     <td>
                       <span className={`adm-badge ${u.status === "locked" ? "adm-badge-locked" : "adm-badge-active"}`}>
-                        {u.status === "locked" ? "Bị khoá" : "Hoạt động"}
+                        {u.status === "locked" ? "Bị khoá" : "Bình thường"}
                       </span>
                     </td>
                     <td className="adm-muted">{formatDateTime(u.lastActiveAt)}</td>
+                    <td className="adm-muted">{u.guestExpiresAt ? formatDateTime(u.guestExpiresAt) : "-"}</td>
                     <td>
                       <button className="adm-btn adm-btn-ghost" onClick={() => openDetail(u.id)}>
                         Chi tiết
@@ -206,11 +208,17 @@ export function AdminUsersPage() {
             <dt>Loại tài khoản</dt>
             <dd>{selected.userType === "guest" ? "Khách vãng lai" : "Đã đăng ký"}</dd>
             <dt>Trạng thái</dt>
-            <dd>{selected.status === "locked" ? "Bị khoá" : "Hoạt động"}</dd>
+            <dd>{selected.status === "locked" ? "Bị khoá" : "Bình thường"}</dd>
             <dt>Tạo lúc</dt>
             <dd>{formatDateTime(selected.createdAt)}</dd>
             <dt>Hoạt động lần cuối</dt>
             <dd>{formatDateTime(selected.lastActiveAt)}</dd>
+            {selected.guestExpiresAt && (
+              <>
+                <dt>Tự xoá Guest</dt>
+                <dd>{formatDateTime(selected.guestExpiresAt)} (nếu không có hoạt động mới)</dd>
+              </>
+            )}
           </dl>
 
           <h3 className="adm-subtitle">Vi phạm spam ({selected.violations.length})</h3>

@@ -920,7 +920,7 @@ export function ChatRoomPage() {
 
   const tenHoiThoai =
     peer?.ten ??
-    (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : `Người dùng ${peerUserId ?? ""}`);
+    (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : "Người dùng Calli");
 
   // Chat Service co the chua kem senderDisplayName cho tin nhan 1-1 cu. Dau
   // phong chat da resolve duoc nguoi kia tu danh sach ban be, nen dung lai
@@ -930,7 +930,7 @@ export function ChatRoomPage() {
     if (message.senderDisplayName) return message.senderDisplayName;
     if (message.senderId === currentUserId) return "Bạn";
     if (conversation?.type === "p2p" && message.senderId === peerUserId && peer?.ten) return peer.ten;
-    return message.senderId == null ? "Tin nhắn" : `Người dùng ${message.senderId}`;
+    return message.senderId == null ? "Tin nhắn" : "Người dùng Calli";
   }
 
   return (

@@ -162,6 +162,13 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 50
+                deviceFingerprint:
+                  type: string
+                  nullable: true
+                  description: >-
+                    Gia tri SHA-256 `v1:` do frontend tao tu cac dac tinh giao
+                    dien toi thieu. Chi dung de gioi han tao Guest, khong phai
+                    dinh danh hay thong tin dang nhap.
       responses:
         "200":
           description: Tạo phiên Guest thành công
@@ -170,6 +177,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthSuccessResponse"
 
+        "429":
+          description: >-
+            Thiet bi da tao toi da 3 Guest trong cua so truot 30 phut. Response
+            co header Retry-After (giay) cho biet thoi gian can cho.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: So giay con lai truoc khi co the tao Guest tiep.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/logout:
     post:
       tags: [Authentication]
@@ -177,6 +197,22 @@ paths:
       responses:
         "204":
           description: Đăng xuất thành công, không có nội dung trả về
+
+  /auth/activity:
+    post:
+      tags: [Authentication]
+      summary: Ghi nhận hoạt động gần nhất của phiên đang dùng
+      description: >-
+        Client chỉ gọi khi tab đang hiển thị và người dùng vừa tương tác. Server
+        gộp tối đa một lần ghi last_active_at mỗi 5 phút cho mỗi user; không
+        nhận nội dung thao tác hoặc dữ liệu chat.
+      responses:
+        "204":
+          description: Đã ghi nhận hoặc đã được gộp vào cửa sổ 5 phút hiện tại
+        "401":
+          description: Token không hợp lệ hoặc tài khoản đã bị xoá
+        "403":
+          description: Tài khoản bị khoá
 
   # ============== PASSWORD ==============
   /auth/forgot-password:

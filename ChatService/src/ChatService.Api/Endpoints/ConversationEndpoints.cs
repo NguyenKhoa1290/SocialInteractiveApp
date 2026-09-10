@@ -303,9 +303,9 @@ public static class ConversationEndpoints
                     .ToDictionaryAsync(k => k.MessageId, k => k.EncryptedKey);
             }
 
-            // senderDisplayName: tinh dong, "nguoi trong nhom" neu sender khong
-            // con la thanh vien workspace (UC-22) - CHI ap dung cho group,
-            // dung theo tai lieu roadmap muc 5.6/6.2 Ghi chu.
+            // senderDisplayName tinh dong. Khi Guest da bi Identity xoa theo
+            // han 6 thang, van giu tin nhan lich su nhung an danh nguoi gui
+            // bang mot nhan trung tinh, khong de lo ID ky thuat.
             Dictionary<long, Services.WorkspaceMemberInfo>? currentMembers = null;
             if (conversation.Type == ConversationType.Group && conversation.WorkspaceId is not null)
             {
@@ -320,7 +320,7 @@ public static class ConversationEndpoints
                 {
                     displayName = currentMembers is not null && currentMembers.TryGetValue(m.SenderId.Value, out var info)
                         ? info.Nickname
-                        : "người trong nhóm";
+                        : "Người dùng Calli";
                 }
                 var recipientKey = ownRecipientKeys?.GetValueOrDefault(m.Id);
                 return MessageResponse.FromLite(m, conversationId, displayName, recipientKey);

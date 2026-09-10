@@ -358,6 +358,13 @@ components:
         lastActiveAt:
           type: string
           format: date-time
+        guestExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Chỉ áp dụng cho Guest: mốc sẽ bị GuestCleanupService xoá ở lượt quét
+            kế tiếp nếu không có hoạt động mới. Registered user có giá trị null.
         violations:
           type: array
           items:

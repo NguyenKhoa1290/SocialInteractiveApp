@@ -1,5 +1,6 @@
 import { identityHttp } from "./httpClient";
 import type { AuthSuccessResponse, AuthUser, OAuthSuccessResponse, RegisterPending } from "../types/auth";
+import { layGuestBrowserFingerprint } from "../lib/guestBrowserFingerprint";
 
 export const authApi = {
   login: (email: string, password: string) =>
@@ -16,8 +17,13 @@ export const authApi = {
   resendRegistration: (email: string) =>
     identityHttp.post<RegisterPending>("/auth/register/resend", { email }),
 
-  guest: (displayName: string) =>
-    identityHttp.post<AuthSuccessResponse>("/auth/guest", { displayName }),
+  // Cung mot client cho landing page, trang Guest va link moi hop. Neu mot
+  // browser cu khong co Web Crypto, server van con cookie device de gioi han;
+  // khong duoc chan nguoi dung that chi vi trinh duyet qua cu.
+  guest: async (displayName: string) => {
+    const deviceFingerprint = await layGuestBrowserFingerprint().catch(() => undefined);
+    return identityHttp.post<AuthSuccessResponse>("/auth/guest", { displayName, deviceFingerprint });
+  },
 
   oauth: (provider: "google" | "facebook", oauthToken: string) =>
     identityHttp.post<OAuthSuccessResponse>(`/auth/oauth/${provider}`, { oauthToken }),
@@ -34,6 +40,9 @@ export const authApi = {
     identityHttp.post<void>("/auth/reset-password", { resetToken, newPassword }),
 
   refresh: () => identityHttp.post<AuthSuccessResponse>("/auth/refresh"),
+
+  // Nhip hoat dong co debounce o client va rate-limit 5 phut/user o server.
+  recordActivity: () => identityHttp.post<void>("/auth/activity"),
 
   logout: () => identityHttp.post<void>("/auth/logout"),
 

@@ -4,7 +4,10 @@ namespace IdentityService.Api.Endpoints;
 
 public record RegisterRequest(string Email, string Password, string DisplayName);
 public record LoginRequest(string Email, string Password);
-public record GuestRequest(string DisplayName);
+// DeviceFingerprint la SHA-256 do frontend tinh tu mot tap dac tinh giao dien
+// toi thieu. No la tin hieu chong lam dung, khong phai dinh danh hay thong tin
+// dang nhap; client cu khong gui no van duoc gioi han bang cookie device.
+public record GuestRequest(string DisplayName, string? DeviceFingerprint);
 
 // AvatarUpdatedAt vua la co "co anh dai dien hay khong" vua la ma chong cache:
 // client gan no vao URL anh, nen doi anh la trinh duyet lay ban moi ngay, con

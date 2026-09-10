@@ -20,6 +20,7 @@ public static class AuthEndpoints
     // trieu kha nang, khong chan thi do dung duoc.
     private const int MaxLanSai = 5;
     private static readonly TimeSpan ResetTokenTtl = TimeSpan.FromMinutes(10);
+    private const string GuestDeviceCookie = "calli_guest_device";
 
     public static void MapAuthEndpoints(this WebApplication app)
     {
@@ -194,10 +195,27 @@ public static class AuthEndpoints
 
         // UC-04: Truy cap dang Guest - chi can ten hien thi. Handle duy nhat
         // duoc sinh tren server, nen ten hien thi trung van vao duoc.
-        auth.MapPost("/guest", async (GuestRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
+        auth.MapPost("/guest", async (
+            GuestRequest req, HttpContext http, IHostEnvironment environment,
+            IdentityDbContext db, RedisAuthStore store, JwtTokenService jwt, KafkaProducerService kafka) =>
         {
             if (!NicknamePolicy.TryNormalizeDisplayName(req.DisplayName, out var displayName))
                 return Results.BadRequest(new ErrorResponse("invalid_display_name", "Ten hien thi bat buoc, toi da 50 ky tu va khong chua ky tu dieu khien"));
+
+            if (!TryNormalizeGuestFingerprint(req.DeviceFingerprint, out var fingerprint))
+                return Results.BadRequest(new ErrorResponse("invalid_device_fingerprint", "Du lieu thiet bi khong hop le, hay tai lai trang va thu lai"));
+
+            var deviceId = LayHoacTaoGuestDeviceId(http.Request, out var canDatCookie);
+            var permit = await store.GiuChoTaoGuestAsync(deviceId, fingerprint);
+            if (!permit.Allowed)
+            {
+                http.Response.Headers.RetryAfter = permit.RetryAfterSeconds.ToString();
+                return Results.Json(
+                    new ErrorResponse(
+                        "guest_creation_limited",
+                        "Thiet bi nay da tao toi da 3 tai khoan Guest trong 30 phut. Hay thu lai sau."),
+                    statusCode: StatusCodes.Status429TooManyRequests);
+            }
 
             var user = new User
             {
@@ -209,7 +227,35 @@ public static class AuthEndpoints
                 LastActiveAt = DateTimeOffset.UtcNow,
             };
             db.Users.Add(user);
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch
+            {
+                // Redis da giu cho truoc de tranh race condition. Loi DB thi
+                // tra lai dung luot do, tranh nguoi dung that bi mat 1/3 luot.
+                await store.HuyGiuChoTaoGuestAsync(deviceId, fingerprint, permit.ReservationId!);
+                throw;
+            }
+
+            if (canDatCookie)
+            {
+                // Host-only (khong set Domain) de chi Identity Service nhan
+                // cookie nay. No khong mang JWT/quyen dang nhap; chi la ID
+                // ngau nhien dung de dem tao Guest trong cua so ngan.
+                http.Response.Cookies.Append(GuestDeviceCookie, deviceId, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = !environment.IsDevelopment(),
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/auth/guest",
+                    // Dung thang lich (khong phai 180 ngay gan dung): cookie
+                    // nhan dien thiet bi Guest tu het han sau 6 thang.
+                    Expires = DateTimeOffset.UtcNow.AddMonths(6),
+                    IsEssential = true,
+                });
+            }
 
             var token = jwt.IssueToken(user);
             await kafka.PublishAuthEventAsync("guest", user.Id, null, "guest");
@@ -339,6 +385,32 @@ public static class AuthEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
+        // Client chi goi khi tab dang hien va nguoi dung vua tuong tac. Redis
+        // gop toi da mot lan UPDATE moi 5 phut/user, nen endpoint nay khong
+        // bien moi phim bam hay click thanh mot lan ghi CSDL.
+        auth.MapPost("/activity", async (ClaimsPrincipal principal, IdentityDbContext db, RedisAuthStore store) =>
+        {
+            var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (sub is null || !long.TryParse(sub, out var userId))
+                return Results.Unauthorized();
+
+            var user = await db.Users.FindAsync(userId);
+            if (user is null)
+                return Results.Unauthorized();
+            if (user.Status == UserStatus.Locked)
+                return Results.Json(
+                    new { error = "account_locked", message = "Tai khoan dang bi khoa vi vi pham chinh sach chong spam" },
+                    statusCode: 403);
+
+            if (await store.DuocCapNhatHoatDongAsync(userId))
+            {
+                user.LastActiveAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+            }
+
+            return Results.NoContent();
+        }).RequireAuthorization();
+
         // Sliding expiration (tu de xuat, khac phuc thieu sot: comment cu o
         // JwtTokenService.cs nhac toi "endpoint refresh" nhung chua tung
         // duoc viet) - client goi endpoint nay TRUOC khi token het han (vi
@@ -397,5 +469,41 @@ public static class AuthEndpoints
         {
             return false;
         }
+    }
+
+    // Cookie la UUID 128-bit tao boi server. Cookie gia mao van khong qua
+    // fingerprint limiter, con cookie khong hop le thi cap lai thay vi dung
+    // mot gia tri do client tu chon lam khoa Redis.
+    private static string LayHoacTaoGuestDeviceId(HttpRequest request, out bool canDatCookie)
+    {
+        var existing = request.Cookies[GuestDeviceCookie];
+        if (existing is not null && Guid.TryParseExact(existing, "N", out _))
+        {
+            canDatCookie = false;
+            return existing;
+        }
+
+        canDatCookie = true;
+        return Guid.NewGuid().ToString("N");
+    }
+
+    // Gia tri client gui la "v1:" + SHA-256 hex. Phien ban nam trong gia tri
+    // de sau nay doi tap tin hieu van co the tach cua so dem cu va moi.
+    // Fingerprint khong bat buoc cho client cu trong luc rollout, nhung frontend
+    // hien tai luon gui no; khong nhan chuoi tuy y lam khoa Redis.
+    private static bool TryNormalizeGuestFingerprint(string? input, out string? fingerprint)
+    {
+        fingerprint = null;
+        if (string.IsNullOrWhiteSpace(input)) return true;
+
+        var value = input.Trim().ToLowerInvariant();
+        if (value.Length != 67 || !value.StartsWith("v1:", StringComparison.Ordinal)) return false;
+        foreach (var c in value.AsSpan(3))
+        {
+            if (!(c is >= '0' and <= '9' or >= 'a' and <= 'f')) return false;
+        }
+
+        fingerprint = value;
+        return true;
     }
 }

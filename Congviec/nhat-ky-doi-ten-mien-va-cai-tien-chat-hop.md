@@ -1116,3 +1116,80 @@ cũ trong `IptvPlayer*`, không phát sinh từ các thay đổi trên.
 Các commit từ `adf97e6` đến `8c77a5b` đang ở nhánh cục bộ tại thời điểm ghi
 nhật ký này; chưa đẩy lên GitHub hoặc xác nhận trên môi trường public trong
 đợt này.
+
+---
+
+## 22. Giới hạn tạo tài khoản Guest theo thiết bị
+
+**Đợt làm ngày 10/09/2026** — Frontend (React), Identity Service (.NET) và Redis.
+
+### Vấn đề
+
+Guest không cần email hay mật khẩu, nên một người có thể xoá cookie hoặc mở
+cửa sổ ẩn danh để tạo nhiều tài khoản trong thời gian ngắn. Giới hạn theo IP
+không phù hợp vì người dùng di động/CGNAT có thể dùng chung địa chỉ IP.
+
+### Đã làm
+
+- Frontend tạo fingerprint `v1:` bằng SHA-256 từ tập đặc tính giao diện tối
+  thiểu (browser major version, platform, ngôn ngữ, múi giờ, màn hình, touch,
+  CPU/RAM mà browser công khai). Không dùng canvas, audio hay liệt kê font.
+  Giá trị này là **tín hiệu chống lạm dụng**, không phải định danh người dùng.
+- Identity Service cấp cookie `HttpOnly`, `Secure`, host-only
+  `calli_guest_device` khi tạo Guest lần đầu. Cookie không chứa JWT và chỉ gửi
+  lại cho endpoint `/auth/guest` của Identity Service.
+- Redis dùng Lua script nguyên tử để đếm đồng thời theo cookie device và
+  fingerprint. Mỗi khoá dùng cửa sổ trượt 30 phút; nếu một trong hai đã có 3
+  lượt thì `POST /auth/guest` trả `429 guest_creation_limited` và header
+  `Retry-After`.
+- Lua script giữ chỗ trước khi ghi Postgres để tránh race condition. Nếu ghi
+  CSDL thất bại, reservation được huỷ, nên người dùng không bị mất một lượt.
+- Cả ba lối vào Guest (landing page, trang Guest và link mời họp) dùng chung
+  `authApi.guest`, nên đều gửi fingerprint và cookie cùng một cách.
+
+Fingerprint không thể chứng minh một máy vật lý: bot có thể giả mạo nó và
+người dùng thật có thể thay đổi browser/chế độ riêng tư. Cookie + fingerprint
+vì vậy chỉ chặn lạm dụng thông thường; không khoá tài khoản hay làm căn cứ
+nhận dạng.
+
+### Chưa làm — ghi chú cho đợt sau
+
+Thêm **challenge nội bộ** chỉ khi phát hiện rủi ro cao (proof-of-work nhẹ hoặc
+captcha nội bộ): server cấp nonce dùng một lần, trình duyệt giải challenge và
+server xác nhận trước khi tạo Guest. Mục này chưa được triển khai trong đợt
+hiện tại để tránh tốn pin/CPU của người dùng bình thường và cần chốt ngưỡng
+khởi phát trước.
+
+---
+
+## 23. Hoạt động người dùng và hạn tự xoá Guest
+
+**Đợt làm ngày 10/09/2026** — Identity Service, Admin Service và Frontend.
+
+Nhãn **Hoạt động** cũ trong quản trị thực ra chỉ biểu thị `status=active` (tài
+khoản chưa bị khoá), không phải dấu hiệu người đó vừa dùng ứng dụng. Điều này
+dễ gây hiểu nhầm khi xét luật tự xoá Guest sau 6 tháng không hoạt động.
+
+Đã điều chỉnh như sau:
+
+- Đổi nhãn `active` thành **Bình thường**; `Bị khoá` vẫn chỉ rõ trạng thái bị
+  hạn chế do chính sách.
+- Thêm `POST /auth/activity`. Frontend chỉ gọi khi tab đang hiển thị và người dùng
+  vừa tương tác (mở app, chạm/click hoặc gõ phím). Redis gộp tối đa **một lần
+  ghi `last_active_at` mỗi 5 phút cho mỗi user**, kể cả khi họ mở nhiều tab.
+  Vì vậy bảng Admin phản ánh hoạt động gần nhất mà không tăng tải ghi CSDL theo
+  từng thao tác.
+- Admin nhận thêm `guestExpiresAt`: tính từ `last_active_at + 6 tháng` theo
+  đúng cấu hình `GuestCleanup`, hiển thị ở danh sách và chi tiết. Job dọn Guest
+  chạy mỗi 24 giờ, nên bản ghi được xoá ở lượt quét đầu tiên sau mốc này nếu
+  không có hoạt động mới.
+- Cookie chống lạm dụng `calli_guest_device` là host-only, `HttpOnly`, không
+  chứa JWT và hết hạn theo **6 tháng lịch**. JWT xác thực vẫn ngắn hạn/sliding;
+  private key E2EE cục bộ hiện hết hạn cùng JWT, nên khi người dùng không hoạt
+  động thì nó hết hạn sớm hơn mốc 6 tháng, không giữ khoá lâu hơn chính sách.
+
+**Chính sách đã chốt:** khi Guest bị xoá, chỉ xoá hồ sơ Identity. Giữ nguyên
+tin nhắn và public key/vault E2EE đã mã hoá ở Chat Service để lịch sử không bị
+mất. Những nơi resolve được người gửi sẽ dùng tên hiển thị cũ; nếu không còn
+resolve được ID của Guest, giao diện dùng nhãn trung tính **Người dùng Calli**
+thay vì lộ ID kỹ thuật.

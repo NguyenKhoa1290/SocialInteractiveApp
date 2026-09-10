@@ -31,6 +31,7 @@ import { AdminRoute } from "./components/AdminRoute";
 import { useAuthStore } from "./store/authStore";
 import { useKeyStore } from "./store/keyStore";
 import { scheduleTokenRefresh } from "./lib/tokenScheduler";
+import { batTheoDoiHoatDong } from "./lib/activityTracker";
 import { loadPersistedKey } from "./lib/crypto/keyPersistence";
 import { chatApi } from "./api/chatApi";
 import { DeviceGate } from "./components/DeviceGate";
@@ -57,7 +58,8 @@ export default function App() {
       const cached = loadPersistedKey(user.id);
       if (cached) useKeyStore.getState().setKeys(cached.privateKey, cached.publicKey);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (accessToken) batTheoDoiHoatDong();
+  }, [accessToken, user]);
 
   return (
     <BrowserRouter>

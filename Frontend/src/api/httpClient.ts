@@ -6,8 +6,8 @@ import { useAuthStore } from "../store/authStore";
 // gan JWT, tu don session khi token het han that su (401). Moi service co
 // baseURL rieng nhung cung 1 nguon token (authStore) vi JWT phat hanh boi
 // Identity Service, cac service khac chi validate.
-function createAuthedHttp(baseURL: string) {
-  const instance = axios.create({ baseURL });
+function createAuthedHttp(baseURL: string, withCredentials = false) {
+  const instance = axios.create({ baseURL, withCredentials });
 
   instance.interceptors.request.use((cfg) => {
     const token = useAuthStore.getState().accessToken;
@@ -28,7 +28,10 @@ function createAuthedHttp(baseURL: string) {
   return instance;
 }
 
-export const identityHttp = createAuthedHttp(IDENTITY_API_URL);
+// Identity dung cookie host-only de gioi han tao Guest. Cookie khong mang
+// quyen dang nhap, nhung phai duoc gui lai khi frontend goi cross-origin toi
+// identity.callimeet.com.
+export const identityHttp = createAuthedHttp(IDENTITY_API_URL, true);
 export const workspaceHttp = createAuthedHttp(WORKSPACE_API_URL);
 export const chatHttp = createAuthedHttp(CHAT_API_URL);
 export const mediaHttp = createAuthedHttp(MEDIA_API_URL);

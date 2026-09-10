@@ -7,7 +7,7 @@ public class IdentityClientOptions
 
 public record AdminUserInfo(
     long Id, string UserType, string Nickname, string DisplayName, string? Email, string Status,
-    bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt);
+    bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt, DateTimeOffset? GuestExpiresAt);
 
 public record PaginatedAdminUsers(List<AdminUserInfo> Items, int Total, int Page, int PageSize);
 

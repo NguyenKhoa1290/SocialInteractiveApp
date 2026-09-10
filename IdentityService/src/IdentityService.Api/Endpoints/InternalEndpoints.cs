@@ -1,3 +1,4 @@
+using IdentityService.Api.BackgroundServices;
 using IdentityService.Api.Data;
 using IdentityService.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -14,9 +15,9 @@ public record UserPublicInfo(long Id, string Nickname, string DisplayName, strin
 // hon UserPublicInfo vi can ca email/status/thoi gian cho man hinh quan tri.
 public record AdminUserInfo(
     long Id, string UserType, string Nickname, string DisplayName, string? Email, string Status,
-    bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt)
+    bool IsAdmin, DateTimeOffset CreatedAt, DateTimeOffset LastActiveAt, DateTimeOffset? GuestExpiresAt)
 {
-    public static AdminUserInfo FromEntity(User u) => new(
+    public static AdminUserInfo FromEntity(User u, int guestExpiryMonths = 6) => new(
         u.Id,
         u.UserType == Models.UserType.Guest ? "guest" : "registered",
         u.Nickname,
@@ -25,7 +26,8 @@ public record AdminUserInfo(
         u.Status == UserStatus.Locked ? "locked" : "active",
         u.IsAdmin,
         u.CreatedAt,
-        u.LastActiveAt);
+        u.LastActiveAt,
+        u.UserType == Models.UserType.Guest ? u.LastActiveAt.AddMonths(guestExpiryMonths) : null);
 }
 
 public record PaginatedAdminUsers(List<AdminUserInfo> Items, int Total, int Page, int PageSize);
@@ -89,15 +91,18 @@ public static class InternalEndpoints
             return Results.Ok(new FriendshipCheck(areFriends));
         });
 
-        internalGroup.MapGet("/{userId:long}/admin-detail", async (long userId, IdentityDbContext db) =>
+        internalGroup.MapGet("/{userId:long}/admin-detail", async (
+            long userId, IdentityDbContext db, GuestCleanupOptions guestCleanup) =>
         {
             var user = await db.Users.FindAsync(userId);
-            return user is null ? Results.NotFound() : Results.Ok(AdminUserInfo.FromEntity(user));
+            return user is null ? Results.NotFound() : Results.Ok(AdminUserInfo.FromEntity(user, guestCleanup.ExpiryMonths));
         });
 
         // Danh sach toan bo user co phan trang/tim kiem - dung boi Admin Service
         // (GET /admin/users). Tim theo nickname (ILIKE) hoac email (ILIKE).
-        internalGroup.MapGet("/admin-list", async (int? page, int? pageSize, string? search, IdentityDbContext db) =>
+        internalGroup.MapGet("/admin-list", async (
+            int? page, int? pageSize, string? search, IdentityDbContext db,
+            GuestCleanupOptions guestCleanup) =>
         {
             var p = page.GetValueOrDefault(1) < 1 ? 1 : page!.Value;
             var ps = pageSize.GetValueOrDefault(20) is < 1 or > 100 ? 20 : pageSize!.Value;
@@ -114,7 +119,8 @@ public static class InternalEndpoints
                 .Take(ps)
                 .ToListAsync();
 
-            return Results.Ok(new PaginatedAdminUsers(items.Select(AdminUserInfo.FromEntity).ToList(), total, p, ps));
+            return Results.Ok(new PaginatedAdminUsers(
+                items.Select(u => AdminUserInfo.FromEntity(u, guestCleanup.ExpiryMonths)).ToList(), total, p, ps));
         });
 
         // Cap quyen admin - thao tac boostrap thu cong (khong co UI/luong dang
