@@ -1214,3 +1214,25 @@ dùng). Khi tạo room gặp lỗi, Media Service sẽ:
 
 Sau khi triển khai, chỉ cần thử mở một phòng lại rồi đọc log Media Service là
 biết chính xác lỗi LiveKit thay vì suy đoán là quota.
+
+---
+
+## 25. Bắt lỗi giới hạn kết nối LiveKit ở trình duyệt
+
+**Đợt làm ngày 10/09/2026** — Frontend, trang phòng họp.
+
+Tạo room thành công không đồng nghĩa trình duyệt đã vào được phòng: bước
+`Room.connect()` của LiveKit chạy sau đó, trực tiếp từ browser tới signaling
+server. Khi LiveKit trả HTTP `429`, lỗi là lỗi SDK chứ không phải Axios response
+từ API Calli, vì vậy cách bắt lỗi API cũ chỉ hiện thông báo chung “Không kết nối
+được tới phòng họp”. Media Service cũng không thể ghi exception này vì request
+đã kết thúc trước khi browser bắt đầu kết nối.
+
+Đã bổ sung phân loại 429 ngay tại `Room.connect()`:
+
+1. Hiển thị thông báo rõ ràng rằng máy chủ cuộc họp đang tạm giới hạn kết nối,
+   kèm nút **Thử lại** để lấy token mới và kết nối lại.
+2. Ngắt `Room` đang tạo dở trước khi báo lỗi, tránh để lại kết nối cũ khi người
+   dùng thử lại.
+3. Không đưa object lỗi LiveKit vào giao diện hoặc console, vì lỗi signaling có
+   thể chứa URL với access token ngắn hạn của phòng.

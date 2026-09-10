@@ -56,6 +56,28 @@ function parsePresentation(metadata: string | undefined): PresentationState | nu
     return null;
   }
 }
+
+// LiveKit ném lỗi kết nối từ SDK, không phải Axios response của API Calli.
+// Vì vậy extractApiError() không đọc được HTTP status 429 và trước đây giao
+// diện chỉ hiện "Không kết nối được". Chỉ kiểm tra status/message để phân
+// loại; tuyệt đối không hiển thị hay log nguyên error vì nó có thể kèm URL
+// signaling và access token của phòng.
+function liveKitDangGioiHanKetNoi(err: unknown): boolean {
+  if (typeof err === "string") return /\b429\b/.test(err);
+  if (!err || typeof err !== "object") return false;
+
+  const candidate = err as { status?: unknown; code?: unknown; message?: unknown };
+  if (candidate.status === 429 || candidate.code === 429) return true;
+
+  return typeof candidate.message === "string" && /\b429\b/.test(candidate.message);
+}
+
+function loiKetNoiPhong(err: unknown): string {
+  if (liveKitDangGioiHanKetNoi(err)) {
+    return "Máy chủ cuộc họp đang tạm giới hạn kết nối. Vui lòng đợi ít phút rồi thử lại.";
+  }
+  return extractApiError(err, "Không kết nối được tới phòng họp");
+}
 import "./meeting.css";
 
 // Nhip poll phong cho / danh sach nguoi trong phong. Media Service chua co
@@ -410,9 +432,18 @@ export function MeetingRoomPage() {
         setPresentation(parsePresentation(r.metadata));
         setStatus("connected");
       } catch (err) {
+        // r.connect() có thể thất bại sau khi SDK thử các signaling region.
+        // Dọn Room ngay tại đây thay vì đợi component unmount, để retry không
+        // để lại kết nối nửa mở. Không log err: SDK có thể đặt token trong URL.
+        try {
+          await created?.disconnect();
+        } catch {
+          // Room chưa kết nối hoàn chỉnh có thể không cần/không thể disconnect.
+        }
+        created = null;
         if (!cancelled) {
           setStatus("error");
-          setError(extractApiError(err, "Không kết nối được tới phòng họp"));
+          setError(loiKetNoiPhong(err));
         }
       }
     }
@@ -1338,6 +1369,9 @@ export function MeetingRoomPage() {
     return (
       <div className="meet-page meet-center">
         <p className="meet-error">{error}</p>
+        <button type="button" onClick={() => window.location.reload()}>
+          Thử lại
+        </button>
         <button onClick={() => navigate(-1)}>Quay lại</button>
       </div>
     );
