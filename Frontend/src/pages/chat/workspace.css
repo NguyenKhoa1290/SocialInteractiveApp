@@ -323,7 +323,7 @@
 .cw-attach {
   display: flex;
   align-items: center;
-  gap: calc(32px * var(--s));
+  gap: calc(1px * var(--s));
   flex: none;
 }
 
