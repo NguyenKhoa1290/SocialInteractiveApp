@@ -17,7 +17,7 @@ public static class MeetingsEndpoints
         group.MapPost("", async (
             CreateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat,
-            MeetingInviteNotificationPublisher publisher) =>
+            MeetingInviteNotificationPublisher publisher, ILoggerFactory loggerFactory) =>
         {
             var hostId = principal.GetUserId()!.Value;
 
@@ -68,19 +68,48 @@ public static class MeetingsEndpoints
             {
                 await liveKit.CreateRoomAsync(meeting.Id, meeting.MaxParticipants);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Cum LiveKit da day (UC-31, luong ngoai le 2a) - don meeting
-                // vua tao trong Media DB de tranh rac du lieu "phong ma" khong
-                // co room LiveKit tuong ung.
+                // Truoc day moi loi LiveKit deu bi an di, nen khong the phan
+                // biet quota voi loi mang/API key. Log exception, nhung tuyet
+                // doi khong log LiveKit credential hay token cua nguoi dung.
+                var logger = loggerFactory.CreateLogger("MeetingsEndpoints");
+                logger.LogError(ex, "Khong tao duoc phong LiveKit cho meeting {MeetingId}; bat dau don dep", meeting.Id);
+
+                // CreateRoom co the da thanh cong o LiveKit nhung response bi
+                // loi/mat mang. Thu dong phong truoc khi xoa DB de khong de
+                // lai room mo coi. Neu room chua ton tai hay LiveKit dang loi,
+                // van tiep tuc don CSDL va tra 503 cho client.
+                try
+                {
+                    await liveKit.DeleteRoomAsync(meeting.Id);
+                }
+                catch (Exception cleanupEx)
+                {
+                    logger.LogWarning(cleanupEx, "Khong dong duoc room LiveKit mo coi cho meeting {MeetingId}", meeting.Id);
+                }
+
+                // Xoa meeting vua tao (MeetingParticipant se cascade) de tranh
+                // rac du lieu "phong ma" khong co room LiveKit tuong ung.
                 db.Meetings.Remove(meeting);
                 await db.SaveChangesAsync();
                 // Don luon hoi thoai tam vua xin: khong co cuoc hop nao dung
                 // toi no nua, de lai la mot hoi thoai mo coi khong ai vao duoc.
                 if (meeting.IsTemporary && meeting.ConversationId is not null)
-                    await chat.DeleteMeetingConversationAsync(meeting.ConversationId.Value);
+                {
+                    try
+                    {
+                        await chat.DeleteMeetingConversationAsync(meeting.ConversationId.Value);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        logger.LogWarning(cleanupEx,
+                            "Khong xoa duoc hoi thoai tam {ConversationId} sau khi tao meeting {MeetingId} that bai",
+                            meeting.ConversationId.Value, meeting.Id);
+                    }
+                }
                 return Results.Json(
-                    new ErrorResponse("livekit_unavailable", "Cum LiveKit hien da dat gioi han, thu lai sau"),
+                    new ErrorResponse("livekit_unavailable", "Khong the tao phong hop luc nay, hay thu lai sau"),
                     statusCode: 503);
             }
 

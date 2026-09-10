@@ -1193,3 +1193,24 @@ tin nhắn và public key/vault E2EE đã mã hoá ở Chat Service để lịch
 mất. Những nơi resolve được người gửi sẽ dùng tên hiển thị cũ; nếu không còn
 resolve được ID của Guest, giao diện dùng nhãn trung tính **Người dùng Calli**
 thay vì lộ ID kỹ thuật.
+
+---
+
+## 24. Dọn phòng khi tạo LiveKit thất bại
+
+Endpoint tạo cuộc họp trước đây gom mọi lỗi từ `CreateRoomAsync` thành response
+`503 livekit_unavailable` nhưng không ghi exception. Vì vậy không thể phân biệt
+LiveKit Cloud hết hạn mức với lỗi API key, mạng hoặc lỗi phản hồi tạm thời.
+
+Đã bổ sung log lỗi có `meetingId` (không ghi API secret, JWT hay token người
+dùng). Khi tạo room gặp lỗi, Media Service sẽ:
+
+1. Thử gọi `DeleteRoomAsync(meetingId)` ngay cả khi chưa chắc room đã được tạo;
+   điều này dọn trường hợp LiveKit tạo room thành công nhưng response bị mất.
+2. Xoá Meeting và participant vừa tạo ở Media DB (cascade), rồi xoá hội thoại
+   tạm nếu đó là phòng tự tạo.
+3. Nếu bước dọn LiveKit/hội thoại tạm cũng lỗi, ghi warning riêng nhưng vẫn trả
+   lỗi tạo phòng; không được để lỗi dọn che mất nguyên nhân ban đầu.
+
+Sau khi triển khai, chỉ cần thử mở một phòng lại rồi đọc log Media Service là
+biết chính xác lỗi LiveKit thay vì suy đoán là quota.
