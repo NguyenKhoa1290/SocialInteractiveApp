@@ -177,7 +177,7 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
           <img src={url} alt={ten} loading="lazy" />
           <span className="fm-media-name">{ten}</span>
         </a>
-        {xemAnh && <ImageViewer src={url} name={ten} kind="image" sizeBytes={size} onClose={() => setXemAnh(false)} />}
+        {xemAnh && <ImageViewer src={url} name={ten} kind="image" onClose={() => setXemAnh(false)} />}
       </>
     );
   }
