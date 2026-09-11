@@ -1210,6 +1210,34 @@
   white-space: nowrap;
 }
 
+/* Badge mic nam SAT ben phai ten, dung cung mot hinh cho hai trang thai:
+   teal = dang mo mic; do + gach cheo = da tat. Khong dung emoji vi moi may
+   ve khac nhau va de lam lech can chinh cua thanh ten. */
+.meet-tile-mic {
+  flex: none;
+  width: calc(24px * var(--s));
+  height: calc(24px * var(--s));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.meet-tile-mic svg {
+  width: calc(14px * var(--s));
+  height: calc(14px * var(--s));
+}
+
+.meet-tile-mic-bat {
+  background: var(--calli-teal-dark);
+  --nen-nut: var(--calli-teal-dark);
+}
+
+.meet-tile-mic-tat {
+  background: #c94c58;
+  --nen-nut: #c94c58;
+}
+
 /* Dai ten goc duoi CHI dung khi o dang chieu video - luc do khong con cho
    nao khac de dat ten. O chua bat camera da co ten canh giua roi. */
 .meet-tile-label {
@@ -1219,6 +1247,13 @@
   border-radius: calc(8px * var(--s));
   background: rgba(0, 0, 0, 0.55);
   font-size: calc(15px * var(--s));
+}
+
+.meet-tile-label-chu {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Cot lat trang (Frame 60 ben trai) ---------------------------------- */

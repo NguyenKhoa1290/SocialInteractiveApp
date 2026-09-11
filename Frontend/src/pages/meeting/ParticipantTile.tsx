@@ -1,6 +1,22 @@
 import { useEffect, useRef } from "react";
 import { Track, type Participant } from "livekit-client";
 import { Avatar } from "../../components/Avatar";
+import { IconMicrophone } from "./MeetingIcons";
+
+// Trang thai mic can hien o ca o co camera va o avatar. Day chi la chi bao
+// canh ten, khong phai nut thu quyen mic cua nguoi khac (viec do nam trong
+// popup Quan ly thanh vien cua chu phong).
+function TrangThaiMic({ muted }: { muted: boolean }) {
+  return (
+    <span
+      className={`meet-tile-mic${muted ? " meet-tile-mic-tat" : " meet-tile-mic-bat"}`}
+      title={muted ? "Đã tắt micro" : "Đang bật micro"}
+      aria-label={muted ? "Đã tắt micro" : "Đang bật micro"}
+    >
+      <IconMicrophone size={16} off={muted} />
+    </span>
+  );
+}
 
 // Mot o video cua 1 nguoi trong phong. LiveKit khong phat su kien React nao
 // nen tile phai duoc render lai qua prop "version" (bo dem tang moi khi Room
@@ -144,7 +160,6 @@ export function ParticipantTile({
             </span>
           )}
           <span className="meet-tile-ten">
-            {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
             {/* Ten phai nam trong mot the RIENG: text-overflow: ellipsis khong
                 an vao mot text node tran trong flex container, nen truoc day
                 ten dai bi cat cut giua chung thay vi co dau ba cham. */}
@@ -152,6 +167,7 @@ export function ParticipantTile({
               {label}
               {source === "camera" && isLocal && " (bạn)"}
             </span>
+            {source === "camera" && <TrangThaiMic muted={micMuted} />}
           </span>
         </div>
       )}
@@ -160,9 +176,11 @@ export function ParticipantTile({
       {!isLocal && <audio ref={audioRef} autoPlay />}
       {hasVideo && (
         <div className="meet-tile-label">
-          {source === "camera" && micMuted && <span className="meet-tile-muted">🔇</span>}
-          {label}
-          {source === "camera" && isLocal && " (bạn)"}
+          <span className="meet-tile-label-chu">
+            {label}
+            {source === "camera" && isLocal && " (bạn)"}
+          </span>
+          {source === "camera" && <TrangThaiMic muted={micMuted} />}
         </div>
       )}
     </div>
