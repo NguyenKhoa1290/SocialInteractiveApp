@@ -23,7 +23,7 @@ public record MeetingResponse(
     bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
-        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
         m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
@@ -42,7 +42,7 @@ public record MeetingWithCallerStatusResponse(
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
-        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", m.MaxParticipants, m.CreatedAt,
+        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
         callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
@@ -53,7 +53,8 @@ public record MeetingWithCallerStatusResponse(
 // duoc. Muon cam han thi dung cong tac cua phong.
 public record MuteAllRequest(bool Mic, bool Camera);
 
-public record MeetingPreviewResponse(long MeetingId, string HostNickname, int ParticipantCount, bool RequiresApproval);
+public record MeetingPreviewResponse(
+    long MeetingId, string HostNickname, int ParticipantCount, int MaxParticipants, bool RequiresApproval);
 
 public record CreateInviteRequest(string Type, long? InvitedUserId);
 

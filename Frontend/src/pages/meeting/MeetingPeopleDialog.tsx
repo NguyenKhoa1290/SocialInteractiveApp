@@ -101,6 +101,8 @@ export function MeetingPeopleDialog({
 
   const loc = tim.trim().toLowerCase();
   const hienThi = loc ? participants.filter((p) => p.nickname.toLowerCase().includes(loc)) : participants;
+  const sucChua = meeting?.maxParticipants ?? 50;
+  const daDay = participants.length >= sucChua;
 
   // Chu phong doc theo meeting.hostId chu khong theo cot role: sau khi chuyen
   // quyen, hang cu cua chu cu VAN mang role='host' (dau vet "da tung la chu",
@@ -217,6 +219,14 @@ export function MeetingPeopleDialog({
           </>
         )}
       </div>
+
+      <section className="mpop-room-limits" aria-label="Giới hạn phòng họp">
+        <span className={daDay ? "mpop-room-limit mpop-room-limit-day" : "mpop-room-limit"}>
+          <strong>{participants.length}/{sucChua}</strong> người trong phòng
+        </span>
+        <span className="mpop-room-limit">Tối đa 10 giờ</span>
+        <span className="mpop-room-limit">1 người trình chiếu cùng lúc</span>
+      </section>
 
       {moMoi && (
         <div className="mpop-moi">

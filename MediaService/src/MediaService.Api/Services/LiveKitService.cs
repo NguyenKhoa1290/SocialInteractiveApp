@@ -1,4 +1,5 @@
 using Livekit.Server.Sdk.Dotnet;
+using MediaService.Api.Models;
 
 namespace MediaService.Api.Services;
 
@@ -43,7 +44,10 @@ public class LiveKitService
         _roomService.CreateRoom(new CreateRoomRequest
         {
             Name = RoomName(meetingId),
-            MaxParticipants = (uint)maxParticipants,
+            // Day la lop cuong che cuoi cung o SFU. Ke ca khi mot API goi
+            // dong thoi vuot qua phep dem o CSDL, LiveKit van khong cho
+            // participant vuot qua nguong cau hinh ket noi vao phong moi.
+            MaxParticipants = (uint)MeetingLimits.EffectiveMaxParticipants(maxParticipants),
             EmptyTimeout = 300, // tu dong don phong ben LiveKit neu khong ai vao trong 5 phut sau khi tao
         });
 

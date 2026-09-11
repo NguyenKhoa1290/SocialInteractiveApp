@@ -26,7 +26,7 @@ public class Meeting
     public long? WorkspaceId { get; set; }
     public long? ConversationId { get; set; }
     public MeetingStatus Status { get; set; } = MeetingStatus.Active;
-    public int MaxParticipants { get; set; } = 100;
+    public int MaxParticipants { get; set; } = MeetingLimits.MaxParticipants;
 
     // Phong tuy chinh: ConversationId tro toi mot hoi thoai TAM do chinh cuoc
     // hop nay so huu, va se bi xoa han khi hop ket thuc. Voi cuoc hop mo tu

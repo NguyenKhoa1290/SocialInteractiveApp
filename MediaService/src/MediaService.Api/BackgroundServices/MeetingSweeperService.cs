@@ -81,9 +81,23 @@ public class MeetingSweeperService(
         // ma hoi thoai van con. Xem ghi chu o DonHoiThoaiTamAsync.
         await DonHoiThoaiTamAsync(scope, db, ct);
 
-        var cutoff = DateTimeOffset.UtcNow - MinAge;
+        var now = DateTimeOffset.UtcNow;
+
+        // Khac voi phong rong, room da co nguoi sau 10 gio van phai ket thuc.
+        // DeleteRoom o ben duoi se day client ra khoi SFU; doi status trong DB
+        // truoc de chan ngay viec cap them token moi.
+        var expirationCutoff = now - MeetingLimits.MaxDuration;
+        var expired = await db.Meetings
+            .Where(m => m.Status == MeetingStatus.Active && m.CreatedAt <= expirationCutoff)
+            .ToListAsync(ct);
+        if (expired.Count > 0)
+            await CloseExpiredMeetingsAsync(scope, db, expired, now, ct);
+
+        var cutoff = now - MinAge;
         var candidates = await db.Meetings
-            .Where(m => m.Status == MeetingStatus.Active && m.CreatedAt < cutoff)
+            .Where(m => m.Status == MeetingStatus.Active
+                        && m.CreatedAt < cutoff
+                        && m.CreatedAt > expirationCutoff)
             .ToListAsync(ct);
 
         if (candidates.Count == 0)
@@ -102,7 +116,7 @@ public class MeetingSweeperService(
         if (dead.Count == 0)
             return;
 
-        var now = DateTimeOffset.UtcNow;
+        now = DateTimeOffset.UtcNow;
         var deadIds = dead.Select(m => m.Id).ToList();
 
         // Doi qua entity chu khong ExecuteUpdate: cot status co value
@@ -148,6 +162,50 @@ public class MeetingSweeperService(
 
         // Cuoc hop vua bi dong o tren cung phai don du lieu tam - lam ngay o
         // vong nay chu khong doi vong sau.
+        await DonHoiThoaiTamAsync(scope, db, ct);
+    }
+
+    // Tach khoi nhanh "phong rong" o tren: room nay van con song va can goi
+    // DeleteRoom de nguoi dang hop bi ngat ngay luc dat gioi han 10 gio.
+    private async Task CloseExpiredMeetingsAsync(
+        IServiceScope scope, MediaDbContext db, List<Meeting> expired,
+        DateTimeOffset now, CancellationToken ct)
+    {
+        var expiredIds = expired.Select(m => m.Id).ToList();
+        foreach (var meeting in expired)
+        {
+            meeting.Status = MeetingStatus.Ended;
+            meeting.EndedAt = now;
+        }
+        await db.SaveChangesAsync(ct);
+
+        await db.MeetingParticipants
+            .Where(p => expiredIds.Contains(p.MeetingId) && p.LeftAt == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.LeftAt, now), ct);
+
+        foreach (var meeting in expired)
+        {
+            try
+            {
+                await liveKit.DeleteRoomAsync(meeting.Id);
+            }
+            catch (Exception ex)
+            {
+                // Van giu trang thai ended de API khong cap token moi. Canh
+                // bao de van hanh biet LiveKit chua ngat duoc client cu.
+                logger.LogWarning(ex, "Khong dong duoc room LiveKit da het 10 gio {MeetingId}", meeting.Id);
+            }
+
+            await waiting.ClearMeetingAsync(meeting.Id);
+            await presentation.ClearAsync(meeting.Id);
+            await liveness.ClearAsync(meeting.Id);
+        }
+
+        logger.LogInformation(
+            "Da dong {Count} cuoc hop dat gioi han 10 gio: {Ids}",
+            expiredIds.Count, string.Join(",", expiredIds));
+
+        // Phong doc lap co hoi thoai tam; don ngay nhu nut "Ket thuc".
         await DonHoiThoaiTamAsync(scope, db, ct);
     }
 

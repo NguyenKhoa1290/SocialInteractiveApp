@@ -112,9 +112,19 @@ public static class ParticipantsEndpoints
         {
             var (meeting, error) = await RequireDieuKhienAsync(meetingId, principal, db);
             if (error is not null) return error;
+            if (meeting!.Status != MeetingStatus.Active || MeetingLimits.IsExpired(meeting, DateTimeOffset.UtcNow))
+                return Results.Json(new ErrorResponse("meeting_expired", "Cuoc hop da dat gioi han 10 gio"), statusCode: 409);
 
             if (!await waiting.IsWaitingAsync(meetingId, userId))
                 return Results.NotFound();
+
+            // Duyet phong cho la mot duong vao phong doc lap voi /join va
+            // invite link. Neu khong kiem o day, host co the duyet qua tran
+            // du da chan dung o hai duong con lai.
+            var activeCount = await db.MeetingParticipants
+                .CountAsync(p => p.MeetingId == meetingId && p.LeftAt == null);
+            if (activeCount >= MeetingLimits.EffectiveMaxParticipants(meeting!.MaxParticipants))
+                return Results.Json(new ErrorResponse("room_full", "Phong da dat gioi han so nguoi"), statusCode: 409);
 
             var waitingList = await waiting.ListAsync(meetingId);
             var entry = waitingList.First(e => e.UserId == userId);

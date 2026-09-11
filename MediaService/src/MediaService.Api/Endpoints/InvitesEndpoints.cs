@@ -101,7 +101,11 @@ public static class InvitesEndpoints
                                    && !xemLaChu && !xemLaPho;
 
             return Results.Ok(new MeetingPreviewResponse(
-                meeting.Id, host?.DisplayName ?? $"user_{meeting.HostId}", activeCount, requiresApproval));
+                meeting.Id,
+                host?.DisplayName ?? $"user_{meeting.HostId}",
+                activeCount,
+                MeetingLimits.EffectiveMaxParticipants(meeting.MaxParticipants),
+                requiresApproval));
         });
 
         app.MapPost("/meetings/join/{inviteToken}", async (
@@ -116,6 +120,8 @@ public static class InvitesEndpoints
             var meeting = await db.Meetings.Include(m => m.Participants).FirstOrDefaultAsync(m => m.Id == invite.MeetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
                 return Results.NotFound();
+            if (MeetingLimits.IsExpired(meeting, DateTimeOffset.UtcNow))
+                return Results.Json(new ErrorResponse("meeting_expired", "Cuoc hop da dat gioi han 10 gio"), statusCode: 409);
 
             var callerId = principal.GetUserId()!.Value;
 
@@ -138,7 +144,7 @@ public static class InvitesEndpoints
             }
 
             var activeCount = meeting.Participants.Count(p => p.LeftAt == null);
-            if (activeCount >= meeting.MaxParticipants)
+            if (activeCount >= MeetingLimits.EffectiveMaxParticipants(meeting.MaxParticipants))
                 return Results.Json(new ErrorResponse("room_full", "Phong da dat gioi han so nguoi"), statusCode: 409);
 
             var nickname = req?.DisplayName ?? principal.GetDisplayName();

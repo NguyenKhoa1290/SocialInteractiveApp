@@ -42,6 +42,7 @@ export interface MeetingPreview {
   meetingId: number;
   hostNickname: string;
   participantCount: number;
+  maxParticipants: number;
   requiresApproval: boolean;
 }
 

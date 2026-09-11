@@ -4,7 +4,7 @@ import { meetingApi } from "../../api/mediaApi";
 import { authApi } from "../../api/authApi";
 import { useAuthStore } from "../../store/authStore";
 import { scheduleTokenRefresh } from "../../lib/tokenScheduler";
-import { extractApiError } from "../../lib/apiError";
+import { apiErrorCode, extractApiError } from "../../lib/apiError";
 import type { MeetingPreview } from "../../types/media";
 import "./meeting.css";
 
@@ -12,6 +12,14 @@ import "./meeting.css";
 // LiveKit duoc host duyet se nam trong Redis va CHI DOC DUOC 1 LAN qua
 // GET /meetings/{id} (xem MeetingsEndpoints.cs), nen phai poll.
 const POLL_MS = 3000;
+
+function loiVaoPhong(err: unknown): string {
+  if (apiErrorCode(err) === "room_full")
+    return "Phòng đã đủ 50 người. Bạn chưa thể tham gia lúc này.";
+  if (apiErrorCode(err) === "meeting_expired")
+    return "Cuộc họp đã đạt thời lượng tối đa 10 giờ và đã kết thúc.";
+  return extractApiError(err, "Không vào được cuộc họp");
+}
 
 export function JoinMeetingPage() {
   const { token: inviteToken } = useParams();
@@ -21,7 +29,7 @@ export function JoinMeetingPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const [preview, setPreview] = useState<MeetingPreview | null>(null);
-  const [phase, setPhase] = useState<"loading" | "ready" | "joining" | "pending" | "denied" | "error">("loading");
+  const [phase, setPhase] = useState<"loading" | "ready" | "joining" | "pending" | "denied" | "full" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [meetingId, setMeetingId] = useState<number | null>(null);
   // Chi dung cho nguoi CHUA dang nhap - nguoi da dang nhap vao thang bang
@@ -57,8 +65,8 @@ export function JoinMeetingPage() {
       scheduleTokenRefresh(data.accessToken);
       await joinWith(data.user.displayName);
     } catch (err) {
-      setPhase("ready");
-      setError(extractApiError(err, "Không vào được cuộc họp"));
+      setPhase(apiErrorCode(err) === "room_full" ? "full" : "ready");
+      setError(loiVaoPhong(err));
     }
   }
 
@@ -68,8 +76,8 @@ export function JoinMeetingPage() {
     try {
       await joinWith(nickname);
     } catch (err) {
-      setPhase("error");
-      setError(extractApiError(err, "Không vào được cuộc họp"));
+      setPhase(apiErrorCode(err) === "room_full" ? "full" : "error");
+      setError(loiVaoPhong(err));
     }
   }
 
@@ -88,6 +96,8 @@ export function JoinMeetingPage() {
     }
     setPhase("pending");
   }
+
+  const phongDaDay = preview !== null && preview.participantCount >= preview.maxParticipants;
 
   // Poll cho host duyet.
   const poll = useCallback(async () => {
@@ -117,7 +127,7 @@ export function JoinMeetingPage() {
     <div className="meet-page meet-center">
       {phase === "loading" && <p>Đang kiểm tra link mời…</p>}
 
-      {error && <p className="meet-error">{error}</p>}
+      {error && phase !== "full" && <p className="meet-error">{error}</p>}
 
       {phase === "ready" && preview && (
         <div className="meet-join-card">
@@ -125,10 +135,12 @@ export function JoinMeetingPage() {
           <p>
             Chủ phòng: <strong>{preview.hostNickname}</strong>
           </p>
-          <p>Đang có {preview.participantCount} người trong phòng.</p>
+          <p>Đang có {preview.participantCount}/{preview.maxParticipants} người trong phòng.</p>
           {preview.requiresApproval && <p className="meet-note">Bạn sẽ phải chờ chủ phòng duyệt.</p>}
 
-          {accessToken ? (
+          {phongDaDay ? (
+            <p className="meet-error">Phòng đã đủ {preview.maxParticipants} người. Hãy thử lại khi có người rời phòng.</p>
+          ) : accessToken ? (
             <>
               <p className="meet-note">
                 Bạn đang đăng nhập là <strong>{nickname}</strong>.
@@ -155,6 +167,14 @@ export function JoinMeetingPage() {
       )}
 
       {phase === "joining" && <p>Đang vào phòng…</p>}
+
+      {phase === "full" && (
+        <div className="meet-join-card">
+          <h2>Phòng đã đủ người</h2>
+          <p className="meet-note">{error ?? "Phòng đã đủ 50 người. Bạn chưa thể tham gia lúc này."}</p>
+          <button onClick={() => window.location.reload()}>Kiểm tra lại</button>
+        </div>
+      )}
 
       {phase === "pending" && (
         <div className="meet-join-card">

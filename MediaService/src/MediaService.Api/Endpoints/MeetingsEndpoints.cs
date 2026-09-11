@@ -44,7 +44,7 @@ public static class MeetingsEndpoints
                 CreatorId = hostId,
                 ConversationId = hoiThoai,
                 Status = MeetingStatus.Active,
-                MaxParticipants = 100,
+                MaxParticipants = MeetingLimits.MaxParticipants,
                 IsTemporary = laTuyChinh && hoiThoai is not null,
                 // Phong cho MAC DINH TAT o phong tuy chinh: muc tieu la chu tri
                 // duoc mot cuoc hop trong ba cu bam, ma ngoi canh phong cho thi
@@ -206,6 +206,8 @@ public static class MeetingsEndpoints
             var meeting = await db.Meetings.Include(m => m.Participants).FirstOrDefaultAsync(m => m.Id == meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
                 return Results.NotFound();
+            if (MeetingLimits.IsExpired(meeting, DateTimeOffset.UtcNow))
+                return Results.Json(new ErrorResponse("meeting_expired", "Cuoc hop da dat gioi han 10 gio"), statusCode: 409);
 
             var callerId = principal.GetUserId()!.Value;
             var existing = meeting.Participants.FirstOrDefault(p => p.UserId == callerId && p.LeftAt == null);
@@ -246,7 +248,7 @@ public static class MeetingsEndpoints
             if (existing is null)
             {
                 var activeCount = meeting.Participants.Count(p => p.LeftAt == null);
-                if (activeCount >= meeting.MaxParticipants)
+                if (activeCount >= MeetingLimits.EffectiveMaxParticipants(meeting.MaxParticipants))
                     return Results.Json(new ErrorResponse("room_full", "Phong da dat gioi han so nguoi"), statusCode: 409);
 
                 db.MeetingParticipants.Add(new MeetingParticipant

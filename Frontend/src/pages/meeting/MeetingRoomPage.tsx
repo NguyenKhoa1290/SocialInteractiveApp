@@ -13,7 +13,7 @@ import { meetingApi } from "../../api/mediaApi";
 import { friendApi } from "../../api/friendApi";
 import { userApi } from "../../api/userApi";
 import { useAuthStore } from "../../store/authStore";
-import { extractApiError } from "../../lib/apiError";
+import { apiErrorCode, extractApiError } from "../../lib/apiError";
 import { ParticipantTile } from "./ParticipantTile";
 import { IptvStage } from "./IptvStage";
 import { IptvChannelPicker } from "./IptvChannelPicker";
@@ -347,7 +347,21 @@ export function MeetingRoomPage() {
             const res = await meetingApi.joinInChat(meetingId, nickname);
             token = res.data.livekitToken;
             url = res.data.livekitUrl;
-          } catch {
+          } catch (err) {
+            if (apiErrorCode(err) === "room_full") {
+              if (!cancelled) {
+                setStatus("error");
+                setError("Phòng đã đủ 50 người. Bạn chưa thể tham gia lúc này.");
+              }
+              return;
+            }
+            if (apiErrorCode(err) === "meeting_expired") {
+              if (!cancelled) {
+                setStatus("error");
+                setError("Cuộc họp đã đạt thời lượng tối đa 10 giờ và đã kết thúc.");
+              }
+              return;
+            }
             const res = await meetingApi.get(meetingId);
             if (res.data.callerStatus === "approved" && res.data.livekitToken) {
               token = res.data.livekitToken;
@@ -819,7 +833,11 @@ export function MeetingRoomPage() {
       await meetingApi.approveWaiting(meetingId, userId);
       await refresh();
     } catch (err) {
-      setError(extractApiError(err, "Không duyệt được"));
+      setError(
+        apiErrorCode(err) === "room_full"
+          ? "Phòng đã đủ 50 người; chưa thể duyệt thêm người vào phòng."
+          : extractApiError(err, "Không duyệt được"),
+      );
     }
   }
 
