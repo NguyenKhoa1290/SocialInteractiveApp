@@ -1616,6 +1616,9 @@
 
 /* Hang tieu de co dai nut chay ngang ben phai (Figma "Frame 65"). */
 .mpop-dau {
+  /* Day la phan dau cua danh sach. Khi danh sach dai, chi hang nguoi dung
+     duoc cuon; tieu de va cac nut khong bi cot flex ep thap xuong. */
+  flex: none;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1625,6 +1628,7 @@
 /* Gioi han hien ngay trong tab danh sach nguoi, de host biet con bao nhieu
    cho va moi nguoi hieu vi sao link moi bi chan khi phong da day. */
 .mpop-room-limits {
+  flex: none;
   display: flex;
   width: fit-content;
   max-width: 100%;
@@ -1800,6 +1804,12 @@
 /* --- O tim kiem (843x49 nen #B7B6BA) ------------------------------------ */
 
 .mpop-tim {
+  /* `height` mot minh van co the bi flex-shrink khi co nhieu thanh vien.
+     Khoa ca flex-basis va min-height de o tim kiem luon dung 49px nhu luc
+     phong chi co mot nguoi; danh sach dai thi chinh .mpop-than cuon. */
+  box-sizing: border-box;
+  flex: 0 0 calc(49px * var(--s));
+  min-height: calc(49px * var(--s));
   display: flex;
   align-items: center;
   gap: calc(12px * var(--s));
