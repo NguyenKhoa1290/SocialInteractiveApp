@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { MeetingPopup, HangTac } from "./MeetingPopup";
-import { IconCamera, IconDoiRa, IconMicrophone, IconPhoNhom, IconScreenShare } from "./MeetingIcons";
+import { IconCamera, IconDoiRa, IconMicrophone, IconPeople, IconPhoNhom, IconScreenShare } from "./MeetingIcons";
 import type { Meeting, MeetingParticipant, PermissionType, WaitingParticipant } from "../../types/media";
 import type { Friend } from "../../types/friend";
 
@@ -221,11 +221,20 @@ export function MeetingPeopleDialog({
       </div>
 
       <section className="mpop-room-limits" aria-label="Giới hạn phòng họp">
-        <span className={daDay ? "mpop-room-limit mpop-room-limit-day" : "mpop-room-limit"}>
-          <strong>{participants.length}/{sucChua}</strong> người trong phòng
+        <span
+          className={daDay ? "mpop-room-limit mpop-room-limit-day" : "mpop-room-limit"}
+          title={`Số người trong phòng: ${participants.length}/${sucChua}`}
+          aria-label={`Số người trong phòng: ${participants.length} trên ${sucChua}`}
+        >
+          <IconPeople size={18} />
+          <strong>{participants.length}/{sucChua}</strong>
         </span>
-        <span className="mpop-room-limit">Tối đa 10 giờ</span>
-        <span className="mpop-room-limit">1 người trình chiếu cùng lúc</span>
+        <span className="mpop-room-limit" title="Thời lượng phòng tối đa 10 giờ" aria-label="Thời lượng phòng tối đa 10 giờ">
+          <svg className="mpop-room-limit-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
+            <path d="M12 7v5l3.4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </section>
 
       {moMoi && (
