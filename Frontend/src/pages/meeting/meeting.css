@@ -1508,9 +1508,6 @@
 
 .mpop {
   position: fixed;
-  /* Hang nguoi dung can phan ung theo BE RONG popup, khong chi viewport:
-     cua so desktop thu nho/zoom van co popup hep du breakpoint mobile. */
-  container-type: inline-size;
   /* Canh GIUA MAN HINH. Truoc day no dan sat thanh doc ben phai, nen tren man
      rong thi noi dung nam let mot goc con nua man trong khong. */
   top: 50%;
@@ -1884,6 +1881,9 @@
 
 .mpop-hang {
   display: flex;
+  /* .mpop-than la cot flex co cuon. Khong cho hang nay shrink khi cac nut
+     xuong dong, neu khong noi dung cao hon min-height se tran sang hang sau. */
+  flex: 0 0 auto;
   align-items: center;
   gap: calc(16px * var(--s));
   flex-wrap: wrap;
@@ -1891,14 +1891,6 @@
   padding: calc(12px * var(--s)) calc(16px * var(--s));
   border: 2px solid var(--calli-navy-line);
   border-radius: calc(10px * var(--s));
-}
-
-/* Tren desktop, wrapper nay khong tao them mot hop de avatar, ten, nut va
-   am luong van nam tren cung mot hang nhu thiet ke goc. Mobile doi no thanh
-   hang thong tin rieng de the nguoi dung co the cao tu nhien khi nut xuong
-   dong. */
-.mpop-hang-thong-tin {
-  display: contents;
 }
 
 .mpop-ten {
@@ -2080,82 +2072,12 @@
   }
 
   .mpop-hang {
-    box-sizing: border-box;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    height: auto;
-    min-height: calc(101px * var(--s));
     gap: calc(10px * var(--s));
-  }
-
-  /* Tu hang 2 tro di la thao tac rieng cua nguoi nay. Neu man hinh hep,
-     nut tu xuong dong trong the va tang chieu cao the; khong bao gio chen
-     len avatar/ten hoac hang nguoi ke tiep. */
-  .mpop-hang-thong-tin {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: calc(10px * var(--s));
-  }
-
-  .mpop-ten {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mpop-nut {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .mpop-am {
-    width: 100%;
   }
   .mpop-chat-ten em{
     font-size: calc(11px * var(--s));
     font-style: normal;
     font-weight: 200;
-  }
-}
-
-/* Popup quan ly thanh vien co the hep du viewport van >900px (vi du cua so
-   desktop thu nho hoac zoom). Khi do doi hang thanh cot nhu mobile de nut va
-   thanh am luong nam TRONG the, lam the tu cao thay vi chen sang hang ke. */
-@container (max-width: 700px) {
-  .mpop-hang {
-    box-sizing: border-box;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    height: auto;
-    min-height: calc(101px * var(--s));
-    gap: calc(10px * var(--s));
-  }
-
-  .mpop-hang-thong-tin {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: calc(10px * var(--s));
-  }
-
-  .mpop-ten {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mpop-nut {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .mpop-am {
-    width: 100%;
   }
 }
 

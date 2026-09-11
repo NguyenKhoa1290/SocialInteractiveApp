@@ -175,10 +175,8 @@ export function MeetingPeopleDialog({
           </label>
           {waiting.map((w) => (
             <div key={w.userId} className="mpop-hang">
-              <div className="mpop-hang-thong-tin">
-                <Avatar userId={w.userId} nickname={w.nickname} avatarUpdatedAt={anhCua[w.userId]} size={68} />
-                <span className="mpop-ten">{w.nickname}</span>
-              </div>
+              <Avatar userId={w.userId} nickname={w.nickname} avatarUpdatedAt={anhCua[w.userId]} size={68} />
+              <span className="mpop-ten">{w.nickname}</span>
               <span className="mpop-nut">
                 <button type="button" className="mpop-pill mpop-pill-xam" onClick={() => onDeny(w.userId)}>
                   Đuổi
@@ -289,13 +287,11 @@ export function MeetingPeopleDialog({
         const cam = (t: PermissionType) => p.permissions.includes(t);
         return (
           <div key={p.userId} className="mpop-hang">
-            <div className="mpop-hang-thong-tin">
-              <Avatar userId={p.userId} nickname={p.nickname} avatarUpdatedAt={anhCua[p.userId]} size={68} />
-              <span className="mpop-ten">
-                {p.nickname}
-                {laChu(p) ? <em> · Chủ phòng</em> : cam2(p, "co_host") ? <em> · Phó nhóm</em> : null}
-              </span>
-            </div>
+            <Avatar userId={p.userId} nickname={p.nickname} avatarUpdatedAt={anhCua[p.userId]} size={68} />
+            <span className="mpop-ten">
+              {p.nickname}
+              {laChu(p) ? <em> · Chủ phòng</em> : cam2(p, "co_host") ? <em> · Phó nhóm</em> : null}
+            </span>
 
             {/* Ca dai nut nay la cua chu phong THAT: pho nhom khong tu
                 nhan them pho nhom, cung khong cam/duoi ai. */}
