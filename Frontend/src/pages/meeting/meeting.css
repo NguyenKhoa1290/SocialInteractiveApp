@@ -1508,6 +1508,9 @@
 
 .mpop {
   position: fixed;
+  /* Hang nguoi dung can phan ung theo BE RONG popup, khong chi viewport:
+     cua so desktop thu nho/zoom van co popup hep du breakpoint mobile. */
+  container-type: inline-size;
   /* Canh GIUA MAN HINH. Truoc day no dan sat thanh doc ben phai, nen tren man
      rong thi noi dung nam let mot goc con nua man trong khong. */
   top: 50%;
@@ -2115,6 +2118,44 @@
     font-size: calc(11px * var(--s));
     font-style: normal;
     font-weight: 200;
+  }
+}
+
+/* Popup quan ly thanh vien co the hep du viewport van >900px (vi du cua so
+   desktop thu nho hoac zoom). Khi do doi hang thanh cot nhu mobile de nut va
+   thanh am luong nam TRONG the, lam the tu cao thay vi chen sang hang ke. */
+@container (max-width: 700px) {
+  .mpop-hang {
+    box-sizing: border-box;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    height: auto;
+    min-height: calc(101px * var(--s));
+    gap: calc(10px * var(--s));
+  }
+
+  .mpop-hang-thong-tin {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: calc(10px * var(--s));
+  }
+
+  .mpop-ten {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mpop-nut {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mpop-am {
+    width: 100%;
   }
 }
 
