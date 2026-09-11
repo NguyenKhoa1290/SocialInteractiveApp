@@ -802,7 +802,10 @@ export function MeetingRoomPage() {
     try {
       await meetingApi.end(meetingId);
       await roomRef.current?.disconnect();
-      navigate(-1);
+      // Khong dung navigate(-1): nguoi vao bang link moi (ke ca Guest) co
+      // the quay lai chinh URL phong hop da ket thuc. /app la trang chinh
+      // sau dang nhap cua ca tai khoan dinh danh va an danh.
+      navigate("/app", { replace: true });
     } catch (err) {
       setError(extractApiError(err, "Không kết thúc được cuộc họp"));
     }
@@ -1409,7 +1412,10 @@ export function MeetingRoomPage() {
       <div className="meet-page meet-center">
         <p>Cuộc họp này đã kết thúc.</p>
         <p className="meet-note">Quay lại phòng chat và bấm “Gọi video” để mở cuộc họp mới.</p>
-        <button onClick={() => navigate(-1)}>Quay lại</button>
+        {/* Dung duong dan co dinh thay vi history: ca Guest vao bang link va
+            tai khoan thuong deu ve trang chat chinh, khong the mo lai phong
+            da ket thuc. */}
+        <button onClick={() => navigate("/app", { replace: true })}>Về trang chính</button>
       </div>
     );
   }
