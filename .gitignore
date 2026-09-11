@@ -1,6 +1,7 @@
 # ===== .NET (IdentityService va cac service C# sau nay) =====
 bin/
 obj/
+artifacts/
 *.user
 *.suo
 run.log

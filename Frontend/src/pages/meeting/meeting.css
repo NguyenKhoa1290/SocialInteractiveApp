@@ -1890,6 +1890,14 @@
   border-radius: calc(10px * var(--s));
 }
 
+/* Tren desktop, wrapper nay khong tao them mot hop de avatar, ten, nut va
+   am luong van nam tren cung mot hang nhu thiet ke goc. Mobile doi no thanh
+   hang thong tin rieng de the nguoi dung co the cao tu nhien khi nut xuong
+   dong. */
+.mpop-hang-thong-tin {
+  display: contents;
+}
+
 .mpop-ten {
   flex: 1;
   min-width: calc(120px * var(--s));
@@ -2069,7 +2077,39 @@
   }
 
   .mpop-hang {
+    box-sizing: border-box;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    height: auto;
+    min-height: calc(101px * var(--s));
     gap: calc(10px * var(--s));
+  }
+
+  /* Tu hang 2 tro di la thao tac rieng cua nguoi nay. Neu man hinh hep,
+     nut tu xuong dong trong the va tang chieu cao the; khong bao gio chen
+     len avatar/ten hoac hang nguoi ke tiep. */
+  .mpop-hang-thong-tin {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: calc(10px * var(--s));
+  }
+
+  .mpop-ten {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mpop-nut {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mpop-am {
+    width: 100%;
   }
   .mpop-chat-ten em{
     font-size: calc(11px * var(--s));
