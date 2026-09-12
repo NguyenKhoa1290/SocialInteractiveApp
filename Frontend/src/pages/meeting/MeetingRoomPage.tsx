@@ -391,15 +391,25 @@ export function MeetingRoomPage() {
           setRemotes([...r.remoteParticipants.values()]);
           bump();
         };
+        // Lệnh "Tắt tất cả mic/cam" của chủ phòng được LiveKit áp trực tiếp
+        // lên publication của client. Đồng bộ lại state giao diện từ publication
+        // để nút điều khiển của chính người bị tắt phản ánh đúng trạng thái mới.
+        const syncLocalDeviceState = () => {
+          const microphone = r.localParticipant.getTrackPublication(Track.Source.Microphone);
+          const camera = r.localParticipant.getTrackPublication(Track.Source.Camera);
+          setMicOn(Boolean(microphone?.track && !microphone.isMuted));
+          setCamOn(Boolean(camera?.track && !camera.isMuted));
+          bump();
+        };
 
         r.on(RoomEvent.ParticipantConnected, syncRemotes)
           .on(RoomEvent.ParticipantDisconnected, syncRemotes)
           .on(RoomEvent.TrackSubscribed, syncRemotes)
           .on(RoomEvent.TrackUnsubscribed, syncRemotes)
-          .on(RoomEvent.TrackMuted, bump)
-          .on(RoomEvent.TrackUnmuted, bump)
-          .on(RoomEvent.LocalTrackPublished, bump)
-          .on(RoomEvent.LocalTrackUnpublished, bump)
+          .on(RoomEvent.TrackMuted, syncLocalDeviceState)
+          .on(RoomEvent.TrackUnmuted, syncLocalDeviceState)
+          .on(RoomEvent.LocalTrackPublished, syncLocalDeviceState)
+          .on(RoomEvent.LocalTrackUnpublished, syncLocalDeviceState)
           .on(RoomEvent.RoomMetadataChanged, (metadata) => {
             setPresentation(parsePresentation(metadata));
           })
