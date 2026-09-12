@@ -1046,7 +1046,7 @@
   /* Dải này hiển thị tới năm người trên một trang. Ép từng ô 16:9 làm năm
      hàng cao quá mức, nên ưu tiên dải gọn để thấy đủ danh sách; video ngang
      vẫn nằm trọn trong ô nhờ object-fit: contain. */
-  width: min(calc(375px * var(--s)), 320px);
+  width: min(calc(250px * var(--s)), 320px);
   min-width: 0;
   display: flex;
   flex-direction: column;
