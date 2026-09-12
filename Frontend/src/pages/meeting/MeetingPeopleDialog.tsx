@@ -9,8 +9,9 @@ import type { Friend } from "../../types/friend";
 // di: no chuyen vao title (hien khi re chuot) va aria-label (trinh doc man
 // hinh). Bo chu ma khong de lai gi thi nguoi chua quen icon phai doan.
 //
-// `bat` = viec nay CHUA lam (nut mau teal, bam vao la cam/phong); false =
-// da lam roi (nut xam, bam vao la go ra). Mau giu nguyen nhu ban co chu.
+// `bat` quyet dinh mau teal/xam cua tung thao tac. Voi mic/camera, mau luon
+// phan anh QUYEN HIEU LUC: duoc phep = teal, bi cam = xam. Cac nut vai tro
+// van dung nghia thao tac rieng cua chung.
 function NutIcon({
   bat,
   nhan,
@@ -295,8 +296,11 @@ export function MeetingPeopleDialog({
         const duocCam = camMacDinhBat ? !cam("no_camera") : cam("allow_camera");
         const quyenMic: PermissionType = micMacDinhBat ? "no_mic" : "allow_mic";
         const quyenCam: PermissionType = camMacDinhBat ? "no_camera" : "allow_camera";
-        const nutMicBat = micMacDinhBat ? duocMic : !duocMic;
-        const nutCamBat = camMacDinhBat ? duocCam : !duocCam;
+        // Dung cung quy uoc mau voi luc host cam rieng mot nguoi: cam la xam,
+        // duoc phep la teal. Vi vay khi tat cong tac chung, ca danh sach xam
+        // ngay; bam tung nguoi se cap allow_* va chi nut cua ho sang teal.
+        const nutMicBat = duocMic;
+        const nutCamBat = duocCam;
         const nhanMic = micMacDinhBat
           ? duocMic
             ? "Cấm mic"
@@ -341,7 +345,7 @@ export function MeetingPeopleDialog({
                   nhan={nhanMic}
                   onClick={() => onTogglePermission(p, quyenMic)}
                 >
-                  <IconMicrophone size={22} off={duocMic} />
+                  <IconMicrophone size={22} off={!duocMic} />
                 </NutIcon>
 
                 <NutIcon
@@ -349,7 +353,7 @@ export function MeetingPeopleDialog({
                   nhan={nhanCam}
                   onClick={() => onTogglePermission(p, quyenCam)}
                 >
-                  <IconCamera size={22} off={duocCam} />
+                  <IconCamera size={22} off={!duocCam} />
                 </NutIcon>
 
                 <NutIcon
