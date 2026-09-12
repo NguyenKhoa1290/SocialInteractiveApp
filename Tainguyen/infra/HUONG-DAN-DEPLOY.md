@@ -519,7 +519,8 @@ check_violation`). Chỉ nới ràng buộc, không đụng dữ liệu — ch�
 ALTER TABLE meeting_permissions DROP CONSTRAINT IF EXISTS meeting_permissions_permission_type_check;
 ALTER TABLE meeting_permissions ADD CONSTRAINT meeting_permissions_permission_type_check
   CHECK (permission_type IN ('share_screen','mini_app','focus_mode',
-                             'no_mic','no_camera','no_screen_share','co_host'));
+                             'no_mic','no_camera','allow_mic','allow_camera',
+                             'no_screen_share','co_host'));
 ```
 
 Ảnh cũ chạy với ràng buộc mới vẫn bình thường: CHECK chỉ chặn lúc GHI, mà bản cũ không bao giờ
