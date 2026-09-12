@@ -1043,6 +1043,11 @@
    voi nut dieu khien va che khu vuc xem nguoi hop. */
 .mroom-dai {
   flex: none;
+  /* Dải người xem desktop là một cột 16:9 theo thiết kế: cao mỗi hàng là
+     281px, nên bề rộng tương ứng là 281 × 16 / 9. Không để intrinsic width
+     của track camera quyết định flex-basis và kéo cột nở ra tùy nguồn video. */
+  width: calc(499.56px * var(--s));
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: calc(12px * var(--s));
@@ -1052,10 +1057,24 @@
 .mroom-grid-dai {
   /* Frame 149:1735 (Page 3) doi lai: NAM o, dat le trai tu 70 - khac ban cu
      tren Page 1 (bon o canh giua). */
+  width: 100%;
+  min-width: 0;
+  /* minmax(0, 1fr), không phải auto: track video có intrinsic width lớn vẫn
+     phải co trong cột người xem, giống trạng thái chỉ avatar. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: repeat(5, minmax(0, calc(281px * var(--s))));
   grid-auto-rows: 100%;
   gap: calc(10px * var(--s));
   justify-content: start;
+}
+
+/* Chỉ desktop dùng các thẻ người xem 16:9. Trên điện thoại, media query bên
+   dưới giữ lưới 2 × 2 và để chiều cao sẵn có quyết định kích thước ô. Video
+   vẫn dùng object-fit: contain, nên camera ngang không bao giờ bị cắt viền. */
+@media (min-width: 901px) {
+  .mroom-grid-dai .meet-tile {
+    aspect-ratio: 16 / 9;
+  }
 }
 
 /* Chi doi pager trong dai o cua che do tap trung. Luoi thuong van dung cot
