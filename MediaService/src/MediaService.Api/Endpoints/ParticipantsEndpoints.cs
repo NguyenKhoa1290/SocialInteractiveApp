@@ -220,11 +220,30 @@ public static class ParticipantsEndpoints
 
             // Chu phong tu thu mic cua chinh minh la trang thai vo nghia (tu
             // bam la tu mo lai duoc) - chan cho gon.
-            if (IsPublishDenial(permType) && userId == meeting!.HostId)
+            if (IsPublishOverride(permType) && userId == meeting!.HostId)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Khong the thu quyen mic/camera cua chinh chu phong"));
 
             var already = await db.MeetingPermissions.AnyAsync(p =>
                 p.MeetingId == meetingId && p.UserId == userId && p.PermissionType == permType);
+            var daThayDoi = false;
+
+            // Hai trang thai rieng cua cung mot nguon phat khong the cung ton
+            // tai. Khi chu phong cap ngoai le "allow_mic" thi xoa no_mic cu,
+            // va nguoc lai; neu khong du lieu cu/manually goi API co the lam
+            // UI bao duoc phep nhung LiveKit van phai tu doan uu tien.
+            var doiNghich = PermissionDoiNghich(permType);
+            if (doiNghich is not null)
+            {
+                var doiNghichDaCo = await db.MeetingPermissions
+                    .Where(p => p.MeetingId == meetingId && p.UserId == userId && p.PermissionType == doiNghich.Value)
+                    .ToListAsync();
+                if (doiNghichDaCo.Count > 0)
+                {
+                    db.MeetingPermissions.RemoveRange(doiNghichDaCo);
+                    daThayDoi = true;
+                }
+            }
+
             if (!already)
             {
                 db.MeetingPermissions.Add(new MeetingPermission
@@ -237,10 +256,15 @@ public static class ParticipantsEndpoints
                     GrantedBy = principal.GetUserId()!.Value,
                     GrantedAt = DateTimeOffset.UtcNow,
                 });
+                daThayDoi = true;
+            }
+
+            if (daThayDoi)
+            {
                 await db.SaveChangesAsync();
             }
 
-            if (IsPublishDenial(permType))
+            if (IsPublishOverride(permType))
                 await SyncPublishPermissionsAsync(meetingId, userId, db, liveKit);
 
             return Results.Created($"/meetings/{meetingId}/participants/{userId}/permissions", null);
@@ -265,17 +289,27 @@ public static class ParticipantsEndpoints
                 await db.SaveChangesAsync();
             }
 
-            if (IsPublishDenial(permType))
+            if (IsPublishOverride(permType))
                 await SyncPublishPermissionsAsync(meetingId, userId, db, liveKit);
 
             return Results.NoContent();
         });
     }
 
-    private static bool IsPublishDenial(PermissionType t) =>
-        t is PermissionType.NoMic or PermissionType.NoCamera or PermissionType.NoScreenShare;
+    private static bool IsPublishOverride(PermissionType t) =>
+        t is PermissionType.NoMic or PermissionType.NoCamera or PermissionType.NoScreenShare or
+            PermissionType.AllowMic or PermissionType.AllowCamera;
 
-    // Doc lai trang thai cam trong DB roi day sang LiveKit.
+    private static PermissionType? PermissionDoiNghich(PermissionType t) => t switch
+    {
+        PermissionType.NoMic => PermissionType.AllowMic,
+        PermissionType.AllowMic => PermissionType.NoMic,
+        PermissionType.NoCamera => PermissionType.AllowCamera,
+        PermissionType.AllowCamera => PermissionType.NoCamera,
+        _ => null,
+    };
+
+    // Doc lai trang thai override trong DB roi day sang LiveKit.
     //
     // Ghi vao DB thoi la CHUA DU: DB chi duoc doc luc sinh token, tuc la lan
     // vao phong TIEP THEO. Nguoi dang ngoi trong phong van noi binh thuong.
@@ -302,8 +336,8 @@ public static class ParticipantsEndpoints
     // Dung chung ca luc sinh token. Hai tang chong len nhau:
     //   1. MAC DINH CUA PHONG (meetings.allow_mic / allow_camera) - "Cai dat
     //      phong", ap cho moi nguoi, ke ca nguoi vao sau.
-    //   2. RIENG TUNG NGUOI: mot hang no_mic / no_camera trong
-    //      meeting_permissions de bep len tren (xem MeetingPermission.cs).
+    //   2. RIENG TUNG NGUOI: no_mic / no_camera cam rieng; allow_mic /
+    //      allow_camera la ngoai le khi cong tac chung dang tat.
     //
     // Chu phong LUON duoc phep: cong tac cua phong la thu ong ta cam, bam
     // nham mot cai ma tu khoa mieng minh thi khong con duong mo lai.
@@ -323,18 +357,22 @@ public static class ParticipantsEndpoints
         // Dong chu phong KHONG duoc mien tru o day: ho la nguoi DIEU PHOI
         // (duyet phong cho, tat mic/cam mot lan), khong phai chu phong thu hai.
         // Cai dat chung cua phong ap len ho y het moi nguoi khac.
-        var denied = await db.MeetingPermissions
+        var overrides = await db.MeetingPermissions
             .Where(p => p.MeetingId == meetingId && p.UserId == userId &&
                         (p.PermissionType == PermissionType.NoMic ||
                          p.PermissionType == PermissionType.NoCamera ||
+                         p.PermissionType == PermissionType.AllowMic ||
+                         p.PermissionType == PermissionType.AllowCamera ||
                          p.PermissionType == PermissionType.NoScreenShare))
             .Select(p => p.PermissionType)
             .ToListAsync();
 
         return (
-            phong.AllowMic && !denied.Contains(PermissionType.NoMic),
-            phong.AllowCamera && !denied.Contains(PermissionType.NoCamera),
-            phong.AllowScreenShare && !denied.Contains(PermissionType.NoScreenShare));
+            !overrides.Contains(PermissionType.NoMic) &&
+                (phong.AllowMic || overrides.Contains(PermissionType.AllowMic)),
+            !overrides.Contains(PermissionType.NoCamera) &&
+                (phong.AllowCamera || overrides.Contains(PermissionType.AllowCamera)),
+            phong.AllowScreenShare && !overrides.Contains(PermissionType.NoScreenShare));
     }
 
     // Ap lai quyen phat cho MOI NGUOI dang trong phong. Dung khi chu phong

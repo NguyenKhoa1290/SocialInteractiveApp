@@ -69,7 +69,8 @@ export interface MeetingParticipant {
 
 // Chu y ba loai cuoi NGUOC nghia voi ba loai dau: share_screen/mini_app/
 // focus_mode co trong mang = DUOC phep, con no_mic/no_camera/no_screen_share
-// co trong mang = BI CAM.
+// co trong mang = BI CAM. allow_mic/allow_camera la ngoai le DUOC phep khi
+// cong tac tuong ung cua ca phong dang tat.
 //
 // no_screen_share them sau, cung dot voi "Cai dat phong": chia se man hinh
 // gio mac dinh CO (meeting.allowScreenShare) nen cam mot nguoi moi la thao
@@ -81,6 +82,8 @@ export type PermissionType =
   | "focus_mode"
   | "no_mic"
   | "no_camera"
+  | "allow_mic"
+  | "allow_camera"
   | "no_screen_share"
   // Dong chu phong: co du quyen dieu khien cuoc hop nhu chu phong, va la
   // nguoi ke vi thu nhat khi chu phong roi di. Chi chu phong THAT phong hoac

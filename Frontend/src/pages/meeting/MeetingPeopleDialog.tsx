@@ -285,6 +285,32 @@ export function MeetingPeopleDialog({
       {hienThi.map((p) => {
         const nguoiKhac = p.userId !== currentUserId;
         const cam = (t: PermissionType) => p.permissions.includes(t);
+        // Cong tac phong la quyen nen. Khi no BAT, nut rieng thu quyen bang
+        // no_mic/no_camera; khi no TAT, nut rieng doi thanh cap NGOAI LE bang
+        // allow_mic/allow_camera. Nhieu hon mot co/khong co don gian, vi host
+        // co the cam ca phong nhung van cho phep mot nguoi trinh bay noi.
+        const micMacDinhBat = meeting?.allowMic ?? true;
+        const camMacDinhBat = meeting?.allowCamera ?? true;
+        const duocMic = micMacDinhBat ? !cam("no_mic") : cam("allow_mic");
+        const duocCam = camMacDinhBat ? !cam("no_camera") : cam("allow_camera");
+        const quyenMic: PermissionType = micMacDinhBat ? "no_mic" : "allow_mic";
+        const quyenCam: PermissionType = camMacDinhBat ? "no_camera" : "allow_camera";
+        const nutMicBat = micMacDinhBat ? duocMic : !duocMic;
+        const nutCamBat = camMacDinhBat ? duocCam : !duocCam;
+        const nhanMic = micMacDinhBat
+          ? duocMic
+            ? "Cấm mic"
+            : "Bỏ cấm mic"
+          : duocMic
+            ? "Thu quyền mic"
+            : "Cho phép mic";
+        const nhanCam = camMacDinhBat
+          ? duocCam
+            ? "Cấm camera"
+            : "Bỏ cấm camera"
+          : duocCam
+            ? "Thu quyền camera"
+            : "Cho phép camera";
         return (
           <div key={p.userId} className="mpop-hang">
             <Avatar userId={p.userId} nickname={p.nickname} avatarUpdatedAt={anhCua[p.userId]} size={68} />
@@ -311,19 +337,19 @@ export function MeetingPeopleDialog({
                 </NutIcon>
 
                 <NutIcon
-                  bat={!cam("no_mic")}
-                  nhan={cam("no_mic") ? "Bỏ cấm mic" : "Cấm mic"}
-                  onClick={() => onTogglePermission(p, "no_mic")}
+                  bat={nutMicBat}
+                  nhan={nhanMic}
+                  onClick={() => onTogglePermission(p, quyenMic)}
                 >
-                  <IconMicrophone size={22} off={!cam("no_mic")} />
+                  <IconMicrophone size={22} off={duocMic} />
                 </NutIcon>
 
                 <NutIcon
-                  bat={!cam("no_camera")}
-                  nhan={cam("no_camera") ? "Bỏ cấm camera" : "Cấm camera"}
-                  onClick={() => onTogglePermission(p, "no_camera")}
+                  bat={nutCamBat}
+                  nhan={nhanCam}
+                  onClick={() => onTogglePermission(p, quyenCam)}
                 >
-                  <IconCamera size={22} off={!cam("no_camera")} />
+                  <IconCamera size={22} off={duocCam} />
                 </NutIcon>
 
                 <NutIcon

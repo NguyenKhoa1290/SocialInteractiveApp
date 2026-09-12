@@ -316,12 +316,17 @@ export function MeetingRoomPage() {
   const canUseMiniApp = isHost || (meeting?.allowMiniApp ?? false);
   const canShareScreen =
     isHost || ((meeting?.allowScreenShare ?? true) && !myPermissions.includes("no_screen_share"));
-  // Mac dinh ai cung bat duoc mic/camera - chu phong THU quyen thi moi co
-  // hang trong meeting_permissions. Day chi la de hien dung giao dien; cho
-  // chan that su la LiveKit (xem LiveKitService.ApplyPublishPermissionsAsync),
-  // vi an nut chi ngan nguoi dung binh thuong.
-  const micAllowed = isHost || ((meeting?.allowMic ?? true) && !myPermissions.includes("no_mic"));
-  const camAllowed = isHost || ((meeting?.allowCamera ?? true) && !myPermissions.includes("no_camera"));
+  // Khi cong tac chung tat, allow_mic/allow_camera la ngoai le duoc host cap
+  // rieng cho mot nguoi. Cong thuc nay phai trung voi backend/LiveKit, de
+  // nguoi duoc cap ngoai le van thay va dung duoc nut cua chinh minh.
+  const micAllowed =
+    isHost ||
+    (!myPermissions.includes("no_mic") &&
+      ((meeting?.allowMic ?? true) || myPermissions.includes("allow_mic")));
+  const camAllowed =
+    isHost ||
+    (!myPermissions.includes("no_camera") &&
+      ((meeting?.allowCamera ?? true) || myPermissions.includes("allow_camera")));
 
   // --- Ket noi phong -------------------------------------------------------
   useEffect(() => {
@@ -863,12 +868,9 @@ export function MeetingRoomPage() {
     }
   }
 
-  // Chi con 2 quyen co duong dung that. `focus_mode` van con trong schema
-  // nhung khong endpoint nao kiem tra nua - ghim la thao tac cuc bo cua
-  // tung nguoi, khong can cap phep.
-  // Dung chung cho ca quyen CAP (share_screen, mini_app) lan quyen THU
-  // (no_mic, no_camera): ca hai deu la "co hang thi xoa, khong co thi them",
-  // chi khac nghia cua viec co hang. Xem types/media.ts.
+  // `focus_mode` van con trong schema nhung khong endpoint nao kiem tra nua -
+  // ghim la thao tac cuc bo cua tung nguoi. Cac quyen mic/camera co cap doi
+  // no_* <-> allow_*; UI chon dung cap theo cong tac mac dinh cua ca phong.
   async function handleTogglePermission(p: MeetingParticipant, perm: PermissionType) {
     try {
       if (p.permissions.includes(perm)) await meetingApi.revokePermission(meetingId, p.userId, perm);
