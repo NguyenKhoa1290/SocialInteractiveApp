@@ -14,6 +14,12 @@ const NHAN: Record<Kind, string> = {
 const KHOA_THIET_BI = "chat-app-devices";
 const KHOA_AM_LUONG = "chat-app-mic-gain";
 
+// Không đoán theo tên trình duyệt: Chrome/Edge và từng thiết bị có thể hỗ trợ
+// khác nhau. Constraint không có thì công tắc hiện rõ là không dùng được.
+const hoTroLocTieng =
+  typeof navigator !== "undefined" &&
+  !!navigator.mediaDevices?.getSupportedConstraints?.().noiseSuppression;
+
 // Chon loa dua vao HTMLMediaElement.setSinkId - Chromium co, Firefox va
 // Safari khong. Kiem tra that thay vi doan theo user agent.
 const chonDuocLoa =
@@ -37,6 +43,8 @@ export function MeetingSettingsDialog({
   room,
   tietKiem,
   doiTietKiem,
+  locTiengOn,
+  doiLocTieng,
   dangChieu,
   tenNguoiChieu,
   dungDuoc,
@@ -48,6 +56,10 @@ export function MeetingSettingsDialog({
   // cua ai ve may nay ca.
   tietKiem: boolean;
   doiTietKiem: (v: boolean) => void;
+  // Chỉ áp dụng âm thanh chính người dùng phát đi, không ảnh hưởng mic của
+  // thành viên khác hay cấu hình máy chủ.
+  locTiengOn: boolean;
+  doiLocTieng: (v: boolean) => void | Promise<void>;
   // Dang co ai trinh bay khong, va la thu gi ("man hinh" / "Mini App").
   // null = khong ai. Nut dung nam O DAY chu khong o thanh doc.
   dangChieu: string | null;
@@ -173,6 +185,13 @@ export function MeetingSettingsDialog({
         nhan="Chế độ tiết kiệm dữ liệu (Tắt nhận camera mọi người)"
         bat={tietKiem}
         doi={doiTietKiem}
+      />
+
+      <HangTac
+        nhan={hoTroLocTieng ? "Lọc tiếng ồn micro" : "Lọc tiếng ồn micro (Trình duyệt không hỗ trợ)"}
+        bat={locTiengOn}
+        doi={doiLocTieng}
+        khoa={!hoTroLocTieng}
       />
 
       <div className="mpop-muc">

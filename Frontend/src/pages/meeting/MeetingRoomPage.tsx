@@ -5,6 +5,7 @@ import {
   RoomEvent,
   Track,
   createLocalScreenTracks,
+  type LocalAudioTrack,
   type Participant,
   type RemoteParticipant,
   type RemoteTrackPublication,
@@ -89,6 +90,23 @@ const POLL_MS = 4000;
 // ben LiveKit - trong khoang do van hien ho trong danh sach.
 const CONNECT_GRACE_MS = 20000;
 
+// Lưu theo máy, giống chế độ tiết kiệm dữ liệu. Mặc định bật cho cuộc họp
+// thoại; người dùng phát nhạc có thể tắt để giữ nguyên âm thanh nền.
+const KHOA_LOC_TIENG_ON = "meet-loc-tieng-on";
+
+function tuyChonMicro(locTiengOn: boolean) {
+  return {
+    echoCancellation: true,
+    autoGainControl: true,
+    noiseSuppression: locTiengOn,
+  };
+}
+
+function micCuaToi(room: Room): LocalAudioTrack | null {
+  const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+  return track?.kind === Track.Kind.Audio ? (track as LocalAudioTrack) : null;
+}
+
 // Hang doi TUAN TU HOA moi thao tac ket noi/ngat phong.
 //
 // Bug that: React StrictMode (dev) goi effect 2 LAN. Truoc day moi lan tao 1
@@ -169,6 +187,9 @@ export function MeetingRoomPage() {
   // may nay ca. Thay cho nut "tat camera nguoi nay cho do mang" theo tung
   // nguoi cua ban cu - ban thiet ke gop lai thanh mot cong tac chung.
   const [tietKiem, setTietKiem] = useState(() => localStorage.getItem("meet-tiet-kiem") === "1");
+  // Bộ lọc WebRTC chạy trên máy đang nói, trước khi âm thanh được gửi lên
+  // LiveKit. Nó không phát sinh tải CPU ở Media Service.
+  const [locTiengOn, setLocTiengOn] = useState(() => localStorage.getItem(KHOA_LOC_TIENG_ON) !== "0");
   // Ten + anh cua nhom so huu cuoc hop, chi de dat dau popup nhan tin. Media
   // Service khong biet nhung thu nay nen phai hoi Chat roi hoi WorkSpace.
   const [nhomCuaHop, setNhomCuaHop] = useState<{ id: number; ten: string; anh: string | null } | null>(null);
@@ -383,7 +404,11 @@ export function MeetingRoomPage() {
           return;
         }
 
-        const r = new Room({ adaptiveStream: true, dynacast: true });
+        const r = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          audioCaptureDefaults: tuyChonMicro(locTiengOn),
+        });
         created = r;
 
         const bump = () => setVersion((v) => v + 1);
@@ -642,6 +667,25 @@ export function MeetingRoomPage() {
     dongChuRef.current = laDongChu;
   }, [laDongChu, isHost, participants.length]);
 
+  // Đổi công tắc khi mic đang mở thì áp dụng ngay vào track hiện tại. Khi mic
+  // đang tắt/chưa được tạo, tuỳ chọn sẽ được truyền lúc người dùng bấm bật mic.
+  async function doiLocTieng(next: boolean) {
+    setNotice(null);
+    try {
+      const track = room ? micCuaToi(room) : null;
+      if (track) await track.applyConstraints({ noiseSuppression: next });
+      setLocTiengOn(next);
+      try {
+        localStorage.setItem(KHOA_LOC_TIENG_ON, next ? "1" : "0");
+      } catch {
+        // Trình duyệt có thể chặn localStorage; thay đổi vẫn có hiệu lực đến
+        // khi rời phòng, chỉ không nhớ cho lần sau.
+      }
+    } catch {
+      setNotice("Trình duyệt không áp dụng được lọc tiếng ồn cho micro hiện tại.");
+    }
+  }
+
   // --- Dieu khien --------------------------------------------------------
   // Bat/tat thiet bi CO THE that bai that su (NotReadableError khi camera
   // dang bi ung dung khac giu, NotAllowedError khi bi tu choi quyen). Truoc
@@ -659,7 +703,7 @@ export function MeetingRoomPage() {
     setNotice(null);
     try {
       if (kind === "mic") {
-        await room.localParticipant.setMicrophoneEnabled(next);
+        await room.localParticipant.setMicrophoneEnabled(next, next ? tuyChonMicro(locTiengOn) : undefined);
         setMicOn(next);
         // Track mic vua duoc tao xong - gio moi gan duoc bo khuech dai neu
         // nguoi dung da keo thanh "Am luong micro cua ban" tu truoc.
@@ -1662,6 +1706,8 @@ export function MeetingRoomPage() {
           room={room}
           tietKiem={tietKiem}
           doiTietKiem={setTietKiem}
+          locTiengOn={locTiengOn}
+          doiLocTieng={doiLocTieng}
           // Nut dung nam O DAY chu khong o thanh doc: chu du an chot vay.
           // `dungDuoc` gom ca truong hop chu phong go ket cho nguoi khac dang
           // trinh bay ma mat mang khong kip tat.
