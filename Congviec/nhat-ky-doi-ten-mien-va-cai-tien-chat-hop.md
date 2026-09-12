@@ -1236,3 +1236,31 @@ từ API Calli, vì vậy cách bắt lỗi API cũ chỉ hiện thông báo chu
    dùng thử lại.
 3. Không đưa object lỗi LiveKit vào giao diện hoặc console, vì lỗi signaling có
    thể chứa URL với access token ngắn hạn của phòng.
+
+---
+
+## 26. Đồng bộ nút mic/camera sau lệnh tắt của chủ phòng
+
+**Đợt làm ngày 12/09/2026** — Frontend, trang phòng họp.
+
+Khi chủ phòng dùng thao tác **Tắt tất cả mic** hoặc **Tắt tất cả camera**,
+Media Service yêu cầu LiveKit mute publication của từng thành viên. Track của
+thành viên đã bị tắt thật, nhưng state `micOn`/`camOn` tại trình duyệt của chính
+thành viên trước đây không được cập nhật; vì vậy nút điều khiển cục bộ có thể
+vẫn hiển thị là đang bật.
+
+`MeetingRoomPage` nay lắng nghe `TrackMuted`, `TrackUnmuted`,
+`LocalTrackPublished` và `LocalTrackUnpublished`. Mỗi sự kiện đọc lại
+publication microphone/camera của `localParticipant` từ LiveKit rồi đồng bộ
+`micOn` và `camOn` theo `isMuted`. Do đó khi nhận lệnh tắt đồng loạt, nút mic
+hoặc camera của người bị tắt chuyển ngay sang trạng thái tắt.
+
+Đây là đồng bộ trạng thái track, **không phải** thu quyền thiết bị: nếu chủ
+phòng chỉ tắt tất cả một lần mà chưa cấm mic/camera, thành viên vẫn có thể tự
+bật lại như trước. Luật cấm và ngoại lệ cấp quyền từng người vẫn do cơ chế
+`meeting_permissions` xử lý riêng.
+
+### Kiểm tra
+
+- `npm run build` trong `Frontend`: đạt (`tsc -b` và Vite production build);
+- `git diff --check`: đạt.

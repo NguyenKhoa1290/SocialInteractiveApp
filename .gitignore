@@ -2,6 +2,8 @@
 bin/
 obj/
 artifacts/
+Tainguyen/
+Congviec/
 *.user
 *.suo
 run.log
