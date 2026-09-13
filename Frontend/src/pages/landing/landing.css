@@ -417,6 +417,7 @@
   }
 
   .lp-btn-outline {
+    margin-left: auto;
     min-width: 0;
     height: 44px;
     border-width: 2px;
