@@ -2,10 +2,10 @@ import axios from "axios";
 import { IDENTITY_API_URL, WORKSPACE_API_URL, CHAT_API_URL, MEDIA_API_URL, ADMIN_API_URL } from "../config";
 import { useAuthStore } from "../store/authStore";
 
-// Dung chung cho moi service backend (Identity, WorkSpace, Chat...) - tu
-// gan JWT, tu don session khi token het han that su (401). Moi service co
-// baseURL rieng nhung cung 1 nguon token (authStore) vi JWT phat hanh boi
-// Identity Service, cac service khac chi validate.
+// Dung chung cho moi service backend (Identity, WorkSpace, Chat...) - tu gan
+// JWT. KHONG dang xuat theo moi 401: mot service co the tra 401 tam thoi trong
+// luc access JWT vua het han, trong khi refresh-session HttpOnly van con song.
+// Token scheduler la noi duy nhat quyet dinh phien da het that su.
 function createAuthedHttp(baseURL: string, withCredentials = false) {
   const instance = axios.create({ baseURL, withCredentials });
 
@@ -14,17 +14,6 @@ function createAuthedHttp(baseURL: string, withCredentials = false) {
     if (token) cfg.headers.Authorization = `Bearer ${token}`;
     return cfg;
   });
-
-  instance.interceptors.response.use(
-    (res) => res,
-    (err) => {
-      if (err.response?.status === 401) {
-        useAuthStore.getState().clearAuth();
-      }
-      return Promise.reject(err);
-    },
-  );
-
   return instance;
 }
 

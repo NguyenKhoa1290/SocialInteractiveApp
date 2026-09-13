@@ -90,7 +90,8 @@ public static class AuthEndpoints
         // Nhap ma -> luc nay tai khoan moi thuc su duoc tao.
         auth.MapPost("/register/verify", async (
             VerifyRegistrationRequest req, IdentityDbContext db, RedisAuthStore store,
-            JwtTokenService jwt, KafkaProducerService kafka) =>
+            JwtTokenService jwt, RefreshSessionService sessions, HttpContext http,
+            KafkaProducerService kafka) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Otp))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "Email va ma xac thuc la bat buoc"));
@@ -135,6 +136,7 @@ public static class AuthEndpoints
             await store.DeletePendingRegistrationAsync(req.Email);
 
             var token = jwt.IssueToken(user);
+            await sessions.IssueAsync(http, user.Id, http.RequestAborted);
             await kafka.PublishAuthEventAsync("register", user.Id, user.Email, "registered");
             return Results.Created($"/users/{user.Id}", new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
@@ -174,7 +176,9 @@ public static class AuthEndpoints
         });
 
         // UC-01: Dang nhap email + mat khau
-        auth.MapPost("/login", async (LoginRequest req, IdentityDbContext db, JwtTokenService jwt, KafkaProducerService kafka) =>
+        auth.MapPost("/login", async (
+            LoginRequest req, HttpContext http, IdentityDbContext db, JwtTokenService jwt,
+            RefreshSessionService sessions, KafkaProducerService kafka) =>
         {
             var user = await db.Users.SingleOrDefaultAsync(u => u.Email == req.Email);
             if (user is null || user.PasswordHash is null || !BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash))
@@ -189,6 +193,7 @@ public static class AuthEndpoints
             await db.SaveChangesAsync();
 
             var token = jwt.IssueToken(user);
+            await sessions.IssueAsync(http, user.Id, http.RequestAborted);
             await kafka.PublishAuthEventAsync("login", user.Id, user.Email, "registered");
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
@@ -197,7 +202,8 @@ public static class AuthEndpoints
         // duoc sinh tren server, nen ten hien thi trung van vao duoc.
         auth.MapPost("/guest", async (
             GuestRequest req, HttpContext http, IHostEnvironment environment,
-            IdentityDbContext db, RedisAuthStore store, JwtTokenService jwt, KafkaProducerService kafka) =>
+            IdentityDbContext db, RedisAuthStore store, JwtTokenService jwt,
+            RefreshSessionService sessions, KafkaProducerService kafka) =>
         {
             if (!NicknamePolicy.TryNormalizeDisplayName(req.DisplayName, out var displayName))
                 return Results.BadRequest(new ErrorResponse("invalid_display_name", "Ten hien thi bat buoc, toi da 50 ky tu va khong chua ky tu dieu khien"));
@@ -258,6 +264,7 @@ public static class AuthEndpoints
             }
 
             var token = jwt.IssueToken(user);
+            await sessions.IssueAsync(http, user.Id, http.RequestAborted);
             await kafka.PublishAuthEventAsync("guest", user.Id, null, "guest");
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
@@ -266,7 +273,7 @@ public static class AuthEndpoints
         auth.MapPost("/oauth/{provider}", async (
             string provider, OAuthRequest req, HttpContext http, IdentityDbContext db,
             JwtTokenService jwt, IOAuthVerifier verifier, OAuthAvatarDownloader avatarDownloader,
-            KafkaProducerService kafka) =>
+            RefreshSessionService sessions, KafkaProducerService kafka) =>
         {
             if (provider != "google")
                 return Results.BadRequest(new ErrorResponse("invalid_provider", "provider phai la google"));
@@ -290,6 +297,7 @@ public static class AuthEndpoints
                 existingUser.LastActiveAt = DateTimeOffset.UtcNow;
                 await db.SaveChangesAsync();
                 var tok = jwt.IssueToken(existingUser);
+                await sessions.IssueAsync(http, existingUser.Id, http.RequestAborted);
                 await kafka.PublishAuthEventAsync("login", existingUser.Id, existingUser.Email, "registered");
                 return Results.Ok(new OAuthSuccessResponse(tok.AccessToken, UserResponse.FromEntity(existingUser), IsNewUser: false, RequiresDisplayName: false));
             }
@@ -338,6 +346,7 @@ public static class AuthEndpoints
             await db.SaveChangesAsync();
 
             var newTok = jwt.IssueToken(newUser);
+            await sessions.IssueAsync(http, newUser.Id, http.RequestAborted);
             await kafka.PublishAuthEventAsync("register", newUser.Id, newUser.Email, "registered");
             return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresDisplayName: false));
         });
@@ -372,7 +381,9 @@ public static class AuthEndpoints
         });
 
         // UC-05 buoc 4: Dat mat khau moi (ap dung ca lan dau tao mat khau cho tai khoan OAuth-only)
-        auth.MapPost("/reset-password", async (ResetPasswordRequest req, IdentityDbContext db, RedisAuthStore store) =>
+        auth.MapPost("/reset-password", async (
+            ResetPasswordRequest req, IdentityDbContext db, RedisAuthStore store,
+            RefreshSessionService sessions) =>
         {
             if (req.NewPassword.Length < 8)
                 return Results.BadRequest(new ErrorResponse("weak_password", "Mat khau toi thieu 8 ky tu"));
@@ -387,23 +398,20 @@ public static class AuthEndpoints
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
             await db.SaveChangesAsync();
+            // Doi mat khau la su kien bao mat: tat ca trinh duyet cu phai
+            // dang nhap lai, khong de persistent session bi dung tiep.
+            await sessions.RevokeAllForUserAsync(user.Id);
             return Results.Ok();
         });
 
-        // Dang xuat - danh dau jti cua token hien tai vao blocklist toi khi het han tu nhien
-        auth.MapPost("/logout", async (ClaimsPrincipal principal, RedisAuthStore store) =>
+        // Dang xuat phai xoa ca persistent session. Endpoint de anonymous de
+        // nut dang xuat van xoa duoc cookie khi access JWT da het han.
+        auth.MapPost("/logout", async (HttpContext http, RedisAuthStore store, RefreshSessionService sessions) =>
         {
-            var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
-            var expClaim = principal.FindFirstValue(JwtRegisteredClaimNames.Exp);
-            if (jti is not null && expClaim is not null && long.TryParse(expClaim, out var expUnix))
-            {
-                var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix);
-                var ttl = expiresAt - DateTimeOffset.UtcNow;
-                if (ttl > TimeSpan.Zero)
-                    await store.BlocklistTokenAsync(jti, ttl);
-            }
+            await BlocklistCurrentTokenAsync(http.User, store);
+            await sessions.RevokeCurrentAsync(http, http.RequestAborted);
             return Results.NoContent();
-        }).RequireAuthorization();
+        });
 
         // Client chi goi khi tab dang hien va nguoi dung vua tuong tac. Redis
         // gop toi da mot lan UPDATE moi 5 phut/user, nen endpoint nay khong
@@ -431,46 +439,67 @@ public static class AuthEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
-        // Sliding expiration (tu de xuat, khac phuc thieu sot: comment cu o
-        // JwtTokenService.cs nhac toi "endpoint refresh" nhung chua tung
-        // duoc viet) - client goi endpoint nay TRUOC khi token het han (vi
-        // du o 80% thoi gian song) de duoc cap token moi cung han muc,
-        // mien la con hoat dong. Bat buoc token HIEN TAI van con hop le
-        // (RequireAuthorization) - khong the "hoi sinh" token da het han,
-        // dung dung nguyen tac "chi gia han khi con hoat dong".
-        auth.MapPost("/refresh", async (ClaimsPrincipal principal, IdentityDbContext db, JwtTokenService jwt, RedisAuthStore store) =>
+        // Access JWT ngan han, nhung session cookie song theo cua so 6 thang
+        // khong hoat dong. Cookie hop le co the cap lai JWT da het han, nen
+        // nguoi dung quay lai sau khi tab bi treo khong bi day ve dang nhap.
+        auth.MapPost("/refresh", async (
+            HttpContext http, IdentityDbContext db, JwtTokenService jwt,
+            RedisAuthStore store, RefreshSessionService sessions) =>
         {
-            var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
-            if (sub is null || !long.TryParse(sub, out var userId))
-                return Results.Unauthorized();
+            var userId = await sessions.TryExtendAsync(http, http.RequestAborted);
+            var usedPersistentSession = userId is not null;
 
-            var user = await db.Users.FindAsync(userId);
+            // Chuyen tiep mem cho cac phien dang nhap TRUOC khi co cookie dai
+            // han: JWT con hop le duoc doi thanh persistent session mot lan.
+            if (userId is null)
+            {
+                var sub = http.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                if (sub is null || !long.TryParse(sub, out var legacyUserId))
+                    return Results.Unauthorized();
+                userId = legacyUserId;
+            }
+
+            var user = await db.Users.FindAsync([userId.Value], http.RequestAborted);
             if (user is null)
+            {
+                await sessions.RevokeCurrentAsync(http, http.RequestAborted);
                 return Results.Unauthorized();
+            }
 
             if (user.Status == UserStatus.Locked)
+            {
+                await sessions.RevokeCurrentAsync(http, http.RequestAborted);
                 return Results.Json(
                     new { error = "account_locked", message = "Tai khoan dang bi khoa vi vi pham chinh sach chong spam" },
                     statusCode: 403);
-
-            // Chan token cu ngay sau khi cap token moi - tranh 2 token cung
-            // song song hop le (giam thieu rui ro neu token cu bi lo).
-            var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
-            var expClaim = principal.FindFirstValue(JwtRegisteredClaimNames.Exp);
-            if (jti is not null && expClaim is not null && long.TryParse(expClaim, out var expUnix))
-            {
-                var expiresAt = DateTimeOffset.FromUnixTimeSeconds(expUnix);
-                var ttl = expiresAt - DateTimeOffset.UtcNow;
-                if (ttl > TimeSpan.Zero)
-                    await store.BlocklistTokenAsync(jti, ttl);
             }
+
+            // Neu day la JWT cu con hop le chua co cookie (sau luc nang cap),
+            // cap cookie truoc khi tra token moi. Session co san chi can duoc
+            // gia han trong TryExtendAsync o tren.
+            if (!usedPersistentSession)
+                await sessions.IssueAsync(http, user.Id, http.RequestAborted);
+
+            await BlocklistCurrentTokenAsync(http.User, store);
 
             user.LastActiveAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
 
             var token = jwt.IssueToken(user);
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
-        }).RequireAuthorization();
+        });
+    }
+
+    private static async Task BlocklistCurrentTokenAsync(ClaimsPrincipal principal, RedisAuthStore store)
+    {
+        var jti = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        var expClaim = principal.FindFirstValue(JwtRegisteredClaimNames.Exp);
+        if (jti is null || expClaim is null || !long.TryParse(expClaim, out var expUnix))
+            return;
+
+        var ttl = DateTimeOffset.FromUnixTimeSeconds(expUnix) - DateTimeOffset.UtcNow;
+        if (ttl > TimeSpan.Zero)
+            await store.BlocklistTokenAsync(jti, ttl);
     }
 
     // Dia chi mail co gui duoc khong. KHONG dung regex tu che: MailAddress

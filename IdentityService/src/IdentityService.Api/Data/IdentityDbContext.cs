@@ -10,6 +10,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<OAuthLink> OAuthLinks => Set<OAuthLink>();
+    public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
@@ -59,6 +60,26 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
             entity.HasOne(o => o.User)
                 .WithMany(u => u.OAuthLinks)
                 .HasForeignKey(o => o.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RefreshSession>(entity =>
+        {
+            entity.ToTable("refresh_sessions");
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasColumnName("id");
+            entity.Property(s => s.UserId).HasColumnName("user_id");
+            entity.Property(s => s.TokenHash).HasColumnName("token_hash").HasMaxLength(64);
+            entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+            entity.Property(s => s.LastUsedAt).HasColumnName("last_used_at");
+            entity.Property(s => s.ExpiresAt).HasColumnName("expires_at");
+            entity.HasIndex(s => s.TokenHash).IsUnique();
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.ExpiresAt);
+
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

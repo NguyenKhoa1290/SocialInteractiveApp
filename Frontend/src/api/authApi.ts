@@ -39,7 +39,8 @@ export const authApi = {
   resetPassword: (resetToken: string, newPassword: string) =>
     identityHttp.post<void>("/auth/reset-password", { resetToken, newPassword }),
 
-  refresh: () => identityHttp.post<AuthSuccessResponse>("/auth/refresh"),
+  // Gioi han de offline khong giu ProtectedRoute o trang thai khoi phuc mai.
+  refresh: () => identityHttp.post<AuthSuccessResponse>("/auth/refresh", undefined, { timeout: 8_000 }),
 
   // Nhip hoat dong co debounce o client va rate-limit 5 phut/user o server.
   recordActivity: () => identityHttp.post<void>("/auth/activity"),

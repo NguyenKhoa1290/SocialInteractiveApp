@@ -65,6 +65,21 @@ CREATE TABLE oauth_links (
   UNIQUE (user_id, provider)
 );
 
+-- Phien dai han 6 thang khong hoat dong. Cookie phia trinh duyet chi giu
+-- token ngau nhien, con o nay chi luu hash de khong bien ban sao CSDL thanh
+-- ve dang nhap. Khong dua vao Redis vi Redis la cache co the bi don key TTL.
+CREATE TABLE refresh_sessions (
+  id            UUID PRIMARY KEY,
+  user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    CHAR(64) NOT NULL UNIQUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at    TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX idx_refresh_sessions_user ON refresh_sessions(user_id);
+CREATE INDEX idx_refresh_sessions_expires ON refresh_sessions(expires_at);
+
 -- Tinh nang "ban be" - them ngoai schema goc, tai lieu roadmap goc co nhac
 -- toi (Media Service, muc moi hop) nhung CHUA TUNG duoc thiet ke o bat ky
 -- service nao (xem roadmap muc 7.4 "Quyet dinh tu dua ra"). Tu thiet ke khi

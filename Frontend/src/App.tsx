@@ -30,7 +30,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { useAuthStore } from "./store/authStore";
 import { useKeyStore } from "./store/keyStore";
-import { scheduleTokenRefresh } from "./lib/tokenScheduler";
+import { refreshAccessToken, refreshWhenReturningToApp, scheduleTokenRefresh } from "./lib/tokenScheduler";
 import { batTheoDoiHoatDong } from "./lib/activityTracker";
 import { loadPersistedKey } from "./lib/crypto/keyPersistence";
 import { chatApi } from "./api/chatApi";
@@ -39,6 +39,14 @@ import { DeviceGate } from "./components/DeviceGate";
 export default function App() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
+  const finishSessionRestore = useAuthStore((s) => s.finishSessionRestore);
+
+  // Cookie persistent la HttpOnly nen React khong doc duoc. Moi lan khoi dong
+  // phai hoi Identity Service de doi no lay access JWT moi; nhờ đó F5 hay tab
+  // bi ngu o nen khong day Guest/nguoi dung ve dang nhap khi ho quay lai.
+  useEffect(() => {
+    void refreshAccessToken().finally(finishSessionRestore);
+  }, [finishSessionRestore]);
 
   // Phien duoc phuc hoi tu localStorage luc load trang (persist middleware) -
   // can lap lich refresh lai vi scheduler chi chay trong bo nho, khong song
@@ -46,19 +54,26 @@ export default function App() {
   // "song" (chua qua han JWT) - tranh phai nhap lai PIN moi lan F5, xem
   // lib/crypto/keyPersistence.ts.
   useEffect(() => {
-    if (accessToken) scheduleTokenRefresh(accessToken);
+    if (!accessToken) return;
+    scheduleTokenRefresh(accessToken);
 
     // Vua F5 giua chung mot lan tai tep? Bao huy ngay de tra lai dung luong.
     // Server tru han muc tu luc CAP URL chu khong phai luc tai xong, nen mot
     // lan bo do ma khong bao la nguoi dung mat cho do toi khi bo quet phat
     // hien. Xem chatApi.recoverAbandonedUploads.
-    if (accessToken) void chatApi.recoverAbandonedUploads();
+    void chatApi.recoverAbandonedUploads();
 
     if (user) {
       const cached = loadPersistedKey(user.id);
       if (cached) useKeyStore.getState().setKeys(cached.privateKey, cached.publicKey);
     }
-    if (accessToken) batTheoDoiHoatDong();
+    batTheoDoiHoatDong();
+
+    const khiQuayLai = () => {
+      if (document.visibilityState === "visible") refreshWhenReturningToApp();
+    };
+    document.addEventListener("visibilitychange", khiQuayLai);
+    return () => document.removeEventListener("visibilitychange", khiQuayLai);
   }, [accessToken, user]);
 
   return (

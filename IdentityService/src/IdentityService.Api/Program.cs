@@ -28,6 +28,11 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
         ?? throw new InvalidOperationException("Thieu ConnectionStrings:Redis")));
 builder.Services.AddSingleton<RedisAuthStore>();
 
+var refreshSessionOptions = builder.Configuration.GetSection("RefreshSession").Get<RefreshSessionOptions>()
+    ?? new RefreshSessionOptions();
+builder.Services.AddSingleton(refreshSessionOptions);
+builder.Services.AddScoped<RefreshSessionService>();
+
 var smtpOptions = builder.Configuration.GetSection("Smtp").Get<SmtpOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Smtp trong appsettings");
 builder.Services.AddSingleton(smtpOptions);

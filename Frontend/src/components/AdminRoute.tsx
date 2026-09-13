@@ -12,6 +12,8 @@ import { decodeJwtIsAdmin } from "../lib/jwt";
 // chi mo duoc khung man hinh rong, khong lay duoc du lieu.
 export function AdminRoute({ children }: { children: ReactNode }) {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const sessionRestoreComplete = useAuthStore((s) => s.sessionRestoreComplete);
+  if (!sessionRestoreComplete) return <div role="status">Đang khôi phục phiên đăng nhập…</div>;
   if (!accessToken) return <Navigate to="/login" replace />;
   if (!decodeJwtIsAdmin(accessToken)) return <Navigate to="/app" replace />;
   return <>{children}</>;

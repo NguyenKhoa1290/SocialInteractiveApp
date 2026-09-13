@@ -5,19 +5,16 @@ import { keysApi } from "../../api/keysApi";
 import { useKeyStore } from "../../store/keyStore";
 import { useAuthStore } from "../../store/authStore";
 import { persistKey } from "./keyPersistence";
-import { decodeJwtExpMs } from "../jwt";
 
 const SALT_BYTES = 16;
 
-// Cache private key da giai ma o localStorage, song den khi JWT het han -
+// Cache private key da giai ma o localStorage, song theo phien 6 thang -
 // theo yeu cau nguoi dung du an (khong bat nhap lai PIN moi lan reload,
 // giong Facebook). Xem canh bao danh doi bao mat o keyPersistence.ts.
 function persistIfSessionKnown(privateKey: Uint8Array, publicKey: Uint8Array) {
   const { accessToken, user } = useAuthStore.getState();
   if (!accessToken || !user) return;
-  const expMs = decodeJwtExpMs(accessToken);
-  if (expMs === null) return;
-  persistKey(user.id, privateKey, publicKey, expMs);
+  persistKey(user.id, privateKey, publicKey);
 }
 
 // Thiet lap E2EE lan dau: sinh cap khoa X25519 that, ma hoa private key

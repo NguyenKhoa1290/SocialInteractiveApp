@@ -4,6 +4,14 @@ export function decodeJwtExpMs(token: string): number | null {
   return typeof payload?.exp === "number" ? payload.exp * 1000 : null;
 }
 
+// Claim iat cho biet thoi diem JWT duoc cap. Dung chung iat + exp de lap
+// lich refresh theo DUNG 80% tuoi tho token, ke ca khi nguoi dung F5 giua
+// chung. Chi lay de lap lich UI, khong phai quyet dinh bao mat.
+export function decodeJwtIatMs(token: string): number | null {
+  const payload = decodePayload(token);
+  return typeof payload?.iat === "number" ? payload.iat * 1000 : null;
+}
+
 // Claim "role" chi duoc Identity Service gan khi User.IsAdmin=true (xem
 // JwtTokenService.cs). Dung de AN/HIEN loi vao Admin tren UI - KHONG phai
 // lop bao ve: AdminService tu kiem tra chu ky va tra 403, nen sua token o
