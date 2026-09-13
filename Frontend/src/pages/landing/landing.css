@@ -408,6 +408,7 @@
     margin: 0;
     gap: 24px;
     overflow-x: auto;
+    visibility: hidden;
   }
 
   .lp-nav-menu a {
