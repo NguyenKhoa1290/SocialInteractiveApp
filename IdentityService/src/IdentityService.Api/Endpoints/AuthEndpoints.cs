@@ -263,7 +263,10 @@ public static class AuthEndpoints
         });
 
         // UC-02/03/07/08: Dang nhap/Dang ky qua OAuth (Google/Facebook) - dung chung endpoint
-        auth.MapPost("/oauth/{provider}", async (string provider, OAuthRequest req, IdentityDbContext db, JwtTokenService jwt, IOAuthVerifier verifier, KafkaProducerService kafka) =>
+        auth.MapPost("/oauth/{provider}", async (
+            string provider, OAuthRequest req, HttpContext http, IdentityDbContext db,
+            JwtTokenService jwt, IOAuthVerifier verifier, OAuthAvatarDownloader avatarDownloader,
+            KafkaProducerService kafka) =>
         {
             if (provider is not ("google" or "facebook"))
                 return Results.BadRequest(new ErrorResponse("invalid_provider", "provider phai la google hoac facebook"));
@@ -320,6 +323,20 @@ public static class AuthEndpoints
                 ProviderUserId = info.ProviderUserId,
                 LinkedAt = DateTimeOffset.UtcNow,
             });
+
+            // Chi Google dang cap URL avatar o luong nay. Tai ve va luu noi bo
+            // mot lan; that bai/qua 256 KB thi van tao tai khoan binh thuong.
+            if (provider == "google")
+            {
+                var avatar = await avatarDownloader.TryDownloadGoogleAsync(info.AvatarUrl, http.RequestAborted);
+                if (avatar is not null)
+                {
+                    newUser.AvatarBytes = avatar.Bytes;
+                    newUser.AvatarMime = avatar.Mime;
+                    newUser.AvatarUpdatedAt = DateTimeOffset.UtcNow;
+                }
+            }
+
             db.Users.Add(newUser);
             await db.SaveChangesAsync();
 

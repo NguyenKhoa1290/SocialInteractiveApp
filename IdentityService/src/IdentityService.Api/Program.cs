@@ -15,6 +15,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("GoogleAvatar", client => client.Timeout = TimeSpan.FromSeconds(8))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 // Kenh day thong bao xuong tung nguoi - xem Hubs/NotificationHub.cs.
 builder.Services.AddSignalR();
 
@@ -35,6 +37,7 @@ var oauthOptions = builder.Configuration.GetSection("OAuth").Get<OAuthOptions>()
     ?? new OAuthOptions();
 builder.Services.AddSingleton(oauthOptions);
 builder.Services.AddSingleton<IOAuthVerifier, OAuthVerifier>();
+builder.Services.AddSingleton<OAuthAvatarDownloader>();
 
 var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Kafka trong appsettings");

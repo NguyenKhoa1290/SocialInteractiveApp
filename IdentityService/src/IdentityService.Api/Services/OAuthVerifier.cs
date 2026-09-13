@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace IdentityService.Api.Services;
 
-public record OAuthUserInfo(string ProviderUserId, string? Email, string? DisplayName);
+public record OAuthUserInfo(string ProviderUserId, string? Email, string? DisplayName, string? AvatarUrl);
 
 // Client ID khong phai secret, nhung la audience bat buoc khi kiem tra token.
 // Neu chi goi /userinfo, access token cua MOT ung dung Google KHAC van co the
@@ -70,7 +70,8 @@ public class OAuthVerifier(
         var sub = root.GetProperty("sub").GetString();
         var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
         var displayName = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-        return sub is null ? null : new OAuthUserInfo(sub, email, displayName);
+        var avatarUrl = root.TryGetProperty("picture", out var p) ? p.GetString() : null;
+        return sub is null ? null : new OAuthUserInfo(sub, email, displayName, avatarUrl);
     }
 
     private static async Task<OAuthUserInfo?> VerifyFacebookAsync(HttpClient client, string token)
@@ -84,6 +85,6 @@ public class OAuthVerifier(
         var id = root.GetProperty("id").GetString();
         var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
         var displayName = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-        return id is null ? null : new OAuthUserInfo(id, email, displayName);
+        return id is null ? null : new OAuthUserInfo(id, email, displayName, AvatarUrl: null);
     }
 }
