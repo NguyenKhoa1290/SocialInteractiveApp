@@ -97,6 +97,16 @@ export type LoaiLuong = "hls" | "dash" | "flv" | "ts" | "audio";
 // Duoi tep am thanh trinh duyet phat thang duoc bang the <video>/<audio>.
 const DUOI_AM_THANH = ["mp3", "aac", "m4a", "ogg", "oga", "opus", "wav", "flac", "weba", "mp2", "mpa"];
 
+function loaiTheoDuoi(duoiCanKiem: string): LoaiLuong | null {
+  const duoi = duoiCanKiem.trim().toLowerCase().replace(/^\./, "");
+  if (duoi === "flv") return "flv";
+  if (duoi === "mpd") return "dash";
+  if (["ts", "m2ts", "mts"].includes(duoi)) return "ts";
+  if (["m3u8", "m3u"].includes(duoi)) return "hls";
+  if (DUOI_AM_THANH.includes(duoi)) return "audio";
+  return null;
+}
+
 export function doanLoaiLuong(url: string): LoaiLuong {
   // Cat query va fragment TRUOC khi nhin duoi tep: rat nhieu link IPTV co
   // dang .../live.flv?token=<chuoi rat dai> - nhin ca chuoi thi duoi khong
@@ -109,13 +119,18 @@ export function doanLoaiLuong(url: string): LoaiLuong {
   }
   duong = duong.toLowerCase();
 
-  if (duong.endsWith(".flv")) return "flv";
-  if (duong.endsWith(".mpd")) return "dash";
-  if (duong.endsWith(".ts") || duong.endsWith(".m2ts") || duong.endsWith(".mts")) return "ts";
-  if (duong.endsWith(".m3u8") || duong.endsWith(".m3u")) return "hls";
-  {
-    const duoi = duong.split(".").pop() ?? "";
-    if (DUOI_AM_THANH.includes(duoi)) return "audio";
+  const loaiTheoDuongDan = loaiTheoDuoi(duong.split(".").pop() ?? "");
+  if (loaiTheoDuongDan) return loaiTheoDuongDan;
+
+  // Vài portal IPTV dùng endpoint PHP/chung thay cho tên tệp, nhưng khai báo
+  // container trong query, chẳng hạn `live.php?extension=ts`. Đây là thông tin
+  // rõ ràng từ nguồn nên có thể chọn đúng bộ giải mã mà không đoán theo token.
+  try {
+    const extension = new URL(url, window.location.href).searchParams.get("extension");
+    const loaiTheoExtension = extension ? loaiTheoDuoi(extension) : null;
+    if (loaiTheoExtension) return loaiTheoExtension;
+  } catch {
+    // URL không chuẩn sẽ đi qua các quy tắc dự phòng bên dưới.
   }
 
   // Mot so nha cung cap khong de duoi o duong dan ma nhet vao tham so:
