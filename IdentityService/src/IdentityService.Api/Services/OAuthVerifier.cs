@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace IdentityService.Api.Services;
 
-public record OAuthUserInfo(string ProviderUserId, string? Email);
+public record OAuthUserInfo(string ProviderUserId, string? Email, string? DisplayName);
 
 // Client ID khong phai secret, nhung la audience bat buoc khi kiem tra token.
 // Neu chi goi /userinfo, access token cua MOT ung dung Google KHAC van co the
@@ -54,20 +54,28 @@ public class OAuthVerifier(
         if (!resp.IsSuccessStatusCode)
             return null;
 
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-        var root = doc.RootElement;
-        var audience = root.TryGetProperty("aud", out var aud) ? aud.GetString() : null;
+        using var tokenInfo = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var audience = tokenInfo.RootElement.TryGetProperty("aud", out var aud) ? aud.GetString() : null;
         if (!string.Equals(audience, clientId, StringComparison.Ordinal))
             return null;
 
+        // tokeninfo dung de kiem audience; userinfo moi co ten profile de dat
+        // lam ten hien thi ban dau. Khong luu access token hay email Google.
+        var userInfo = await client.GetAsync($"https://www.googleapis.com/oauth2/v3/userinfo?access_token={Uri.EscapeDataString(token)}");
+        if (!userInfo.IsSuccessStatusCode)
+            return null;
+
+        using var profile = JsonDocument.Parse(await userInfo.Content.ReadAsStringAsync());
+        var root = profile.RootElement;
         var sub = root.GetProperty("sub").GetString();
         var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
-        return sub is null ? null : new OAuthUserInfo(sub, email);
+        var displayName = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+        return sub is null ? null : new OAuthUserInfo(sub, email, displayName);
     }
 
     private static async Task<OAuthUserInfo?> VerifyFacebookAsync(HttpClient client, string token)
     {
-        var resp = await client.GetAsync($"https://graph.facebook.com/me?fields=id,email&access_token={Uri.EscapeDataString(token)}");
+        var resp = await client.GetAsync($"https://graph.facebook.com/me?fields=id,email,name&access_token={Uri.EscapeDataString(token)}");
         if (!resp.IsSuccessStatusCode)
             return null;
 
@@ -75,6 +83,7 @@ public class OAuthVerifier(
         var root = doc.RootElement;
         var id = root.GetProperty("id").GetString();
         var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
-        return id is null ? null : new OAuthUserInfo(id, email);
+        var displayName = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+        return id is null ? null : new OAuthUserInfo(id, email, displayName);
     }
 }

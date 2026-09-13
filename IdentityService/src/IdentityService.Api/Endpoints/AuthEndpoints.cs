@@ -296,13 +296,19 @@ public static class AuthEndpoints
             if (info.Email is not null && await db.Users.AnyAsync(u => u.Email == info.Email))
                 return Results.Conflict(new ErrorResponse("email_already_linked_other_method", "Email nay da dang ky bang phuong thuc khac"));
 
+            // Ten Google/Facebook chi la gia tri KHOI TAO: nguoi dung doi tu do
+            // o Trang ca nhan. Fallback khi provider khong tra name hoac ten
+            // khong hop le theo quy tac Calli (qua dai/ky tu dieu khien).
+            var displayName = "Nguoi dung";
+            if (NicknamePolicy.TryNormalizeDisplayName(info.DisplayName, out var providerDisplayName))
+                displayName = providerDisplayName;
+
             var newUser = new User
             {
                 UserType = UserType.Registered,
                 Nickname = NicknamePolicy.CreateGeneratedNickname(),
-                // Khong lay email/OAuth provider lam ten cong khai. Frontend
-                // chuyen nguoi dung toi man chon ten hien thi ngay sau do.
-                DisplayName = "Nguoi dung",
+                // Chi lay ten profile, khong lay email lam ten cong khai.
+                DisplayName = displayName,
                 Email = null,
                 Status = UserStatus.Active,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -319,7 +325,7 @@ public static class AuthEndpoints
 
             var newTok = jwt.IssueToken(newUser);
             await kafka.PublishAuthEventAsync("register", newUser.Id, newUser.Email, "registered");
-            return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresDisplayName: true));
+            return Results.Ok(new OAuthSuccessResponse(newTok.AccessToken, UserResponse.FromEntity(newUser), IsNewUser: true, RequiresDisplayName: false));
         });
 
         // UC-05 buoc 1-2: Gui OTP qua email
