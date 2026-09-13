@@ -262,20 +262,20 @@ public static class AuthEndpoints
             return Results.Ok(new AuthSuccessResponse(token.AccessToken, UserResponse.FromEntity(user)));
         });
 
-        // UC-02/03/07/08: Dang nhap/Dang ky qua OAuth (Google/Facebook) - dung chung endpoint
+        // Dang nhap/Dang ky qua Google OAuth.
         auth.MapPost("/oauth/{provider}", async (
             string provider, OAuthRequest req, HttpContext http, IdentityDbContext db,
             JwtTokenService jwt, IOAuthVerifier verifier, OAuthAvatarDownloader avatarDownloader,
             KafkaProducerService kafka) =>
         {
-            if (provider is not ("google" or "facebook"))
-                return Results.BadRequest(new ErrorResponse("invalid_provider", "provider phai la google hoac facebook"));
+            if (provider != "google")
+                return Results.BadRequest(new ErrorResponse("invalid_provider", "provider phai la google"));
 
             var info = await verifier.VerifyAsync(provider, req.OauthToken);
             if (info is null)
                 return Results.Json(new ErrorResponse("invalid_oauth_token", "Khong xac thuc duoc oauthToken voi provider"), statusCode: 401);
 
-            var providerEnum = provider == "google" ? OAuthProvider.Google : OAuthProvider.Facebook;
+            var providerEnum = OAuthProvider.Google;
 
             var existingLink = await db.OAuthLinks
                 .Include(l => l.User)
@@ -299,7 +299,7 @@ public static class AuthEndpoints
             if (info.Email is not null && await db.Users.AnyAsync(u => u.Email == info.Email))
                 return Results.Conflict(new ErrorResponse("email_already_linked_other_method", "Email nay da dang ky bang phuong thuc khac"));
 
-            // Ten Google/Facebook chi la gia tri KHOI TAO: nguoi dung doi tu do
+            // Ten Google chi la gia tri KHOI TAO: nguoi dung doi tu do
             // o Trang ca nhan. Fallback khi provider khong tra name hoac ten
             // khong hop le theo quy tac Calli (qua dai/ky tu dieu khien).
             var displayName = "Nguoi dung";
@@ -324,17 +324,14 @@ public static class AuthEndpoints
                 LinkedAt = DateTimeOffset.UtcNow,
             });
 
-            // Chi Google dang cap URL avatar o luong nay. Tai ve va luu noi bo
+            // Google cap URL avatar o luong nay. Tai ve va luu noi bo
             // mot lan; that bai/qua 256 KB thi van tao tai khoan binh thuong.
-            if (provider == "google")
+            var avatar = await avatarDownloader.TryDownloadGoogleAsync(info.AvatarUrl, http.RequestAborted);
+            if (avatar is not null)
             {
-                var avatar = await avatarDownloader.TryDownloadGoogleAsync(info.AvatarUrl, http.RequestAborted);
-                if (avatar is not null)
-                {
-                    newUser.AvatarBytes = avatar.Bytes;
-                    newUser.AvatarMime = avatar.Mime;
-                    newUser.AvatarUpdatedAt = DateTimeOffset.UtcNow;
-                }
+                newUser.AvatarBytes = avatar.Bytes;
+                newUser.AvatarMime = avatar.Mime;
+                newUser.AvatarUpdatedAt = DateTimeOffset.UtcNow;
             }
 
             db.Users.Add(newUser);

@@ -25,8 +25,8 @@ export const authApi = {
     return identityHttp.post<AuthSuccessResponse>("/auth/guest", { displayName, deviceFingerprint });
   },
 
-  oauth: (provider: "google" | "facebook", oauthToken: string) =>
-    identityHttp.post<OAuthSuccessResponse>(`/auth/oauth/${provider}`, { oauthToken }),
+  oauth: (oauthToken: string) =>
+    identityHttp.post<OAuthSuccessResponse>("/auth/oauth/google", { oauthToken }),
 
   forgotPassword: (email: string) => identityHttp.post<void>("/auth/forgot-password", { email }),
 

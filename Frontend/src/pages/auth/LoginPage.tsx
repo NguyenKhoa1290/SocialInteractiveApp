@@ -6,9 +6,8 @@ import { useAuthStore } from "../../store/authStore";
 import { scheduleTokenRefresh } from "../../lib/tokenScheduler";
 import { extractApiError } from "../../lib/apiError";
 import { getGoogleAccessToken, isGoogleConfigured } from "../../lib/googleAuth";
-import { getFacebookAccessToken, isFacebookConfigured } from "../../lib/facebookAuth";
 import { AuthLayout, ErrorText, FieldGroupLabel } from "./AuthLayout";
-import { IconEye, IconFacebook, IconGoogle } from "./AuthIcons";
+import { IconEye, IconGoogle } from "./AuthIcons";
 import type { OAuthSuccessResponse } from "../../types/auth";
 
 export function LoginPage() {
@@ -46,12 +45,12 @@ export function LoginPage() {
     }
   }
 
-  async function handleOAuth(provider: "google" | "facebook") {
+  async function handleGoogleOAuth() {
     setError(null);
     setLoading(true);
     try {
-      const oauthToken = provider === "google" ? await getGoogleAccessToken() : await getFacebookAccessToken();
-      const { data } = await authApi.oauth(provider, oauthToken);
+      const oauthToken = await getGoogleAccessToken();
+      const { data } = await authApi.oauth(oauthToken);
       afterOAuthSuccess(data);
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 403 && err.response.data?.error === "account_locked") {
@@ -62,7 +61,7 @@ export function LoginPage() {
         setError("Email này đã được đăng ký bằng phương thức khác (email/mật khẩu hoặc provider khác)");
         return;
       }
-      setError(err instanceof Error ? err.message : `Đăng nhập ${provider} thất bại`);
+      setError(err instanceof Error ? err.message : "Đăng nhập Google thất bại");
     } finally {
       setLoading(false);
     }
@@ -115,23 +114,13 @@ export function LoginPage() {
           <div className="auth-social-row">
             <button
               type="button"
-              onClick={() => handleOAuth("google")}
+              onClick={handleGoogleOAuth}
               disabled={loading}
               className="auth-social-btn"
               aria-label="Đăng nhập với Google"
               title={isGoogleConfigured() ? "Đăng nhập với Google" : "Chưa cấu hình VITE_GOOGLE_CLIENT_ID trong .env"}
             >
               <IconGoogle />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOAuth("facebook")}
-              disabled={loading}
-              className="auth-social-btn"
-              aria-label="Đăng nhập với Facebook"
-              title={isFacebookConfigured() ? "Đăng nhập với Facebook" : "Chưa cấu hình VITE_FACEBOOK_APP_ID trong .env"}
-            >
-              <IconFacebook />
             </button>
           </div>
         </div>

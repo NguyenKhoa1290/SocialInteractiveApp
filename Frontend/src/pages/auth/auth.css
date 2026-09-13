@@ -193,7 +193,7 @@
   cursor: not-allowed;
 }
 
-/* Khoi mang xa hoi: nhan + hai nut tron can giua */
+/* Khoi dang nhap Google: nhan va nut tron can giua. */
 .auth-social-row {
   display: flex;
   justify-content: center;

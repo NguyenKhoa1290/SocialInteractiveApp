@@ -17,7 +17,7 @@ public interface IOAuthVerifier
     Task<OAuthUserInfo?> VerifyAsync(string provider, string oauthToken);
 }
 
-// Goi thang API cua Google/Facebook de xac thuc oauthToken tu client va lay
+// Goi Google de xac thuc oauthToken tu client va lay
 // provider_user_id + email - khong tu tao/tin token tu client ma khong verify.
 public class OAuthVerifier(
     IHttpClientFactory httpClientFactory,
@@ -32,7 +32,6 @@ public class OAuthVerifier(
             return provider switch
             {
                 "google" => await VerifyGoogleAsync(client, oauthToken, options.GoogleClientId),
-                "facebook" => await VerifyFacebookAsync(client, oauthToken),
                 _ => null,
             };
         }
@@ -74,17 +73,4 @@ public class OAuthVerifier(
         return sub is null ? null : new OAuthUserInfo(sub, email, displayName, avatarUrl);
     }
 
-    private static async Task<OAuthUserInfo?> VerifyFacebookAsync(HttpClient client, string token)
-    {
-        var resp = await client.GetAsync($"https://graph.facebook.com/me?fields=id,email,name&access_token={Uri.EscapeDataString(token)}");
-        if (!resp.IsSuccessStatusCode)
-            return null;
-
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
-        var root = doc.RootElement;
-        var id = root.GetProperty("id").GetString();
-        var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
-        var displayName = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-        return id is null ? null : new OAuthUserInfo(id, email, displayName, AvatarUrl: null);
-    }
 }
