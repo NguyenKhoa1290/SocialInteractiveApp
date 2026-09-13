@@ -16,6 +16,9 @@
     "RegisteredTokenExpiryMinutes": 60,
     "GuestTokenExpiryMinutes": 30
   },
+  "OAuth": {
+    "GoogleClientId": "<OAuth Web Client ID tu Google Cloud>"
+  },
   "Smtp": {
     "Host": "smtp.gmail.com",
     "Port": 587,

@@ -74,6 +74,9 @@ jobs:
             echo "VITE_CHAT_API_URL=https://chat.$D"
             echo "VITE_MEDIA_API_URL=https://media.$D"
             echo "VITE_ADMIN_API_URL=https://admin.$D"
+            # Client ID la dinh danh cong khai va se nam trong bundle trinh duyet.
+            # Khong phai App Secret, nen co the gan truc tiep luc build.
+            echo "VITE_GOOGLE_CLIENT_ID=783217342159-p5fhm8jlsi0ltrgs0t2u26gjuhm98vpv.apps.googleusercontent.com"
             echo EOF
           } >> "$GITHUB_OUTPUT"
 

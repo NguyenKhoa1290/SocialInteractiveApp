@@ -57,6 +57,10 @@ DB_PW = need("Db__Password")
 # build chu khong doc luc chay, doi o day ma khong build lai la vo nghia.
 PUBLIC_DOMAIN = "callimeet.com"
 
+# OAuth Web Client ID la dinh danh cong khai (khong phai Client Secret). Van
+# dua vao manifest Identity de backend chi nhan access token cap cho Calli.
+GOOGLE_CLIENT_ID = "783217342159-p5fhm8jlsi0ltrgs0t2u26gjuhm98vpv.apps.googleusercontent.com"
+
 def pub(sub=None):
     return f"https://{sub}.{PUBLIC_DOMAIN}" if sub else f"https://{PUBLIC_DOMAIN}"
 
@@ -714,6 +718,7 @@ SERVICES = [
     ("identity", 5194, [
         ("ConnectionStrings__IdentityDb", f"Host={data_host('identity-db')};Port=5432;Database=identity;Username=identity_admin;Password={DB_PW}"),
         ("Kafka__BootstrapServers", KAFKA_CONN), *CORS_ORIGINS, *RABBIT,
+        ("OAuth__GoogleClientId", GOOGLE_CLIENT_ID),
     ]),
     ("workspace", 5153, [
         ("ConnectionStrings__WorkspaceDb", f"Host={data_host('workspace-db')};Port=5432;Database=workspace;Username=workspace_admin;Password={DB_PW}"),

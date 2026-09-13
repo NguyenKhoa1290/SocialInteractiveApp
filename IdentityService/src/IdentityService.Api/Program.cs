@@ -30,6 +30,10 @@ var smtpOptions = builder.Configuration.GetSection("Smtp").Get<SmtpOptions>()
     ?? throw new InvalidOperationException("Thieu cau hinh Smtp trong appsettings");
 builder.Services.AddSingleton(smtpOptions);
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
+var oauthOptions = builder.Configuration.GetSection("OAuth").Get<OAuthOptions>()
+    ?? new OAuthOptions();
+builder.Services.AddSingleton(oauthOptions);
 builder.Services.AddSingleton<IOAuthVerifier, OAuthVerifier>();
 
 var kafkaOptions = builder.Configuration.GetSection("Kafka").Get<KafkaOptions>()
