@@ -17,6 +17,32 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
 
     private static string Cat(string s, int max) => s.Length <= max ? s : s[..max];
 
+    private static string? BlankToNull(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool ApplyEntry(IptvChannel channel, M3uEntry entry)
+    {
+        var changed = false;
+
+        void SetIfChanged(Action<string?> set, string? oldValue, string? newValue)
+        {
+            newValue = BlankToNull(newValue);
+            if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                return;
+            set(newValue);
+            changed = true;
+        }
+
+        SetIfChanged(v => channel.StreamUrl = v ?? "", channel.StreamUrl, entry.Url);
+        SetIfChanged(v => channel.ManifestType = v, channel.ManifestType, entry.ManifestType);
+        SetIfChanged(v => channel.LicenseType = v, channel.LicenseType, entry.LicenseType);
+        SetIfChanged(v => channel.LicenseKey = v, channel.LicenseKey, entry.LicenseKey);
+        SetIfChanged(v => channel.HttpReferrer = v, channel.HttpReferrer, entry.HttpReferrer);
+        SetIfChanged(v => channel.HttpUserAgent = v, channel.HttpUserAgent, entry.HttpUserAgent);
+
+        return changed;
+    }
+
     public sealed record KetQua(bool LaPlaylist, string? Loi, int Them, int CapNhat, int Xoa, int NhomMoi);
 
     public async Task<KetQua> NhapAsync(
@@ -94,11 +120,9 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
 
             if (theoTen.TryGetValue(khoa, out var daCo))
             {
-                if (!string.Equals(daCo.StreamUrl, entry.Url, StringComparison.Ordinal))
-                {
-                    daCo.StreamUrl = entry.Url;
+                if (ApplyEntry(daCo, entry))
                     capNhat++;
-                }
+
                 // Danh dau lai: kenh nay CO trong nguon. Lam vay thi nhung
                 // hang co truoc khi cot from_import ra doi (mac dinh false) tu
                 // duoc gan dung sau lan nhap dau tien.
@@ -112,6 +136,11 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
                 GroupId = nhom.Id,
                 ChannelName = tenKenh,
                 StreamUrl = entry.Url,
+                ManifestType = BlankToNull(entry.ManifestType),
+                LicenseType = BlankToNull(entry.LicenseType),
+                LicenseKey = BlankToNull(entry.LicenseKey),
+                HttpReferrer = BlankToNull(entry.HttpReferrer),
+                HttpUserAgent = BlankToNull(entry.HttpUserAgent),
                 FromImport = true,
             };
             db.IptvChannels.Add(moi);

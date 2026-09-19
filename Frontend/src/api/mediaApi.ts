@@ -168,7 +168,16 @@ export const iptvApi = {
 
   // Moi nguoi trong phong TU fetch stream rieng (UC-37 buoc 4).
   getStreamUrl: (meetingId: number, channelId: number) =>
-    mediaHttp.get<{ streamUrl: string; audioTrack: string | null }>(
+    mediaHttp.get<{
+      streamUrl: string;
+      audioTrack: string | null;
+      manifestType: string | null;
+      licenseType: string | null;
+      licenseKey: string | null;
+      httpReferrer: string | null;
+      httpUserAgent: string | null;
+      clearKey: string | null;
+    }>(
       `/meetings/${meetingId}/mini-app/iptv/stream-url`,
       { params: { channelId } },
     ),

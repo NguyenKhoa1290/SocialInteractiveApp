@@ -129,7 +129,16 @@ public static class MiniAppEndpoints
                 g.Id,
                 g.GroupName,
                 [.. channels.Where(c => c.GroupId == g.Id)
-                    .Select(c => new IptvChannelResponse(c.Id, c.ChannelName, c.StreamUrl, c.AudioTrack))])));
+                    .Select(c => new IptvChannelResponse(
+                        c.Id,
+                        c.ChannelName,
+                        c.StreamUrl,
+                        c.AudioTrack,
+                        c.ManifestType,
+                        c.LicenseType,
+                        c.LicenseKey,
+                        c.HttpReferrer,
+                        c.HttpUserAgent))])));
         });
 
         group.MapPost("/channel-lists/{listId:long}/groups", async (

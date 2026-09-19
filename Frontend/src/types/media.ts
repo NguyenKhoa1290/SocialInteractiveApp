@@ -141,6 +141,11 @@ export interface IptvChannel {
   channelName: string;
   streamUrl: string;
   audioTrack: string | null;
+  manifestType: string | null;
+  licenseType: string | null;
+  licenseKey: string | null;
+  httpReferrer: string | null;
+  httpUserAgent: string | null;
 }
 
 export interface IptvChannelGroup {

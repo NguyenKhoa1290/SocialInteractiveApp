@@ -93,7 +93,16 @@ public record IptvChannelListResponse(long Id, string Name, DateTimeOffset Creat
 
 public record CreateChannelGroupRequest(string GroupName);
 
-public record IptvChannelResponse(long Id, string ChannelName, string StreamUrl, string? AudioTrack);
+public record IptvChannelResponse(
+    long Id,
+    string ChannelName,
+    string StreamUrl,
+    string? AudioTrack,
+    string? ManifestType,
+    string? LicenseType,
+    string? LicenseKey,
+    string? HttpReferrer,
+    string? HttpUserAgent);
 public record IptvChannelGroupResponse(long Id, string GroupName, IptvChannelResponse[] Channels);
 
 public record CreateChannelRequest(string ChannelName, string StreamUrl, string? AudioTrack);
@@ -113,7 +122,15 @@ public record ImportPlaylistResponse(bool IsPlaylist, int Imported, int Updated,
 
 public record MiniAppStartRequest(string? AppId);
 
-public record StreamUrlResponse(string StreamUrl, string? AudioTrack);
+public record StreamUrlResponse(
+    string StreamUrl,
+    string? AudioTrack,
+    string? ManifestType,
+    string? LicenseType,
+    string? LicenseKey,
+    string? HttpReferrer,
+    string? HttpUserAgent,
+    string? ClearKey);
 
 public record ResolveDirectRequest(string Url, string? Name);
 

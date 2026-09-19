@@ -36,6 +36,11 @@ public class IptvChannel
     public string ChannelName { get; set; } = string.Empty;
     public string StreamUrl { get; set; } = string.Empty;
     public string? AudioTrack { get; set; }
+    public string? ManifestType { get; set; }
+    public string? LicenseType { get; set; }
+    public string? LicenseKey { get; set; }
+    public string? HttpReferrer { get; set; }
+    public string? HttpUserAgent { get; set; }
 
     // Den tu link M3U (true) hay nguoi dung tu go tay (false). Chi bo lam moi
     // dung toi: no chi duoc xoa kenh from_import bien mat khoi nguon.

@@ -46,6 +46,11 @@ public class MiniAppDbContext(DbContextOptions<MiniAppDbContext> options) : DbCo
             entity.Property(c => c.ChannelName).HasColumnName("channel_name");
             entity.Property(c => c.StreamUrl).HasColumnName("stream_url");
             entity.Property(c => c.AudioTrack).HasColumnName("audio_track");
+            entity.Property(c => c.ManifestType).HasColumnName("manifest_type");
+            entity.Property(c => c.LicenseType).HasColumnName("license_type");
+            entity.Property(c => c.LicenseKey).HasColumnName("license_key");
+            entity.Property(c => c.HttpReferrer).HasColumnName("http_referrer");
+            entity.Property(c => c.HttpUserAgent).HasColumnName("http_user_agent");
             entity.Property(c => c.FromImport).HasColumnName("from_import");
         });
     }

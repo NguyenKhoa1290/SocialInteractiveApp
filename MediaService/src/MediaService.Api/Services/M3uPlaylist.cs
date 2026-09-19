@@ -2,7 +2,15 @@ using System.Text.RegularExpressions;
 
 namespace MediaService.Api.Services;
 
-public record M3uEntry(string Name, string Url, string? GroupTitle);
+public record M3uEntry(
+    string Name,
+    string Url,
+    string? GroupTitle,
+    string? ManifestType,
+    string? LicenseType,
+    string? LicenseKey,
+    string? HttpReferrer,
+    string? HttpUserAgent);
 
 public enum M3uKind
 {
@@ -46,6 +54,14 @@ public static class M3uPlaylist
         @"group-title\s*=\s*""(?<v>[^""]*)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex Kodiprop = new(
+        @"^#KODIPROP:(?<key>[^=]+)=(?<value>.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ExtVlcOpt = new(
+        @"^#EXTVLCOPT:(?<key>[^=]+)=(?<value>.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     public static M3uKind Detect(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -75,7 +91,21 @@ public static class M3uPlaylist
         var entries = new List<M3uEntry>();
         string? pendingName = null;
         string? pendingGroup = null;
+        string? pendingManifestType = null;
+        string? pendingLicenseType = null;
+        string? pendingLicenseKey = null;
+        string? pendingHttpReferrer = null;
+        string? pendingHttpUserAgent = null;
         string? extGrp = null; // #EXTGRP ap cho cac muc PHIA SAU no (dinh dang cu)
+
+        void ResetPendingMetadata()
+        {
+            pendingManifestType = null;
+            pendingLicenseType = null;
+            pendingLicenseKey = null;
+            pendingHttpReferrer = null;
+            pendingHttpUserAgent = null;
+        }
 
         foreach (var raw in content.Split('\n'))
         {
@@ -93,11 +123,40 @@ public static class M3uPlaylist
 
                 var m = ExtInf.Match(line);
                 if (!m.Success)
-                    continue; // #EXTVLCOPT, #EXTM3U, chu thich... - bo qua
+                {
+                    var kodi = Kodiprop.Match(line);
+                    if (kodi.Success && pendingName is not null)
+                    {
+                        var key = kodi.Groups["key"].Value.Trim().ToLowerInvariant();
+                        var value = kodi.Groups["value"].Value.Trim();
+                        if (key.EndsWith("manifest_type", StringComparison.Ordinal))
+                            pendingManifestType = value;
+                        else if (key.EndsWith("license_type", StringComparison.Ordinal))
+                            pendingLicenseType = value;
+                        else if (key.EndsWith("license_key", StringComparison.Ordinal))
+                            pendingLicenseKey = AbsolutizeAny(value, baseUrl);
+                        continue;
+                    }
+
+                    var vlc = ExtVlcOpt.Match(line);
+                    if (vlc.Success && pendingName is not null)
+                    {
+                        var key = vlc.Groups["key"].Value.Trim().ToLowerInvariant();
+                        var value = vlc.Groups["value"].Value.Trim();
+                        if (key is "http-referrer" or "http-referer")
+                            pendingHttpReferrer = AbsolutizeAny(value, baseUrl);
+                        else if (key is "http-user-agent")
+                            pendingHttpUserAgent = value;
+                        continue;
+                    }
+
+                    continue; // #EXTM3U, chu thich... - bo qua
+                }
 
                 pendingName = m.Groups["name"].Value.Trim();
                 var g = GroupTitleAttr.Match(m.Groups["attrs"].Value);
                 pendingGroup = g.Success ? g.Groups["v"].Value.Trim() : null;
+                ResetPendingMetadata();
                 continue;
             }
 
@@ -111,10 +170,16 @@ public static class M3uPlaylist
                 entries.Add(new M3uEntry(
                     pendingName.Length > 0 ? pendingName : url,
                     url,
-                    string.IsNullOrWhiteSpace(pendingGroup) ? extGrp : pendingGroup));
+                    string.IsNullOrWhiteSpace(pendingGroup) ? extGrp : pendingGroup,
+                    pendingManifestType,
+                    pendingLicenseType,
+                    pendingLicenseKey,
+                    pendingHttpReferrer,
+                    pendingHttpUserAgent));
 
             pendingName = null;
             pendingGroup = null;
+            ResetPendingMetadata();
         }
 
         return entries;
@@ -131,5 +196,21 @@ public static class M3uPlaylist
             return combined.ToString();
 
         return null;
+    }
+
+    private static string? AbsolutizeAny(string value, string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var abs))
+            return abs.Scheme is "http" or "https" ? abs.ToString() : value;
+
+        if (!string.IsNullOrEmpty(baseUrl) &&
+            Uri.TryCreate(new Uri(baseUrl), value, out var combined) &&
+            combined.Scheme is "http" or "https")
+            return combined.ToString();
+
+        return value;
     }
 }

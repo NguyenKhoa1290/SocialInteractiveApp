@@ -7,7 +7,7 @@ import { useIptvSlot } from "./IptvPlayerHost";
 import { AddPlaylistDialog } from "../miniapp/AddPlaylistDialog";
 import { useAuthStore } from "../../store/authStore";
 import { decodeJwtIsAdmin } from "../../lib/jwt";
-import type { IptvChannelGroup, IptvChannelList } from "../../types/media";
+import type { IptvChannel, IptvChannelGroup, IptvChannelList } from "../../types/media";
 import { doanLoaiLuong, type TuyChonPhat } from "./IptvPlayer";
 
 // Luong IPTV theo dung bon frame di NGANG trong ban thiet ke:
@@ -34,8 +34,8 @@ type KetQuaQuet = {
 // Doc manifest de biet luong co nhung do phan giai va nhung luong tieng nao.
 //
 // Moi dinh dang mot duong doc rieng - xem doanLoaiLuong trong IptvPlayer.
-function quetLuong(url: string): Promise<KetQuaQuet> {
-  const loai = doanLoaiLuong(url);
+function quetLuong(url: string, manifestType?: string | null): Promise<KetQuaQuet> {
+  const loai = doanLoaiLuong(url, manifestType);
   if (loai === "dash") return quetDash(url);
   // FLV, MPEG-TS va file am thanh deu la MOT luong duy nhat: khong co nhieu muc
   // chat luong hay nhieu track tieng de liet ke. Tra ve rong chu khong bao loi
@@ -188,7 +188,12 @@ export function IptvChannelPicker({
   const [dangNap, setDangNap] = useState(true);
   const [loi, setLoi] = useState<string | null>(null);
 
-  const [kenhChon, setKenhChon] = useState<{ id: number | null; ten: string; url: string | null } | null>(null);
+  const [kenhChon, setKenhChon] = useState<{
+    id: number | null;
+    ten: string;
+    url: string | null;
+    manifestType?: string | null;
+  } | null>(null);
   const [quet, setQuet] = useState<KetQuaQuet | null>(null);
   const [dangQuet, setDangQuet] = useState(false);
   const [loiQuet, setLoiQuet] = useState<string | null>(null);
@@ -225,8 +230,8 @@ export function IptvChannelPicker({
     }
   }
 
-  async function chonKenh(id: number, ten: string) {
-    setKenhChon({ id, ten, url: null });
+  async function chonKenh(kenh: IptvChannel) {
+    setKenhChon({ id: kenh.id, ten: kenh.channelName, url: null, manifestType: kenh.manifestType });
     setQuet(null);
     setLoiQuet(null);
     setBuoc("tuychinh");
@@ -239,14 +244,16 @@ export function IptvChannelPicker({
       // Mo popup THANG vao buoc dang phat thi khong co kenhChon - lay luon
       // link ma trinh phat dang chay.
       let url = kenhChon ? kenhChon.url : (slot?.streamUrl ?? null);
+      let manifestType = kenhChon?.manifestType;
       if (!url && kenhChon && kenhChon.id !== null) {
         // Lay URL da ky cua kenh - cung duong ma trinh phat dung.
         const res = await iptvApi.getStreamUrl(meetingId, kenhChon.id);
         url = res.data.streamUrl;
-        setKenhChon({ ...kenhChon, url });
+        manifestType = res.data.manifestType;
+        setKenhChon({ ...kenhChon, url, manifestType });
       }
       if (!url) throw new Error("Chưa có link để quét.");
-      setQuet(await quetLuong(url));
+      setQuet(await quetLuong(url, manifestType));
     } catch (err) {
       setLoiQuet(err instanceof Error && !("response" in err) ? err.message : extractApiError(err, "Không quét được"));
     } finally {
@@ -279,7 +286,7 @@ export function IptvChannelPicker({
         if (!streamUrl && kenhChon && kenhChon.id !== null) {
           const res = await iptvApi.getStreamUrl(meetingId, kenhChon.id);
           streamUrl = res.data.streamUrl;
-          setKenhChon({ ...kenhChon, url: streamUrl });
+          setKenhChon({ ...kenhChon, url: streamUrl, manifestType: res.data.manifestType });
         }
         if (!streamUrl) throw new Error("Cần nhập KID hoặc có link kênh để đọc KID tự động.");
         const mpdRes = await fetch(streamUrl);
@@ -584,7 +591,7 @@ export function IptvChannelPicker({
                     key={c.id}
                     type="button"
                     className="mpop-o-nut mpop-o-nut-hep"
-                    onClick={() => void chonKenh(c.id, c.channelName)}
+                    onClick={() => void chonKenh(c)}
                   >
                     {c.channelName}
                   </button>

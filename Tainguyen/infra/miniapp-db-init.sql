@@ -60,5 +60,12 @@ CREATE TABLE iptv_channels (
   -- thi nguoi dung mat kenh ma khong hieu vi sao - ca hai deu te hon la cho
   -- cot dai tuy y.
   stream_url     TEXT NOT NULL,
-  audio_track    VARCHAR(100)
+  audio_track    VARCHAR(100),
+  -- Metadata di kem playlist M3U mo rong (#KODIPROP/#EXTVLCOPT). Tat ca
+  -- nullable de kenh cu va kenh go tay khong bi anh huong.
+  manifest_type   VARCHAR(20),
+  license_type    VARCHAR(40),
+  license_key     TEXT,
+  http_referrer   TEXT,
+  http_user_agent TEXT
 );

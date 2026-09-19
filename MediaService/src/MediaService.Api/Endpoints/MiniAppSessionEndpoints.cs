@@ -42,9 +42,10 @@ public static class MiniAppSessionEndpoints
         }).RequireAuthorization();
 
         app.MapGet("/meetings/{meetingId:long}/mini-app/iptv/stream-url", async (
-            long meetingId, long channelId, ClaimsPrincipal principal, MediaDbContext db, MiniAppDbContext miniAppDb) =>
+            long meetingId, long channelId, ClaimsPrincipal principal, MediaDbContext db,
+            MiniAppDbContext miniAppDb, ClearKeyResolver clearKeyResolver, CancellationToken ct) =>
         {
-            var meeting = await db.Meetings.FindAsync(meetingId);
+            var meeting = await db.Meetings.FindAsync([meetingId], ct);
             if (meeting is null)
                 return Results.NotFound();
 
@@ -55,15 +56,24 @@ public static class MiniAppSessionEndpoints
             // duoc.
             var userId = principal.GetUserId()!.Value;
             var isInRoom = meeting.HostId == userId || await db.MeetingParticipants
-                .AnyAsync(p => p.MeetingId == meetingId && p.UserId == userId && p.LeftAt == null);
+                .AnyAsync(p => p.MeetingId == meetingId && p.UserId == userId && p.LeftAt == null, ct);
             if (!isInRoom)
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong o trong phong hop nay"), statusCode: 403);
 
-            var channel = await miniAppDb.IptvChannels.FindAsync(channelId);
+            var channel = await miniAppDb.IptvChannels.FindAsync([channelId], ct);
             if (channel is null)
                 return Results.NotFound();
 
-            return Results.Ok(new StreamUrlResponse(channel.StreamUrl, channel.AudioTrack));
+            var clearKey = await clearKeyResolver.ResolveAsync(channel, ct);
+            return Results.Ok(new StreamUrlResponse(
+                channel.StreamUrl,
+                channel.AudioTrack,
+                channel.ManifestType,
+                channel.LicenseType,
+                channel.LicenseKey,
+                channel.HttpReferrer,
+                channel.HttpUserAgent,
+                clearKey));
         }).RequireAuthorization();
 
         // Phat mot link dan thang vao, khong qua danh sach kenh da luu.

@@ -65,6 +65,15 @@ export type TuyChonPhat = {
   amLuong: number;
 };
 
+export type IptvStreamMetadata = {
+  manifestType?: string | null;
+  licenseType?: string | null;
+  licenseKey?: string | null;
+  httpReferrer?: string | null;
+  httpUserAgent?: string | null;
+  clearKey?: string | null;
+};
+
 export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   mucChatLuong: -1,
   luongAmThanh: -1,
@@ -107,7 +116,14 @@ function loaiTheoDuoi(duoiCanKiem: string): LoaiLuong | null {
   return null;
 }
 
-export function doanLoaiLuong(url: string): LoaiLuong {
+export function doanLoaiLuong(url: string, manifestType?: string | null): LoaiLuong {
+  const manifest = manifestType?.trim().toLowerCase();
+  if (manifest === "dash") return "dash";
+  if (manifest === "hls") return "hls";
+  const loaiTheoManifest = loaiTheoDuoi(manifest ?? "");
+  if (loaiTheoManifest === "dash" || loaiTheoManifest === "hls")
+    return loaiTheoManifest;
+
   // Cat query va fragment TRUOC khi nhin duoi tep: rat nhieu link IPTV co
   // dang .../live.flv?token=<chuoi rat dai> - nhin ca chuoi thi duoi khong
   // bao gio nam o cuoi.
@@ -163,6 +179,14 @@ function tachClearKey(khoa: string): { kid: string; key: string } | null {
   return { kid: hexToBase64Url(m[1]), key: hexToBase64Url(m[2]) };
 }
 
+function clearKeyTuMetadata(metadata?: IptvStreamMetadata | null): string {
+  const resolved = metadata?.clearKey?.trim();
+  if (resolved) return resolved;
+
+  const raw = metadata?.licenseKey?.trim();
+  return raw && tachClearKey(raw) ? raw : "";
+}
+
 // Nhung gi mot trinh giai ma NAP DONG phai cung cap cho phan chung: watchdog
 // goi napLai khi luong treo, effect doi chat luong goi hai ham dat, va luc
 // thao thi goi thao. hls.js khong di qua day - no da co duong rieng trong
@@ -196,12 +220,14 @@ export function IptvPlayer({
   preferredAudioTrack,
   tenKenh,
   tuyChon,
+  metadata,
 }: {
   src: string;
   preferredAudioTrack?: string | null;
   // Ten kenh - lam nhan cho khung "Mau file am thanh dang phat".
   tenKenh?: string | null;
   tuyChon?: TuyChonPhat;
+  metadata?: IptvStreamMetadata | null;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -213,7 +239,7 @@ export function IptvPlayer({
   const [message, setMessage] = useState<string | null>(null);
   // Luong nay la am thanh thuan: khung chieu khong co hinh (videoWidth=0) nen
   // phu "Mau file am thanh dang phat" len tren the <video> den.
-  const laAmThanh = doanLoaiLuong(src) === "audio";
+  const laAmThanh = doanLoaiLuong(src, metadata?.manifestType) === "audio";
   // Nut tron trong khung am thanh la play/pause that - theo dung trang thai
   // paused cua the <video> (co the doi do watchdog nap lai, do nguoi bam...).
   const [dangTamDung, setDangTamDung] = useState(false);
@@ -327,7 +353,7 @@ export function IptvPlayer({
       }, Math.min(1000 * recoveries, 8000));
     };
 
-    const loai = doanLoaiLuong(src);
+    const loai = doanLoaiLuong(src, metadata?.manifestType);
 
     // Ap lai lua chon cua nguoi xem sau khi engine nap xong. Phai lam o day
     // chu khong o effect doi chat luong: effect do chay ngay, con engine thi
@@ -342,7 +368,8 @@ export function IptvPlayer({
       // Khi co cap KID:KEY, dung Shaka Player thay dashjs: Shaka giai ma duoc
       // noi dung CENC khai bao Widevine bang raw ClearKey (dashjs thi khong).
       // Xem tham khao: thamkhao/video-direct/player.html.
-      const ck = tuyChon?.khoaClearKey ? tachClearKey(tuyChon.khoaClearKey) : null;
+      const khoaClearKey = tuyChon?.khoaClearKey.trim() || clearKeyTuMetadata(metadata);
+      const ck = khoaClearKey ? tachClearKey(khoaClearKey) : null;
 
       if (ck) {
         // ========== SHAKA PLAYER (co key DRM) ==========
@@ -630,7 +657,7 @@ export function IptvPlayer({
     };
     // khoaClearKey nam trong deps vi doi key la phai dung player lai tu dau
     // (Shaka vs dashjs). Cung la trigger cho "Phat lai" (MeetingRoomPage).
-  }, [src, generation, reload, tuyChon?.khoaClearKey]);
+  }, [src, generation, reload, tuyChon?.khoaClearKey, metadata?.manifestType, metadata?.clearKey, metadata?.licenseKey]);
 
   // Doi muc chat luong / luong tieng GIUA CHUNG: chi gan lai hai con so, KHONG
   // dung Hls lai. Dung lai la mat vai giay dem va video giat ve dau.

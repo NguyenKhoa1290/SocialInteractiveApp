@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { iptvApi } from "../../api/mediaApi";
-import { IptvPlayer, type TuyChonPhat } from "./IptvPlayer";
+import { IptvPlayer, type IptvStreamMetadata, type TuyChonPhat } from "./IptvPlayer";
 import { extractApiError } from "../../lib/apiError";
 
 // Giu MOT trinh phat IPTV duy nhat cho ca phien hop.
@@ -85,11 +85,13 @@ export function IptvPlayerHost({
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [audioTrack, setAudioTrack] = useState<string | null>(null);
+  const [metadata, setMetadata] = useState<IptvStreamMetadata | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Doi kenh la doi han luong - phai bo trinh phat cu di, khong tai cho.
     setStreamUrl(null);
+    setMetadata(null);
     setError(null);
 
     // Link dan thang: URL da nam san trong trang thai trinh bay, khong ton
@@ -97,6 +99,7 @@ export function IptvPlayerHost({
     if (channelUrl) {
       setStreamUrl(channelUrl);
       setAudioTrack(null);
+      setMetadata(null);
       return;
     }
 
@@ -109,6 +112,14 @@ export function IptvPlayerHost({
         if (cancelled) return;
         setStreamUrl(res.data.streamUrl);
         setAudioTrack(res.data.audioTrack);
+        setMetadata({
+          manifestType: res.data.manifestType,
+          licenseType: res.data.licenseType,
+          licenseKey: res.data.licenseKey,
+          httpReferrer: res.data.httpReferrer,
+          httpUserAgent: res.data.httpUserAgent,
+          clearKey: res.data.clearKey,
+        });
       })
       .catch((err) => {
         if (!cancelled) setError(extractApiError(err, "Không lấy được luồng phát"));
@@ -166,7 +177,13 @@ export function IptvPlayerHost({
       {children}
       {streamUrl &&
         createPortal(
-          <IptvPlayer src={streamUrl} preferredAudioTrack={audioTrack} tenKenh={channelName} tuyChon={tuyChon} />,
+          <IptvPlayer
+            src={streamUrl}
+            preferredAudioTrack={audioTrack}
+            tenKenh={channelName}
+            tuyChon={tuyChon}
+            metadata={metadata}
+          />,
           holderRef.current,
         )}
     </IptvSlotContext.Provider>
