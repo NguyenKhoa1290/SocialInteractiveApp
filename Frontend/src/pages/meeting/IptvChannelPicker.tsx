@@ -45,6 +45,12 @@ function quetLuong(url: string, manifestType?: string | null): Promise<KetQuaQue
   return quetHls(url);
 }
 
+function layClearKeyTuMetadata(clearKey?: string | null, licenseKey?: string | null): string {
+  const direct = (clearKey || licenseKey || "").trim();
+  const m = direct.match(/([0-9a-fA-F]{32}):([0-9a-fA-F]{32})/);
+  return m ? `${m[1].toLowerCase()}:${m[2].toLowerCase()}` : "";
+}
+
 // DASH: dashjs can mot the <video> de khoi tao, nhung khong can the do nam
 // trong trang - dung mot the roi, khong tu phat, doc xong la huy.
 function quetDash(url: string): Promise<KetQuaQuet> {
@@ -198,6 +204,15 @@ export function IptvChannelPicker({
   const [dangQuet, setDangQuet] = useState(false);
   const [loiQuet, setLoiQuet] = useState<string | null>(null);
 
+  const tuyChonRef = useRef(tuyChon);
+  useEffect(() => {
+    tuyChonRef.current = tuyChon;
+  }, [tuyChon]);
+
+  const [dangNapKenh, setDangNapKenh] = useState(false);
+  const [loiNapKenh, setLoiNapKenh] = useState<string | null>(null);
+  const kenhDangNapRef = useRef<number | null>(null);
+
   // Trang thai khi dang lay key tu Key API (xem thamkhao/video-direct/player.html)
   const [dangLayKey, setDangLayKey] = useState(false);
   const [loiLayKey, setLoiLayKey] = useState<string | null>(null);
@@ -231,10 +246,33 @@ export function IptvChannelPicker({
   }
 
   async function chonKenh(kenh: IptvChannel) {
+    kenhDangNapRef.current = kenh.id;
     setKenhChon({ id: kenh.id, ten: kenh.channelName, url: null, manifestType: kenh.manifestType });
     setQuet(null);
     setLoiQuet(null);
+    setLoiNapKenh(null);
     setBuoc("tuychinh");
+    setDangNapKenh(true);
+    try {
+      const res = await iptvApi.getStreamUrl(meetingId, kenh.id);
+      if (kenhDangNapRef.current !== kenh.id) return;
+      const khoaClearKey = layClearKeyTuMetadata(res.data.clearKey, res.data.licenseKey);
+      setKenhChon((hienTai) =>
+        hienTai?.id === kenh.id
+          ? {
+              ...hienTai,
+              url: res.data.streamUrl,
+              manifestType: res.data.manifestType,
+            }
+          : hienTai,
+      );
+      onDoiTuyChon({ ...tuyChonRef.current, khoaClearKey });
+    } catch (err) {
+      if (kenhDangNapRef.current !== kenh.id) return;
+      setLoiNapKenh(extractApiError(err, "KhÃ´ng láº¥y Ä‘Æ°á»£c thÃ´ng tin kÃªnh"));
+    } finally {
+      if (kenhDangNapRef.current === kenh.id) setDangNapKenh(false);
+    }
   }
 
   async function bamQuet() {
@@ -366,6 +404,8 @@ export function IptvChannelPicker({
       <p className="mpop-nhan-nho">
         <b>Tùy chỉnh kênh: {kenhChon?.ten ?? dangPhat}</b>
       </p>
+      {dangNapKenh && <p className="mpop-ghi-chu">Đang lấy link phát và key giải mã của kênh…</p>}
+      {loiNapKenh && <p className="mpop-loi">{loiNapKenh}</p>}
       <button type="button" className="mpop-o-nut" onClick={() => void bamQuet()} disabled={dangQuet}>
         {dangQuet ? "Đang quét…" : "Quét thông tin"}
       </button>
@@ -609,6 +649,7 @@ export function IptvChannelPicker({
               <button
                 type="button"
                 className="mpop-pill mpop-pill-teal"
+                disabled={dangNapKenh}
                 onClick={() => {
                   if (kenhChon?.id != null) onPick(kenhChon.id, kenhChon.ten);
                   setBuoc("dangphat");
