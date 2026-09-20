@@ -1,0 +1,6 @@
+ALTER TABLE iptv_channels
+  ADD COLUMN IF NOT EXISTS manifest_type VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS license_type VARCHAR(40),
+  ADD COLUMN IF NOT EXISTS license_key TEXT,
+  ADD COLUMN IF NOT EXISTS http_referrer TEXT,
+  ADD COLUMN IF NOT EXISTS http_user_agent TEXT;
