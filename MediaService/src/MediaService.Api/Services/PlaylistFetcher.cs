@@ -35,11 +35,9 @@ public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> log
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan PeekTimeout = TimeSpan.FromSeconds(8);
 
-    // Nhieu nguon IPTV tu choi client khong phai trinh duyet. Khong gia mao
-    // gi ca - chi la khai bao mot UA thong thuong thay vi de trong, neu
-    // khong thi mot link nguoi dung xem duoc trong Chrome lai bi bao la hong.
-    private const string UserAgent =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+    // Nhieu nguon IPTV doi noi dung theo client. Dung UA kieu IPTV player de
+    // tranh bi tra ve trang/clip gioi thieu thay vi file M3U.
+    private const string UserAgent = "VLC/3.0.20 LibVLC/3.0.20";
 
     // Doc vua du de PHAN LOAI roi dung han.
     //
@@ -71,6 +69,8 @@ public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> log
 
             using var req = new HttpRequestMessage(HttpMethod.Get, uri);
             req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+            req.Headers.TryAddWithoutValidation("Accept", "application/x-mpegURL, audio/mpegurl, application/vnd.apple.mpegurl, text/plain, */*");
+            req.Headers.TryAddWithoutValidation("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7");
 
             using var resp = await httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             if (!resp.IsSuccessStatusCode)
