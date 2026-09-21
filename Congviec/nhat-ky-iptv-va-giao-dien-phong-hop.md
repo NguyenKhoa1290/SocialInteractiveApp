@@ -373,3 +373,87 @@ hoặc các chế độ họp không có Mini App.
 **Phát hành.** Commit `f8373d7` — `Resize mobile mini app wrapper`. Lint,
 TypeScript (`tsc --noEmit`), production build, CI và pipeline build/deploy đều
 thành công; CSS public là `index-BsS9Eb8V.css`.
+
+---
+
+## 11. IPTV: nhập playlist `livesport`, User-Agent player và tự điền ClearKey
+
+**Ngày ghi:** 21/09/2026.
+
+### 11.1. Lỗi import playlist `https://livesport.io.vn/easport`
+
+Triệu chứng trên frontend là request import trả `422` với thông báo:
+“Nội dung tải về không phải playlist M3U”. Ban đầu nhìn giống lỗi định dạng
+playlist, nhưng kiểm tra bằng `curl`/`wget` từ cả máy local và pod `media` cho
+thấy URL này có trả M3U hợp lệ, khoảng 55KB và 151 dòng `#EXTINF`.
+
+Nguyên nhân thật là `PlaylistFetcher` dùng User-Agent kiểu Chrome. Với UA đó,
+nguồn `livesport.io.vn` chuyển hướng tiếp sang `https://livesport.io.vn/spo.mp4`
+và trả `Content-Type: video/mp4`, nên backend đọc được nội dung MP4 rồi phân
+loại `Unknown`. Với UA kiểu IPTV player/VLC, nguồn trả đúng
+`/ok/m3u.php` và `Content-Type: application/x-mpegURL`.
+
+**Thay đổi đã làm.**
+
+- Đổi User-Agent của `PlaylistFetcher` sang `VLC/3.0.20 LibVLC/3.0.20`.
+- Thêm header `Accept` ưu tiên M3U/HLS/text.
+- Build `MediaService.Api` thành công.
+- Push commit `9a0d82a` — `Sửa tải playlist IPTV theo UA player`.
+- GitHub Actions `CI` và `Build & Push images` đều thành công.
+- Restart deployment `media`; pod mới ready.
+- Test lại trong pod `media`: nguồn trả `application/x-mpegURL`, 55.219 bytes,
+  151 mục `#EXTINF`.
+
+### 11.2. Tự điền `KID:KEY` khi chọn kênh IPTV
+
+Backend trước đó đã có endpoint
+`GET /meetings/{meetingId}/mini-app/iptv/stream-url` trả metadata kênh, gồm
+`manifestType`, `licenseType`, `licenseKey` và `clearKey`. Tuy nhiên popup chọn
+kênh chưa tự dùng dữ liệu này để đổ vào ô `KID:KEY`.
+
+**Thay đổi đã làm.**
+
+- Khi bấm chọn một kênh trong `IptvChannelPicker`, frontend gọi
+  `iptvApi.getStreamUrl(meetingId, channelId)` ngay ở bước tuỳ chỉnh.
+- Nếu response có `clearKey` hoặc `licenseKey` dạng
+  `32-hex-kid:32-hex-key`, ô `KID:KEY` được tự điền.
+- Nếu kênh không có key, ô `KID:KEY` được xoá để tránh dính key cũ sang kênh
+  mới.
+- Có guard để khi người dùng bấm nhanh nhiều kênh, response của kênh cũ không
+  ghi đè kênh mới.
+- Nút “Bắt đầu phát” bị disable trong lúc frontend đang lấy metadata/key.
+- Build frontend production thành công.
+- Push commit `e2a84a5` — `Tự điền ClearKey khi chọn kênh IPTV`.
+- GitHub Actions thành công; đã restart deployment `frontend`, pod mới ready.
+
+### 11.3. Kết luận riêng với các kênh SkySport trong playlist này
+
+Kiểm tra các dòng liên quan trong playlist:
+
+- `SKYSPORT EPL` trỏ tới `https://livesport.io.vn/ok/apo.php?id=skyepl`.
+- `SKY SPORTS EPL` trỏ tới `https://livesport.io.vn/ok/iptv.php?id=skyepl`.
+
+Kết quả thử nguồn:
+
+- Bản `apo.php?id=skyepl` trả HLS media playlist, nhưng các segment bên trong
+  là `http://apolonbox.online:80/...ts`.
+- Bản `iptv.php?id=skyepl` redirect sang luồng MPEG-TS HTTP trực tiếp
+  (`video/mp2t`), không thấy metadata ClearKey/DASH.
+
+Vì vậy VLC phát được không chứng minh web thiếu key. Nguyên nhân web không phát
+được là do trình duyệt bị ràng buộc bởi **CORS** và có thể thêm **mixed
+content** khi trang `https://callimeet.com` tải segment `http://...`.
+
+Log trình duyệt xác nhận lỗi chính:
+
+- `No 'Access-Control-Allow-Origin' header is present on the requested resource`
+  với các URL `livesport.io.vn/ok/iptv.php?...` và `apo.php?...`.
+- Các log `static.cloudflareinsights.com ... ERR_BLOCKED_BY_CLIENT` là do
+  adblock/privacy extension chặn Cloudflare beacon, không ảnh hưởng IPTV.
+- LiveKit đã kết nối thành công; log `disconnected -> connecting -> connected`
+  không phải nguyên nhân lỗi kênh.
+
+**Hướng xử lý còn lại nếu muốn phát các nguồn kiểu này trong web:** thêm proxy
+IPTV qua `MediaService`. Frontend gọi URL HTTPS của dự án, backend tải nguồn
+HTTP/không CORS ở phía server rồi stream lại qua HTTPS với CORS hợp lệ. Không
+thể “fake CORS” ở frontend vì CORS là luật do trình duyệt thực thi.
