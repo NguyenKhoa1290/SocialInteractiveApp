@@ -271,9 +271,21 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </DeviceGate>
   );
+}
+
+function HomeRoute() {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const sessionRestoreComplete = useAuthStore((s) => s.sessionRestoreComplete);
+
+  // Khi vao thang callimeet.com, cho bootstrap doc cookie HttpOnly/restore
+  // localStorage xong roi moi quyet dinh. Neu co JWT thi vao app luon; neu
+  // khong co thi moi hien landing page.
+  if (!sessionRestoreComplete) return <div role="status">Đang khôi phục phiên đăng nhập…</div>;
+  if (accessToken) return <Navigate to="/app" replace />;
+  return <LandingPage />;
 }
