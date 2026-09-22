@@ -55,6 +55,47 @@ const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 const IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const DOUBLE_ENTER_SEND_MS = 500;
 
+function ChatRoomLoading({
+  loi,
+  onRetry,
+  info = false,
+}: {
+  loi?: string | null;
+  onRetry?: () => void;
+  info?: boolean;
+}) {
+  if (loi) {
+    return (
+      <div className="cw-room-load cw-room-load-error" role="alert">
+        <p>{loi}</p>
+        {onRetry && <button onClick={onRetry}>Thử lại</button>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`cw-room-load${info ? " cw-room-load-info" : ""}`} role="status" aria-label="Đang tải cuộc trò chuyện">
+      <span className="cw-room-load-head" />
+      {!info && (
+        <div className="cw-room-load-messages" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      {info && (
+        <div className="cw-room-load-info-lines" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      <span className="cw-room-load-label">Đang tải cuộc trò chuyện…</span>
+    </div>
+  );
+}
+
 export function ChatRoomPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -70,6 +111,14 @@ export function ChatRoomPage() {
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [decrypted, setDecrypted] = useState<Record<number, string>>({});
+  // Khong ve tung manh du lieu khi mang cham. Ba moc san sang nay giu UI o
+  // mot skeleton thong nhat cho toi khi hoi thoai, danh tinh va khoa/thanh
+  // vien cua DUNG conversation hien tai da tai xong.
+  const [dangTaiCuocTroChuyen, setDangTaiCuocTroChuyen] = useState(true);
+  const [loiTaiCuocTroChuyen, setLoiTaiCuocTroChuyen] = useState<string | null>(null);
+  const [lanTaiLai, setLanTaiLai] = useState(0);
+  const [danhTinhSanSang, setDanhTinhSanSang] = useState<number | null>(null);
+  const [baoMatSanSang, setBaoMatSanSang] = useState<number | null>(null);
   // P2P: chi 1 nguoi con lai. Group: toan bo thanh vien DA dang ky public
   // key (thanh vien chua thiet lap E2EE se bi loai khoi fan-out va khong
   // nhan duoc tin Text).
@@ -200,6 +249,7 @@ export function ChatRoomPage() {
   useEffect(() => {
     if (!conversation) return;
     let huy = false;
+    setDanhTinhSanSang(null);
     void (async () => {
       try {
         if (conversation.type === "group") {
@@ -216,12 +266,14 @@ export function ChatRoomPage() {
       } catch {
         // Khong lay duoc ten thi vẫn hien duong lui ("Nguoi dung 42") - khong
         // dang chen mot bao loi vao ca man hinh vi mot cai ten.
+      } finally {
+        if (!huy) setDanhTinhSanSang(conversationId);
       }
     })();
     return () => {
       huy = true;
     };
-  }, [conversation, peerUserId]);
+  }, [conversation, peerUserId, conversationId]);
 
   async function handleStartMeeting() {
     setStartingMeeting(true);
@@ -257,6 +309,20 @@ export function ChatRoomPage() {
     let unsubDeleted: (() => void) | undefined;
     let unsubEdited: (() => void) | undefined;
     let cancelled = false;
+
+    // Khi chuyen nhanh giua cac phong, khong de du lieu cua phong cu lo ra
+    // trong luc request phong moi con dang tren duong.
+    setDangTaiCuocTroChuyen(true);
+    setLoiTaiCuocTroChuyen(null);
+    setError(null);
+    setConversation(null);
+    setMessages([]);
+    setDecrypted({});
+    setPeer(null);
+    setMembers([]);
+    setPublicKeys(new Map());
+    setDanhTinhSanSang(null);
+    setBaoMatSanSang(null);
 
     async function setup() {
       try {
@@ -351,7 +417,9 @@ export function ChatRoomPage() {
           });
         });
       } catch (err) {
-        if (!cancelled) setError(extractApiError(err, "Không tải được cuộc trò chuyện"));
+        if (!cancelled) setLoiTaiCuocTroChuyen(extractApiError(err, "Không tải được cuộc trò chuyện"));
+      } finally {
+        if (!cancelled) setDangTaiCuocTroChuyen(false);
       }
     }
     setup();
@@ -364,7 +432,7 @@ export function ChatRoomPage() {
       unsubEdited?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, lanTaiLai]);
 
   // Dang mo hoi thoai nay: xoa cham chua doc cua no va bao cho store biet de
   // tin toi trong luc dang xem khong bi danh dau chua doc.
@@ -378,13 +446,15 @@ export function ChatRoomPage() {
   // chi Truong nhom) + danh sach dang bi mute.
   useEffect(() => {
     if (!conversation) return;
+    let cancelled = false;
+    setBaoMatSanSang(null);
 
     async function loadP2PKey() {
       const otherId = conversation!.participantAId === currentUserId ? conversation!.participantBId : conversation!.participantAId;
       if (!otherId) return;
       try {
         const res = await keysApi.getPublicKey(otherId);
-        setPublicKeys(new Map([[otherId, publicKeyFromBase64(res.data.publicKey)]]));
+        if (!cancelled) setPublicKeys(new Map([[otherId, publicKeyFromBase64(res.data.publicKey)]]));
       } catch {
         // Khong co public key thi khong the gui Text cho nguoi nay.
       }
@@ -396,6 +466,7 @@ export function ChatRoomPage() {
         workspaceApi.listMembers(conversation!.workspaceId),
         chatApi.listMutedMembers(conversationId),
       ]);
+      if (cancelled) return;
       setMembers(membersRes.data.map((m) => ({ userId: m.userId, nickname: m.nickname })));
       setMutedUserIds(new Set(mutedRes.data));
       const toi = membersRes.data.find((m) => m.userId === currentUserId);
@@ -406,11 +477,21 @@ export function ChatRoomPage() {
       const keysRes = await keysApi.getPublicKeysBatch(memberIds);
       const map = new Map<number, Uint8Array>();
       for (const k of keysRes.data) map.set(k.userId, publicKeyFromBase64(k.publicKey));
-      setPublicKeys(map);
+      if (!cancelled) setPublicKeys(map);
     }
 
-    if (conversation.type === "p2p") loadP2PKey();
-    else loadGroupKeys();
+    const task = conversation.type === "p2p" ? loadP2PKey() : loadGroupKeys();
+    task
+      .catch((err) => {
+        if (!cancelled) setError(extractApiError(err, "Không tải được thành viên và khoá mã hoá"));
+      })
+      .finally(() => {
+        if (!cancelled) setBaoMatSanSang(conversationId);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [conversation, currentUserId, conversationId]);
 
   // Giai ma cac tin nhan Text moi xuat hien (tin cu tu GET + tin realtime).
@@ -921,6 +1002,50 @@ export function ChatRoomPage() {
   const tenHoiThoai =
     peer?.ten ??
     (conversation?.type === "group" ? `Nhóm ${conversation.workspaceId}` : "Người dùng Calli");
+
+  // Khi khoa da ve, effect giai ma chay hoan toan o client va thuong chi mat
+  // vai ms. Mang/CPU cham thi van giu skeleton them mot nhip, tranh ve hang
+  // loat bong bong "Dang giai ma..." roi doi noi dung ngay truoc mat nguoi dung.
+  const coTinChoGiaiMa =
+    !!privateKey &&
+    publicKeys.size > 0 &&
+    !!conversation &&
+    messages.some(
+      (m) =>
+        m.type === "text" &&
+        !m.isDeleted &&
+        !!m.content &&
+        !!m.contentNonce &&
+        !(m.id in decrypted) &&
+        (conversation.type === "p2p" || !!m.recipientEncryptedKey),
+    );
+
+  const dangKhoiTaoPhong =
+    dangTaiCuocTroChuyen ||
+    conversation?.id !== conversationId ||
+    danhTinhSanSang !== conversationId ||
+    baoMatSanSang !== conversationId ||
+    coTinChoGiaiMa;
+
+  if (dangKhoiTaoPhong || loiTaiCuocTroChuyen) {
+    const loiKhoiTao = dangTaiCuocTroChuyen ? null : loiTaiCuocTroChuyen;
+    return (
+      <ChatWorkspace
+        hasActive
+        list={
+          <ConversationList
+            kind={conversation?.type === "group" ? "group" : (kindGoi ?? "p2p")}
+            activeId={conversationId}
+            reloadKey={listReload}
+          />
+        }
+        isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
+        infoHidden={anThongTin}
+        info={<ChatRoomLoading info loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
+        chat={<ChatRoomLoading loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
+      />
+    );
+  }
 
   // Chat Service co the chua kem senderDisplayName cho tin nhan 1-1 cu. Dau
   // phong chat da resolve duoc nguoi kia tu danh sach ban be, nen dung lai
