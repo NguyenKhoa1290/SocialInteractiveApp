@@ -70,6 +70,7 @@ export function MeetingDiscussion({
   const initialScrollPendingRef = useRef(false);
   const scrollToBottomPendingRef = useRef(false);
   const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
+  const mediaAutoScrollIdsRef = useRef<Set<number>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   // Enter dau tien da xuong dong nhung van co the tro thanh "double Enter"
   // neu lan thu hai den nhanh hon nua giay.
@@ -92,6 +93,7 @@ export function MeetingDiscussion({
     initialScrollPendingRef.current = false;
     scrollToBottomPendingRef.current = false;
     prependScrollRef.current = null;
+    mediaAutoScrollIdsRef.current.clear();
 
     async function setup() {
       try {
@@ -99,6 +101,11 @@ export function MeetingDiscussion({
         if (cancelled) return;
         setHasOlderMessages(res.data.length === MESSAGE_PAGE_SIZE);
         initialScrollPendingRef.current = true;
+        mediaAutoScrollIdsRef.current = new Set(
+          res.data
+            .filter((m) => m.fileId != null && (m.type === "image" || m.type === "video"))
+            .map((m) => m.id),
+        );
         setMessages([...res.data].reverse());
 
         if (tuVaoNhom) await joinMeetingDiscussion(conversationId, meetingId);
@@ -106,7 +113,11 @@ export function MeetingDiscussion({
           // Tin cua chinh minh da duoc them ngay luc gui (phan hoi cua POST)
           // - bo qua ban echo de khong hien 2 lan.
           if (messagesRef.current.some((m) => m.id === msg.id)) return;
-          scrollToBottomPendingRef.current = msg.senderId === currentUserId || isMessageListNearBottom();
+          const shouldStickToBottom = msg.senderId === currentUserId || isMessageListNearBottom();
+          scrollToBottomPendingRef.current = shouldStickToBottom;
+          if (shouldStickToBottom && msg.fileId != null && (msg.type === "image" || msg.type === "video")) {
+            mediaAutoScrollIdsRef.current.add(msg.id);
+          }
           setMessages((prev) => [...prev, msg]);
         });
         unsubEdited = await onMeetingMessageEdited((msg) => {
@@ -147,6 +158,11 @@ export function MeetingDiscussion({
 
     apply();
     window.requestAnimationFrame(apply);
+  }
+
+  function handleMessageMediaSettled(messageId: number) {
+    if (!mediaAutoScrollIdsRef.current.delete(messageId)) return;
+    scrollMessageListToBottom();
   }
 
   async function loadOlderMessages() {
@@ -351,6 +367,7 @@ export function MeetingDiscussion({
       await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
       scrollToBottomPendingRef.current = true;
+      if (type === "image" || type === "video") mediaAutoScrollIdsRef.current.add(res.data.id);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {
       if (track) void track.abort();
@@ -375,6 +392,9 @@ export function MeetingDiscussion({
         className="disc-messages"
         ref={messagesContainerRef}
         onScroll={(e) => {
+          if (e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight >= 120) {
+            mediaAutoScrollIdsRef.current.clear();
+          }
           if (e.currentTarget.scrollTop <= LOAD_OLDER_THRESHOLD_PX) void loadOlderMessages();
         }}
       >
@@ -450,7 +470,11 @@ export function MeetingDiscussion({
                       {m.isEdited && <span className="disc-edited"> (đã sửa)</span>}
                     </>
                   ) : m.fileId != null ? (
-                    <FileMessageContent fileId={m.fileId} type={m.type} />
+                    <FileMessageContent
+                      fileId={m.fileId}
+                      type={m.type}
+                      onMediaSettled={() => handleMessageMediaSettled(m.id)}
+                    />
                   ) : (
                     <em className="disc-deleted">(tệp không còn)</em>
                   )}

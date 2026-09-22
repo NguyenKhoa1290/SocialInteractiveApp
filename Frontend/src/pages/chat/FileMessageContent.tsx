@@ -121,12 +121,25 @@ function IconDownload() {
 //
 // Endpoint do tra ve luon TEN GOC va KICH THUOC nen khong ton them vong goi
 // nao de hien hai thu do.
-export function FileMessageContent({ fileId, type }: { fileId: number; type: MessageType }) {
+export function FileMessageContent({
+  fileId,
+  type,
+  onMediaSettled,
+}: {
+  fileId: number;
+  type: MessageType;
+  onMediaSettled?: () => void;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [size, setSize] = useState(0);
   const [error, setError] = useState(false);
   const [xemAnh, setXemAnh] = useState(false);
+  const onMediaSettledRef = useRef(onMediaSettled);
+
+  useEffect(() => {
+    onMediaSettledRef.current = onMediaSettled;
+  }, [onMediaSettled]);
 
   useEffect(() => {
     let huy = false;
@@ -139,12 +152,15 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
         setSize(res.data.sizeBytes ?? 0);
       })
       .catch(() => {
-        if (!huy) setError(true);
+        if (!huy) {
+          setError(true);
+          if (type === "image" || type === "video") onMediaSettledRef.current?.();
+        }
       });
     return () => {
       huy = true;
     };
-  }, [fileId]);
+  }, [fileId, type]);
 
   if (error) return <span className="fm-note">Không tải được tệp</span>;
   if (!url) return <span className="fm-note">Đang tải…</span>;
@@ -174,7 +190,13 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
             setXemAnh(true);
           }}
         >
-          <img src={url} alt={ten} loading="lazy" />
+          <img
+            src={url}
+            alt={ten}
+            loading="lazy"
+            onLoad={() => onMediaSettledRef.current?.()}
+            onError={() => onMediaSettledRef.current?.()}
+          />
           <span className="fm-media-name">{ten}</span>
         </a>
         {xemAnh && <ImageViewer src={url} name={ten} kind="image" onClose={() => setXemAnh(false)} />}
@@ -185,7 +207,13 @@ export function FileMessageContent({ fileId, type }: { fileId: number; type: Mes
   if (type === "video") {
     return (
       <span className="fm-media">
-        <video src={url} controls preload="metadata" />
+        <video
+          src={url}
+          controls
+          preload="metadata"
+          onLoadedMetadata={() => onMediaSettledRef.current?.()}
+          onError={() => onMediaSettledRef.current?.()}
+        />
         <span className="fm-media-name">{ten}</span>
       </span>
     );

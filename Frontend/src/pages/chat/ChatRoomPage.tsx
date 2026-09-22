@@ -201,6 +201,7 @@ export function ChatRoomPage() {
   const initialScrollPendingRef = useRef(false);
   const scrollToBottomPendingRef = useRef(false);
   const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
+  const mediaAutoScrollIdsRef = useRef<Set<number>>(new Set());
 
   // Dung ref (khong phai state) de doc dung "conversation.type" ben trong
   // handler onMessageReceived - handler duoc dang ky 1 LAN duy nhat luc
@@ -334,6 +335,7 @@ export function ChatRoomPage() {
     initialScrollPendingRef.current = false;
     scrollToBottomPendingRef.current = false;
     prependScrollRef.current = null;
+    mediaAutoScrollIdsRef.current.clear();
     setDecrypted({});
     setPeer(null);
     setMembers([]);
@@ -351,6 +353,11 @@ export function ChatRoomPage() {
         setConversation(convRes.data);
         setHasOlderMessages(msgRes.data.length === MESSAGE_PAGE_SIZE);
         initialScrollPendingRef.current = true;
+        mediaAutoScrollIdsRef.current = new Set(
+          msgRes.data
+            .filter((m) => m.fileId != null && (m.type === "image" || m.type === "video"))
+            .map((m) => m.id),
+        );
         setMessages([...msgRes.data].reverse());
 
         // GET messages la nguon du lieu QUYEN (khong phai broadcast tam
@@ -401,7 +408,11 @@ export function ChatRoomPage() {
             return;
           }
           if (messagesRef.current.some((m) => m.id === msg.id)) return;
-          scrollToBottomPendingRef.current = msg.senderId === currentUserId || isMessageListNearBottom();
+          const shouldStickToBottom = msg.senderId === currentUserId || isMessageListNearBottom();
+          scrollToBottomPendingRef.current = shouldStickToBottom;
+          if (shouldStickToBottom && msg.fileId != null && (msg.type === "image" || msg.type === "video")) {
+            mediaAutoScrollIdsRef.current.add(msg.id);
+          }
           setMessages((prev) => [...prev, msg]);
         });
         unsubDeleted = await onMessageDeleted((messageId) => {
@@ -585,6 +596,11 @@ export function ChatRoomPage() {
     // cac bong bong vua giai ma/file preview hoan tat phep do chieu cao.
     apply();
     window.requestAnimationFrame(apply);
+  }
+
+  function handleMessageMediaSettled(messageId: number) {
+    if (!mediaAutoScrollIdsRef.current.delete(messageId)) return;
+    scrollMessageListToBottom();
   }
 
   async function loadOlderMessages() {
@@ -1452,6 +1468,9 @@ export function ChatRoomPage() {
         className="cw-msgs"
         ref={messagesContainerRef}
         onScroll={(e) => {
+          if (e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight >= 120) {
+            mediaAutoScrollIdsRef.current.clear();
+          }
           if (e.currentTarget.scrollTop <= LOAD_OLDER_THRESHOLD_PX) void loadOlderMessages();
         }}
       >
@@ -1559,7 +1578,11 @@ export function ChatRoomPage() {
                     // KHONG boc trong .cw-bubble: anh va the tep co khuon rieng
                     // trong thiet ke (khung anh vien #85AEB0, the tep 442x92) -
                     // long them mot nen mau nua thi thanh hai lop long nhau.
-                    <FileMessageContent fileId={m.fileId} type={m.type} />
+                    <FileMessageContent
+                      fileId={m.fileId}
+                      type={m.type}
+                      onMediaSettled={() => handleMessageMediaSettled(m.id)}
+                    />
                   ) : (
                     <div className="cw-bubble">[{m.type}]</div>
                   )}
