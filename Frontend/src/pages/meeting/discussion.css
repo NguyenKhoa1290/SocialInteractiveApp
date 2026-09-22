@@ -19,8 +19,13 @@
   background: rgba(15, 23, 35, 0.28);
 }
 
-.meeting-discussion-popup {
-  width: min(calc(1000px * var(--s)), 96vw);
+.mpop.mpop-chat.meeting-discussion-popup {
+  /* Popup nay nam ngoai `.mroom`, nen khong co bien --sr ma max-height
+     chung cua popup phong hop dang dung. Gioi han truc tiep theo viewport
+     de dau va thanh soan luon con trong man hinh desktop. */
+  width: min(calc(1000px * var(--s)), calc(100vw - 48px));
+  height: min(calc(1080px * var(--s)), calc(100svh - 40px));
+  max-height: calc(100svh - 40px);
 }
 
 .meeting-discussion-icon {
@@ -41,6 +46,17 @@
 @media (max-width: 900px) {
   .meeting-discussion-layer {
     background: #f2f2f7;
+  }
+
+  .mpop.mpop-chat.meeting-discussion-popup {
+    /* AppShell van co taskbar o day man hinh. Popup chi chiem phan con lai,
+       tranh de composer nam sau taskbar nhu ban cu. `!important` chi can cho
+       inset/height vi luat mobile chung cua `.mpop` dat inset:0 va 100svh. */
+    inset: 0 0 calc(var(--rail-h) + env(safe-area-inset-bottom)) 0 !important;
+    width: 100% !important;
+    height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom)) !important;
+    max-height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom));
+    transform: none;
   }
 }
 
