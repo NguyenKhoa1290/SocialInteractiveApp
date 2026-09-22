@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { UploadTracker } from "../../api/chatApi";
 import { joinMeetingDiscussion, leaveMeetingDiscussion, onMeetingMessageEdited, onMeetingMessageReceived } from "../../lib/chatHub";
@@ -16,6 +16,8 @@ import "./discussion.css";
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 const DOUBLE_ENTER_SEND_MS = 500;
+const MESSAGE_PAGE_SIZE = 30;
+const LOAD_OLDER_THRESHOLD_PX = 96;
 
 // Luong thao luan cua 1 cuoc hop. Dung chung cho ca 2 cho: trang thao luan
 // rieng (mo tu phong chat) va panel ben trong phong hop.
@@ -58,27 +60,54 @@ export function MeetingDiscussion({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<Message[]>([]);
+  const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const activeDiscussionRef = useRef(`${conversationId}:${meetingId}`);
+  activeDiscussionRef.current = `${conversationId}:${meetingId}`;
+  const initialScrollPendingRef = useRef(false);
+  const scrollToBottomPendingRef = useRef(false);
+  const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   // Enter dau tien da xuong dong nhung van co the tro thanh "double Enter"
   // neu lan thu hai den nhanh hon nua giay.
   const lastEnterAtRef = useRef<number | null>(null);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     let cancelled = false;
     let unsub: (() => void) | undefined;
     let unsubEdited: (() => void) | undefined;
 
+    setLoading(true);
+    setMessages([]);
+    setHasOlderMessages(true);
+    setLoadingOlderMessages(false);
+    loadingOlderRef.current = false;
+    initialScrollPendingRef.current = false;
+    scrollToBottomPendingRef.current = false;
+    prependScrollRef.current = null;
+
     async function setup() {
       try {
-        const res = await chatApi.getMeetingMessages(conversationId, meetingId);
+        const res = await chatApi.getMeetingMessages(conversationId, meetingId, undefined, MESSAGE_PAGE_SIZE);
         if (cancelled) return;
+        setHasOlderMessages(res.data.length === MESSAGE_PAGE_SIZE);
+        initialScrollPendingRef.current = true;
         setMessages([...res.data].reverse());
 
         if (tuVaoNhom) await joinMeetingDiscussion(conversationId, meetingId);
         unsub = await onMeetingMessageReceived((msg) => {
           // Tin cua chinh minh da duoc them ngay luc gui (phan hoi cua POST)
           // - bo qua ban echo de khong hien 2 lan.
-          setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+          if (messagesRef.current.some((m) => m.id === msg.id)) return;
+          scrollToBottomPendingRef.current = msg.senderId === currentUserId || isMessageListNearBottom();
+          setMessages((prev) => [...prev, msg]);
         });
         unsubEdited = await onMeetingMessageEdited((msg) => {
           // Sua tin khong phai tin moi: chi thay ban ghi dang co, tranh tao
@@ -99,11 +128,67 @@ export function MeetingDiscussion({
       unsubEdited?.();
       if (tuVaoNhom) leaveMeetingDiscussion(meetingId).catch(() => {});
     };
-  }, [conversationId, meetingId, tuVaoNhom]);
+  }, [conversationId, currentUserId, meetingId, tuVaoNhom]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  function isMessageListNearBottom() {
+    const el = messagesContainerRef.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }
+
+  async function loadOlderMessages() {
+    if (loadingOlderRef.current || !hasOlderMessages || messagesRef.current.length === 0 || loc.trim()) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    loadingOlderRef.current = true;
+    setLoadingOlderMessages(true);
+    const requestDiscussion = `${conversationId}:${meetingId}`;
+    try {
+      const oldest = messagesRef.current[0];
+      const res = await chatApi.getMeetingMessages(conversationId, meetingId, oldest.createdAt, MESSAGE_PAGE_SIZE, oldest.id);
+      if (activeDiscussionRef.current !== requestDiscussion) return;
+      const older = [...res.data].reverse();
+      setHasOlderMessages(res.data.length === MESSAGE_PAGE_SIZE);
+      if (older.length === 0) return;
+
+      const anchor = container.querySelector<HTMLElement>(`#disc-message-${oldest.id}`);
+      prependScrollRef.current = { messageId: oldest.id, top: anchor?.getBoundingClientRect().top ?? 0 };
+      setMessages((prev) => {
+        const existing = new Set(prev.map((m) => m.id));
+        return [...older.filter((m) => !existing.has(m.id)), ...prev];
+      });
+    } catch (err) {
+      if (activeDiscussionRef.current === requestDiscussion) {
+        setError(extractApiError(err, "Không tải được tin nhắn cũ"));
+      }
+    } finally {
+      if (activeDiscussionRef.current === requestDiscussion) {
+        loadingOlderRef.current = false;
+        setLoadingOlderMessages(false);
+      }
+    }
+  }
+
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (prependScrollRef.current) {
+      const previous = prependScrollRef.current;
+      prependScrollRef.current = null;
+      const anchor = container.querySelector<HTMLElement>(`#disc-message-${previous.messageId}`);
+      if (anchor) container.scrollTop += anchor.getBoundingClientRect().top - previous.top;
+      return;
+    }
+    if (initialScrollPendingRef.current) {
+      initialScrollPendingRef.current = false;
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    if (scrollToBottomPendingRef.current) {
+      scrollToBottomPendingRef.current = false;
+      container.scrollTop = container.scrollHeight;
+    }
+  });
 
   // O nhap phinh theo noi dung nhung co chan tren de khong day danh sach tin
   // ra khoi panel thảo luận trong phòng họp.
@@ -123,6 +208,7 @@ export function MeetingDiscussion({
     setError(null);
     try {
       const res = await chatApi.sendMeetingText(conversationId, meetingId, text.trim(), replyTo?.id);
+      scrollToBottomPendingRef.current = true;
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
       setText("");
       setReplyTo(null);
@@ -250,6 +336,7 @@ export function MeetingDiscussion({
       // truoc khi cho phep gan tep vao thao luan.
       await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
+      scrollToBottomPendingRef.current = true;
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
     } catch (err) {
       if (track) void track.abort();
@@ -270,8 +357,15 @@ export function MeetingDiscussion({
 
   return (
     <div className={`disc${compact ? " disc-compact" : ""}`}>
-      <div className="disc-messages">
+      <div
+        className="disc-messages"
+        ref={messagesContainerRef}
+        onScroll={(e) => {
+          if (e.currentTarget.scrollTop <= LOAD_OLDER_THRESHOLD_PX) void loadOlderMessages();
+        }}
+      >
         {loading && <p className="disc-empty">Đang tải…</p>}
+        {!loading && loadingOlderMessages && <p className="disc-history-loading">Đang tải tin nhắn cũ…</p>}
         {!loading && messages.length === 0 && <p className="disc-empty">Chưa có nội dung nào trong thảo luận.</p>}
 
         {visibleMessages.map((m, index) => {

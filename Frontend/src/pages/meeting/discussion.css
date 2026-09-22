@@ -70,6 +70,13 @@
   padding: calc(4px * var(--s));
 }
 
+.disc-history-loading {
+  margin: 0;
+  color: rgba(42, 51, 68, 0.62);
+  font-size: calc(13px * var(--s));
+  text-align: center;
+}
+
 .disc-row {
   display: flex;
   flex-direction: column;

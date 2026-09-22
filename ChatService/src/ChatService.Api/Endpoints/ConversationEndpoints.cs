@@ -251,7 +251,7 @@ public static class ConversationEndpoints
             return Results.Ok(result);
         });
 
-        conv.MapGet("/{conversationId:long}/messages", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, ChatCacheService cache, DateTimeOffset? before, int? limit) =>
+        conv.MapGet("/{conversationId:long}/messages", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient, ChatCacheService cache, DateTimeOffset? before, long? beforeId, int? limit) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -263,8 +263,12 @@ public static class ConversationEndpoints
             var take = Math.Clamp(limit ?? 50, 1, 200);
 
             List<MessageLite> items;
-            var cached = await cache.GetRecentAsync(conversationId, before, take);
-            if (cached.Count >= take)
+            // Cursor co ca timestamp + id de khong bo sot ban ghi neu nhieu
+            // tin duoc tao cung mot thoi diem. Trang lich su doc thang DB;
+            // Redis hien chi danh chi muc theo millisecond nen khong the xu ly
+            // chinh xac dieu kien phu theo id.
+            var cached = before is null ? await cache.GetRecentAsync(conversationId, null, take) : [];
+            if (before is null && cached.Count >= take)
             {
                 items = [.. cached.Select(c => new MessageLite(
                     c.Id, c.SenderId, Message.TypeFromString(c.Type), c.Content, c.IsDeleted,
@@ -280,10 +284,18 @@ public static class ConversationEndpoints
                 // cache (xem cho gui tin thao luan).
                 var query = db.Messages.Where(m => m.ConversationId == conversationId && m.MeetingId == null);
                 if (before is not null)
-                    query = query.Where(m => m.CreatedAt < before);
+                    query = beforeId is null
+                        ? query.Where(m => m.CreatedAt < before)
+                        : query.Where(m => m.CreatedAt < before || (m.CreatedAt == before && m.Id < beforeId));
 
-                var messages = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync();
-                var fileIds = await db.Files.Where(f => f.ConversationId == conversationId && f.MessageId != null)
+                var messages = await query
+                    .OrderByDescending(m => m.CreatedAt)
+                    .ThenByDescending(m => m.Id)
+                    .Take(take)
+                    .ToListAsync();
+                var messageIds = messages.Select(m => m.Id).ToList();
+                var fileIds = await db.Files.Where(f =>
+                        f.ConversationId == conversationId && f.MessageId != null && messageIds.Contains(f.MessageId.Value))
                     .ToDictionaryAsync(f => f.MessageId!.Value, f => f.Id);
 
                 items = [.. messages.Select(m => new MessageLite(

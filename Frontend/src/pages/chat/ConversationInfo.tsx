@@ -11,6 +11,9 @@ import type { FileMeta } from "../../types/chat";
 
 export type ThanhVien = { userId: number; nickname: string; avatarUpdatedAt?: string | null };
 
+const MEDIA_PAGE_SIZE = 12;
+const MEDIA_URL_CONCURRENCY = 4;
+
 // Mui ten gap/mo mot muc trong panel. Hinh luon ve huong xuong, trang thai
 // "dang gap" xoay no bang CSS - xem .cw-caret trong workspace.css.
 function NutGap({ mo, doi, ten }: { mo: boolean; doi: () => void; ten: string }) {
@@ -158,13 +161,17 @@ export function ConversationInfo({
   canEditGroup?: boolean;
   onGroupAvatarChanged?: (avatarUpdatedAt: string | null) => void;
 }) {
-  // Mac dinh MO ca hai muc - dung nhu frame 100:22. Gap lai chi co hieu luc
-  // trong lan mo nay: sang hoi thoai khac la mot panel khac.
+  // Danh sach thanh vien mo san, con media de gap. Anh/video can URL ky rieng,
+  // nen chi tai khi nguoi dung thuc su mo muc nay.
   const [hienThanhVien, setHienThanhVien] = useState(true);
-  const [hienMedia, setHienMedia] = useState(true);
+  const [hienMedia, setHienMedia] = useState(false);
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
+  const [dangTaiMedia, setDangTaiMedia] = useState(false);
+  const [conMedia, setConMedia] = useState(true);
   const [xem, setXem] = useState<FileMeta | null>(null);
+  const mediaRequestVersion = useRef(0);
+  const dangTaiMediaRef = useRef(false);
   const laNhom = members !== undefined;
 
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -205,65 +212,69 @@ export function ConversationInfo({
   }
 
   useEffect(() => {
-    let huy = false;
-    void chatApi
-      .listFiles(conversationId)
-      .then((r) => {
-        if (huy) return;
-        // Chi lay anh/video - "file media" trong ban thiet ke la luoi hinh
-        // vuong xem truoc, tai lieu khong co gi de xem truoc ca.
-        //
-        // Endpoint /files khong sap xep nen thu tu tra ve tuy y DB - phai tu sap
-        // MOI NHAT LEN DAU (uploadedAt giam dan, hoa nhau thi id lon truoc).
-        const anhVideo = r.data.filter((f) => f.fileType === "image" || f.fileType === "video");
-        anhVideo.sort((a, b) =>
-          a.uploadedAt === b.uploadedAt ? b.id - a.id : (a.uploadedAt < b.uploadedAt ? 1 : -1),
-        );
-        setMedia(anhVideo);
-      })
-      .catch(() => {
-        if (!huy) setMedia([]);
-      });
-    return () => {
-      huy = true;
-    };
+    mediaRequestVersion.current += 1;
+    dangTaiMediaRef.current = false;
+    setHienMedia(false);
+    setMedia(null);
+    setUrls({});
+    setConMedia(true);
+    setDangTaiMedia(false);
+    setXem(null);
   }, [conversationId]);
 
-  // Dia chi xem truoc cua tung o. Phai lay rieng vi anh nam trong MinIO va
-  // chi truy cap duoc qua URL da ky - khong doan duoc tu id.
-  //
-  // Lay MOT LAN cho ca luoi roi giu lai: moi lan mo panel ma goi lai chin
-  // request thi vua cham vua vo nghia, URL con han hang gio.
-  useEffect(() => {
-    if (!media || media.length === 0) return;
-    let huy = false;
-    // Ky URL cho TAT CA file chu khong chi 9 o dau: luoi khong con gioi han 9 o
-    // nen o thu 10 tro di cung can anh. Nhung dung ban het mot luc - mot cuoc
-    // tro chuyen nhieu anh se tao hang tram request ky URL song song. Chay theo
-    // tung dot 6 cai, va do dan URL vao luoi sau moi dot de anh hien dan.
-    const ds = media;
-    const DOT = 6;
-    void (async () => {
-      for (let i = 0; i < ds.length && !huy; i += DOT) {
+  async function taiMediaCuHon() {
+    if (dangTaiMediaRef.current || !conMedia) return;
+    const version = mediaRequestVersion.current;
+    const oldest = media?.at(-1);
+    const before = oldest?.uploadedAt;
+    dangTaiMediaRef.current = true;
+    setDangTaiMedia(true);
+    try {
+      const { data } = await chatApi.listFiles(conversationId, before, MEDIA_PAGE_SIZE, oldest?.id);
+      if (version !== mediaRequestVersion.current) return;
+      const anhVideo = data.filter((f) => f.fileType === "image" || f.fileType === "video");
+      setConMedia(data.length === MEDIA_PAGE_SIZE);
+      setMedia((truoc) => {
+        const cu = truoc ?? [];
+        const ids = new Set(cu.map((f) => f.id));
+        return [...cu, ...anhVideo.filter((f) => !ids.has(f.id))];
+      });
+
+      // Moi trang chi ky URL cho cac o vua nap. Bon request song song giup
+      // anh hien dan ma khong tao mot dot request lon len Chat Service/MinIO.
+      for (let i = 0; i < anhVideo.length; i += MEDIA_URL_CONCURRENCY) {
         const cap = await Promise.all(
-          ds.slice(i, i + DOT).map(async (f) => {
+          anhVideo.slice(i, i + MEDIA_URL_CONCURRENCY).map(async (f) => {
             try {
-              const { data } = await chatApi.getDownloadUrl(f.id);
-              return [f.id, data.uploadUrl] as const;
+              const { data: url } = await chatApi.getDownloadUrl(f.id);
+              return [f.id, url.uploadUrl] as const;
             } catch {
               return null;
             }
           }),
         );
-        if (huy) return;
+        if (version !== mediaRequestVersion.current) return;
         const them = Object.fromEntries(cap.filter((x): x is readonly [number, string] => x !== null));
         setUrls((truoc) => ({ ...truoc, ...them }));
       }
-    })();
-    return () => {
-      huy = true;
-    };
-  }, [media]);
+    } catch {
+      if (version === mediaRequestVersion.current) {
+        setMedia((truoc) => truoc ?? []);
+        setConMedia(false);
+      }
+    } finally {
+      if (version === mediaRequestVersion.current) {
+        dangTaiMediaRef.current = false;
+        setDangTaiMedia(false);
+      }
+    }
+  }
+
+  function doiTrangThaiMedia() {
+    const seMo = !hienMedia;
+    setHienMedia(seMo);
+    if (seMo && media === null) void taiMediaCuHon();
+  }
 
   function mo(f: FileMeta) {
     // Chi mo popup khi da co URL da ky; chua ky xong thi bam khong lam gi thay
@@ -272,7 +283,17 @@ export function ConversationInfo({
   }
 
   return (
-    <div className={`cw-info${laNhom ? " cw-info-group" : ""}`}>
+    <div
+      className={`cw-info${laNhom ? " cw-info-group" : ""}`}
+      onScroll={(e) => {
+        if (
+          hienMedia &&
+          e.currentTarget.scrollHeight - e.currentTarget.scrollTop - e.currentTarget.clientHeight < 160
+        ) {
+          void taiMediaCuHon();
+        }
+      }}
+    >
       <div className="cw-info-avatar">
         {laNhom && typeof workspaceId === "number" ? (
           <Avatar workspaceId={workspaceId} nickname={title} avatarUpdatedAt={groupAvatarUpdatedAt} size={170} />
@@ -380,12 +401,13 @@ export function ConversationInfo({
           nhan khong phai ngoai le. */}
       <div className="cw-info-head">
         <span className="cw-info-label">Danh sách file media đã gửi</span>
-        <NutGap mo={hienMedia} doi={() => setHienMedia((v) => !v)} ten="danh sách file media đã gửi" />
+        <NutGap mo={hienMedia} doi={doiTrangThaiMedia} ten="danh sách file media đã gửi" />
       </div>
 
-      {hienMedia &&
-        media !== null &&
-        (media.length > 0 ? (
+      {hienMedia && (
+        media === null ? (
+          <p className="cw-empty">Đang tải media…</p>
+        ) : media.length > 0 ? (
           // Ve dung so file that co, cang gui nhieu thi luoi cang dai them hang.
           // KHONG con ve o trong giu cho: o xam chi la mau trong thiet ke, khi
           // it hoac chua co file thi de trong chu dung bay o rong.
@@ -407,6 +429,9 @@ export function ConversationInfo({
         ) : (
           <p className="cw-empty">Chưa có ảnh hay video nào.</p>
         ))}
+      {hienMedia && dangTaiMedia && media !== null && (
+        <p className="cw-media-loading">Đang tải thêm…</p>
+      )}
 
       {onDanger && (
         <button className="cw-danger" onClick={onDanger}>

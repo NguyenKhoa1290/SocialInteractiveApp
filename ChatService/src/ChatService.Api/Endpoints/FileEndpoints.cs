@@ -381,7 +381,9 @@ public static class FileEndpoints
 
         var conv = app.MapGroup("/conversations").RequireAuthorization();
 
-        conv.MapGet("/{conversationId:long}/files", async (long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient) =>
+        conv.MapGet("/{conversationId:long}/files", async (
+            long conversationId, ClaimsPrincipal principal, ChatDbContext db, WorkspaceClient workspaceClient,
+            DateTimeOffset? before, long? beforeId, int? limit) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -390,7 +392,22 @@ public static class FileEndpoints
             if (!await ConversationEndpoints.IsMemberAsync(conversation, userId, workspaceClient))
                 return Results.Json(new ErrorResponse("forbidden", "Ban khong thuoc cuoc tro chuyen nay"), statusCode: 403);
 
-            var files = await db.Files.Where(f => f.ConversationId == conversationId).ToListAsync();
+            var take = Math.Clamp(limit ?? 12, 1, 60);
+            var query = db.Files.AsNoTracking()
+                .Where(f =>
+                    f.ConversationId == conversationId &&
+                    f.MessageId != null &&
+                    (f.FileType == FileType.Image || f.FileType == FileType.Video));
+            if (before is not null)
+                query = beforeId is null
+                    ? query.Where(f => f.UploadedAt < before)
+                    : query.Where(f => f.UploadedAt < before || (f.UploadedAt == before && f.Id < beforeId));
+
+            var files = await query
+                .OrderByDescending(f => f.UploadedAt)
+                .ThenByDescending(f => f.Id)
+                .Take(take)
+                .ToListAsync();
             return Results.Ok(files.Select(FileMetaResponse.FromEntity));
         });
 

@@ -262,6 +262,14 @@
   gap: calc(18px * var(--s));
 }
 
+.cw-history-loading,
+.cw-media-loading {
+  margin: 0;
+  color: var(--text-m);
+  font-size: calc(13px * var(--s));
+  text-align: center;
+}
+
 /* --- Khung nhap tin ----------------------------------------------------- */
 /*
    Ba trang thai trong thiet ke (node 111:364 va 111:380):

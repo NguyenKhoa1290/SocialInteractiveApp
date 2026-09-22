@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import type { StorageInfo, TopupRequestInfo, UploadTracker } from "../../api/chatApi";
@@ -54,6 +54,8 @@ const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
 const IMAGE_MAX_BYTES = 50 * 1024 * 1024;
 const DOUBLE_ENTER_SEND_MS = 500;
+const MESSAGE_PAGE_SIZE = 30;
+const LOAD_OLDER_THRESHOLD_PX = 96;
 
 function ChatRoomLoading({
   loi,
@@ -190,6 +192,15 @@ export function ChatRoomPage() {
       : null;
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const activeConversationIdRef = useRef(conversationId);
+  activeConversationIdRef.current = conversationId;
+  const initialScrollPendingRef = useRef(false);
+  const scrollToBottomPendingRef = useRef(false);
+  const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
 
   // Dung ref (khong phai state) de doc dung "conversation.type" ben trong
   // handler onMessageReceived - handler duoc dang ky 1 LAN duy nhat luc
@@ -317,6 +328,12 @@ export function ChatRoomPage() {
     setError(null);
     setConversation(null);
     setMessages([]);
+    setHasOlderMessages(true);
+    setLoadingOlderMessages(false);
+    loadingOlderRef.current = false;
+    initialScrollPendingRef.current = false;
+    scrollToBottomPendingRef.current = false;
+    prependScrollRef.current = null;
     setDecrypted({});
     setPeer(null);
     setMembers([]);
@@ -328,10 +345,12 @@ export function ChatRoomPage() {
       try {
         const [convRes, msgRes] = await Promise.all([
           chatApi.getConversation(conversationId),
-          chatApi.getMessages(conversationId),
+          chatApi.getMessages(conversationId, undefined, MESSAGE_PAGE_SIZE),
         ]);
         if (cancelled) return;
         setConversation(convRes.data);
+        setHasOlderMessages(msgRes.data.length === MESSAGE_PAGE_SIZE);
+        initialScrollPendingRef.current = true;
         setMessages([...msgRes.data].reverse());
 
         // GET messages la nguon du lieu QUYEN (khong phai broadcast tam
@@ -367,10 +386,23 @@ export function ChatRoomPage() {
               // ban echo thieu khoa nay (tranh race condition ghi de).
               return;
             }
-            chatApi.getMessages(conversationId).then((res) => setMessages([...res.data].reverse()));
+            chatApi.getMessages(conversationId, undefined, MESSAGE_PAGE_SIZE).then((res) => {
+              const latest = [...res.data].reverse();
+              const nearBottom = isMessageListNearBottom();
+              scrollToBottomPendingRef.current = nearBottom;
+              setMessages((prev) => {
+                const merged = new Map(prev.map((m) => [m.id, m]));
+                latest.forEach((m) => merged.set(m.id, m));
+                return [...merged.values()].sort((a, b) =>
+                  a.createdAt === b.createdAt ? a.id - b.id : a.createdAt.localeCompare(b.createdAt),
+                );
+              });
+            });
             return;
           }
-          setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+          if (messagesRef.current.some((m) => m.id === msg.id)) return;
+          scrollToBottomPendingRef.current = msg.senderId === currentUserId || isMessageListNearBottom();
+          setMessages((prev) => [...prev, msg]);
         });
         unsubDeleted = await onMessageDeleted((messageId) => {
           setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m)));
@@ -534,9 +566,76 @@ export function ChatRoomPage() {
     ).then((pairs) => setDecrypted((prev) => ({ ...prev, ...Object.fromEntries(pairs) })));
   }, [messages, privateKey, publicKeys, decrypted, conversation, currentUserId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  function isMessageListNearBottom() {
+    const el = messagesContainerRef.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }
+
+  async function loadOlderMessages() {
+    if (loadingOlderRef.current || !hasOlderMessages || messagesRef.current.length === 0 || searchResults !== null) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    loadingOlderRef.current = true;
+    setLoadingOlderMessages(true);
+    const requestConversationId = conversationId;
+    try {
+      const oldest = messagesRef.current[0];
+      const res = await chatApi.getMessages(conversationId, oldest.createdAt, MESSAGE_PAGE_SIZE, oldest.id);
+      if (activeConversationIdRef.current !== requestConversationId) return;
+      const older = [...res.data].reverse();
+      setHasOlderMessages(res.data.length === MESSAGE_PAGE_SIZE);
+      if (older.length === 0) return;
+
+      if (conversationTypeRef.current === "group") {
+        const orphaned = older.filter((m) => m.type === "text" && !m.isDeleted && !m.recipientEncryptedKey);
+        if (orphaned.length > 0) {
+          setDecrypted((prev) => ({
+            ...prev,
+            ...Object.fromEntries(orphaned.map((m) => [m.id, "(tin nhắn cũ, không có khoá để giải mã)"])),
+          }));
+        }
+      }
+
+      const anchor = container.querySelector<HTMLElement>(`#msg-${oldest.id}`);
+      prependScrollRef.current = { messageId: oldest.id, top: anchor?.getBoundingClientRect().top ?? 0 };
+      setMessages((prev) => {
+        const existing = new Set(prev.map((m) => m.id));
+        return [...older.filter((m) => !existing.has(m.id)), ...prev];
+      });
+    } catch (err) {
+      if (activeConversationIdRef.current === requestConversationId) {
+        setError(extractApiError(err, "Không tải được tin nhắn cũ"));
+      }
+    } finally {
+      if (activeConversationIdRef.current === requestConversationId) {
+        loadingOlderRef.current = false;
+        setLoadingOlderMessages(false);
+      }
+    }
+  }
+
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    if (prependScrollRef.current) {
+      const previous = prependScrollRef.current;
+      prependScrollRef.current = null;
+      const anchor = container.querySelector<HTMLElement>(`#msg-${previous.messageId}`);
+      if (anchor) container.scrollTop += anchor.getBoundingClientRect().top - previous.top;
+      return;
+    }
+    if (initialScrollPendingRef.current) {
+      initialScrollPendingRef.current = false;
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    if (scrollToBottomPendingRef.current) {
+      scrollToBottomPendingRef.current = false;
+      container.scrollTop = container.scrollHeight;
+    }
+  });
 
   // O nhap CAO LEN theo so dong, dung nhu frame "Khung nhan tin khi go chu
   // dai" (Figma 111:380: khung 83 -> 189, o nhap 49 -> 173).
@@ -617,6 +716,7 @@ export function ChatRoomPage() {
       // Da co plaintext + khoa cua CHINH MINH ngay tai cho luc vua ma hoa -
       // hien luon, khong doi round-trip qua realtime/GET.
       setDecrypted((prev) => ({ ...prev, [sentMessageId]: plaintext }));
+      scrollToBottomPendingRef.current = true;
       setMessages((prev) =>
         prev.some((m) => m.id === sentMessageId)
           ? prev
@@ -1332,7 +1432,16 @@ export function ChatRoomPage() {
         </Modal>
       )}
 
-      <div className="cw-msgs">
+      <div
+        className="cw-msgs"
+        ref={messagesContainerRef}
+        onScroll={(e) => {
+          if (e.currentTarget.scrollTop <= LOAD_OLDER_THRESHOLD_PX) void loadOlderMessages();
+        }}
+      >
+        {searchResults === null && loadingOlderMessages && (
+          <p className="cw-history-loading">Đang tải tin nhắn cũ…</p>
+        )}
         {/* Dang tim thi khung tin nhan hien KET QUA thay vi lich su - khong
             chen them mot bang nua day tin nhan xuong nhu ban truoc. */}
         {searchResults !== null && (

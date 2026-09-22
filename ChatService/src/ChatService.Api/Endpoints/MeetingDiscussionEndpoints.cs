@@ -102,7 +102,7 @@ public static class MeetingDiscussionEndpoints
         group.MapGet("/messages", async (
             long conversationId, long meetingId, ClaimsPrincipal principal, ChatDbContext db,
             WorkspaceClient workspaceClient, MediaServiceClient mediaClient, IdentityClient identity,
-            DateTimeOffset? before, int? limit) =>
+            DateTimeOffset? before, long? beforeId, int? limit) =>
         {
             var userId = GetUserId(principal)!.Value;
             var conversation = await db.Conversations.FindAsync(conversationId);
@@ -118,9 +118,15 @@ public static class MeetingDiscussionEndpoints
             // chinh. Thao luan doc thang tu Postgres.
             var query = db.Messages.Where(m => m.ConversationId == conversationId && m.MeetingId == meetingId);
             if (before is not null)
-                query = query.Where(m => m.CreatedAt < before);
+                query = beforeId is null
+                    ? query.Where(m => m.CreatedAt < before)
+                    : query.Where(m => m.CreatedAt < before || (m.CreatedAt == before && m.Id < beforeId));
 
-            var messages = await query.OrderByDescending(m => m.CreatedAt).Take(take).ToListAsync();
+            var messages = await query
+                .OrderByDescending(m => m.CreatedAt)
+                .ThenByDescending(m => m.Id)
+                .Take(take)
+                .ToListAsync();
             var messageIds = messages.Select(m => m.Id).ToList();
             var fileIds = await db.Files
                 .Where(f => f.ConversationId == conversationId && f.MessageId != null && messageIds.Contains(f.MessageId!.Value))

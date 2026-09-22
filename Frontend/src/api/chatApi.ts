@@ -185,8 +185,8 @@ export const chatApi = {
 
   getConversation: (id: number) => chatHttp.get<ConversationDetail>(`/conversations/${id}`),
 
-  getMessages: (conversationId: number, before?: string, limit = 50) =>
-    chatHttp.get<Message[]>(`/conversations/${conversationId}/messages`, { params: { before, limit } }),
+  getMessages: (conversationId: number, before?: string, limit = 50, beforeId?: number) =>
+    chatHttp.get<Message[]>(`/conversations/${conversationId}/messages`, { params: { before, beforeId, limit } }),
 
   // F2 chi gui duoc cac loai KHONG phai Text (Text bat buoc E2EE, de danh
   // cho F3) - content/contentNonce/recipientKeys deu bo trong.
@@ -253,9 +253,9 @@ export const chatApi = {
       `/conversations/${conversationId}/meetings`,
     ),
 
-  getMeetingMessages: (conversationId: number, meetingId: number, before?: string, limit = 50) =>
+  getMeetingMessages: (conversationId: number, meetingId: number, before?: string, limit = 50, beforeId?: number) =>
     chatHttp.get<Message[]>(`/conversations/${conversationId}/meetings/${meetingId}/messages`, {
-      params: { before, limit },
+      params: { before, beforeId, limit },
     }),
 
   sendMeetingText: (conversationId: number, meetingId: number, content: string, replyToId?: number | null) =>
@@ -277,7 +277,8 @@ export const chatApi = {
 
   getDownloadUrl: (fileId: number) => chatHttp.get<UploadUrlResponse>(`/files/${fileId}/download-url`),
 
-  listFiles: (conversationId: number) => chatHttp.get<FileMeta[]>(`/conversations/${conversationId}/files`),
+  listFiles: (conversationId: number, before?: string, limit = 12, beforeId?: number) =>
+    chatHttp.get<FileMeta[]>(`/conversations/${conversationId}/files`, { params: { before, beforeId, limit } }),
 
   // Tin cuoi cua TAT CA hoi thoai trong MOT request - dung cho doan xem truoc
   // o danh sach. Tra ve nguyen ban ma hoa, client tu giai ma.
