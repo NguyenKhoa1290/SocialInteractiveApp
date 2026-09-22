@@ -135,6 +135,20 @@ export function MeetingDiscussion({
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   }
 
+  function scrollMessageListToBottom() {
+    const requestDiscussion = `${conversationId}:${meetingId}`;
+    const apply = () => {
+      if (activeDiscussionRef.current !== requestDiscussion) return;
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    };
+
+    apply();
+    window.requestAnimationFrame(apply);
+  }
+
   async function loadOlderMessages() {
     if (loadingOlderRef.current || !hasOlderMessages || messagesRef.current.length === 0 || loc.trim()) return;
     const container = messagesContainerRef.current;
@@ -181,12 +195,12 @@ export function MeetingDiscussion({
     }
     if (initialScrollPendingRef.current) {
       initialScrollPendingRef.current = false;
-      container.scrollTop = container.scrollHeight;
+      scrollMessageListToBottom();
       return;
     }
     if (scrollToBottomPendingRef.current) {
       scrollToBottomPendingRef.current = false;
-      container.scrollTop = container.scrollHeight;
+      scrollMessageListToBottom();
     }
   });
 

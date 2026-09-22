@@ -571,6 +571,22 @@ export function ChatRoomPage() {
     return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   }
 
+  function scrollMessageListToBottom() {
+    const requestConversationId = conversationId;
+    const apply = () => {
+      if (activeConversationIdRef.current !== requestConversationId) return;
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    };
+
+    // Lan dau chay ngay trong layout effect. Lap lai o frame ke tiep de doi
+    // cac bong bong vua giai ma/file preview hoan tat phep do chieu cao.
+    apply();
+    window.requestAnimationFrame(apply);
+  }
+
   async function loadOlderMessages() {
     if (loadingOlderRef.current || !hasOlderMessages || messagesRef.current.length === 0 || searchResults !== null) return;
     const container = messagesContainerRef.current;
@@ -628,12 +644,12 @@ export function ChatRoomPage() {
     }
     if (initialScrollPendingRef.current) {
       initialScrollPendingRef.current = false;
-      container.scrollTop = container.scrollHeight;
+      scrollMessageListToBottom();
       return;
     }
     if (scrollToBottomPendingRef.current) {
       scrollToBottomPendingRef.current = false;
-      container.scrollTop = container.scrollHeight;
+      scrollMessageListToBottom();
     }
   });
 
