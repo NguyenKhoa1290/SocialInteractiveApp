@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 // Tin nhan he thong trong luong chat chinh.
 //
@@ -41,6 +41,7 @@ export function SystemMessage({
   activeMeetingId: number | null;
   onJoin: () => void;
 }) {
+  const location = useLocation();
   const payload = parsePayload(content);
 
   if (!payload) return <span className="chat-system-text">{content ?? ""}</span>;
@@ -61,7 +62,12 @@ export function SystemMessage({
         {/* Thao luan van vao duoc SAU KHI hop ket thuc, va van nhan tiep
             duoc - ke ca khi trong hop khong ai nhan gi (trang se trong).
             Thanh vien nhom luon co quyen, xem MeetingDiscussionEndpoints. */}
-        <Link to={`/app/chat/${conversationId}/meetings/${payload.meetingId}`}>Thảo luận</Link>
+        <Link
+          to={`/app/chat/${conversationId}/meetings/${payload.meetingId}`}
+          state={{ backgroundLocation: location }}
+        >
+          Thảo luận
+        </Link>
       </div>
     </div>
   );

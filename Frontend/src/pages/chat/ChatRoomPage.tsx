@@ -1088,7 +1088,11 @@ export function ChatRoomPage() {
           </div>
           <div className="chat-meeting-actions">
             <button onClick={handleJoinMeeting}>Gia nhập</button>
-            <Link to={`/app/chat/${conversationId}/meetings/${activeMeeting.id}`} className="chat-meeting-link">
+            <Link
+              to={`/app/chat/${conversationId}/meetings/${activeMeeting.id}`}
+              state={{ backgroundLocation: location }}
+              className="chat-meeting-link"
+            >
               Xem thảo luận
             </Link>
           </div>
@@ -1104,7 +1108,12 @@ export function ChatRoomPage() {
           </div>
           <div className="chat-meeting-actions">
             {pastMeetingIds.map((mid) => (
-              <Link key={mid} to={`/app/chat/${conversationId}/meetings/${mid}`} className="chat-meeting-link">
+              <Link
+                key={mid}
+                to={`/app/chat/${conversationId}/meetings/${mid}`}
+                state={{ backgroundLocation: location }}
+                className="chat-meeting-link"
+              >
                 Cuộc họp #{mid}
               </Link>
             ))}

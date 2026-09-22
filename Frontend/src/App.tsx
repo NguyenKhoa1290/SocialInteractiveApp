@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import type { Location } from "react-router-dom";
 import { LandingPage } from "./pages/landing/LandingPage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -85,6 +86,11 @@ export default function App() {
 
 function AppRoutes() {
   const location = useLocation();
+  // Popup thao luan duoc mo nhu mot "modal route": Routes chinh van nhan
+  // location cua phong chat o phia sau, nen ChatRoomPage KHONG bi unmount va
+  // khong tai lai hoi thoai/API khi mo hay dong popup. Truy cap thang URL van
+  // dung route du phong ben duoi de F5 va chia se lien ket hoat dong.
+  const backgroundLocation = (location.state as { backgroundLocation?: Location } | null)?.backgroundLocation;
   // Giao dien hop (ca trang vao hop bang link) chua duoc responsive. Cac
   // Tren desktop, phong hop can chieu rong toi thieu; tren dien thoai no co
   // bo cuc rieng trong meeting.css nen khong bi chan boi DeviceGate.
@@ -92,7 +98,7 @@ function AppRoutes() {
 
   return (
     <DeviceGate blockNarrow={chanManHep}>
-      <Routes>
+      <Routes location={backgroundLocation ?? location}>
         {/* Ban thiet ke ve cac man xac thuc la POPUP chong len trang chu,
             khong phai trang rieng. Nen moi duong dan o day van la duong dan
             that (chia se duoc, F5 duoc) nhung dung trang chu lam nen, va nut
@@ -274,6 +280,19 @@ function AppRoutes() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+
+      {backgroundLocation && (
+        <Routes>
+          <Route
+            path="/app/chat/:id/meetings/:meetingId"
+            element={
+              <ProtectedRoute>
+                <MeetingDiscussionPage chiPopup />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      )}
     </DeviceGate>
   );
 }

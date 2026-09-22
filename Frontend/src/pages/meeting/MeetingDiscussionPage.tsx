@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import type { Location } from "react-router-dom";
 import { ChatRoomPage } from "../chat/ChatRoomPage";
 import { IconChatBubble } from "./MeetingIcons";
 import { MeetingDiscussion } from "./MeetingDiscussion";
@@ -8,17 +9,22 @@ import { MeetingDiscussion } from "./MeetingDiscussion";
 // hien trong cung kieu popup voi luc dang o trong cuoc hop. Cach nay giu dung
 // ngu canh nguoi dung vua mo tu cuoc tro chuyen nao va tren mobile popup van
 // tu chuyen thanh layer toan man hinh theo luat chung cua `.mpop`.
-export function MeetingDiscussionPage() {
+export function MeetingDiscussionPage({ chiPopup = false }: { chiPopup?: boolean }) {
   const { id, meetingId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const conversationId = Number(id);
   const mid = Number(meetingId);
   const [moTim, setMoTim] = useState(false);
   const [tim, setTim] = useState("");
 
   const dongPopup = useCallback(() => {
-    navigate(`/app/chat/${conversationId}`, { replace: true });
-  }, [conversationId, navigate]);
+    const coNenPhongChat = Boolean(
+      (location.state as { backgroundLocation?: Location } | null)?.backgroundLocation,
+    );
+    if (coNenPhongChat) navigate(-1);
+    else navigate(`/app/chat/${conversationId}`, { replace: true });
+  }, [conversationId, location.state, navigate]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -30,7 +36,7 @@ export function MeetingDiscussionPage() {
 
   return (
     <>
-      <ChatRoomPage />
+      {!chiPopup && <ChatRoomPage />}
 
       <div className="meeting-discussion-layer" role="presentation" onMouseDown={dongPopup}>
         <aside
