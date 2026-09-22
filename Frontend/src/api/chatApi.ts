@@ -469,14 +469,14 @@ export const chatApi = {
     // Cloudflare -> tunnel -> may chu nha co RTT rat cao, mot ket noi TCP don
     // le gui het mot cua so roi phai ngoi cho xac nhan quay ve.
     //
-    // Vi sao dung 3 chu khong nhieu hon: nginx truoc kho luu tru dat
-    // limit_conn perip 4. Lay 3 la con chua mot suat cho viec tai VE cua chinh
-    // nguoi do; cham tran se bi tra 503. Trong lan do, 24/24 request deu 200 -
-    // muc 3 khong cham tran.
+    // Nginx truoc kho luu tru dat limit_conn perip 4, nen 4 la tran an toan
+    // hien tai. Khong tang qua moc nay: request thu nam co the bi tra 503.
+    // Cac buoc complete-upload va gui tin nhan di qua Chat Service o hostname
+    // khac, nen khong chiem ket noi trong gioi han cua cong MinIO nay.
     //
     // LUU Y TRUNG THUC: mot trong bon cap do ra song song CHAM hon (0,61x).
     // Mang nha dao dong rat manh nen day la xu huong, khong phai hang so.
-    const CONCURRENCY = 3;
+    const CONCURRENCY = 4;
     let next = 0;
     const workers = Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, async () => {
       while (next < chunks.length) await sendPart(next++);
