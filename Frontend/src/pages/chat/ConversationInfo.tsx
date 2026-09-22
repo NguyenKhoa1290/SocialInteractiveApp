@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
@@ -45,11 +44,11 @@ function NutGap({ mo, doi, ten }: { mo: boolean; doi: () => void; ten: string })
 function MenuTuyChinh({
   themDuoc,
   onThem,
-  workspaceId,
+  onQuanLy,
 }: {
   themDuoc: boolean;
   onThem?: () => void;
-  workspaceId?: number | null;
+  onQuanLy?: () => void;
 }) {
   const [mo, setMo] = useState(false);
   const boc = useRef<HTMLSpanElement | null>(null);
@@ -98,10 +97,18 @@ function MenuTuyChinh({
               Thêm thành viên
             </button>
           )}
-          {workspaceId != null && (
-            <Link role="menuitem" className="cw-menu-muc" to={`/workspaces/${workspaceId}`} onClick={() => setMo(false)}>
+          {onQuanLy && (
+            <button
+              type="button"
+              role="menuitem"
+              className="cw-menu-muc"
+              onClick={() => {
+                setMo(false);
+                onQuanLy();
+              }}
+            >
               Quản lý thành viên
-            </Link>
+            </button>
           )}
         </div>
       )}
@@ -135,6 +142,7 @@ export function ConversationInfo({
   onToggleMute,
   onRemoveMember,
   onAddMember,
+  onManageMembers,
   workspaceId,
   groupAvatarUpdatedAt,
   canEditGroup,
@@ -153,6 +161,7 @@ export function ConversationInfo({
   onToggleMute?: (userId: number) => void;
   onRemoveMember?: (userId: number) => void;
   onAddMember?: () => void;
+  onManageMembers?: () => void;
   workspaceId?: number | null;
   groupAvatarUpdatedAt?: string | null;
   // Doi anh nhom la quyen cua Truong nhom / Pho nhom - cung quyen voi doi ten
@@ -359,7 +368,7 @@ export function ConversationInfo({
                   // nen Pho nhom khong them duoc ai du duoc phep.
                   themDuoc={!!canEditGroup}
                   onThem={onAddMember}
-                  workspaceId={workspaceId}
+                  onQuanLy={onManageMembers}
                 />
               )}
             </span>

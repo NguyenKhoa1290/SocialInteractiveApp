@@ -25,6 +25,7 @@ import { ChatWorkspace } from "./ChatWorkspace";
 import { ConversationList } from "./ConversationList";
 import { ConversationInfo } from "./ConversationInfo";
 import { AddMemberDialog } from "./AddMemberDialog";
+import { WorkspaceMembersDialog } from "./WorkspaceMembersDialog";
 import { Avatar } from "../../components/Avatar";
 import { IconAttach, IconCaret, IconImage, IconSend, IconStorage } from "./ComposerIcons";
 import { Modal } from "../../components/Modal";
@@ -179,6 +180,7 @@ export function ChatRoomPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showMemberManagement, setShowMemberManagement] = useState(false);
   // Ham huy lan tai len dang chay - do handleFileSelect gan vao.
   const cancelUploadRef = useRef<(() => void) | null>(null);
 
@@ -339,6 +341,7 @@ export function ChatRoomPage() {
     setDecrypted({});
     setPeer(null);
     setMembers([]);
+    setShowMemberManagement(false);
     setPublicKeys(new Map());
     setDanhTinhSanSang(null);
     setBaoMatSanSang(null);
@@ -1219,6 +1222,7 @@ export function ChatRoomPage() {
           onToggleMute={handleToggleMute}
           onRemoveMember={handleRemoveMember}
           onAddMember={() => setShowAddMember(true)}
+          onManageMembers={() => setShowMemberManagement(true)}
           workspaceId={conversation?.type === "group" ? conversation.workspaceId : null}
           groupAvatarUpdatedAt={peer?.anh}
           canEditGroup={canEditGroup}
@@ -1728,6 +1732,16 @@ export function ChatRoomPage() {
           members={members}
           onClose={() => setShowAddMember(false)}
           onAdded={(m) => setMembers((prev) => (prev.some((x) => x.userId === m.userId) ? prev : [...prev, m]))}
+        />
+      )}
+
+      {showMemberManagement && conversation?.type === "group" && conversation.workspaceId && (
+        <WorkspaceMembersDialog
+          workspaceId={conversation.workspaceId}
+          onClose={() => setShowMemberManagement(false)}
+          onMembersChanged={(updated) => {
+            setMembers(updated.map((member) => ({ userId: member.userId, nickname: member.nickname })));
+          }}
         />
       )}
 

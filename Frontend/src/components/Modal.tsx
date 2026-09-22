@@ -13,6 +13,7 @@ export function Modal({
   children,
   width = 589,
   ariaLabel,
+  closeOnEscape = true,
 }: {
   // Chuoi rong = KHONG co dong tieu de. Hai popup Mini App (node 111:307 va
   // 112:695) mo dau bang bieu tuong app chu khong bang mot dong chu 36px -
@@ -24,6 +25,9 @@ export function Modal({
   // Bat buoc khi title rong: hop thoai nao cung phai co mot cai ten cho trinh
   // doc man hinh.
   ariaLabel?: string;
+  // Popup co the mo them mot popup con (vi du Quan ly -> Them thanh vien).
+  // Khi do popup cha khong duoc cung dong theo mot lan bam Escape.
+  closeOnEscape?: boolean;
 }) {
   // Boc useCallback: neu khong, `close` la ham moi sau moi lan render nen
   // useEffect ben duoi go rooi gan lai bat su kien lien tuc.
@@ -31,7 +35,7 @@ export function Modal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape" && closeOnEscape) close();
     };
     document.addEventListener("keydown", onKey);
     const truoc = document.body.style.overflow;
@@ -40,7 +44,7 @@ export function Modal({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = truoc;
     };
-  }, [close]);
+  }, [close, closeOnEscape]);
 
   return (
     <div

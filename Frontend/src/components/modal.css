@@ -223,3 +223,184 @@
   font-weight: 300;
   color: var(--text-m);
 }
+
+/* --- Popup quan ly thanh vien trong chat nhom -------------------------- */
+
+.wmd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wmd-search {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--calli-muted);
+  color: var(--calli-navy-line);
+  box-sizing: border-box;
+}
+
+.wmd-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--calli-navy-line);
+  font: 400 16px/1.2 var(--sans);
+}
+
+.wmd-add {
+  flex: none;
+}
+
+.wmd-toolbar-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wmd-settings {
+  background: var(--calli-muted);
+  color: var(--calli-navy);
+}
+
+.wmd-summary {
+  color: var(--text-m);
+  font-size: 14px;
+}
+
+.wmd-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.wmd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.wmd-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.wmd-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wmd-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--calli-navy-line);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.wmd-role {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--calli-surface-2);
+  color: var(--text-m);
+  font-size: 12px;
+}
+
+.wmd-role-leader,
+.wmd-role-deputy {
+  background: var(--accent-bg);
+  color: var(--calli-teal-dark);
+}
+
+.wmd-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.wmd-actions button {
+  min-height: 32px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--calli-teal-dark);
+  color: #fff;
+  font: 600 12px/1.2 var(--sans);
+  cursor: pointer;
+}
+
+.wmd-actions button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.wmd-actions .wmd-danger {
+  background: var(--calli-muted);
+  color: var(--danger);
+}
+
+.wmd-empty {
+  margin: 20px 0;
+  color: var(--text-m);
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  .wmd-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wmd-add {
+    align-self: flex-end;
+  }
+
+  .wmd-toolbar-actions {
+    align-self: flex-end;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .wmd-list {
+    max-height: calc(100svh - 245px);
+  }
+
+  .wmd-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .wmd-identity {
+    padding-top: 3px;
+  }
+
+  .wmd-actions {
+    width: 100%;
+    padding-left: 66px;
+  }
+}
