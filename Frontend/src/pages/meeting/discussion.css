@@ -9,54 +9,38 @@
   gap: calc(10px * var(--s));
 }
 
-/* Trang xem lai thao luan nam trong AppShell, khac voi popup cua phong hop.
-   Chi wrapper nay nhan chieu cao viewport: tin nhan cuon o `.disc-messages`,
-   con composer luon o day. Khong sua `.disc` chung de popup dang dung trong
-   phong hop giu nguyen vong doi va bo cuc. */
-.shell-main:has(.meeting-discussion-page) {
-  padding: 0;
-  overflow: hidden;
+/* Khi mo tu phong chat, giu nguyen phong chat lam nen va dat cung khung
+   `.mpop-chat` cua phong hop len tren. Lop phu khoa tuong tac voi noi dung
+   phia sau; bam vao vung mo se dong popup. */
+.meeting-discussion-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgba(15, 23, 35, 0.28);
 }
 
-.meeting-discussion-page {
-  height: 100svh;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+.meeting-discussion-popup {
+  width: min(calc(1000px * var(--s)), 96vw);
 }
 
-.meeting-discussion-page-head {
+.meeting-discussion-icon {
   flex: none;
-  display: flex;
-  align-items: baseline;
-  gap: calc(16px * var(--s));
-  padding: calc(20px * var(--s)) calc(24px * var(--s)) calc(12px * var(--s));
+  width: calc(68px * var(--s));
+  height: calc(68px * var(--s));
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--calli-teal);
+  color: var(--calli-navy-line);
 }
 
-.meeting-discussion-page-head h2 {
-  margin: 0;
-}
-
-.meeting-discussion-page > .disc {
-  flex: 1;
-  min-height: 0;
-  padding: 0 calc(24px * var(--s)) calc(16px * var(--s));
+.meeting-discussion-popup .disc-note {
+  display: none;
 }
 
 @media (max-width: 900px) {
-  .meeting-discussion-page {
-    height: calc(100svh - var(--rail-h));
-  }
-
-  .meeting-discussion-page-head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: calc(8px * var(--s));
-    padding: calc(16px * var(--s));
-  }
-
-  .meeting-discussion-page > .disc {
-    padding: 0 calc(16px * var(--s)) calc(12px * var(--s));
+  .meeting-discussion-layer {
+    background: #f2f2f7;
   }
 }
 
