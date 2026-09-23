@@ -36,8 +36,8 @@
   display: none;
 }
 
-/* Chi hien o breakpoint desktop vua, khi panel thong tin tro thanh drawer. */
-.cw-info-overlay-backdrop {
+/* Chi hien o breakpoint desktop vua, khi panel thong tin phu len cot chat. */
+.cw-info-overlay-back {
   display: none;
 }
 
@@ -645,8 +645,9 @@
     top: 0;
     right: 0;
     bottom: 0;
+    left: calc(482px * var(--s));
     display: flex;
-    width: min(var(--cw-info-w, calc(416px * var(--s))), calc(100% - 48px));
+    width: auto;
     background: var(--panel-bg);
     box-shadow: -18px 0 36px rgba(35, 48, 64, 0.2);
   }
@@ -655,18 +656,30 @@
     display: inline-flex;
   }
 
-  .cw-info-overlay-backdrop {
+  .cw-info-overlay-back {
     position: absolute;
-    z-index: 11;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: calc(482px * var(--s));
-    display: block;
+    z-index: 13;
+    top: calc(18px * var(--s));
+    left: calc(18px * var(--s));
+    display: inline-grid;
+    place-items: center;
+    width: calc(44px * var(--s));
+    height: calc(44px * var(--s));
     padding: 0;
-    border: 0;
-    background: rgba(35, 48, 64, 0.24);
+    border: 2px solid var(--calli-navy-line);
+    border-radius: var(--r-pill);
+    background: var(--panel-bg);
+    color: var(--calli-navy-line);
     cursor: pointer;
+  }
+
+  .cw-info-overlay-back svg {
+    width: calc(26px * var(--s));
+    height: calc(26px * var(--s));
+  }
+
+  .cw-col-info > .cw-info {
+    padding-top: calc(76px * var(--s));
   }
 }
 
@@ -693,7 +706,7 @@
   }
 
   .cw-caret-info,
-  .cw-info-overlay-backdrop {
+  .cw-info-overlay-back {
     display: none;
   }
 

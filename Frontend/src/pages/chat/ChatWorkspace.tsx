@@ -31,8 +31,8 @@ export function ChatWorkspace({
   // Da gap thanh thong tin ben phai lai (Figma frame 138:80 "Danh sach nhom
   // An thanh thong tin"). Cot thu ba thu ve 0 va khung chat an het cho trong.
   infoHidden?: boolean;
-  // Tren desktop vua, panel thong tin la drawer de len khung chat. Lop nen
-  // mo ben ngoai drawer cung co the dong no.
+  // Tren desktop vua, panel thong tin phu toan bo khung chat. Nut quay lai o
+  // goc tren trai goi callback nay de tra ve tin nhan.
   onInfoOverlayClose?: () => void;
 }) {
   // Man hinh hep khong du cho ca ba cot cua ban desktop. Thay vi chi an bot
@@ -89,15 +89,24 @@ export function ChatWorkspace({
         )}
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>
-        {info !== undefined && !infoHidden && onInfoOverlayClose && (
-          <button
-            type="button"
-            className="cw-info-overlay-backdrop"
-            onClick={onInfoOverlayClose}
-            aria-label="Đóng thanh thông tin"
-          />
+        {info !== undefined && (
+          <div className="cw-col cw-col-info">
+            {onInfoOverlayClose && (
+              <button
+                type="button"
+                className="cw-info-overlay-back"
+                onClick={onInfoOverlayClose}
+                aria-label="Quay lại tin nhắn"
+                title="Quay lại tin nhắn"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+            {info}
+          </div>
         )}
-        {info !== undefined && <div className="cw-col cw-col-info">{info}</div>}
       </div>
     </AppShell>
   );
