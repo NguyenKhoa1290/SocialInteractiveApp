@@ -89,6 +89,7 @@ public record GrantPermissionRequest(string PermissionType);
 
 // Shared = true chi admin goi duoc: playlist do se hien cho MOI nguoi.
 public record CreateChannelListRequest(string Name, bool? Shared);
+public record UpdateChannelListRequest(string Name);
 
 // CanEdit tinh RIENG cho nguoi dang goi - playlist dung chung thi ai cung
 // thay nhung chi admin sua duoc, nen day khong phai thuoc tinh co dinh cua

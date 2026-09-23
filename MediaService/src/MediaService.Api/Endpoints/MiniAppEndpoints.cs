@@ -108,6 +108,33 @@ public static class MiniAppEndpoints
                 IptvChannelListResponse.FromEntity(list, true));
         });
 
+        // Doi ten playlist trong che do "Dieu chinh". Quyen giong het cac
+        // thao tac sua/xoa khac: nguoi dung chi sua playlist rieng cua minh;
+        // playlist dung chung chi admin sua duoc.
+        group.MapPatch("/channel-lists/{listId:long}", async (
+            long listId, UpdateChannelListRequest req,
+            System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+        {
+            var name = req.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "name khong duoc trong"));
+            if (name.Length > MaxTen)
+                return Results.BadRequest(new ErrorResponse("invalid_request", $"Ten playlist toi da {MaxTen} ky tu"));
+            if (name.Any(char.IsControl))
+                return Results.BadRequest(new ErrorResponse("invalid_request", "Ten playlist khong hop le"));
+
+            var userId = principal.GetUserId()!.Value;
+            var (list, suaDuoc) = await TimAsync(db, listId, userId, principal.IsAdmin());
+            if (list is null)
+                return Results.NotFound();
+            if (!suaDuoc)
+                return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
+
+            list.Name = name;
+            await db.SaveChangesAsync();
+            return Results.Ok(IptvChannelListResponse.FromEntity(list, true));
+        });
+
         // Thieu sot phat hien khi build Frontend F5: co POST tao group/channel
         // nhung KHONG co GET nao doc lai duoc - danh sach kenh tao xong thi
         // khong hien thi lai duoc o bat ky dau, Mini App IPTV khong the co

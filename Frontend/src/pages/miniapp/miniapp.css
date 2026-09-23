@@ -201,6 +201,68 @@
   color: var(--danger);
 }
 
+.ma-row-manage-actions {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ma-row-edit-btn,
+.ma-row-edit-ok,
+.ma-row-edit-cancel {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--calli-teal-dark);
+  font-family: var(--sans);
+  cursor: pointer;
+}
+
+.ma-row-edit-btn {
+  padding: 0 calc(6px * var(--s));
+  font-size: calc(22px * var(--s));
+  line-height: 1;
+}
+
+.ma-row-editing {
+  padding: calc(6px * var(--s));
+}
+
+.ma-row-edit-input {
+  flex: 1;
+  min-width: 0;
+  height: calc(38px * var(--s));
+  padding: 0 calc(10px * var(--s));
+  border: 1px solid var(--calli-teal-dark);
+  border-radius: calc(7px * var(--s));
+  background: #fff;
+  color: var(--calli-navy-line);
+  font: 400 calc(17px * var(--s))/1 var(--sans);
+}
+
+.ma-row-edit-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--calli-teal-dark) 25%, transparent);
+  outline-offset: 1px;
+}
+
+.ma-row-edit-ok,
+.ma-row-edit-cancel {
+  padding: calc(6px * var(--s));
+  font-size: calc(13px * var(--s));
+  font-weight: 600;
+}
+
+.ma-row-edit-cancel {
+  color: var(--text-m);
+}
+
+.ma-row-edit-btn:disabled,
+.ma-row-edit-ok:disabled,
+.ma-row-edit-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .ma-col-actions {
   display: flex;
   flex-wrap: wrap;
@@ -234,6 +296,10 @@
   background: #d2efe6;
   color: var(--calli-navy);
   border: 1px solid var(--calli-teal);
+}
+
+.ma-pill-adjust-active {
+  background: var(--calli-navy);
 }
 
 .ma-pill-sm {

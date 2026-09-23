@@ -44,6 +44,11 @@ export function MiniAppPage() {
   const [trangMobile, setTrangMobile] = useState<0 | 1 | 2>(0);
   const [hienThemPlaylist, setHienThemPlaylist] = useState(false);
   const [hienThongTin, setHienThongTin] = useState(false);
+  // Che do quan ly danh sach: mac dinh chi de chon playlist. Bat "Dieu
+  // chinh" moi hien sua ten/xoa, tranh bam nham dau X khi dang chon kenh.
+  const [dangDieuChinh, setDangDieuChinh] = useState(false);
+  const [playlistDangSua, setPlaylistDangSua] = useState<{ id: number; name: string } | null>(null);
+  const [dangLuuPlaylist, setDangLuuPlaylist] = useState(false);
   const [themKenhVao, setThemKenhVao] = useState<number | null>(null);
   const [kenhMoi, setKenhMoi] = useState({ ten: "", url: "" });
   const [nhomMoi, setNhomMoi] = useState<string | null>(null);
@@ -119,9 +124,28 @@ export function MiniAppPage() {
       // xoa cai khac thi giu nguyen lua chon hien tai.
       const giuLai = dangChon === l.id ? undefined : (dangChon ?? undefined);
       if (dangChon === l.id) setDangChon(null);
+      if (playlistDangSua?.id === l.id) setPlaylistDangSua(null);
       await napDanhSach(giuLai);
     } catch (err) {
       setError(extractApiError(err, "Không xoá được playlist"));
+    }
+  }
+
+  async function doiTenPlaylist(e: React.FormEvent) {
+    e.preventDefault();
+    if (!playlistDangSua?.name.trim()) return;
+    setDangLuuPlaylist(true);
+    setError(null);
+    setGhiChu(null);
+    try {
+      const { data } = await iptvApi.updateChannelList(playlistDangSua.id, playlistDangSua.name.trim());
+      setLists((truoc) => (truoc ?? []).map((l) => (l.id === data.id ? data : l)));
+      setPlaylistDangSua(null);
+      setGhiChu("Đã đổi tên playlist.");
+    } catch (err) {
+      setError(extractApiError(err, "Không đổi được tên playlist"));
+    } finally {
+      setDangLuuPlaylist(false);
     }
   }
 
@@ -195,6 +219,33 @@ export function MiniAppPage() {
   }
 
   function veHangPlaylist(l: IptvChannelList) {
+    if (playlistDangSua?.id === l.id) {
+      return (
+        <form key={l.id} className="ma-row ma-row-editing" onSubmit={doiTenPlaylist}>
+          <input
+            className="ma-row-edit-input"
+            value={playlistDangSua.name}
+            onChange={(e) => setPlaylistDangSua({ id: l.id, name: e.target.value })}
+            maxLength={100}
+            aria-label={`Tên mới của playlist ${l.name}`}
+            autoFocus
+            disabled={dangLuuPlaylist}
+          />
+          <button className="ma-row-edit-ok" type="submit" disabled={dangLuuPlaylist || !playlistDangSua.name.trim()}>
+            {dangLuuPlaylist ? "…" : "Lưu"}
+          </button>
+          <button
+            className="ma-row-edit-cancel"
+            type="button"
+            onClick={() => setPlaylistDangSua(null)}
+            disabled={dangLuuPlaylist}
+          >
+            Huỷ
+          </button>
+        </form>
+      );
+    }
+
     return (
       <div key={l.id} className={`ma-row${l.id === dangChon ? " active" : ""}`}>
         <button
@@ -208,10 +259,27 @@ export function MiniAppPage() {
         >
           {l.name}
         </button>
-        {l.canEdit && (
-          <button className="ma-row-x" onClick={() => void xoaPlaylist(l)} title="Xoá playlist">
-            ×
-          </button>
+        {dangDieuChinh && l.canEdit && (
+          <span className="ma-row-manage-actions">
+            <button
+              className="ma-row-edit-btn"
+              type="button"
+              onClick={() => setPlaylistDangSua({ id: l.id, name: l.name })}
+              title="Đổi tên playlist"
+              aria-label={`Đổi tên playlist ${l.name}`}
+            >
+              ✎
+            </button>
+            <button
+              className="ma-row-x"
+              type="button"
+              onClick={() => void xoaPlaylist(l)}
+              title="Xoá playlist"
+              aria-label={`Xoá playlist ${l.name}`}
+            >
+              ×
+            </button>
+          </span>
         )}
       </div>
     );
@@ -283,9 +351,26 @@ export function MiniAppPage() {
           )}
           {playlistAdmin.map(veHangPlaylist)}
 
+          {dangDieuChinh && (
+            <p className="ma-note">Bạn có thể đổi tên hoặc xoá playlist riêng; Admin có thể điều chỉnh cả Admin Playlist.</p>
+          )}
+
           <div className="ma-col-actions">
             <button className="ma-pill" onClick={() => setHienThemPlaylist(true)}>
               Thêm playlist
+            </button>
+            <button
+              className={`ma-pill${dangDieuChinh ? " ma-pill-adjust-active" : " ma-pill-ghost"}`}
+              type="button"
+              aria-pressed={dangDieuChinh}
+              onClick={() => {
+                setDangDieuChinh((dangBat) => {
+                  if (dangBat) setPlaylistDangSua(null);
+                  return !dangBat;
+                });
+              }}
+            >
+              {dangDieuChinh ? "Xong điều chỉnh" : "Điều chỉnh"}
             </button>
             <button className="ma-pill ma-pill-ghost" onClick={() => setHienThongTin(true)}>
               Thông tin chi tiết mini app

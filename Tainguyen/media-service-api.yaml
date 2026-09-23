@@ -471,6 +471,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/IptvChannelList"
 
+  /miniapps/iptv/channel-lists/{listId}:
+    patch:
+      tags: [MiniApp]
+      summary: Đổi tên playlist
+      description: >-
+        Người dùng đổi tên playlist riêng của mình. Playlist dùng chung chỉ
+        quản trị viên được sửa.
+      parameters:
+        - name: listId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+      responses:
+        "200":
+          description: Playlist sau khi đổi tên
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IptvChannelList"
+        "403":
+          description: Playlist chỉ được xem, người gọi không có quyền sửa
+        "404":
+          description: Playlist không tồn tại hoặc không được phép biết tới
+
   /miniapps/iptv/channel-lists/{listId}/import:
     post:
       tags: [MiniApp]
