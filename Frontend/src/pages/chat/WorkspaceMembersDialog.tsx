@@ -6,8 +6,9 @@ import { Avatar } from "../../components/Avatar";
 import { Modal } from "../../components/Modal";
 import { extractApiError } from "../../lib/apiError";
 import { useAuthStore } from "../../store/authStore";
-import type { WorkspaceMember } from "../../types/workspace";
+import type { Workspace, WorkspaceMember } from "../../types/workspace";
 import { AddMemberDialog } from "./AddMemberDialog";
+import { WorkspaceSettingsDialog } from "./WorkspaceSettingsDialog";
 
 const roleLabel: Record<WorkspaceMember["role"], string> = {
   leader: "Trưởng nhóm",
@@ -19,10 +20,12 @@ export function WorkspaceMembersDialog({
   workspaceId,
   onClose,
   onMembersChanged,
+  onWorkspaceChanged,
 }: {
   workspaceId: number;
   onClose: () => void;
   onMembersChanged: (members: WorkspaceMember[]) => void;
+  onWorkspaceChanged?: (workspace: Workspace) => void;
 }) {
   const navigate = useNavigate();
   const currentUserId = useAuthStore((s) => s.user?.id);
@@ -31,6 +34,7 @@ export function WorkspaceMembersDialog({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   async function load() {
     try {
@@ -93,7 +97,12 @@ export function WorkspaceMembersDialog({
 
   return createPortal(
     <>
-      <Modal title="Quản lý thành viên" onClose={onClose} width={760} closeOnEscape={!showAddMember}>
+      <Modal
+        title="Quản lý thành viên"
+        onClose={onClose}
+        width={760}
+        closeOnEscape={!showAddMember && !showSettings}
+      >
         <div className="wmd-toolbar">
           <label className="wmd-search">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -116,7 +125,7 @@ export function WorkspaceMembersDialog({
               <button
                 type="button"
                 className="cw-pill wmd-settings"
-                onClick={() => navigate(`/workspaces/${workspaceId}/settings`)}
+                onClick={() => setShowSettings(true)}
               >
                 Cài đặt nhóm
               </button>
@@ -187,6 +196,22 @@ export function WorkspaceMembersDialog({
           members={members.map((member) => ({ userId: member.userId, nickname: member.nickname }))}
           onClose={() => setShowAddMember(false)}
           onAdded={() => void load()}
+        />
+      )}
+
+      {showSettings && (
+        <WorkspaceSettingsDialog
+          workspaceId={workspaceId}
+          onBack={() => setShowSettings(false)}
+          onSaved={(workspace) => {
+            onWorkspaceChanged?.(workspace);
+            setShowSettings(false);
+          }}
+          onDeleted={() => {
+            setShowSettings(false);
+            onClose();
+            navigate("/app/groups", { replace: true });
+          }}
         />
       )}
     </>,

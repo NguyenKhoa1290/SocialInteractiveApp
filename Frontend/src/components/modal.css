@@ -157,6 +157,144 @@
   }
 }
 
+/* --- Popup cai dat nhom mo tu popup quan ly thanh vien ----------------- */
+
+.wsd-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--calli-teal-dark);
+  font: 500 16px/1.4 var(--sans);
+  cursor: pointer;
+}
+
+.wsd-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wsd-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--calli-navy-line);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.wsd-form input,
+.wsd-confirm-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: 9px;
+  box-sizing: border-box;
+  background: #fff;
+  color: var(--calli-navy-line);
+  font: 400 16px/1 var(--sans);
+}
+
+.wsd-form input:focus,
+.wsd-confirm-input:focus {
+  outline: 3px solid color-mix(in srgb, var(--calli-teal-dark) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.wsd-save-row,
+.wsd-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wsd-primary,
+.wsd-secondary,
+.wsd-delete,
+.wsd-danger button {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--r-pill);
+  border: 0;
+  font: 600 14px/1.2 var(--sans);
+  cursor: pointer;
+}
+
+.wsd-primary {
+  background: var(--calli-teal-dark);
+  color: #fff;
+}
+
+.wsd-secondary {
+  background: var(--calli-muted);
+  color: var(--calli-navy-line);
+}
+
+.wsd-delete,
+.wsd-danger button {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.wsd-primary:disabled,
+.wsd-secondary:disabled,
+.wsd-delete:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wsd-danger {
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+}
+
+.wsd-danger h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.wsd-danger p,
+.wsd-confirm-copy,
+.wsd-loading,
+.wsd-error {
+  margin: 0;
+  font-size: 15px;
+}
+
+.wsd-danger p,
+.wsd-confirm-copy,
+.wsd-loading {
+  color: var(--text-m);
+}
+
+.wsd-danger button {
+  margin-top: 12px;
+}
+
+.wsd-error {
+  color: var(--danger);
+}
+
+@media (max-width: 620px) {
+  .wsd-form,
+  .wsd-danger {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .wsd-save-row .wsd-primary {
+    width: 100%;
+  }
+}
+
 /* --- Popup "Them thanh vien" -------------------------------------------
    Tu suy theo he thong thiet ke: o tim kiem giong panel trai, hang nguoi
    dung mang khuon the thanh vien o panel phai. */

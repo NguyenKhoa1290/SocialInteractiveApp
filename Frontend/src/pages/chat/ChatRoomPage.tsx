@@ -1742,6 +1742,9 @@ export function ChatRoomPage() {
           onMembersChanged={(updated) => {
             setMembers(updated.map((member) => ({ userId: member.userId, nickname: member.nickname })));
           }}
+          onWorkspaceChanged={(workspace) => {
+            setPeer({ ten: workspace.name, anh: workspace.avatarUpdatedAt });
+          }}
         />
       )}
 
