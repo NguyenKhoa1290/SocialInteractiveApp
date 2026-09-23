@@ -17,7 +17,6 @@ export function WorkspaceSettingsDialog({
 }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [name, setName] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,7 +34,6 @@ export function WorkspaceSettingsDialog({
         if (cancelled) return;
         setWorkspace(data);
         setName(data.name);
-        setAvatarUrl(data.avatarUrl ?? "");
       })
       .catch((err) => {
         if (!cancelled) setError(extractApiError(err, "Không tải được thông tin nhóm"));
@@ -50,10 +48,7 @@ export function WorkspaceSettingsDialog({
     setError(null);
     setSaving(true);
     try {
-      const { data } = await workspaceApi.update(workspaceId, {
-        name: name.trim(),
-        avatarUrl: avatarUrl.trim() || undefined,
-      });
+      const { data } = await workspaceApi.update(workspaceId, { name: name.trim() });
       onSaved(data);
     } catch (err) {
       setError(extractApiError(err, "Không lưu được thay đổi"));
@@ -98,15 +93,6 @@ export function WorkspaceSettingsDialog({
               <label>
                 <span>Tên nhóm</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
-              </label>
-              <label>
-                <span>URL ảnh nhóm</span>
-                <input
-                  type="url"
-                  placeholder="https://…"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                />
               </label>
               {error && <p className="wsd-error" role="alert">{error}</p>}
               <div className="wsd-save-row">
