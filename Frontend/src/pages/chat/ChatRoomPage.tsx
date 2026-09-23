@@ -152,13 +152,13 @@ export function ChatRoomPage() {
   // localStorage vi day la thoi quen chu khong phai trang thai cua mot hoi
   // thoai: ai thich khung chat rong thi thich o moi phong, va o ca lan sau.
   const [anThongTin, setAnThongTin] = useState(() => localStorage.getItem(KHOA_AN_THONG_TIN) === "1");
-  // O desktop vua (901-1200px), thong tin mo dang drawer phu len cot chat
-  // thay vi chen them cot thu ba. Trang thai nay rieng voi tuy chon gap panel
-  // cua desktop rong, va mac dinh dong moi khi vao hoi thoai.
-  const [desktopVua, setDesktopVua] = useState(() =>
-    window.matchMedia("(min-width: 901px) and (max-width: 1200px)").matches,
+  // Tu 1200px tro xuong, thong tin mo dang mot man phu len cot chat thay vi
+  // chen them cot thu ba. Trang thai nay rieng voi tuy chon gap panel cua
+  // desktop rong, va mac dinh dong moi khi vao hoi thoai.
+  const [manHinhThongTinPhu, setManHinhThongTinPhu] = useState(() =>
+    window.matchMedia("(max-width: 1200px)").matches,
   );
-  const [moThongTinDesktopVua, setMoThongTinDesktopVua] = useState(false);
+  const [moThongTinPhu, setMoThongTinPhu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<{ message: Message; text: string }[] | null>(null);
@@ -187,10 +187,10 @@ export function ChatRoomPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 901px) and (max-width: 1200px)");
+    const media = window.matchMedia("(max-width: 1200px)");
     const capNhat = () => {
-      setDesktopVua(media.matches);
-      if (!media.matches) setMoThongTinDesktopVua(false);
+      setManHinhThongTinPhu(media.matches);
+      if (!media.matches) setMoThongTinPhu(false);
     };
     capNhat();
     media.addEventListener("change", capNhat);
@@ -198,14 +198,14 @@ export function ChatRoomPage() {
   }, []);
 
   useEffect(() => {
-    setMoThongTinDesktopVua(false);
+    setMoThongTinPhu(false);
   }, [conversationId]);
 
-  const thongTinBiAn = desktopVua ? !moThongTinDesktopVua : anThongTin;
+  const thongTinBiAn = manHinhThongTinPhu ? !moThongTinPhu : anThongTin;
 
   const toggleThongTin = () => {
-    if (desktopVua) {
-      setMoThongTinDesktopVua((dangMo) => !dangMo);
+    if (manHinhThongTinPhu) {
+      setMoThongTinPhu((dangMo) => !dangMo);
       return;
     }
     const moi = !anThongTin;
@@ -214,7 +214,7 @@ export function ChatRoomPage() {
   };
 
   const dongCuocTroChuyen = () => {
-    setMoThongTinDesktopVua(false);
+    setMoThongTinPhu(false);
     navigate(conversation?.type === "group" ? "/app/groups" : "/app", { replace: true });
   };
   const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
@@ -1215,7 +1215,7 @@ export function ChatRoomPage() {
         }
         isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
         infoHidden={thongTinBiAn}
-        onInfoOverlayClose={() => setMoThongTinDesktopVua(false)}
+        onInfoOverlayClose={() => setMoThongTinPhu(false)}
         info={<ChatRoomLoading info loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
         chat={<ChatRoomLoading loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
       />
@@ -1245,7 +1245,7 @@ export function ChatRoomPage() {
       }
       isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
       infoHidden={thongTinBiAn}
-      onInfoOverlayClose={() => setMoThongTinDesktopVua(false)}
+      onInfoOverlayClose={() => setMoThongTinPhu(false)}
       info={
         <ConversationInfo
           conversationId={conversationId}

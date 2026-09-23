@@ -30,13 +30,7 @@
   border-left: 0;
 }
 
-/* Thanh chuyen panel chi co tren dien thoai; de no khong tham gia luoi ba cot
-   cua desktop. */
-.cw-mobile-tabs {
-  display: none;
-}
-
-/* Chi hien o breakpoint desktop vua, khi panel thong tin phu len cot chat. */
+/* Chi hien khi panel thong tin phu len cot chat o man hinh <= 1200px. */
 .cw-info-overlay-back {
   display: none;
 }
@@ -645,9 +639,9 @@
 
 /* --- Man hep ------------------------------------------------------------ */
 /*
-   Duoi 1200px tam an panel phai de cot chat con cho; duoi 900px, ba cot
-   chuyen thanh BA MAN RIENG. Thanh .cw-mobile-tabs chon cot dang xem, nen
-   khong phai ep ba cot desktop vao be rong cua dien thoai.
+   Tu 1200px tro xuong, panel thong tin phu len chat khi duoc mo. Duoi 900px,
+   danh sach va chat la hai man rieng theo route; nut quay lai trong dau chat
+   dong hoi thoai de tro ve danh sach, khong can thanh ba tab.
 */
 
 @media (min-width: 901px) and (max-width: 1200px) {
@@ -707,48 +701,10 @@
        desktop. Giam dong bo 10% o RIENG workspace de cac kich thuoc inline
        cua Avatar cung di theo, thay vi sua roi rac tung thanh phan. */
     --s: 0.72;
+    position: relative;
     display: flex;
     flex-direction: column;
     height: calc(100svh - var(--rail-h) - env(safe-area-inset-bottom));
-  }
-
-  .cw-mobile-tabs {
-    flex: none;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: calc(6px * var(--s));
-    padding: calc(10px * var(--s)) calc(12px * var(--s));
-    background: var(--panel-bg);
-    border-bottom: 1px solid var(--panel-border);
-  }
-
-  .cw-caret-info,
-  .cw-info-overlay-back {
-    display: none;
-  }
-
-  .cw-mobile-tabs button {
-    min-width: 0;
-    min-height: calc(36px * var(--s));
-    padding: calc(6px * var(--s));
-    border: 1px solid var(--accent-border);
-    border-radius: var(--r-sm);
-    background: transparent;
-    color: var(--calli-navy);
-    font: 600 calc(14px * var(--s)) / 1.2 var(--sans);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .cw-mobile-tabs button.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--on-accent);
-  }
-
-  .cw-mobile-tabs button:disabled {
-    cursor: default;
-    opacity: 0.45;
   }
 
   .cw-col {
@@ -770,11 +726,41 @@
     display: flex;
   }
 
-  /* Ghi de rule an panel thong tin cua breakpoint 1200px va ca tuy chon gap
-     tren desktop: o mobile day la man thu ba, khong phai mot cot dang chiem
-     cho can phai nho lai. */
-  .cw.cw-mobile-info .cw-col-info {
+  /* Thong tin phu kin khung chat. Danh sach chi xuat hien lai khi nut dong
+     hoi thoai dieu huong ve /app hoac /app/groups. */
+  .cw:not(.cw-info-off) .cw-col-info {
+    position: absolute;
+    z-index: 12;
+    inset: 0;
     display: flex;
+    width: auto;
+    background: var(--panel-bg);
+  }
+
+  .cw-info-overlay-back {
+    position: absolute;
+    z-index: 13;
+    top: calc(18px * var(--s));
+    left: calc(18px * var(--s));
+    display: inline-grid;
+    place-items: center;
+    width: calc(44px * var(--s));
+    height: calc(44px * var(--s));
+    padding: 0;
+    border: 2px solid var(--calli-navy-line);
+    border-radius: var(--r-pill);
+    background: var(--panel-bg);
+    color: var(--calli-navy-line);
+    cursor: pointer;
+  }
+
+  .cw-info-overlay-back svg {
+    width: calc(26px * var(--s));
+    height: calc(26px * var(--s));
+  }
+
+  .cw-col-info > .cw-info {
+    padding-top: calc(76px * var(--s));
   }
 
   .cw-left-top {

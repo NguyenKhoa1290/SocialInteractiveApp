@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AppShell } from "../../components/AppShell";
 import "./workspace.css";
@@ -35,21 +34,10 @@ export function ChatWorkspace({
   // goc tren trai goi callback nay de tra ve tin nhan.
   onInfoOverlayClose?: () => void;
 }) {
-  // Man hinh hep khong du cho ca ba cot cua ban desktop. Thay vi chi an bot
-  // panel (va lam mat luon phan thong tin), coi moi cot la mot man nho: nguoi
-  // dung bam thanh chuyen de xem Danh sach / Tin nhan / Thong tin.
-  //
-  // Trang danh sach chua chon hoi thoai nao thi chi co panel dau tien. Vao
-  // mot hoi thoai bang link truc tiep thi bat dau o panel chat, dung voi y
-  // dinh cua URL va tranh hien man danh sach roi moi nhay sang chat.
-  type MobilePanel = "list" | "chat" | "info";
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(() => (hasActive ? "chat" : "list"));
-
-  useEffect(() => {
-    setMobilePanel(hasActive ? "chat" : "list");
-  }, [hasActive]);
-
-  const coThongTin = info !== undefined;
+  // Tren dien thoai khong con thanh ba tab: chua chon hoi thoai thi hien danh
+  // sach, da chon thi hien chat. Nut quay lai trong dau chat dong hoi thoai;
+  // panel thong tin duoc mo phu len chat bang mui ten rieng.
+  const mobilePanel = hasActive ? "chat" : "list";
 
   return (
     <AppShell activeTab={isGroup ? "groups" : "chat"}>
@@ -58,35 +46,6 @@ export function ChatWorkspace({
           infoHidden ? " cw-info-off" : ""
         }`}
       >
-        {hasActive && (
-          <nav className="cw-mobile-tabs" aria-label="Chuyen phan hoi thoai">
-            <button
-              type="button"
-              className={mobilePanel === "list" ? "active" : ""}
-              onClick={() => setMobilePanel("list")}
-              aria-current={mobilePanel === "list" ? "page" : undefined}
-            >
-              Danh sach
-            </button>
-            <button
-              type="button"
-              className={mobilePanel === "chat" ? "active" : ""}
-              onClick={() => setMobilePanel("chat")}
-              aria-current={mobilePanel === "chat" ? "page" : undefined}
-            >
-              Tin nhan
-            </button>
-            <button
-              type="button"
-              className={mobilePanel === "info" ? "active" : ""}
-              onClick={() => setMobilePanel("info")}
-              disabled={!coThongTin}
-              aria-current={mobilePanel === "info" ? "page" : undefined}
-            >
-              Thong tin
-            </button>
-          </nav>
-        )}
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>
         {info !== undefined && (
