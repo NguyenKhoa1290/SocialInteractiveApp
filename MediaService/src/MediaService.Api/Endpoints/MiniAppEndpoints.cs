@@ -113,7 +113,8 @@ public static class MiniAppEndpoints
         // playlist dung chung chi admin sua duoc.
         group.MapPatch("/channel-lists/{listId:long}", async (
             long listId, UpdateChannelListRequest req,
-            System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db) =>
+            System.Security.Claims.ClaimsPrincipal principal, MiniAppDbContext db,
+            PlaylistImporter importer, CancellationToken ct) =>
         {
             var name = req.Name?.Trim();
             if (string.IsNullOrWhiteSpace(name))
@@ -130,8 +131,48 @@ public static class MiniAppEndpoints
             if (!suaDuoc)
                 return Results.Json(new ErrorResponse("forbidden", "Playlist nay ban chi xem duoc"), statusCode: 403);
 
+            var laAdmin = principal.IsAdmin();
+            var dungChung = req.Shared ?? list.IsShared;
+            if (dungChung && !laAdmin)
+                return Results.Json(
+                    new ErrorResponse("forbidden", "Chi quan tri vien duoc dat playlist dung chung"),
+                    statusCode: 403);
+
+            var url = string.IsNullOrWhiteSpace(req.Url) ? null : req.Url.Trim();
+            var autoGroups = req.AutoGroups ?? list.AutoGroups;
+
+            // PlaylistImporter luu theo tung nhom de lay ID. Boc toan bo lan
+            // dieu chinh trong transaction de link hong khong doi nua chung
+            // ten/trang thai hoac de lai mot phan kenh vua nhap.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+            var wasShared = list.IsShared;
             list.Name = name;
-            await db.SaveChangesAsync();
+            list.IsShared = dungChung;
+            // Admin chuyen mot Admin Playlist ve ca nhan thi playlist do tro
+            // thanh cua chinh admin dang thao tac, tranh no bien mat vao tai
+            // khoan cua nguoi tao cu.
+            if (!dungChung && wasShared)
+                list.UserId = userId;
+
+            if (url is null)
+            {
+                list.SourceUrl = null;
+                list.AutoGroups = autoGroups;
+                list.RefreshedAt = null;
+                await db.SaveChangesAsync(ct);
+            }
+            else
+            {
+                var kq = await importer.NhapAsync(db, list, url, autoGroups, ct);
+                if (kq.Loi is not null)
+                    return Results.UnprocessableEntity(new ErrorResponse("fetch_failed", kq.Loi));
+                if (!kq.LaPlaylist)
+                    return Results.UnprocessableEntity(new ErrorResponse(
+                        "not_a_playlist", "Link nay la mot luong don, khong phai danh sach kenh"));
+            }
+
+            await transaction.CommitAsync(ct);
             return Results.Ok(IptvChannelListResponse.FromEntity(list, true));
         });
 

@@ -119,8 +119,16 @@ export const iptvApi = {
   createChannelList: (name: string, shared = false) =>
     mediaHttp.post<IptvChannelList>("/miniapps/iptv/channel-lists", { name, shared }),
 
-  updateChannelList: (listId: number, name: string) =>
-    mediaHttp.patch<IptvChannelList>(`/miniapps/iptv/channel-lists/${listId}`, { name }),
+  updateChannelList: (
+    listId: number,
+    patch: { name: string; url?: string; autoGroups?: boolean; shared?: boolean },
+  ) =>
+    mediaHttp.patch<IptvChannelList>(`/miniapps/iptv/channel-lists/${listId}`, {
+      name: patch.name,
+      url: patch.url?.trim() || null,
+      autoGroups: patch.autoGroups ?? null,
+      shared: patch.shared ?? null,
+    }),
 
   deleteChannelList: (listId: number) =>
     mediaHttp.delete<void>(`/miniapps/iptv/channel-lists/${listId}`),

@@ -89,15 +89,17 @@ public record GrantPermissionRequest(string PermissionType);
 
 // Shared = true chi admin goi duoc: playlist do se hien cho MOI nguoi.
 public record CreateChannelListRequest(string Name, bool? Shared);
-public record UpdateChannelListRequest(string Name);
+public record UpdateChannelListRequest(string Name, string? Url, bool? AutoGroups, bool? Shared);
 
 // CanEdit tinh RIENG cho nguoi dang goi - playlist dung chung thi ai cung
 // thay nhung chi admin sua duoc, nen day khong phai thuoc tinh co dinh cua
 // playlist ma la cau tra loi cho "toi lam gi duoc voi no".
-public record IptvChannelListResponse(long Id, string Name, DateTimeOffset CreatedAt, bool IsShared, bool CanEdit)
+public record IptvChannelListResponse(
+    long Id, string Name, DateTimeOffset CreatedAt, bool IsShared, bool CanEdit,
+    string? SourceUrl, bool AutoGroups)
 {
     public static IptvChannelListResponse FromEntity(IptvChannelList l, bool canEdit) =>
-        new(l.Id, l.Name, l.CreatedAt, l.IsShared, canEdit);
+        new(l.Id, l.Name, l.CreatedAt, l.IsShared, canEdit, canEdit ? l.SourceUrl : null, l.AutoGroups);
 }
 
 public record CreateChannelGroupRequest(string GroupName);

@@ -137,6 +137,10 @@ export interface IptvChannelList {
    *  ai cũng thấy nhưng chỉ admin sửa. Không phải thuộc tính cố định của
    *  playlist mà là câu trả lời cho "tôi làm gì được với nó". */
   canEdit: boolean;
+  /** Link M3U gốc để tự làm mới. Chỉ API trả cho người có quyền sửa vì URL
+   *  nguồn có thể chứa token của nhà cung cấp. */
+  sourceUrl: string | null;
+  autoGroups: boolean;
 }
 
 export interface IptvChannel {
