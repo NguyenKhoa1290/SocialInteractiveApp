@@ -152,7 +152,10 @@ export function ChatRoomPage() {
   // Gap thanh thong tin ben phai lai (Figma frame 138:80). Nho qua
   // localStorage vi day la thoi quen chu khong phai trang thai cua mot hoi
   // thoai: ai thich khung chat rong thi thich o moi phong, va o ca lan sau.
-  const [anThongTin, setAnThongTin] = useState(() => localStorage.getItem(KHOA_AN_THONG_TIN) === "1");
+  // Man hinh lon mac dinh GIẤU thanh thong tin de uu tien chieu rong cho
+  // noi dung chat. Neu nguoi dung da tung bam mui ten thi ton trong lua chon
+  // do: "0" = hien, "1" = an. Khoa chua ton tai moi ap dung mac dinh an.
+  const [anThongTin, setAnThongTin] = useState(() => localStorage.getItem(KHOA_AN_THONG_TIN) !== "0");
   // Tu 1200px tro xuong, thong tin mo dang mot man phu len cot chat thay vi
   // chen them cot thu ba. Trang thai nay rieng voi tuy chon gap panel cua
   // desktop rong, va mac dinh dong moi khi vao hoi thoai.
