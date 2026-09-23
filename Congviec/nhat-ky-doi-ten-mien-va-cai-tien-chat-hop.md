@@ -1264,3 +1264,142 @@ bật lại như trước. Luật cấm và ngoại lệ cấp quyền từng ng
 
 - `npm run build` trong `Frontend`: đạt (`tsc -b` và Vite production build);
 - `git diff --check`: đạt.
+
+---
+
+## 27. Popup thảo luận sau cuộc họp và trạng thái tải khi mạng chậm
+
+**Đợt làm ngày 23/09/2026** — Frontend (React).
+
+Phần thảo luận của cuộc họp cũ không còn thay cả trang chat. Nội dung được mở
+trong popup dùng cùng khuôn với popup trong phòng họp, giới hạn theo viewport
+trên cả desktop và điện thoại. Mở/đóng popup không dựng lại trang chat phía
+sau, nhờ đó không gọi lại danh sách nhóm, tin nhắn và media không cần thiết.
+
+Khi vào chat lúc mạng chậm, giao diện nay giữ khung bố cục ổn định bằng trạng
+thái loading/skeleton riêng cho đầu phòng, tin nhắn và panel thông tin. Dữ liệu
+của hội thoại trước được xoá ngay khi đổi route, tránh hiện lẫn tên, thành viên
+hoặc tin nhắn cũ trong lúc request mới chưa hoàn tất.
+
+Commits:
+
+- `98839ec` — `Hiển thị thảo luận cuộc họp dạng popup`;
+- `82bc691` — `Giới hạn popup thảo luận theo viewport`;
+- `1623ab4` — `Giữ phòng chat khi mở popup thảo luận`;
+- `b84b661` — `Cải thiện trạng thái tải phòng chat khi mạng chậm`.
+
+---
+
+## 28. Tải tệp song song, phân trang tin nhắn và media
+
+Upload multipart dùng tối đa **4 worker** gửi các part song song. Tổng tiến độ
+vẫn được cộng từ byte đã gửi của từng part; hoàn tất upload chỉ được gọi sau
+khi toàn bộ worker thành công.
+
+Ba loại chat — cá nhân, nhóm và thảo luận phòng họp — nay tải **30 tin mới
+nhất** trước. Khi người dùng cuộn tới đầu danh sách, frontend mới yêu cầu trang
+cũ hơn bằng cặp mốc thời gian/ID, đồng thời bù `scrollHeight` để vị trí đang đọc
+không bị nhảy. Backend áp dụng giới hạn trang và thứ tự ổn định cho cả tin nhắn
+thường lẫn tin nhắn cuộc họp.
+
+Danh sách file media đã gửi mặc định được gập và không gọi API. Khi mở, mỗi
+trang tải **12 mục**; URL ký cho ảnh/video được lấy theo các lô tối đa **4 yêu
+cầu song song**, rồi tải tiếp khi cuộn gần cuối.
+
+Hai lỗi cuộn ban đầu cũng đã được xử lý:
+
+- hội thoại luôn neo ở tin mới nhất sau lần tải đầu, không nằm ở đầu lịch sử;
+- ảnh/video tải chậm không còn đẩy người dùng khỏi đáy chat; trong giai đoạn
+  tải đầu, mỗi media báo hoàn tất để chat cuộn bù, nhưng dừng tự cuộn ngay khi
+  người dùng chủ động kéo lên đọc tin cũ.
+
+Commits:
+
+- `9a8e94b` — `Increase multipart upload concurrency`;
+- `8d64b8c` — `Paginate chat history and media`;
+- `868e7b0` — `Fix initial chat scroll position`;
+- `a30c7d9` — `Keep chat pinned while media loads`.
+
+---
+
+## 29. Quản lý thành viên và cài đặt nhóm bằng popup
+
+Mục **Quản lý thành viên** trong chat nhóm được chuyển thành popup portal,
+không điều hướng sang trang quản trị riêng. Popup giữ đủ chức năng tìm kiếm,
+thêm thành viên, phong/gỡ phó nhóm, xoá thành viên và rời nhóm. Trên điện thoại:
+
+- ô tìm kiếm giữ toàn chiều rộng;
+- hai nút thao tác xuống hàng riêng và căn giữa;
+- vùng nút của từng thành viên dùng `border-box`, không còn tạo thanh cuộn
+  ngang hoặc chèn lên hàng kế tiếp.
+
+**Cài đặt nhóm** là popup con mở từ quản lý thành viên. Nút quay lại và nút
+đóng đều trở về đúng popup thành viên thay vì đổi route. Lưu tên nhóm cập nhật
+ngay tiêu đề chat; popup xác nhận xoá vẫn bắt buộc gõ chính xác tên nhóm. Trên
+điện thoại popup chiếm toàn màn hình. Trường nhập **URL ảnh nhóm** đã bỏ vì ảnh
+nhóm được quản lý bằng nút dấu cộng và luồng chọn/cắt ảnh riêng.
+
+Commits:
+
+- `ed02b88` — `Show group member management in popup`;
+- `c6bef6e` — `Fix mobile member dialog layout`;
+- `e0fcdc0` — `Show group settings in nested popup`;
+- `a481cf2` — `Remove group image URL setting`.
+
+---
+
+## 30. Tự phục hồi khi dynamic chunk cũ bị xoá sau deploy
+
+Một tab mở từ trước khi deploy có thể còn chạy bundle cũ và yêu cầu file như
+`shaka-player.compiled-<hash-cu>.js`. Image frontend mới chỉ chứa hash mới,
+trong khi nginx trước đây fallback cả đường dẫn asset thiếu về `index.html`
+với HTTP 200; kết quả là trình duyệt nhận HTML thay cho JavaScript và báo
+`Failed to fetch dynamically imported module`.
+
+Đã sửa theo ba lớp:
+
+1. Lắng nghe `vite:preloadError` và tự tải lại trang tối đa một lần trong 30
+   giây để lấy bundle mới, tránh vòng lặp nếu lỗi thật sự do mạng/extension.
+2. `index.html` trả `Cache-Control: no-cache, no-store, must-revalidate`; asset
+   có hash hợp lệ được cache dài hạn với `immutable`.
+3. `/assets/*` không tồn tại trả đúng **404** thay vì SPA fallback, kèm
+   `Cache-Control: no-store` để Cloudflare không giữ phản hồi lỗi.
+
+Commits:
+
+- `a94c1cf` — `Recover from stale frontend chunks`;
+- `55b06c0` — `Do not cache missing frontend assets`.
+
+---
+
+## 31. Điều hướng chat responsive bằng mũi tên
+
+Luồng mở/đóng panel được chia theo kích thước màn hình:
+
+- **Trên 1200px:** giữ bố cục ba cột; mũi tên ở đầu chat gập/mở cột thông tin.
+- **901–1200px:** panel thông tin phủ toàn bộ vùng chat nhưng không che danh
+  sách bên trái; có mũi tên cố định ở góc trên trái để quay lại tin nhắn.
+- **Từ 900px trở xuống:** bỏ hoàn toàn thanh ba tab “Danh sách / Tin nhắn /
+  Thông tin”. Chat và danh sách được chọn theo route; mũi tên thông tin trên
+  đầu chat mở panel phủ toàn bộ vùng chat, còn mũi tên trong panel quay lại
+  tin nhắn. Thanh điều hướng ứng dụng phía dưới không bị che.
+
+Thêm một mũi tên riêng ngay trước avatar ở đầu mọi chat. Nút này chỉ đóng lựa
+chọn hiện tại: chat nhóm quay về `/app/groups`, chat cá nhân quay về `/app` và
+dùng `replace` để Back của trình duyệt không tự mở lại phòng vừa đóng. Nó không
+xoá tin, rời nhóm hoặc xoá bạn.
+
+Commits:
+
+- `4e46f81` — `Overlay chat info on medium desktop`;
+- `53ab6c8` — `Cover medium chat with info panel`;
+- `fba4f31` — `Add close conversation arrow`;
+- `fe3ecd6` — `Replace mobile chat tabs with arrows`.
+
+### Kiểm tra và triển khai
+
+- `npm run build`: đạt sau từng cụm thay đổi;
+- `npm run lint`: đạt, chỉ còn 4 cảnh báo cũ trong `IptvPlayer*`;
+- GitHub Actions `CI` và `Build & Push images`: thành công;
+- đã xác nhận production phục vụ bundle CSS/JS mới và các header cache/404
+  đúng như cấu hình.
