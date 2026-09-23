@@ -10,6 +10,11 @@ public class Meeting
 {
     public long Id { get; set; }
 
+    // Ten do chu phong dat. Du lieu cu va cuoc hop bo trong ten se dung ten
+    // suy ra "Cuoc hop #ID" o DTO, nen cot nay co the null de migration an
+    // toan tren he thong dang chay.
+    public string? Name { get; set; }
+
     // Chu phong HIEN TAI - khong phai nguoi mo phong, va KHONG bat bien nhu
     // tai lieu goc ghi: chu roi di ma phong con nguoi thi quyen tu chuyen
     // sang nguoi khac (HostSuccession.cs). Moi cho kiem tra quyen deu phai

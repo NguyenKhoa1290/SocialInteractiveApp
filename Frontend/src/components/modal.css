@@ -135,6 +135,50 @@
   color: var(--calli-navy);
 }
 
+/* --- Popup dat ten truoc khi tao cuoc hop ----------------------------- */
+
+.meeting-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.meeting-create-form label {
+  color: var(--calli-navy-line);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.meeting-create-form input {
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: #fff;
+  color: var(--calli-navy-line);
+  font: 400 17px/1 var(--sans);
+}
+
+.meeting-create-form input:focus {
+  outline: 3px solid color-mix(in srgb, var(--calli-teal-dark) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.meeting-create-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.meeting-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
 @media (max-width: 620px) {
   .md-overlay {
     padding: 0;
@@ -154,6 +198,15 @@
 
   .md-title {
     font-size: 28px;
+  }
+
+  .meeting-create-actions {
+    margin-top: auto;
+  }
+
+  .meeting-create-actions .md-btn {
+    min-width: 0;
+    flex: 1;
   }
 }
 

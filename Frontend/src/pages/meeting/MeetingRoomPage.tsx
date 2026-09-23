@@ -1496,7 +1496,7 @@ export function MeetingRoomPage() {
         <span className="mroom-clock" title="Thời gian đã họp">
           {daHop}
         </span>
-        <span className="mroom-title">Cuộc họp #{meetingId}</span>
+        <span className="mroom-title">{meeting?.name ?? `Cuộc họp #${meetingId}`}</span>
 
         {/* Khoi "dang phat noi dung" nam NGAY TREN THANH TREN, dung theo
             frame 149:1735 - truoc day no la mot dai xam rieng an mat mot
@@ -1757,6 +1757,7 @@ export function MeetingRoomPage() {
         <MeetingChatDialog
           conversationId={meeting?.conversationId ?? null}
           meetingId={meetingId}
+          meetingName={meeting?.name ?? `Cuộc họp #${meetingId}`}
           laPhongTam={meeting?.isTemporary ?? false}
           tenNhom={nhomCuaHop?.ten ?? null}
           workspaceId={nhomCuaHop?.id ?? null}

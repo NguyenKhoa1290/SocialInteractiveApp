@@ -5,6 +5,10 @@
 
 CREATE TABLE meetings (
   id                BIGSERIAL PRIMARY KEY,
+  -- Ten tuy chon do chu phong dat. NULL = client/API hien "Cuoc hop #ID".
+  -- De nullable de du lieu cu va luong bo trong ten khong can ghi them mot
+  -- gia tri co the suy ra tu khoa chinh.
+  name              VARCHAR(120),
   -- Chu phong HIEN TAI, khong phai nguoi mo phong. Chu roi di ma phong con
   -- nguoi thi cot nay chuyen sang PHO PHONG dang o trong phong. Khong co pho
   -- phong nao thi cot van tro ve nguoi da di va phong VO CHU - co y nhu vay,

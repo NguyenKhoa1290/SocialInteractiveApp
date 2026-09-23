@@ -63,6 +63,11 @@ paths:
                   type: integer
                   format: int64
                   description: Bắt buộc nếu mode=in_chat
+                name:
+                  type: string
+                  nullable: true
+                  maxLength: 120
+                  description: Để trống thì hệ thống dùng `Cuộc họp #ID`.
       responses:
         "201":
           description: Phòng đã được tạo
@@ -673,6 +678,9 @@ components:
         id:
           type: integer
           format: int64
+        name:
+          type: string
+          description: Tên đã đặt, hoặc `Cuộc họp #ID` nếu lúc tạo bỏ trống.
         hostId:
           type: integer
           format: int64
@@ -731,6 +739,8 @@ components:
         meetingId:
           type: integer
           format: int64
+        name:
+          type: string
         hostNickname:
           type: string
         participantCount:

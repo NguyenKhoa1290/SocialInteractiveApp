@@ -35,8 +35,11 @@ function moTa(m: LastMessage): string | null {
       const t = (m.content ?? "").trimStart();
       if (t.startsWith("{")) {
         try {
-          const j = JSON.parse(t) as { kind?: string; text?: string; host?: string };
-          if (j.kind === "meeting_started") return j.host ? `${j.host} đã mở cuộc họp` : "Đã mở cuộc họp";
+          const j = JSON.parse(t) as { kind?: string; text?: string; host?: string; name?: string };
+          if (j.kind === "meeting_started") {
+            const tenHop = j.name ?? "cuộc họp";
+            return j.host ? `${j.host} đã mở ${tenHop}` : `Đã mở ${tenHop}`;
+          }
           return j.text ?? "Thông báo hệ thống";
         } catch {
           return "Thông báo hệ thống";

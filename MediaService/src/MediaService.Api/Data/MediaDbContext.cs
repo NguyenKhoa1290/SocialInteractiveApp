@@ -20,6 +20,7 @@ public class MediaDbContext(DbContextOptions<MediaDbContext> options) : DbContex
             entity.ToTable("meetings");
             entity.HasKey(m => m.Id);
             entity.Property(m => m.Id).HasColumnName("id");
+            entity.Property(m => m.Name).HasColumnName("name").HasMaxLength(120);
             entity.Property(m => m.HostId).HasColumnName("host_id");
             entity.Property(m => m.CreatorId).HasColumnName("creator_id");
             entity.Property(m => m.WorkspaceId).HasColumnName("workspace_id");

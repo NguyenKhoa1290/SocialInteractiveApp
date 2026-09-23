@@ -11,6 +11,7 @@ import { Link, useLocation } from "react-router-dom";
 interface MeetingStartedPayload {
   kind: "meeting_started";
   meetingId: number;
+  name?: string;
   host?: string;
   text?: string;
 }
@@ -51,7 +52,9 @@ export function SystemMessage({
   return (
     <div className="chat-system-card">
       <div className="chat-system-card-head">
-        <span>📹 {payload.host ? `${payload.host} đã mở cuộc họp` : "Cuộc họp"}</span>
+        <span>
+          📹 {payload.host ? `${payload.host} đã mở` : "Đã mở"} {payload.name ?? `Cuộc họp #${payload.meetingId}`}
+        </span>
         <span className={stillOpen ? "chat-system-badge open" : "chat-system-badge"}>
           {stillOpen ? "Đang diễn ra" : "Đã kết thúc"}
         </span>

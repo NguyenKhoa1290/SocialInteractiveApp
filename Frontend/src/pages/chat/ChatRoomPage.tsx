@@ -31,6 +31,7 @@ import { IconAttach, IconCaret, IconImage, IconSend, IconStorage } from "./Compo
 import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi } from "../../api/mediaApi";
+import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
 import type { Meeting } from "../../types/media";
 import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
@@ -166,7 +167,7 @@ export function ChatRoomPage() {
   const [topupRequests, setTopupRequests] = useState<TopupRequestInfo[]>([]);
   const [requestingTopup, setRequestingTopup] = useState(false);
   const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
-  const [startingMeeting, setStartingMeeting] = useState(false);
+  const [showCreateMeeting, setShowCreateMeeting] = useState(false);
   // Cac cuoc hop DA CO thao luan (lay tu Chat Service, khong phai Media) -
   // de xem lai noi dung sau khi hop xong.
   const [pastMeetingIds, setPastMeetingIds] = useState<number[]>([]);
@@ -328,20 +329,13 @@ export function ChatRoomPage() {
     };
   }, [conversation, peerUserId, conversationId]);
 
-  async function handleStartMeeting() {
-    setStartingMeeting(true);
+  async function handleStartMeeting(name: string) {
     setError(null);
-    try {
-      const res = await meetingApi.create("in_chat", conversationId);
-      const join = await meetingApi.joinInChat(res.data.id);
-      navigate(`/meetings/${res.data.id}`, {
-        state: { livekitToken: join.data.livekitToken, livekitUrl: join.data.livekitUrl },
-      });
-    } catch (err) {
-      setError(extractApiError(err, "Không mở được cuộc họp"));
-    } finally {
-      setStartingMeeting(false);
-    }
+    const res = await meetingApi.create("in_chat", conversationId, name);
+    const join = await meetingApi.joinInChat(res.data.id);
+    navigate(`/meetings/${res.data.id}`, {
+      state: { livekitToken: join.data.livekitToken, livekitUrl: join.data.livekitUrl },
+    });
   }
 
   async function handleJoinMeeting() {
@@ -1347,8 +1341,8 @@ export function ChatRoomPage() {
               panel trai: do la phong hop TUY CHINH, khong gan vao nhom nao. */}
           {conversation?.type === "group" &&
             (!activeMeeting ? (
-              <button className="cw-pill" onClick={handleStartMeeting} disabled={startingMeeting}>
-                {startingMeeting ? "Đang mở…" : "Khởi tạo cuộc họp"}
+              <button className="cw-pill" onClick={() => setShowCreateMeeting(true)}>
+                Khởi tạo cuộc họp
               </button>
             ) : (
               <button className="cw-pill" onClick={handleJoinMeeting}>
@@ -1391,7 +1385,7 @@ export function ChatRoomPage() {
       {activeMeeting && (
         <div className="chat-meeting-card">
           <div className="chat-meeting-head">
-            <strong>📹 Cuộc họp đang diễn ra</strong>
+            <strong>📹 {activeMeeting.name}</strong>
             <span className="chat-meeting-time">
               Mở lúc {new Date(activeMeeting.createdAt).toLocaleTimeString("vi-VN")}
             </span>
@@ -1794,6 +1788,13 @@ export function ChatRoomPage() {
           onWorkspaceChanged={(workspace) => {
             setPeer({ ten: workspace.name, anh: workspace.avatarUpdatedAt });
           }}
+        />
+      )}
+
+      {showCreateMeeting && (
+        <CreateMeetingDialog
+          onClose={() => setShowCreateMeeting(false)}
+          onCreate={handleStartMeeting}
         />
       )}
 

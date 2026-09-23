@@ -19,8 +19,8 @@ export const meetingApi = {
   // Ten gia tri phai dung theo enum trong media-service-api.yaml
   // (`enum: [in_chat, standalone]`) - truoc day Frontend gui "direct", chay
   // dung nhung lech hop dong API.
-  create: (mode: "in_chat" | "standalone", conversationId?: number) =>
-    mediaHttp.post<Meeting>("/meetings", { mode, conversationId: conversationId ?? null }),
+  create: (mode: "in_chat" | "standalone", conversationId?: number, name?: string) =>
+    mediaHttp.post<Meeting>("/meetings", { mode, conversationId: conversationId ?? null, name: name?.trim() || null }),
 
   // 204 (data rong) khi hoi thoai khong co cuoc hop nao dang mo.
   getActiveForConversation: (conversationId: number) =>

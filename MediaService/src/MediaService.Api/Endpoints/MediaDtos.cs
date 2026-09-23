@@ -4,7 +4,7 @@ namespace MediaService.Api.Endpoints;
 
 public record ErrorResponse(string Error, string Message);
 
-public record CreateMeetingRequest(string Mode, long? ConversationId);
+public record CreateMeetingRequest(string Mode, long? ConversationId, string? Name);
 
 // Doi cau hinh phong khi dang hop - hien chi co cong tac phong cho. Dung
 // nullable de sau nay them truong khac ma khong bat client phai gui lai het.
@@ -18,12 +18,12 @@ public record UpdateMeetingRequest(
     bool? AllowMiniApp);
 
 public record MeetingResponse(
-    long Id, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    long Id, string Name, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     bool IsTemporary, bool RequiresApproval,
     bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingResponse FromEntity(Meeting m) => new(
-        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
+        m.Id, MeetingName.For(m), m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
         m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
 }
@@ -35,16 +35,24 @@ public record MeetingResponse(
 // chi co y nghia cho CHINH nguoi dang goi, khong phai thuoc tinh chung cua
 // cuoc hop.
 public record MeetingWithCallerStatusResponse(
-    long Id, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
+    long Id, string Name, long HostId, long CreatorId, long? ConversationId, string Status, int MaxParticipants, DateTimeOffset CreatedAt,
     string CallerStatus, string? LivekitToken, string? LivekitUrl,
     bool IsTemporary, bool RequiresApproval,
     bool AllowCamera, bool AllowMic, bool AllowScreenShare, bool AllowMiniApp)
 {
     public static MeetingWithCallerStatusResponse From(
         Meeting m, string callerStatus, string? livekitToken, string? livekitUrl) => new(
-        m.Id, m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
+        m.Id, MeetingName.For(m), m.HostId, m.CreatorId, m.ConversationId, m.Status == MeetingStatus.Active ? "active" : "ended", MeetingLimits.EffectiveMaxParticipants(m.MaxParticipants), m.CreatedAt,
         callerStatus, livekitToken, livekitUrl, m.IsTemporary, m.RequiresApproval,
         m.AllowCamera, m.AllowMic, m.AllowScreenShare, m.AllowMiniApp);
+}
+
+public static class MeetingName
+{
+    public const int MaxLength = 120;
+
+    public static string For(Meeting meeting) =>
+        string.IsNullOrWhiteSpace(meeting.Name) ? $"Cuộc họp #{meeting.Id}" : meeting.Name;
 }
 
 // Hai nut do "Tat tat ca mic" / "Tat tat ca cam" o dau danh sach thanh vien
@@ -54,7 +62,7 @@ public record MeetingWithCallerStatusResponse(
 public record MuteAllRequest(bool Mic, bool Camera);
 
 public record MeetingPreviewResponse(
-    long MeetingId, string HostNickname, int ParticipantCount, int MaxParticipants, bool RequiresApproval);
+    long MeetingId, string Name, string HostNickname, int ParticipantCount, int MaxParticipants, bool RequiresApproval);
 
 public record CreateInviteRequest(string Type, long? InvitedUserId);
 

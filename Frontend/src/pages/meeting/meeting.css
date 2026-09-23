@@ -2067,6 +2067,12 @@
   font-weight: 200;
 }
 
+.mpop-chat-ten > span {
+  color: var(--text-m);
+  font-size: calc(15px * var(--s));
+  font-weight: 300;
+}
+
 .mpop-chat-than {
   flex: 1;
   min-height: 0;

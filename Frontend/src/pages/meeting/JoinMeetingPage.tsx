@@ -131,7 +131,7 @@ export function JoinMeetingPage() {
 
       {phase === "ready" && preview && (
         <div className="meet-join-card">
-          <h2>Tham gia cuộc họp</h2>
+          <h2>{preview.name}</h2>
           <p>
             Chủ phòng: <strong>{preview.hostNickname}</strong>
           </p>

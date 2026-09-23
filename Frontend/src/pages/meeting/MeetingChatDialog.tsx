@@ -13,6 +13,7 @@ import { MeetingDiscussion } from "./MeetingDiscussion";
 export function MeetingChatDialog({
   conversationId,
   meetingId,
+  meetingName,
   laPhongTam,
   tenNhom,
   workspaceId,
@@ -24,6 +25,7 @@ export function MeetingChatDialog({
 }: {
   conversationId: number | null;
   meetingId: number;
+  meetingName: string;
   laPhongTam: boolean;
   tenNhom: string | null;
   workspaceId: number | null;
@@ -50,11 +52,15 @@ export function MeetingChatDialog({
         <span className="mpop-chat-ten">
           {laPhongTam || workspaceId === null ? (
             <>
-              <b>Cuộc họp tạo ra bởi: {tenChuPhong}</b>
+              <b>{meetingName}</b>
+              <span>Tạo bởi: {tenChuPhong}</span>
               <em>Tin nhắn tạm không lưu trữ và giới hạn 2gb gửi file</em>
             </>
           ) : (
-            <b>{tenNhom ?? `Cuộc họp #${meetingId}`}</b>
+            <>
+              <b>{meetingName}</b>
+              {tenNhom && <span>{tenNhom}</span>}
+            </>
           )}
         </span>
 

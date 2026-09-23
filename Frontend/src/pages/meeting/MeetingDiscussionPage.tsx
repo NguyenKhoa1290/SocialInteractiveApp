@@ -4,6 +4,7 @@ import type { Location } from "react-router-dom";
 import { ChatRoomPage } from "../chat/ChatRoomPage";
 import { IconChatBubble } from "./MeetingIcons";
 import { MeetingDiscussion } from "./MeetingDiscussion";
+import { meetingApi } from "../../api/mediaApi";
 
 // Trang xem lai thao luan van giu phong chat o phia sau, con luong thao luan
 // hien trong cung kieu popup voi luc dang o trong cuoc hop. Cach nay giu dung
@@ -17,6 +18,23 @@ export function MeetingDiscussionPage({ chiPopup = false }: { chiPopup?: boolean
   const mid = Number(meetingId);
   const [moTim, setMoTim] = useState(false);
   const [tim, setTim] = useState("");
+  const [meetingName, setMeetingName] = useState(`Cuộc họp #${mid}`);
+
+  useEffect(() => {
+    let cancelled = false;
+    meetingApi
+      .get(mid)
+      .then(({ data }) => {
+        if (!cancelled) setMeetingName(data.name);
+      })
+      .catch(() => {
+        // Du lieu cu hoac Media Service tam loi: ten theo so van dung va
+        // khong duoc lam hong luong thao luan.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mid]);
 
   const dongPopup = useCallback(() => {
     const coNenPhongChat = Boolean(
@@ -52,7 +70,7 @@ export function MeetingDiscussionPage({ chiPopup = false }: { chiPopup?: boolean
             </span>
 
             <span className="mpop-chat-ten">
-              <b id="meeting-discussion-title">Thảo luận · Cuộc họp #{mid}</b>
+              <b id="meeting-discussion-title">Thảo luận · {meetingName}</b>
               <em>Nội dung trao đổi sau cuộc họp</em>
             </span>
 

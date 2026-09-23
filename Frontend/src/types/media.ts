@@ -7,6 +7,8 @@ export type MeetingStatus = "active" | "ended";
 
 export interface Meeting {
   id: number;
+  /** Tên do chủ phòng đặt, hoặc `Cuộc họp #ID` do API tự điền. */
+  name: string;
   hostId: number;
   // Nguoi MO phong - bat bien. Khac hostId khi chu roi phong va quyen dang
   // tam o nguoi khac; chu that quay lai la lay lai ngay.
@@ -40,6 +42,7 @@ export interface MeetingWithCallerStatus extends Meeting {
 
 export interface MeetingPreview {
   meetingId: number;
+  name: string;
   hostNickname: string;
   participantCount: number;
   maxParticipants: number;

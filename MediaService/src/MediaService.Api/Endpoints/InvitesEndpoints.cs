@@ -102,6 +102,7 @@ public static class InvitesEndpoints
 
             return Results.Ok(new MeetingPreviewResponse(
                 meeting.Id,
+                MeetingName.For(meeting),
                 host?.DisplayName ?? $"user_{meeting.HostId}",
                 activeCount,
                 MeetingLimits.EffectiveMaxParticipants(meeting.MaxParticipants),

@@ -24,6 +24,15 @@ public static class MeetingsEndpoints
             if (req.Mode == "in_chat" && req.ConversationId is null)
                 return Results.BadRequest(new ErrorResponse("invalid_request", "conversationId bat buoc khi mode=in_chat"));
 
+            var meetingName = req.Name?.Trim();
+            if (meetingName?.Length > MeetingName.MaxLength)
+                return Results.BadRequest(new ErrorResponse(
+                    "invalid_name", $"Ten cuoc hop toi da {MeetingName.MaxLength} ky tu"));
+            if (meetingName?.Any(char.IsControl) == true)
+                return Results.BadRequest(new ErrorResponse("invalid_name", "Ten cuoc hop khong hop le"));
+            if (meetingName?.Length == 0)
+                meetingName = null;
+
             var laTuyChinh = req.Mode != "in_chat";
 
             // Phong TUY CHINH tu xin mot hoi thoai TAM ben Chat Service.
@@ -40,6 +49,7 @@ public static class MeetingsEndpoints
 
             var meeting = new Meeting
             {
+                Name = meetingName,
                 HostId = hostId,
                 CreatorId = hostId,
                 ConversationId = hoiThoai,
@@ -138,6 +148,7 @@ public static class MeetingsEndpoints
                 {
                     kind = "meeting_started",
                     meetingId = meeting.Id,
+                    name = MeetingName.For(meeting),
                     host = nickname,
                     text = $"{nickname} da mo cuoc hop",
                 }));
