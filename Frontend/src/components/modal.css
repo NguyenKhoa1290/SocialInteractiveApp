@@ -376,18 +376,25 @@
     flex-direction: column;
   }
 
-  .wmd-add {
-    align-self: flex-end;
+  .wmd-search {
+    flex: 0 0 44px;
+    width: 100%;
   }
 
   .wmd-toolbar-actions {
-    align-self: flex-end;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    align-self: stretch;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .wmd-toolbar-actions .cw-pill {
+    white-space: nowrap;
   }
 
   .wmd-list {
     max-height: calc(100svh - 245px);
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .wmd-row {
@@ -402,5 +409,6 @@
   .wmd-actions {
     width: 100%;
     padding-left: 66px;
+    box-sizing: border-box;
   }
 }
