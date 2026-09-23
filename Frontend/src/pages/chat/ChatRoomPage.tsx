@@ -212,6 +212,11 @@ export function ChatRoomPage() {
     setAnThongTin(moi);
     localStorage.setItem(KHOA_AN_THONG_TIN, moi ? "1" : "0");
   };
+
+  const dongCuocTroChuyen = () => {
+    setMoThongTinDesktopVua(false);
+    navigate(conversation?.type === "group" ? "/app/groups" : "/app", { replace: true });
+  };
   const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showMemberManagement, setShowMemberManagement] = useState(false);
@@ -1277,6 +1282,18 @@ export function ChatRoomPage() {
           Hai trang thai: binh thuong hien TEN, bam kinh lup thi o "Tim kiem
           tin nhan" 503x37 CHIEM CHO cua ten, kem nut X de dong. */}
       <div className="cw-card cw-head">
+        <button
+          type="button"
+          className="cw-icon-btn cw-chat-close"
+          onClick={dongCuocTroChuyen}
+          title="Đóng cuộc trò chuyện"
+          aria-label="Đóng cuộc trò chuyện và về danh sách"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
         {showSearch ? (
           <form className="cw-head-search" onSubmit={handleSearch}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -241,6 +241,23 @@
   gap: calc(8px * var(--s));
 }
 
+.cw-icon-btn.cw-chat-close {
+  flex: none;
+  width: calc(40px * var(--s));
+  height: calc(40px * var(--s));
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-pill);
+}
+
+.cw-chat-close svg {
+  width: calc(25px * var(--s));
+  height: calc(25px * var(--s));
+}
+
+.cw-icon-btn.cw-chat-close:hover {
+  background: var(--accent-bg);
+}
+
 .cw-icon-btn {
   border: 0;
   background: transparent;
