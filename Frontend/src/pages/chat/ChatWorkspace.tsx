@@ -16,6 +16,7 @@ export function ChatWorkspace({
   hasActive,
   isGroup,
   infoHidden,
+  onInfoOverlayClose,
 }: {
   list: ReactNode;
   chat: ReactNode;
@@ -30,6 +31,9 @@ export function ChatWorkspace({
   // Da gap thanh thong tin ben phai lai (Figma frame 138:80 "Danh sach nhom
   // An thanh thong tin"). Cot thu ba thu ve 0 va khung chat an het cho trong.
   infoHidden?: boolean;
+  // Tren desktop vua, panel thong tin la drawer de len khung chat. Lop nen
+  // mo ben ngoai drawer cung co the dong no.
+  onInfoOverlayClose?: () => void;
 }) {
   // Man hinh hep khong du cho ca ba cot cua ban desktop. Thay vi chi an bot
   // panel (va lam mat luon phan thong tin), coi moi cot la mot man nho: nguoi
@@ -85,6 +89,14 @@ export function ChatWorkspace({
         )}
         <div className="cw-col cw-col-list">{list}</div>
         <div className="cw-col cw-col-chat">{chat}</div>
+        {info !== undefined && !infoHidden && onInfoOverlayClose && (
+          <button
+            type="button"
+            className="cw-info-overlay-backdrop"
+            onClick={onInfoOverlayClose}
+            aria-label="Đóng thanh thông tin"
+          />
+        )}
         {info !== undefined && <div className="cw-col cw-col-info">{info}</div>}
       </div>
     </AppShell>

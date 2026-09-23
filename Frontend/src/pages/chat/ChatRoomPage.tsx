@@ -152,6 +152,13 @@ export function ChatRoomPage() {
   // localStorage vi day la thoi quen chu khong phai trang thai cua mot hoi
   // thoai: ai thich khung chat rong thi thich o moi phong, va o ca lan sau.
   const [anThongTin, setAnThongTin] = useState(() => localStorage.getItem(KHOA_AN_THONG_TIN) === "1");
+  // O desktop vua (901-1200px), thong tin mo dang drawer phu len cot chat
+  // thay vi chen them cot thu ba. Trang thai nay rieng voi tuy chon gap panel
+  // cua desktop rong, va mac dinh dong moi khi vao hoi thoai.
+  const [desktopVua, setDesktopVua] = useState(() =>
+    window.matchMedia("(min-width: 901px) and (max-width: 1200px)").matches,
+  );
+  const [moThongTinDesktopVua, setMoThongTinDesktopVua] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<{ message: Message; text: string }[] | null>(null);
@@ -178,6 +185,33 @@ export function ChatRoomPage() {
   // Tin dang duoc tra loi (null = khong tra loi ai). Khoi tin trich dan hien
   // ngay tren khung soan, bam X de bo.
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 901px) and (max-width: 1200px)");
+    const capNhat = () => {
+      setDesktopVua(media.matches);
+      if (!media.matches) setMoThongTinDesktopVua(false);
+    };
+    capNhat();
+    media.addEventListener("change", capNhat);
+    return () => media.removeEventListener("change", capNhat);
+  }, []);
+
+  useEffect(() => {
+    setMoThongTinDesktopVua(false);
+  }, [conversationId]);
+
+  const thongTinBiAn = desktopVua ? !moThongTinDesktopVua : anThongTin;
+
+  const toggleThongTin = () => {
+    if (desktopVua) {
+      setMoThongTinDesktopVua((dangMo) => !dangMo);
+      return;
+    }
+    const moi = !anThongTin;
+    setAnThongTin(moi);
+    localStorage.setItem(KHOA_AN_THONG_TIN, moi ? "1" : "0");
+  };
   const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showMemberManagement, setShowMemberManagement] = useState(false);
@@ -1175,7 +1209,8 @@ export function ChatRoomPage() {
           />
         }
         isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
-        infoHidden={anThongTin}
+        infoHidden={thongTinBiAn}
+        onInfoOverlayClose={() => setMoThongTinDesktopVua(false)}
         info={<ChatRoomLoading info loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
         chat={<ChatRoomLoading loi={loiKhoiTao} onRetry={() => setLanTaiLai((n) => n + 1)} />}
       />
@@ -1204,7 +1239,8 @@ export function ChatRoomPage() {
         />
       }
       isGroup={conversation ? conversation.type === "group" : kindGoi === "group"}
-      infoHidden={anThongTin}
+      infoHidden={thongTinBiAn}
+      onInfoOverlayClose={() => setMoThongTinDesktopVua(false)}
       info={
         <ConversationInfo
           conversationId={conversationId}
@@ -1322,15 +1358,11 @@ export function ChatRoomPage() {
               nen xoay 90 do de thanh mui ten ngang: chi sang phai = day panel
               di, chi sang trai = keo no ve. */}
           <button
-            className={`cw-icon-btn cw-caret-info${anThongTin ? " cw-caret-info-an" : ""}`}
-            onClick={() => {
-              const moi = !anThongTin;
-              setAnThongTin(moi);
-              localStorage.setItem(KHOA_AN_THONG_TIN, moi ? "1" : "0");
-            }}
-            aria-expanded={!anThongTin}
-            title={anThongTin ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
-            aria-label={anThongTin ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
+            className={`cw-icon-btn cw-caret-info${thongTinBiAn ? " cw-caret-info-an" : ""}`}
+            onClick={toggleThongTin}
+            aria-expanded={!thongTinBiAn}
+            title={thongTinBiAn ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
+            aria-label={thongTinBiAn ? "Hiện thanh thông tin" : "Ẩn thanh thông tin"}
           >
             <IconCaret />
           </button>

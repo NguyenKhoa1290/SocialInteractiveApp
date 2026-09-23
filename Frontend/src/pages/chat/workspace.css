@@ -36,6 +36,11 @@
   display: none;
 }
 
+/* Chi hien o breakpoint desktop vua, khi panel thong tin tro thanh drawer. */
+.cw-info-overlay-backdrop {
+  display: none;
+}
+
 /* Chi phan danh sach cuon, con o tim kiem va cac nut o tren dung yen. */
 .cw-scroll {
   flex: 1;
@@ -628,18 +633,40 @@
    khong phai ep ba cot desktop vao be rong cua dien thoai.
 */
 
-@media (max-width: 1200px) {
+@media (min-width: 901px) and (max-width: 1200px) {
   .cw {
+    position: relative;
     grid-template-columns: calc(482px * var(--s)) minmax(0, 1fr);
   }
 
   .cw-col-info {
-    display: none;
+    position: absolute;
+    z-index: 12;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    width: min(var(--cw-info-w, calc(416px * var(--s))), calc(100% - 48px));
+    background: var(--panel-bg);
+    box-shadow: -18px 0 36px rgba(35, 48, 64, 0.2);
   }
 
-  /* Panel phai da bi bo o be rong nay, nen nut gap no chang con gi de gap. */
   .cw-caret-info {
-    display: none;
+    display: inline-flex;
+  }
+
+  .cw-info-overlay-backdrop {
+    position: absolute;
+    z-index: 11;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: calc(482px * var(--s));
+    display: block;
+    padding: 0;
+    border: 0;
+    background: rgba(35, 48, 64, 0.24);
+    cursor: pointer;
   }
 }
 
@@ -663,6 +690,11 @@
     padding: calc(10px * var(--s)) calc(12px * var(--s));
     background: var(--panel-bg);
     border-bottom: 1px solid var(--panel-border);
+  }
+
+  .cw-caret-info,
+  .cw-info-overlay-backdrop {
+    display: none;
   }
 
   .cw-mobile-tabs button {
