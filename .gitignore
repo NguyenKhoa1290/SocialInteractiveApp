@@ -4,6 +4,7 @@ obj/
 artifacts/
 Tainguyen/
 Congviec/
+Tainguyen/
 *.user
 *.suo
 run.log

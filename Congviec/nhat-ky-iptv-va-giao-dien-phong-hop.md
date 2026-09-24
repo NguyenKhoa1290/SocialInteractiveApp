@@ -457,3 +457,107 @@ Log trình duyệt xác nhận lỗi chính:
 IPTV qua `MediaService`. Frontend gọi URL HTTPS của dự án, backend tải nguồn
 HTTP/không CORS ở phía server rồi stream lại qua HTTPS với CORS hợp lệ. Không
 thể “fake CORS” ở frontend vì CORS là luật do trình duyệt thực thi.
+
+---
+
+## 12. Lưu ý chưa triển khai: upscale video và LiveKit tại nhà
+
+**Ngày ghi:** 24/09/2026. Đây là phương án đã trao đổi, **chưa viết code và
+chưa thay đổi hạ tầng production**.
+
+### 12.1. Upscale video bằng AI trên máy người xem
+
+Mục tiêu là tăng độ nét video/IPTV bằng GPU của client để không phát sinh chi
+phí GPU server. Pipeline dự kiến:
+
+1. Giải mã từng `VideoFrame` bằng WebCodecs.
+2. Chạy mô hình ONNX nhẹ bằng WebGPU, ưu tiên upscale 2×.
+3. Render khung đã xử lý ra canvas; âm thanh vẫn đi từ luồng gốc.
+4. Benchmark thiết bị trước khi bật. Không giữ được tối thiểu khoảng 24 FPS
+   thì tự lùi về bộ lọc làm nét thường hoặc tắt.
+
+Chỉ nên coi đây là tính năng thử nghiệm trên desktop. Điện thoại có nguy cơ
+nóng, hao pin và rớt khung hình. Nguồn IPTV khác origin phải cấp CORS hoặc đi
+qua proxy hợp lệ của Calli; canvas chứa video không có CORS sẽ bị đánh dấu
+`tainted` và không đọc được pixel. Luồng DRM cũng không được coi là đầu vào
+có thể xử lý tùy ý.
+
+Tài liệu tham khảo:
+
+- WebCodecs: <https://www.w3.org/TR/webcodecs/>
+- ONNX Runtime WebGPU: <https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html>
+- Quy tắc canvas/CORS: <https://developer.mozilla.org/en-US/docs/Web/HTML/How_to/CORS_enabled_image>
+
+### 12.2. LiveKit phụ tại nhà sau CGNAT
+
+Ý tưởng là chạy thêm một LiveKit tại nhà, cho người tạo phòng chọn giữa máy
+chủ VPS ổn định và máy chủ nhà, rồi ngừng dùng máy chủ nhà khoảng 17:00 vì
+băng thông buổi tối bị nhà mạng bóp.
+
+**Cloudflare Tunnel dùng QUIC không tự giải quyết được bài toán này.** Cờ
+`cloudflared --protocol quic` chỉ chọn giao thức cho kết nối đi ra từ
+`cloudflared` tới Cloudflare Edge. Nó không biến cổng UDP của LiveKit thành
+một endpoint WebRTC công khai. Public hostname của Tunnel có thể chuyển phần
+HTTPS/WebSocket báo hiệu, nhưng media LiveKit vẫn cần ICE/UDP, ICE/TCP hoặc
+TURN có thể truy cập từ Internet.
+
+Theo tài liệu LiveKit, một bản tự host thường cần các đường sau:
+
+- API/WebSocket sau HTTPS reverse proxy.
+- ICE/TCP `7881`.
+- ICE/UDP mux `7882` hoặc dải UDP `50000-60000`.
+- Nếu bật TURN: UDP `3478` và/hoặc TURN/TLS `5349`/`443`.
+
+Cloudflare Tunnel public thông thường không cung cấp UDP công khai cho trình
+duyệt tùy ý. Đường private TCP/UDP yêu cầu thiết bị người dùng tham gia
+Cloudflare One/WARP; không phù hợp với người dùng công cộng của Calli. Đường
+public TCP/UDP qua Cloudflare Spectrum là sản phẩm trả phí và custom TCP/UDP
+có giới hạn gói, nên không chọn cho phương án tiết kiệm chi phí.
+
+Các cách khả thi, theo thứ tự nên cân nhắc:
+
+1. Xin IP public/port forwarding từ ISP, hoặc dùng IPv6 public nếu kiểm tra
+   được mọi client cần hỗ trợ đều kết nối ổn định.
+2. Dùng một VPS public làm điểm chuyển tiếp L4 qua WireGuard tới máy nhà.
+   Cách này vượt CGNAT nhưng toàn bộ media vẫn đi qua băng thông VPS, chỉ
+   chuyển phần CPU xử lý LiveKit về nhà.
+3. Dùng Cloudflare Spectrum/giải pháp L4 trả phí nếu sau này có ngân sách.
+
+Không nên chỉ tunnel `wss://.../rtc` rồi coi là hoàn tất: báo hiệu có thể kết
+nối thành công nhưng ICE media vẫn thất bại hoặc toàn bộ người dùng phải rơi
+về một TURN không tồn tại.
+
+Tài liệu tham khảo:
+
+- LiveKit ports/firewall: <https://docs.livekit.io/transport/self-hosting/ports-firewall/>
+- LiveKit self-host deployment: <https://docs.livekit.io/transport/self-hosting/deployment/>
+- Cloudflare Tunnel QUIC: <https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/>
+- Giao thức public hostname của Tunnel: <https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/protocols/>
+- Cloudflare Spectrum: <https://developers.cloudflare.com/spectrum/>
+
+### 12.3. Thiết kế lựa chọn máy chủ và lịch 17:00
+
+Nếu giải quyết được đường mạng công khai, hai LiveKit nên được xem là **hai
+cụm riêng**, không tự ghép thành một cluster qua Internet nhà. Khi tạo cuộc
+họp:
+
+- Mặc định chọn **VPS — ổn định**.
+- Cho chọn **Máy chủ nhà — thử nghiệm**, chỉ khi health check đang xanh và
+  còn trong khung giờ cho phép.
+- Cuộc họp được ghim vào một cụm ngay lúc tạo. Media Service ký token bằng
+  API key/secret tương ứng và trả đúng `serverUrl`; không chuyển cụm giữa
+  cuộc gọi vì LiveKit không di chuyển phòng đang chạy một cách liền mạch.
+- Backend nhận heartbeat từ máy nhà và tự ẩn lựa chọn này khi tunnel/server
+  mất kết nối, độ trễ cao hoặc upload xuống dưới ngưỡng.
+
+Lịch đề xuất theo múi giờ `Asia/Bangkok`:
+
+- 16:45: ngừng cấp phòng mới lên máy nhà.
+- 16:55: cảnh báo các phòng còn hoạt động.
+- 17:00: ngừng node nhà và đưa toàn bộ phòng mới về VPS.
+
+Tắt cứng lúc 17:00 sẽ ngắt những phòng đang nằm trên máy nhà. Nếu muốn không
+ngắt người dùng thì phải cho phòng hiện tại chạy đến khi kết thúc, nhưng khi
+đó không bảo đảm mục tiêu tránh băng thông buổi tối. Trước khi triển khai cần
+chốt rõ một trong hai chính sách; mặc định an toàn cho UX là **drain phòng cũ,
+không nhận phòng mới**, kèm thời lượng tối đa để node không chạy vô hạn.
