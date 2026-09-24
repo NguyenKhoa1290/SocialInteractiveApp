@@ -413,91 +413,110 @@ export function ChatRoomPage() {
           }));
         }
 
-        await joinConversation(conversationId);
-        unsubReceived = await onMessageReceived((msg) => {
-          if (msg.conversationId !== conversationId) return;
-          // Dua hoi thoai dang mo len dau danh sach ke ca khi CHINH MINH gui
-          // (khong co thong bao cho tin cua minh). activeId === conversationId
-          // nen chi cap nhat thu tu, khong danh dau chua doc.
-          useChatUnreadStore.getState().incoming(conversationId, Date.now());
+        // Khong bat du lieu REST cho doi SignalR toi 35 giay. Cac effect
+        // danh tinh/khoa co the tiep tuc, va khi chung san sang UI hien ngay
+        // phan chat da tai du realtime dang reconnect.
+        setDangTaiCuocTroChuyen(false);
 
-          // Broadcast tin Text Group qua SignalR CO CHU Y bo trong
-          // recipientEncryptedKey (1 payload dung chung cho ca nhom, khong
-          // the nhet rieng khoa tung nguoi vao do - xem ConversationEndpoints.cs).
-          // P2P KHONG dung recipientEncryptedKey nen khong can xu ly rieng.
-          if (conversationTypeRef.current === "group" && msg.type === "text" && !msg.recipientEncryptedKey) {
-            if (msg.senderId === currentUserId) {
-              // Tin cua CHINH MINH vua gui - da co san plaintext + cache
-              // dung qua duong toi uu luc gui (xem handleSendText), BO QUA
-              // ban echo thieu khoa nay (tranh race condition ghi de).
+        // REST da tai xong thi cuoc tro chuyen da dung du lieu va phai duoc
+        // hien ra. SignalR chi bo sung realtime; loi reconnect khong duoc
+        // danh dong ca khoi tren thanh "Khong tai duoc cuoc tro chuyen".
+        try {
+          await joinConversation(conversationId);
+          unsubReceived = await onMessageReceived((msg) => {
+            if (msg.conversationId !== conversationId) return;
+            // Dua hoi thoai dang mo len dau danh sach ke ca khi CHINH MINH gui
+            // (khong co thong bao cho tin cua minh). activeId === conversationId
+            // nen chi cap nhat thu tu, khong danh dau chua doc.
+            useChatUnreadStore.getState().incoming(conversationId, Date.now());
+
+            // Broadcast tin Text Group qua SignalR CO CHU Y bo trong
+            // recipientEncryptedKey (1 payload dung chung cho ca nhom, khong
+            // the nhet rieng khoa tung nguoi vao do - xem ConversationEndpoints.cs).
+            // P2P KHONG dung recipientEncryptedKey nen khong can xu ly rieng.
+            if (conversationTypeRef.current === "group" && msg.type === "text" && !msg.recipientEncryptedKey) {
+              if (msg.senderId === currentUserId) {
+                // Tin cua CHINH MINH vua gui - da co san plaintext + cache
+                // dung qua duong toi uu luc gui (xem handleSendText), BO QUA
+                // ban echo thieu khoa nay (tranh race condition ghi de).
+                return;
+              }
+              chatApi.getMessages(conversationId, undefined, MESSAGE_PAGE_SIZE).then((res) => {
+                const latest = [...res.data].reverse();
+                const nearBottom = isMessageListNearBottom();
+                scrollToBottomPendingRef.current = nearBottom;
+                setMessages((prev) => {
+                  const merged = new Map(prev.map((m) => [m.id, m]));
+                  latest.forEach((m) => merged.set(m.id, m));
+                  return [...merged.values()].sort((a, b) =>
+                    a.createdAt === b.createdAt ? a.id - b.id : a.createdAt.localeCompare(b.createdAt),
+                  );
+                });
+              });
               return;
             }
-            chatApi.getMessages(conversationId, undefined, MESSAGE_PAGE_SIZE).then((res) => {
-              const latest = [...res.data].reverse();
-              const nearBottom = isMessageListNearBottom();
-              scrollToBottomPendingRef.current = nearBottom;
-              setMessages((prev) => {
-                const merged = new Map(prev.map((m) => [m.id, m]));
-                latest.forEach((m) => merged.set(m.id, m));
-                return [...merged.values()].sort((a, b) =>
-                  a.createdAt === b.createdAt ? a.id - b.id : a.createdAt.localeCompare(b.createdAt),
-                );
-              });
-            });
-            return;
-          }
-          if (messagesRef.current.some((m) => m.id === msg.id)) return;
-          const shouldStickToBottom = msg.senderId === currentUserId || isMessageListNearBottom();
-          scrollToBottomPendingRef.current = shouldStickToBottom;
-          if (shouldStickToBottom && msg.fileId != null && (msg.type === "image" || msg.type === "video")) {
-            mediaAutoScrollIdsRef.current.add(msg.id);
-          }
-          setMessages((prev) => [...prev, msg]);
-        });
-        unsubDeleted = await onMessageDeleted((messageId) => {
-          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m)));
-        });
-        unsubEdited = await onMessageEdited((msg) => {
-          if (msg.conversationId !== conversationId) return;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === msg.id
-                ? {
-                    ...msg,
-                    // Ban broadcast CO CHU Y bo trong recipientEncryptedKey
-                    // (1 payload dung chung cho ca nhom - giong nhanh
-                    // MessageReceived o tren). Sua tin KHONG doi khoa phien,
-                    // nen khoa cu dang giu trong state van giai ma duoc ban
-                    // moi -> giu lai thay vi phai goi lai server.
-                    recipientEncryptedKey: msg.recipientEncryptedKey ?? m.recipientEncryptedKey,
-                  }
-                : m,
-            ),
-          );
-          // Xoa ban ro cu di thi effect giai ma moi chiu chay lai cho tin
-          // nay (dieu kien cua no la "id chua co trong decrypted").
-          //
-          // Chi xoa khi CHAC CHAN co du lieu de giai ma lai. Tin Group ma
-          // minh khong co khoa rieng (vao nhom sau khi tin duoc gui) dang
-          // hien dong "khong co khoa de giai ma" - xoa di thi no ket vinh
-          // vien o "Dang giai ma..." vi effect se bo qua chinh tin do.
-          //
-          // Phai doc khoa tu STATE CUC BO chu KHONG phai tu msg: ban
-          // broadcast cua Group luon bi server luoc recipientEncryptedKey
-          // (mot payload chung cho ca nhom), nen xet theo msg thi moi tin
-          // nhom deu bi coi la "khong giai ma duoc".
-          const known = messagesRef.current.find((m) => m.id === msg.id);
-          const canDecrypt =
-            conversationTypeRef.current === "p2p" ||
-            !!(msg.recipientEncryptedKey ?? known?.recipientEncryptedKey);
-          if (!canDecrypt) return;
-          setDecrypted((prev) => {
-            if (!(msg.id in prev)) return prev;
-            const next = { ...prev };
-            delete next[msg.id];
-            return next;
+            if (messagesRef.current.some((m) => m.id === msg.id)) return;
+            const shouldStickToBottom = msg.senderId === currentUserId || isMessageListNearBottom();
+            scrollToBottomPendingRef.current = shouldStickToBottom;
+            if (shouldStickToBottom && msg.fileId != null && (msg.type === "image" || msg.type === "video")) {
+              mediaAutoScrollIdsRef.current.add(msg.id);
+            }
+            setMessages((prev) => [...prev, msg]);
           });
-        });
+          unsubDeleted = await onMessageDeleted((messageId) => {
+            setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m)));
+          });
+          unsubEdited = await onMessageEdited((msg) => {
+            if (msg.conversationId !== conversationId) return;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msg.id
+                  ? {
+                      ...msg,
+                      // Ban broadcast CO CHU Y bo trong recipientEncryptedKey
+                      // (1 payload dung chung cho ca nhom - giong nhanh
+                      // MessageReceived o tren). Sua tin KHONG doi khoa phien,
+                      // nen khoa cu dang giu trong state van giai ma duoc ban
+                      // moi -> giu lai thay vi phai goi lai server.
+                      recipientEncryptedKey: msg.recipientEncryptedKey ?? m.recipientEncryptedKey,
+                    }
+                  : m,
+              ),
+            );
+            // Xoa ban ro cu di thi effect giai ma moi chiu chay lai cho tin
+            // nay (dieu kien cua no la "id chua co trong decrypted").
+            //
+            // Chi xoa khi CHAC CHAN co du lieu de giai ma lai. Tin Group ma
+            // minh khong co khoa rieng (vao nhom sau khi tin duoc gui) dang
+            // hien dong "khong co khoa de giai ma" - xoa di thi no ket vinh
+            // vien o "Dang giai ma..." vi effect se bo qua chinh tin do.
+            //
+            // Phai doc khoa tu STATE CUC BO chu KHONG phai tu msg: ban
+            // broadcast cua Group luon bi server luoc recipientEncryptedKey
+            // (mot payload chung cho ca nhom), nen xet theo msg thi moi tin
+            // nhom deu bi coi la "khong giai ma duoc".
+            const known = messagesRef.current.find((m) => m.id === msg.id);
+            const canDecrypt =
+              conversationTypeRef.current === "p2p" ||
+              !!(msg.recipientEncryptedKey ?? known?.recipientEncryptedKey);
+            if (!canDecrypt) return;
+            setDecrypted((prev) => {
+              if (!(msg.id in prev)) return prev;
+              const next = { ...prev };
+              delete next[msg.id];
+              return next;
+            });
+          });
+        } catch (err) {
+          if (!cancelled) {
+            setError(
+              extractApiError(
+                err,
+                "Đã tải cuộc trò chuyện nhưng chưa kết nối được cập nhật thời gian thực",
+              ),
+            );
+          }
+        }
       } catch (err) {
         if (!cancelled) setLoiTaiCuocTroChuyen(extractApiError(err, "Không tải được cuộc trò chuyện"));
       } finally {

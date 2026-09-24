@@ -5,6 +5,7 @@ import type { Message } from "../types/chat";
 
 let connection: signalR.HubConnection | null = null;
 let starting: Promise<signalR.HubConnection> | null = null;
+const CONNECT_WAIT_TIMEOUT_MS = 35_000;
 
 // Cac nhom SignalR dang o trong.
 //
@@ -43,6 +44,21 @@ async function vaoLaiCacNhom(conn: signalR.HubConnection) {
   }
 }
 
+// Khi nguoi dung mo/chuyen phong dung luc SignalR dang tu noi lai, khong
+// duoc tra ve promise `start()` cu da resolve: invoke ngay tren connection
+// Reconnecting se nem loi va ca trang chat bi coi la tai hong. Doi connection
+// ve Connected; qua thoi gian nay UI van hien du lieu REST va bao loi realtime
+// rieng, thay vi treo vo han.
+async function doiKetNoiSanSang(conn: signalR.HubConnection) {
+  const hetHan = Date.now() + CONNECT_WAIT_TIMEOUT_MS;
+  while (connection === conn && Date.now() < hetHan) {
+    if (conn.state === signalR.HubConnectionState.Connected) return conn;
+    if (conn.state === signalR.HubConnectionState.Disconnected) break;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error("Kết nối thời gian thực chưa sẵn sàng");
+}
+
 // SignalR dung 1 connection dung chung cho ca app (khong tao moi moi lan
 // vao 1 phong chat) - JWT truyen qua query string vi WebSocket handshake
 // tren trinh duyet khong gui duoc Authorization header (gioi han chuan cua
@@ -52,10 +68,25 @@ export function getChatConnection(): Promise<signalR.HubConnection> {
     return Promise.resolve(connection);
   }
   if (starting) return starting;
+  if (
+    connection?.state === signalR.HubConnectionState.Connecting ||
+    connection?.state === signalR.HubConnectionState.Reconnecting ||
+    connection?.state === signalR.HubConnectionState.Disconnecting
+  ) {
+    return doiKetNoiSanSang(connection);
+  }
 
-  const token = useAuthStore.getState().accessToken;
+  // Initial start that failed does not always raise `onclose`. Do not reuse a
+  // disconnected object left behind by that attempt.
+  if (connection?.state === signalR.HubConnectionState.Disconnected) connection = null;
+
   const conn = new signalR.HubConnectionBuilder()
-    .withUrl(`${CHAT_API_URL}/hubs/chat`, { accessTokenFactory: () => token ?? "" })
+    // SignalR goi factory lai khi reconnect. Phai doc token HIEN TAI tu store;
+    // neu capture token luc tao hub thi sau lan refresh JWT, WebSocket van
+    // reconnect bang token cu da het han va chi F5 moi cuu duoc.
+    .withUrl(`${CHAT_API_URL}/hubs/chat`, {
+      accessTokenFactory: () => useAuthStore.getState().accessToken ?? "",
+    })
     // Chinh sach mac dinh thu 4 lan (0, 2, 10, 30 giay) roi BO HAN. Mot tab
     // chat hay mot phong hop mo ca buoi ma mang chap chon vai lan la mat tin
     // VINH VIEN, khong bao gi. Thu mai, gian dan toi 30 giay roi giu nhip do.
@@ -79,23 +110,46 @@ export function getChatConnection(): Promise<signalR.HubConnection> {
     }
   });
 
-  starting = conn.start().then(async () => {
-    await vaoLaiCacNhom(conn);
-    return conn;
-  });
-  return starting;
+  const startPromise = conn
+    .start()
+    .then(async () => {
+      await vaoLaiCacNhom(conn);
+      return conn;
+    })
+    .catch((error) => {
+      if (connection === conn) connection = null;
+      throw error;
+    });
+  starting = startPromise;
+  // `starting` chi dai dien cho lan start DANG CHAY. Giu promise da resolve
+  // o day lam moi lan Reconnecting sau nay nhan lai connection chua san sang.
+  void startPromise.finally(() => {
+    if (starting === startPromise) starting = null;
+  }).catch(() => {});
+  return startPromise;
 }
 
 export async function joinConversation(conversationId: number) {
-  const conn = await getChatConnection();
+  // Ghi y dinh truoc khi doi ket noi: neu reconnect hoan tat trong luc dang
+  // doi, callback onreconnected van biet can vao lai nhom nao.
   daVao.hoiThoai.add(conversationId);
+  const conn = await getChatConnection();
   await conn.invoke("JoinConversation", conversationId);
 }
 
 export async function leaveConversation(conversationId: number) {
   daVao.hoiThoai.delete(conversationId);
-  const conn = await getChatConnection();
-  await conn.invoke("LeaveConversation", conversationId);
+  // Unmount khong duoc mo mot WebSocket moi chi de roi nhom. Connection moi
+  // da khong co membership cu; connection dang reconnect se doc `daVao` khi
+  // no san sang lai.
+  const conn = connection;
+  if (conn?.state !== signalR.HubConnectionState.Connected) return;
+  try {
+    await conn.invoke("LeaveConversation", conversationId);
+  } catch {
+    // Best effort: connection mat ngay luc unmount thi server tu don group
+    // theo connection id.
+  }
 }
 
 // Tra ve ham huy dang ky (async - dam bao connection da ton tai truoc khi
@@ -128,15 +182,20 @@ export async function onMessageEdited(handler: (msg: Message) => void) {
 // conversation) - khach vang lai nghe duoc thao luan nhung khong duoc nghe
 // len luong chat chinh cua nhom. Xem ChatHub.MeetingGroupName.
 export async function joinMeetingDiscussion(conversationId: number, meetingId: number) {
-  const conn = await getChatConnection();
   daVao.cuocHop.set(meetingId, conversationId);
+  const conn = await getChatConnection();
   await conn.invoke("JoinMeetingDiscussion", conversationId, meetingId);
 }
 
 export async function leaveMeetingDiscussion(meetingId: number) {
   daVao.cuocHop.delete(meetingId);
-  const conn = await getChatConnection();
-  await conn.invoke("LeaveMeetingDiscussion", meetingId);
+  const conn = connection;
+  if (conn?.state !== signalR.HubConnectionState.Connected) return;
+  try {
+    await conn.invoke("LeaveMeetingDiscussion", meetingId);
+  } catch {
+    // Best effort, giong leaveConversation.
+  }
 }
 
 export async function onMeetingMessageReceived(handler: (msg: Message) => void) {
