@@ -360,8 +360,14 @@ export function IptvPlayer({
     // vai tram mili giay sau moi co (nap dong + doc manifest).
     const apDungTuyChon = () => {
       const t = tuyChonRef.current;
-      engineRef.current?.datChatLuong?.(t?.mucChatLuong ?? -1);
-      engineRef.current?.datTieng?.(t?.luongAmThanh ?? -1);
+      try {
+        engineRef.current?.datChatLuong?.(t?.mucChatLuong ?? -1);
+        engineRef.current?.datTieng?.(t?.luongAmThanh ?? -1);
+      } catch (err) {
+        // Tuy chon la phan bo sung, khong duoc phep lam sap ca phong hop neu
+        // manifest khai bao track loi hoac API cua player thay doi.
+        console.warn("Khong ap dung duoc tuy chon IPTV", err);
+      }
     };
 
     if (loai === "dash") {
@@ -393,7 +399,6 @@ export function IptvPlayer({
             player.addEventListener("error", () => { if (!dead) recover(); });
             await player.load(src);
             markHealthy();
-            apDungTuyChon();
 
             engineRef.current = {
               napLai: async () => { await player.load(src); },
@@ -409,10 +414,17 @@ export function IptvPlayer({
               },
               datTieng: (chiSo) => {
                 if (chiSo < 0) return;
-                const langs = player.getAudioLanguages();
-                if (chiSo < langs.length) player.selectAudioLanguage(langs[chiSo]);
+                // Shaka 5 da bo getAudioLanguages()/selectAudioLanguage().
+                // getAudioTracks() tra dung cac track am thanh tuong thich voi
+                // video dang chon, nen chi so nay cung la so luong/lua chon ma
+                // giao dien quet tu manifest DASH hien cho nguoi dung.
+                const tracks = player.getAudioTracks();
+                if (chiSo < tracks.length) player.selectAudioTrack(tracks[chiSo], 2);
               },
             };
+            // Gan engine truoc khi ap dung. Truoc day loi goi theo thu tu
+            // nguoc khien lua chon co san bi bo qua trong lan tai dau tien.
+            apDungTuyChon();
           } catch (err) {
             if (dead) return;
             setStatus("failed");
@@ -674,8 +686,13 @@ export function IptvPlayer({
 
     // DASH cung hai con so do, chi khac ten ham. FLV la luong don nen engine
     // cua no bo trong hai ham nay - goi vao khong lam gi ca.
-    engineRef.current?.datChatLuong?.(muc);
-    engineRef.current?.datTieng?.(tieng);
+    try {
+      engineRef.current?.datChatLuong?.(muc);
+      engineRef.current?.datTieng?.(tieng);
+    } catch (err) {
+      // Khong de loi chon track cua mot kenh lam React unmount toan bo player.
+      console.warn("Khong doi duoc tuy chon IPTV", err);
+    }
   }, [tuyChon?.mucChatLuong, tuyChon?.luongAmThanh]);
 
   // Am luong den tu popup Mini App (IptvChannelPicker), khong con thanh keo
