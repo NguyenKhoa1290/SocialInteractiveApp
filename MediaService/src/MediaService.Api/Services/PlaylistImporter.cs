@@ -61,7 +61,9 @@ public sealed class PlaylistImporter(PlaylistFetcher fetcher)
         if (kind == M3uKind.SingleStream)
             return new KetQua(false, null, 0, 0, 0, 0);
 
-        var entries = M3uPlaylist.Parse(fetched.Content!, url);
+        // Neu URL danh sach redirect, URL tuong doi ben trong phai ghep voi
+        // dia chi CUOI, khong phai wrapper ban dau.
+        var entries = M3uPlaylist.Parse(fetched.Content!, fetched.ResolvedUrl ?? url);
         if (entries.Count > M3uPlaylist.MaxChannels)
             entries = entries.Take(M3uPlaylist.MaxChannels).ToList();
 

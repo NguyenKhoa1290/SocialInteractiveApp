@@ -41,7 +41,10 @@ builder.Services.AddSingleton(chatServiceClientOptions);
 builder.Services.AddHttpClient<ChatServiceClient>();
 // Tai playlist IPTV o phia server (may chu IPTV khong gui CORS) - co chan
 // SSRF ben trong, xem PlaylistFetcher.cs.
-builder.Services.AddHttpClient<PlaylistFetcher>();
+builder.Services.AddHttpClient<PlaylistFetcher>()
+    // Tu theo redirect de kiem DNS/IP cua URL goc VA tung dich. Neu de handler
+    // mac dinh tu theo 302 thi dich noi bo se bi truy cap truoc khi code kip chan.
+    .ConfigurePrimaryHttpMessageHandler(PublicHttpConnection.CreateHandler);
 builder.Services.AddScoped<PlaylistImporter>();
 builder.Services.AddScoped<ClearKeyResolver>();
 // Cu 10 phut nhap lai nhung playlist duoc tao tu mot link M3U - nguon IPTV

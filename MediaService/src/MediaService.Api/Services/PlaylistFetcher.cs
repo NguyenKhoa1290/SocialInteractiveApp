@@ -1,104 +1,118 @@
 using System.Net;
-using System.Net.Sockets;
 
 namespace MediaService.Api.Services;
 
-// Blocked = bi TU CHOI vi ly do an toan (scheme la, dia chi noi bo), khac
-// han voi that bai vi mang. Noi goi phai phan biet: dia chi noi bo thi tuyet
-// doi khong duoc di tiep, con nguon khong phan hoi thi con duong xu ly khac.
-public record FetchResult(bool Ok, string? Content, string? Error, bool Blocked = false, string? ContentType = null);
+public record FetchResult(
+    bool Ok,
+    string? Content,
+    string? Error,
+    bool Blocked = false,
+    string? ContentType = null,
+    string? ResolvedUrl = null);
 
-// Tai noi dung playlist tu URL nguoi dung nhap.
-//
-// PHAI tai o BACKEND chu khong phai trinh duyet: may chu IPTV gan nhu khong
-// bao gio gui header CORS, nen fetch() tu trang web se bi chan.
-//
-// Nhung dieu do bien endpoint nay thanh mot cong SSRF: nguoi dung doc duoc
-// noi dung cua BAT KY dia chi nao ma SERVER toi duoc, ke ca nhung dia chi
-// chi ton tai ben trong cum. Vi du "http://identity:8080/internal/users/admin-list"
-// se tra ve danh sach nguoi dung, roi hien ra duoi dang "ten kenh".
-//
-// Nen phai chan tu trong: chi http/https, va dia chi phan giai ra phai la IP
-// CONG CONG. Kiem tra sau khi phan giai DNS chu khong phai tren chuoi ten
-// mien - neu khong thi mot ten mien tro toi 127.0.0.1 la di qua duoc.
+public record UrlResolutionResult(bool Ok, string? Url, string? Error, bool Blocked = false);
+
+// Tai playlist va giai URL redirect o phia server. Server chi doc manifest khi
+// can phan loai/nhap playlist; duong phat chi lay URL cuoi, khong proxy video.
 public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> logger)
 {
-    // Playlist IPTV lon nhat gap ngoai thuc te khoang vai MB. 8 MB la du
-    // rong, va du nho de mot URL doc hai khong keo sap bo nho service.
     private const int MaxBytes = 8 * 1024 * 1024;
-
-    // Chi de PHAN LOAI thi khong can tai het: cac the quyet dinh (#EXTM3U,
-    // #EXT-X-STREAM-INF, #EXT-X-TARGETDURATION, vai muc #EXTINF dau tien) deu
-    // nam o dau file. 64 KB la thua du.
     private const int PeekBytes = 64 * 1024;
-
+    private const int MaxRedirects = 8;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan PeekTimeout = TimeSpan.FromSeconds(8);
 
-    // Nhieu nguon IPTV doi noi dung theo client. Dung UA kieu IPTV player de
-    // tranh bi tra ve trang/clip gioi thieu thay vi file M3U.
+    // Nhieu nguon doi noi dung theo client. Dung UA kieu IPTV player de tranh
+    // bi tra ve trang/clip gioi thieu thay vi manifest.
     private const string UserAgent = "VLC/3.0.20 LibVLC/3.0.20";
 
-    // Doc vua du de PHAN LOAI roi dung han.
-    //
-    // VI SAO CAN RIENG: FetchAsync doc toi khi het du lieu hoac day 8 MB. Rat
-    // nhieu URL IPTV khong tra ve mot file ma la mot LUONG KHONG BAO GIO KET
-    // THUC (hoac chuyen huong toi mot cai nhu vay). Voi nhung URL do,
-    // FetchAsync luon chay het 20 giay roi bao "nguon khong phan hoi" - sai
-    // hoan toan, nguon phan hoi rat tot, chi la no khong co diem dung. Do
-    // that tren link VTV6 cua nguoi dung: dung nhu vay.
     public Task<FetchResult> PeekAsync(string url, CancellationToken ct = default) =>
         FetchAsync(url, PeekBytes, PeekTimeout, ct);
 
     public Task<FetchResult> FetchAsync(string url, CancellationToken ct = default) =>
         FetchAsync(url, MaxBytes, Timeout, ct);
 
-    private async Task<FetchResult> FetchAsync(string url, int maxBytes, TimeSpan timeout, CancellationToken ct)
+    // Chi theo redirect va tra URL cuoi, KHONG doc body/manifest/segment.
+    // Frontend se tao mot request moi toi CDN cuoi, nen toan bo video van di
+    // thang CDN -> client va khong ton bang thong Media Service.
+    public async Task<UrlResolutionResult> ResolveUrlAsync(string url, CancellationToken ct = default)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-            return new FetchResult(false, null, "URL phải bắt đầu bằng http:// hoặc https://", Blocked: true);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(PeekTimeout);
 
-        var blocked = await IsBlockedAddressAsync(uri.Host, ct);
-        if (blocked is not null)
-            return new FetchResult(false, null, blocked, Blocked: true);
+        try
+        {
+            var opened = await OpenFinalResponseAsync(url, cts.Token);
+            using var response = opened.Response;
+            if (response is null)
+                return new UrlResolutionResult(false, null, opened.Error, opened.Blocked);
+            if (!response.IsSuccessStatusCode)
+                return new UrlResolutionResult(false, null, $"Nguồn trả về lỗi {(int)response.StatusCode}");
 
+            return new UrlResolutionResult(true, opened.FinalUri!.AbsoluteUri, null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new UrlResolutionResult(false, null, "Nguồn không phản hồi trong 8 giây");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Khong giai duoc URL IPTV {Url}", url);
+            return new UrlResolutionResult(false, null, "Không kết nối được URL IPTV");
+        }
+    }
+
+    private async Task<FetchResult> FetchAsync(
+        string url,
+        int maxBytes,
+        TimeSpan timeout,
+        CancellationToken ct)
+    {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeout);
 
-            using var req = new HttpRequestMessage(HttpMethod.Get, uri);
-            req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
-            req.Headers.TryAddWithoutValidation("Accept", "application/x-mpegURL, audio/mpegurl, application/vnd.apple.mpegurl, text/plain, */*");
-            req.Headers.TryAddWithoutValidation("Accept-Language", "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7");
+            var opened = await OpenFinalResponseAsync(url, cts.Token);
+            using var response = opened.Response;
+            if (response is null)
+                return new FetchResult(false, null, opened.Error, opened.Blocked);
+            if (!response.IsSuccessStatusCode)
+                return new FetchResult(false, null, $"Nguồn trả về lỗi {(int)response.StatusCode}");
 
-            using var resp = await httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            if (!resp.IsSuccessStatusCode)
-                return new FetchResult(false, null, $"Nguồn trả về lỗi {(int)resp.StatusCode}");
-
-            // Doc co gioi han thay vi ReadAsStringAsync: khong tin vao
-            // Content-Length do may chu kia khai bao.
-            using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+            using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
             var buffer = new byte[maxBytes];
             var total = 0;
             while (total < maxBytes)
             {
                 var read = await stream.ReadAsync(buffer.AsMemory(total, maxBytes - total), cts.Token);
-                if (read == 0) break;
+                if (read == 0)
+                    break;
                 total += read;
             }
 
-            var contentType = resp.Content.Headers.ContentType?.MediaType;
-
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            var resolvedUrl = opened.FinalUri!.AbsoluteUri;
             if (total == 0)
-                return new FetchResult(false, null, "Nguồn trả về nội dung rỗng", ContentType: contentType);
+            {
+                return new FetchResult(
+                    false,
+                    null,
+                    "Nguồn trả về nội dung rỗng",
+                    ContentType: contentType,
+                    ResolvedUrl: resolvedUrl);
+            }
 
             return new FetchResult(
-                true, System.Text.Encoding.UTF8.GetString(buffer, 0, total), null, ContentType: contentType);
+                true,
+                System.Text.Encoding.UTF8.GetString(buffer, 0, total),
+                null,
+                ContentType: contentType,
+                ResolvedUrl: resolvedUrl);
         }
         catch (OperationCanceledException)
         {
-            return new FetchResult(false, null, "Nguồn không phản hồi trong 20 giây");
+            return new FetchResult(false, null, $"Nguồn không phản hồi trong {timeout.TotalSeconds:0} giây");
         }
         catch (Exception ex)
         {
@@ -107,68 +121,92 @@ public class PlaylistFetcher(HttpClient httpClient, ILogger<PlaylistFetcher> log
         }
     }
 
-    // Tra ve null neu dia chi hop le, hoac ly do bi chan.
-    private static async Task<string?> IsBlockedAddressAsync(string host, CancellationToken ct)
+    private sealed record OpenResult(
+        HttpResponseMessage? Response,
+        Uri? FinalUri,
+        string? Error,
+        bool Blocked = false);
+
+    private async Task<OpenResult> OpenFinalResponseAsync(string url, CancellationToken ct)
     {
-        IPAddress[] addresses;
-        try
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var current) ||
+            current.Scheme is not ("http" or "https"))
         {
-            addresses = IPAddress.TryParse(host, out var literal)
-                ? [literal]
-                : await Dns.GetHostAddressesAsync(host, ct);
-        }
-        catch (Exception)
-        {
-            return "Không phân giải được tên miền";
+            return new OpenResult(
+                null,
+                null,
+                "URL phải bắt đầu bằng http:// hoặc https://",
+                Blocked: true);
         }
 
-        if (addresses.Length == 0)
-            return "Không phân giải được tên miền";
-
-        // Chan neu BAT KY dia chi nao la noi bo: mot ten mien co the tra ve
-        // nhieu ban ghi, chi can mot cai tro vao trong la du de loi dung.
-        foreach (var ip in addresses)
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var hop = 0; hop <= MaxRedirects; hop++)
         {
-            if (IsPrivate(ip))
-                return "URL trỏ tới địa chỉ nội bộ — không cho phép";
-        }
+            if (!visited.Add(current.AbsoluteUri))
+                return new OpenResult(null, null, "Nguồn chuyển hướng lặp lại URL");
 
-        return null;
-    }
+            // Kiem URL goc va LAP LAI voi tung dich redirect. ConnectCallback
+            // trong PublicHttpConnection kiem DNS them mot lan khi mo socket.
+            var blocked = await PublicHttpConnection.ValidateHostAsync(current.Host, ct);
+            if (blocked is not null)
+                return new OpenResult(null, null, blocked, Blocked: true);
 
-    private static bool IsPrivate(IPAddress ip)
-    {
-        if (IPAddress.IsLoopback(ip))
-            return true;
+            using var request = new HttpRequestMessage(HttpMethod.Get, current);
+            request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+            request.Headers.TryAddWithoutValidation(
+                "Accept",
+                "application/x-mpegURL, audio/mpegurl, application/vnd.apple.mpegurl, text/plain, */*");
+            request.Headers.TryAddWithoutValidation(
+                "Accept-Language",
+                "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7");
 
-        if (ip.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var b = ip.GetAddressBytes();
-            return b[0] switch
+            var response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                ct);
+            if (!IsRedirect(response.StatusCode))
+                return new OpenResult(response, current, null);
+
+            if (hop == MaxRedirects)
             {
-                10 => true,                              // 10.0.0.0/8
-                127 => true,                             // loopback
-                0 => true,                               // 0.0.0.0/8
-                172 => b[1] >= 16 && b[1] <= 31,         // 172.16.0.0/12
-                192 => b[1] == 168,                      // 192.168.0.0/16
-                169 => b[1] == 254,                      // link-local, gom ca metadata 169.254.169.254
-                100 => b[1] >= 64 && b[1] <= 127,        // CGNAT 100.64.0.0/10
-                _ => b[0] >= 224,                        // multicast + reserved
-            };
+                response.Dispose();
+                return new OpenResult(null, null, $"Nguồn chuyển hướng quá {MaxRedirects} lần");
+            }
+
+            var location = response.Headers.Location;
+            response.Dispose();
+            if (location is null)
+                return new OpenResult(null, null, "Nguồn chuyển hướng nhưng không có địa chỉ đích");
+
+            Uri next;
+            try
+            {
+                next = location.IsAbsoluteUri ? location : new Uri(current, location);
+            }
+            catch (UriFormatException)
+            {
+                return new OpenResult(null, null, "Nguồn trả về địa chỉ chuyển hướng không hợp lệ");
+            }
+
+            if (next.Scheme is not ("http" or "https"))
+            {
+                return new OpenResult(
+                    null,
+                    null,
+                    "Đích chuyển hướng phải dùng http:// hoặc https://",
+                    Blocked: true);
+            }
+
+            current = next;
         }
 
-        if (ip.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast)
-                return true;
-            // fc00::/7 - unique local address
-            if ((ip.GetAddressBytes()[0] & 0xFE) == 0xFC)
-                return true;
-            // ::ffff:x.x.x.x - IPv4 nguy trang trong IPv6
-            if (ip.IsIPv4MappedToIPv6)
-                return IsPrivate(ip.MapToIPv4());
-        }
-
-        return false;
+        return new OpenResult(null, null, $"Nguồn chuyển hướng quá {MaxRedirects} lần");
     }
+
+    private static bool IsRedirect(HttpStatusCode status) => status is
+        HttpStatusCode.MovedPermanently or
+        HttpStatusCode.Found or
+        HttpStatusCode.SeeOther or
+        HttpStatusCode.TemporaryRedirect or
+        HttpStatusCode.PermanentRedirect;
 }

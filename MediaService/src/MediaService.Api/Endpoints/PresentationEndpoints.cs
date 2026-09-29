@@ -47,7 +47,8 @@ public static class PresentationEndpoints
         group.MapPost("", async (
             long meetingId, StartPresentationRequest req, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit, IdentityClient identity,
-            PresentationStore store, ILoggerFactory loggerFactory) =>
+            PresentationStore store, PlaylistFetcher fetcher,
+            ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             var meeting = await db.Meetings.FindAsync(meetingId);
             if (meeting is null || meeting.Status != MeetingStatus.Active)
@@ -100,11 +101,24 @@ public static class PresentationEndpoints
                  directUri.Scheme is not ("http" or "https")))
                 return Results.BadRequest(new ErrorResponse("invalid_request", "channelUrl phai bat dau bang http:// hoac https://"));
 
+            var channelUrl = req.ChannelUrl;
+            if (channelUrl is not null)
+            {
+                // Khong tin URL do client gui du no da goi resolve-direct:
+                // kiem DNS goc, moi redirect va giai thanh URL CDN cuoi lan nua.
+                // Khong doc body va tuyet doi khong proxy du lieu video.
+                var resolvedStream = await fetcher.ResolveUrlAsync(channelUrl, ct);
+                if (resolvedStream.Blocked)
+                    return Results.UnprocessableEntity(new ErrorResponse("blocked", resolvedStream.Error!));
+                if (resolvedStream.Ok && resolvedStream.Url is not null)
+                    channelUrl = resolvedStream.Url;
+            }
+
             var displayName = principal.GetDisplayName();
             var resolved = await identity.ResolveUserAsync(callerId);
             var state = new PresentationState(
                 callerId, resolved?.DisplayName ?? displayName, req.Kind, req.AppId, DateTimeOffset.UtcNow,
-                req.ChannelId, req.ChannelName, req.ChannelUrl, req.ClearKey);
+                req.ChannelId, req.ChannelName, channelUrl, req.ClearKey);
 
             // CHI MOT NGUOI trinh bay cung luc. Mot thao tac Redis nguyen tu
             // thay cho doc-roi-ghi tren hai loi goi LiveKit - vua nhanh hon

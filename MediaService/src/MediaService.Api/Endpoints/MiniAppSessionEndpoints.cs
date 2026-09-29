@@ -43,7 +43,8 @@ public static class MiniAppSessionEndpoints
 
         app.MapGet("/meetings/{meetingId:long}/mini-app/iptv/stream-url", async (
             long meetingId, long channelId, ClaimsPrincipal principal, MediaDbContext db,
-            MiniAppDbContext miniAppDb, ClearKeyResolver clearKeyResolver, CancellationToken ct) =>
+            MiniAppDbContext miniAppDb, ClearKeyResolver clearKeyResolver,
+            PlaylistFetcher fetcher, CancellationToken ct) =>
         {
             var meeting = await db.Meetings.FindAsync([meetingId], ct);
             if (meeting is null)
@@ -64,9 +65,19 @@ public static class MiniAppSessionEndpoints
             if (channel is null)
                 return Results.NotFound();
 
+            // Chi giai URL redirect, khong proxy video. Neu khong co redirect
+            // thi URL tra ve van la URL goc. Loi mang thong thuong thi giu hanh
+            // vi cu (client tu thu); rieng dia chi noi bo bi chan cung.
+            var resolvedStream = await fetcher.ResolveUrlAsync(channel.StreamUrl, ct);
+            if (resolvedStream.Blocked)
+                return Results.UnprocessableEntity(new ErrorResponse("blocked", resolvedStream.Error!));
+            var playbackUrl = resolvedStream.Ok && resolvedStream.Url is not null
+                ? resolvedStream.Url
+                : channel.StreamUrl;
+
             var clearKey = await clearKeyResolver.ResolveAsync(channel, ct);
             return Results.Ok(new StreamUrlResponse(
-                channel.StreamUrl,
+                playbackUrl,
                 channel.AudioTrack,
                 channel.ManifestType,
                 channel.LicenseType,
@@ -136,6 +147,10 @@ public static class MiniAppSessionEndpoints
             if (!peeked.Ok)
                 return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url), false, peeked.Error));
 
+            // PlaylistFetcher da theo redirect va da kiem URL goc + moi dich.
+            // Tra URL cuoi trong JSON de hls.js tao request moi, khong tra 302.
+            var playbackUrl = peeked.ResolvedUrl ?? url;
+
             var kind = M3uPlaylist.Detect(peeked.Content!);
 
             if (kind == M3uKind.ChannelList)
@@ -160,10 +175,10 @@ public static class MiniAppSessionEndpoints
             // danh sach - khong the la nan nhan cua chong hotlink.
             if (kind == M3uKind.Unknown)
                 return Results.Ok(new DirectStreamResponse(
-                    url, NameFor(req.Name, url), false,
+                    playbackUrl, NameFor(req.Name, url), false,
                     $"May chu nhan ve {peeked.ContentType ?? "noi dung la"} chu khong phai playlist HLS - co the nguon dang chan may chu (chong hotlink)."));
 
-            return Results.Ok(new DirectStreamResponse(url, NameFor(req.Name, url), true, null));
+            return Results.Ok(new DirectStreamResponse(playbackUrl, NameFor(req.Name, url), true, null));
         }).RequireAuthorization();
     }
 
