@@ -122,8 +122,22 @@ function quetHls(url: string): Promise<KetQuaQuet> {
       tuChoi(new Error("Quá lâu không đọc được thông tin luồng."));
     }, 12000);
 
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
       clearTimeout(hen);
+
+      // O thoi diem MANIFEST_PARSED, `hls.audioTracks` van la danh sach cua
+      // audio group DANG phat. Trinh quet khong gan vao the video/khong chon
+      // level nen danh sach do thuong chua duoc tao va chi hien "Mac dinh".
+      // Danh sach day du da co san trong payload cua master manifest.
+      //
+      // Chi lay group cua level dau tien de chi so track trung voi
+      // `hls.audioTracks` khi phat that; tranh tron track cua cac audio group
+      // khong tuong thich neu manifest co nhieu bo codec.
+      const levelDau = data.levels[data.firstLevel] ?? data.levels[0];
+      const audioGroups = levelDau?.audioGroups ?? [];
+      const audioTracks = audioGroups.length > 0
+        ? data.audioTracks.filter((track) => audioGroups.includes(track.groupId))
+        : data.audioTracks;
       const kq: KetQuaQuet = {
         mucChatLuong: hls.levels.map((l, i) => ({
           index: i,
@@ -131,7 +145,7 @@ function quetHls(url: string): Promise<KetQuaQuet> {
             l.frameRate ? ` - ${Math.round(l.frameRate)}fps` : ""
           }`,
         })),
-        luongAmThanh: hls.audioTracks.map((t, i) => ({
+        luongAmThanh: audioTracks.map((t, i) => ({
           index: i,
           nhan: [t.name, t.lang].filter(Boolean).join(" - ") || `Luồng ${i + 1}`,
         })),
