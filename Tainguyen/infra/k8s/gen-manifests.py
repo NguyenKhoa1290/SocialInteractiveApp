@@ -537,7 +537,9 @@ spec:
     spec:
       containers:
         - name: minio
-          image: quay.io/minio/minio:latest
+          # Ghim image da chay tren server; registry :latest dang tra 401.
+          image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+          imagePullPolicy: IfNotPresent
           args: ["server", "/data", "--console-address", ":9001"]
           env:
             - {{name: MINIO_ROOT_USER, value: "{MINIO_AK}"}}

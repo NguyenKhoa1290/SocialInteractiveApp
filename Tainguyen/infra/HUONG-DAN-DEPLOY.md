@@ -858,6 +858,18 @@ dựng trên máy mới: **sửa `gen-manifests.py`, không sửa `all.yaml`** �
 
 #### MinIO: tự huỷ lần tải nhiều phần bỏ dở
 
+**Sự cố 04/10/2026 — MinIO không lên sau khi server khởi động lại.**
+Registry `quay.io/minio/minio:latest` trả `401 Unauthorized`; deployment dùng
+`imagePullPolicy: Always` nên rơi vào `ImagePullBackOff` dù image vẫn còn đủ trong
+containerd. MinIO không có endpoint sẵn sàng, gateway trả `502` cho ảnh và file.
+Đã ghim image từng chạy vào digest
+`sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e`
+và đặt `imagePullPolicy: IfNotPresent` trong generator. Volume và credentials giữ nguyên.
+Trên server, bản sao deployment trước sửa và image xuất từ cache được lưu tại
+`/home/nguyenkhoa/.local/state/chat-app-repairs/20261004-minio/`.
+Nếu dựng node mới khi registry vẫn trả 401, phải import archive image vào containerd
+hoặc cung cấp image từ registry riêng; `IfNotPresent` chỉ bỏ qua pull khi đã có image.
+
 Hai biến trong khối `minio` của `gen-manifests.py`:
 
 ```yaml
