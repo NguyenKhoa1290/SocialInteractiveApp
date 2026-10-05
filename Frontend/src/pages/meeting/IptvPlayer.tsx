@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
+import { useHdrDisplay } from "../../lib/useHdrDisplay";
 
 // Trinh phat cho Mini App IPTV (UC-37 buoc 3-5).
 //
@@ -63,6 +64,8 @@ export type TuyChonPhat = {
   // IptvPlayer vi thanh keo da chuyen sang popup Mini App - khung trinh chieu
   // gio CHI con video.
   amLuong: number;
+  // Hieu ung mau/sang cuc bo; khong chuyen luong SDR thanh HDR that.
+  giaLapHdr: boolean;
 };
 
 export type IptvStreamMetadata = {
@@ -80,6 +83,7 @@ export const TUY_CHON_MAC_DINH: TuyChonPhat = {
   khoaClearKey: "",
   linkLayKey: "",
   amLuong: 1,
+  giaLapHdr: false,
 };
 
 // Ba dinh dang luong, ba thu vien - trinh duyet khong tu phat duoc cai nao
@@ -240,6 +244,10 @@ export function IptvPlayer({
   // Luong nay la am thanh thuan: khung chieu khong co hinh (videoWidth=0) nen
   // phu "Mau file am thanh dang phat" len tren the <video> den.
   const laAmThanh = doanLoaiLuong(src, metadata?.manifestType) === "audio";
+  const hoTroHdr = useHdrDisplay();
+  const lopGiaLapHdr = tuyChon?.giaLapHdr && !laAmThanh
+    ? hoTroHdr ? " meet-iptv-video--hdr-display" : " meet-iptv-video--hdr-sdr"
+    : "";
   // Nut tron trong khung am thanh la play/pause that - theo dung trang thai
   // paused cua the <video> (co the doi do watchdog nap lai, do nguoi bam...).
   const [dangTamDung, setDangTamDung] = useState(false);
@@ -734,7 +742,7 @@ export function IptvPlayer({
       <div className="iptv-player-frame">
         {/* Am thanh thuan khong co hinh: tat thanh dieu khien native (o video
             den) va thay bang khung "Mau file am thanh dang phat" (Figma 154:2). */}
-        <video ref={videoRef} controls={!laAmThanh} playsInline className="meet-iptv-video" />
+        <video ref={videoRef} controls={!laAmThanh} playsInline className={`meet-iptv-video${lopGiaLapHdr}`} />
 
         {laAmThanh && status !== "failed" && status !== "recovering" && (
           <div className="iptv-audio">

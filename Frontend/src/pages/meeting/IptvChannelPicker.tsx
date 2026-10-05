@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Hls from "hls.js";
 import { iptvApi } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
-import { MeetingPopup } from "./MeetingPopup";
+import { CongTac, MeetingPopup } from "./MeetingPopup";
+import { useHdrDisplay } from "../../lib/useHdrDisplay";
 import { useIptvSlot } from "./IptvPlayerHost";
 import { AddPlaylistDialog } from "../miniapp/AddPlaylistDialog";
 import { useAuthStore } from "../../store/authStore";
@@ -199,6 +200,7 @@ export function IptvChannelPicker({
   // Luong DANG phat, de "Quet thong tin" chay duoc ca khi popup mo thang
   // vao buoc "dangphat" (luc do chua di qua buoc chon kenh nen kenhChon rong).
   const slot = useIptvSlot();
+  const hoTroHdr = useHdrDisplay();
 
   const [buoc, setBuoc] = useState<Buoc>(dangPhat ? "dangphat" : "playlist");
   const [lists, setLists] = useState<IptvChannelList[]>([]);
@@ -539,6 +541,29 @@ export function IptvChannelPicker({
     </div>
   );
 
+  const laKenhAmThanh = doanLoaiLuong(kenhChon?.url ?? slot?.streamUrl ?? "", kenhChon?.manifestType) === "audio";
+  const congTacHdr = (
+    <div className="mpop-muc">
+      <div className="mpop-hang-tac">
+        <b>Giả lập HDR</b>
+        <CongTac
+          bat={tuyChon.giaLapHdr}
+          doi={(bat) => onDoiTuyChon({ ...tuyChon, giaLapHdr: bat })}
+          nhan="Giả lập HDR"
+          khoa={laKenhAmThanh}
+        />
+      </div>
+      <p className="mpop-ghi-chu">
+        {laKenhAmThanh
+          ? "Chỉ áp dụng cho kênh có hình ảnh."
+          : hoTroHdr
+            ? "Ưu tiên tăng sáng nhẹ khi trình duyệt báo màn hình hỗ trợ HDR."
+            : "Tăng độ đậm màu và tương phản ở chế độ SDR."}
+      </p>
+      <p className="mpop-ghi-chu">Hiệu ứng riêng trên máy bạn; không chuyển nguồn SDR thành HDR thật.</p>
+    </div>
+  );
+
   return (
     <>
       <MeetingPopup
@@ -679,6 +704,7 @@ export function IptvChannelPicker({
         {buoc === "dangphat" && (
           <>
             {khoiTuyChinh}
+            {congTacHdr}
             {thanhAmLuong}
             <div className="mpop-hang-nut">
               {dieuKhienDuoc && (

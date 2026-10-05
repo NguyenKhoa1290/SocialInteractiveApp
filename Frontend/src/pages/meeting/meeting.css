@@ -475,6 +475,16 @@
   background: #000;
 }
 
+/* Local HDR simulation. CSS filters change perceived color/brightness;
+   they do not create HDR metadata or raise the display's peak luminance. */
+.meet-iptv-video--hdr-sdr {
+  filter: saturate(1.18) contrast(1.06) brightness(1.03);
+}
+
+.meet-iptv-video--hdr-display {
+  filter: brightness(1.1) saturate(1.06);
+}
+
 /* "Mau file am thanh dang phat" (Figma 154:2): luong chi co tieng, thay o
    video den bang mot khung nghe sang.
    Nen sang phai dat o CHINH lop phu .iptv-audio chu khong o khung ngoai: the
