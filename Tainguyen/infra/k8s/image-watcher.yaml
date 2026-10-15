@@ -85,7 +85,7 @@ spec:
               args:
                 - |
                   set -u
-                  for d in identity workspace chat spamtracking media admin frontend; do
+                  for d in identity workspace chat spamtracking media admin frontend livekit-home-proxy; do
                     REPO="$OWNER/chat-app-$d"
 
                     # Package cong khai van phai xin token (token an danh) -
