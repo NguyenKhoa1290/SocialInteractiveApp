@@ -66,18 +66,18 @@ try
 
     await store.TryClaimAsync(meetingId, initial);
     await lifecycle.ReconcileAsync(meetingId, [remaining]);
-    clock.Advance(TimeSpan.FromSeconds(30));
+    clock.Advance(TimeSpan.FromSeconds(9));
     await lifecycle.ReconcileAsync(meetingId, [remaining]);
     Check(await store.GetAsync(meetingId) is not null, "Temporary disconnect preserves the slot during grace");
     await lifecycle.ReconcileAsync(meetingId, [owner, remaining]);
-    clock.Advance(TimeSpan.FromSeconds(40));
+    clock.Advance(TimeSpan.FromSeconds(5));
     await lifecycle.ReconcileAsync(meetingId, [remaining]);
     Check(await store.GetAsync(meetingId) is not null, "Reconnect resets the missing-source timer");
-    clock.Advance(TimeSpan.FromSeconds(61));
+    clock.Advance(TimeSpan.FromSeconds(10));
     await lifecycle.ReconcileAsync(meetingId, null);
     Check(await store.GetAsync(meetingId) is not null, "SFU API failure does not delete presentation state");
     await lifecycle.ReconcileAsync(meetingId, [remaining]);
-    Check(await store.GetAsync(meetingId) is null, "Closed tab is cleaned after sustained absence");
+    Check(await store.GetAsync(meetingId) is null, "Screen slot is cleaned after 10 seconds of observed absence");
 
     var fresh = initial with { StartedAt = clock.GetUtcNow() };
     owner.Tracks.Clear();
@@ -88,9 +88,22 @@ try
     Check(await store.GetAsync(meetingId) is not null, "Screen picker has time to publish the first track");
     clock.Advance(TimeSpan.FromSeconds(31));
     await lifecycle.ReconcileAsync(meetingId, [owner]);
-    clock.Advance(TimeSpan.FromSeconds(61));
+    clock.Advance(TimeSpan.FromSeconds(10));
     await lifecycle.ReconcileAsync(meetingId, [owner]);
     Check(await store.GetAsync(meetingId) is null, "Missing screen publication is cleaned even when its owner remains connected");
+
+    fresh = initial with { StartedAt = clock.GetUtcNow() };
+    await store.TryClaimAsync(meetingId, fresh);
+    owner.Tracks.Add(new TrackInfo { Source = TrackSource.ScreenShare });
+    await lifecycle.ReconcileAsync(meetingId, [owner]);
+    owner.Tracks.Clear();
+    await lifecycle.ReconcileAsync(meetingId, [owner]);
+    clock.Advance(TimeSpan.FromSeconds(9));
+    await lifecycle.ReconcileAsync(meetingId, [owner]);
+    Check(await store.GetAsync(meetingId) is not null, "Short screen interruption preserves the slot");
+    clock.Advance(TimeSpan.FromSeconds(1));
+    await lifecycle.ReconcileAsync(meetingId, [owner]);
+    Check(await store.GetAsync(meetingId) is null, "Previously published screen is cleaned at 10 seconds, including during startup grace");
 
     var miniApp = initial with { Kind = "mini_app", StartedAt = clock.GetUtcNow() };
     await store.TryClaimAsync(meetingId, miniApp);
@@ -99,6 +112,12 @@ try
     await lifecycle.ReconcileAsync(meetingId, [owner]);
     Check(await store.GetAsync(meetingId) == miniApp, "Mini app does not require a screen video track");
     Check(!await store.ClearIfCurrentAsync(meetingId, initial), "Delayed cleanup cannot remove a newer presentation");
+
+    await lifecycle.ReconcileAsync(meetingId, [remaining]);
+    clock.Advance(TimeSpan.FromSeconds(10));
+    await lifecycle.ReconcileAsync(meetingId, [remaining]);
+    Check(await store.GetAsync(meetingId) == miniApp, "Mini app owner absence still has a 60-second grace");
+    await lifecycle.ReconcileAsync(meetingId, [owner]);
 
     entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     unblock = new(TaskCreationOptions.RunContinuationsAsynchronously);

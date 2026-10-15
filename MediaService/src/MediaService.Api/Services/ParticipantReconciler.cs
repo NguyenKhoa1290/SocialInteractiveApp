@@ -37,6 +37,7 @@ public class ParticipantReconciler(
     IConnectionMultiplexer redis,
     LiveKitService liveKit,
     PresentationLifecycle presentation,
+    PresentationStore presentationStore,
     ILogger<ParticipantReconciler> logger)
 {
     // Vang mat lien tuc bao lau thi coi la da roi. Phai rong hon han thoi
@@ -58,9 +59,11 @@ public class ParticipantReconciler(
     {
         var cache = redis.GetDatabase();
 
-        // SET NX: nguoi dau tien den trong moi 10 giay moi thuc su di doi
-        // chieu, nhung nguoi con lai di thang qua.
-        if (!await cache.StringSetAsync($"meeting:{meetingId}:recon", "1", Throttle, When.NotExists))
+        // Khi co screen, doi chieu nhanh hon de moc don 10s khong bi cong
+        // them ca mot chu ky throttle 10s. Moc xac nhan roi phong van 60s.
+        var currentPresentation = await presentationStore.GetAsync(meetingId);
+        var throttle = currentPresentation?.Kind == "screen" ? TimeSpan.FromSeconds(2) : Throttle;
+        if (!await cache.StringSetAsync($"meeting:{meetingId}:recon", "1", throttle, When.NotExists))
             return null;
 
         var snapshot = await liveKit.ListParticipantsAsync(meetingId);

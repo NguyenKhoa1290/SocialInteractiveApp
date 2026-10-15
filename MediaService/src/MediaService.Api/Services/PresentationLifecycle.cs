@@ -10,9 +10,11 @@ public class PresentationLifecycle(
     PresentationStore store, LiveKitService liveKit,
     TimeProvider clock, ILogger<PresentationLifecycle> logger)
 {
-    private static readonly TimeSpan MissingGrace = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan ScreenMissingGrace = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan OwnerMissingGrace = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan ScreenStartGrace = TimeSpan.FromMinutes(2);
     private readonly ConcurrentDictionary<long, (PresentationState State, DateTimeOffset Since)> _missing = new();
+    private readonly ConcurrentDictionary<long, DateTimeOffset> _screensSeen = new();
     private readonly SemaphoreSlim[] _metadataLocks = Enumerable.Range(0, 64).Select(_ => new SemaphoreSlim(1)).ToArray();
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -22,6 +24,7 @@ public class PresentationLifecycle(
         if (current?.UserId == userId && await store.ClearIfCurrentAsync(meetingId, current))
         {
             _missing.TryRemove(meetingId, out _);
+            _screensSeen.TryRemove(meetingId, out _);
             await PublishMetadataAsync(meetingId);
         }
     }
@@ -34,14 +37,21 @@ public class PresentationLifecycle(
         if (current is null)
         {
             _missing.TryRemove(meetingId, out _);
+            _screensSeen.TryRemove(meetingId, out _);
             return;
         }
 
         var owner = participants.FirstOrDefault(p => p.Identity == current.UserId.ToString());
         var now = clock.GetUtcNow();
+        var hasScreen = owner?.Tracks.Any(t => t.Source == TrackSource.ScreenShare) == true;
+        if (current.Kind == "screen" && hasScreen)
+            _screensSeen[meetingId] = current.StartedAt;
+        // Chi cho hop chon man hinh thoi gian khoi tao. Khi da thay track
+        // phat roi, mat track phai duoc don sau 10s, ke ca trong 2 phut dau.
+        var waitingForFirstScreen = now - current.StartedAt < ScreenStartGrace &&
+            (!_screensSeen.TryGetValue(meetingId, out var seen) || seen != current.StartedAt);
         var healthy = owner is not null && (current.Kind != "screen" ||
-            owner.Tracks.Any(t => t.Source == TrackSource.ScreenShare) ||
-            now - current.StartedAt < ScreenStartGrace);
+            hasScreen || waitingForFirstScreen);
         if (healthy)
         {
             _missing.TryRemove(meetingId, out _);
@@ -51,10 +61,12 @@ public class PresentationLifecycle(
         // Cho F5/noi lai mang; khong bo luot chi vi mot lan thieu track.
         var missing = _missing.AddOrUpdate(meetingId, (current, now),
             (_, previous) => previous.State == current ? previous : (current, now));
-        if (now - missing.Since < MissingGrace) return;
+        var grace = current.Kind == "screen" ? ScreenMissingGrace : OwnerMissingGrace;
+        if (now - missing.Since < grace) return;
         if (await store.ClearIfCurrentAsync(meetingId, current))
         {
             _missing.TryRemove(meetingId, out _);
+            _screensSeen.TryRemove(meetingId, out _);
             await PublishMetadataAsync(meetingId);
             logger.LogInformation("Da don luot trinh bay khong con nguon phat cua cuoc hop {MeetingId}", meetingId);
         }
