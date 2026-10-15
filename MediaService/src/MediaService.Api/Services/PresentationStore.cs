@@ -94,4 +94,17 @@ public class PresentationStore(IConnectionMultiplexer redis)
     // Tra ve true neu that su co gi do de xoa. Chi nguoi dang trinh bay hoac
     // Chu phong duoc goi - noi goi tu kiem tra quyen.
     public Task<bool> ClearAsync(long meetingId) => _db.KeyDeleteAsync(Key(meetingId));
+
+    // Chi xoa dung luot da quan sat: cleanup cham khong duoc xoa luot moi.
+    public async Task<bool> ClearIfCurrentAsync(long meetingId, PresentationState expected)
+    {
+        const string script = """
+            if redis.call('GET', KEYS[1]) == ARGV[1] then
+                return redis.call('DEL', KEYS[1])
+            end
+            return 0
+            """;
+        return (long)await _db.ScriptEvaluateAsync(script,
+            [Key(meetingId)], [JsonSerializer.Serialize(expected)]) == 1;
+    }
 }

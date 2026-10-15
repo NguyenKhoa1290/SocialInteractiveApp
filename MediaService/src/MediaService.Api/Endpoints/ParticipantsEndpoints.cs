@@ -171,7 +171,7 @@ public static class ParticipantsEndpoints
         group.MapPost("/participants/{userId:long}/kick", async (
             long meetingId, long userId, ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit,
-            ILoggerFactory loggerFactory) =>
+            ILoggerFactory loggerFactory, PresentationLifecycle presentation) =>
         {
             var (meeting, error) = await RequireHostAsync(meetingId, principal, db);
             if (error is not null) return error;
@@ -192,6 +192,7 @@ public static class ParticipantsEndpoints
 
             participant.LeftAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(); // trigger trg_close_meeting_if_empty tu dong dong phong neu day la nguoi cuoi
+            await presentation.ReleaseAsync(meetingId, userId);
 
             // Chu tu moi CHINH MINH ra la mot duong hop le (bam nham, hoac
             // muon giao phong lai roi di) - ke ca duong nay cung phai co chu

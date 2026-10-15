@@ -36,6 +36,7 @@ namespace MediaService.Api.Services;
 public class ParticipantReconciler(
     IConnectionMultiplexer redis,
     LiveKitService liveKit,
+    PresentationLifecycle presentation,
     ILogger<ParticipantReconciler> logger)
 {
     // Vang mat lien tuc bao lau thi coi la da roi. Phai rong hon han thoi
@@ -62,9 +63,11 @@ public class ParticipantReconciler(
         if (!await cache.StringSetAsync($"meeting:{meetingId}:recon", "1", Throttle, When.NotExists))
             return null;
 
-        var live = await liveKit.ListParticipantIdsAsync(meetingId);
-        if (live is null || live.Count == 0)
+        var snapshot = await liveKit.ListParticipantsAsync(meetingId);
+        await presentation.ReconcileAsync(meetingId, snapshot);
+        if (snapshot is null || snapshot.Count == 0)
             return null; // lan can 1 va 2
+        var live = snapshot.Select(p => p.Identity).ToHashSet();
 
         var active = await db.MeetingParticipants
             .Where(p => p.MeetingId == meetingId && p.LeftAt == null)
@@ -79,7 +82,7 @@ public class ParticipantReconciler(
 
             // Nguoi dang goi API nay hien nhien con o day, du LiveKit chua
             // thay ho (dang ket noi, hoac vua F5 xong).
-            if (p.UserId == callerId || live.Contains(p.UserId))
+            if (p.UserId == callerId || live.Contains(p.UserId.ToString()))
             {
                 await cache.KeyDeleteAsync(key);
                 continue;

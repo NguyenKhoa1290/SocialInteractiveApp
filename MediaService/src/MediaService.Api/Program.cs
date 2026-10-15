@@ -23,6 +23,8 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
         ?? throw new InvalidOperationException("Thieu ConnectionStrings:Redis")));
 builder.Services.AddSingleton<WaitingRoomStore>();
 builder.Services.AddSingleton<PresentationStore>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PresentationLifecycle>();
 builder.Services.AddSingleton<RoomLivenessCache>();
 builder.Services.AddSingleton<ParticipantReconciler>();
 // Don cuoc hop khong con ai. Truoc day viec nay di nho GET /meetings/active

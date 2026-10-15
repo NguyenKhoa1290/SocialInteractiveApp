@@ -209,9 +209,8 @@ export function MeetingRoomPage() {
   const [micOn, setMicOn] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [sharing, setSharing] = useState(false);
-  // Ai dang trinh bay - doc tu metadata cua phong LiveKit. KHONG poll REST:
-  // LiveKit tu ban RoomMetadataChanged cho ca phong, va nguoi vao muon doc
-  // duoc ngay tu room.metadata luc ket noi.
+  // LiveKit phat metadata de cap nhat ngay; REST doi chieu Redis khi poll
+  // de tu sua trang thai cu neu bo lo su kien trong luc noi lai ket noi.
   const [presentation, setPresentation] = useState<PresentationState | null>(null);
 
   // Dong bo clearKey tu trang thai trinh bay (room metadata, broadcast cho ca
@@ -445,7 +444,15 @@ export function MeetingRoomPage() {
           .on(RoomEvent.TrackMuted, syncLocalDeviceState)
           .on(RoomEvent.TrackUnmuted, syncLocalDeviceState)
           .on(RoomEvent.LocalTrackPublished, syncLocalDeviceState)
-          .on(RoomEvent.LocalTrackUnpublished, syncLocalDeviceState)
+          .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+            syncLocalDeviceState();
+            // Nut "Dung chia se" cua trinh duyet cung huy publication,
+            // nhung khong di qua toggleShare. Nha suat o ca duong nay.
+            if (!cancelled && publication.source === Track.Source.ScreenShare) {
+              setSharing(false);
+              void meetingApi.stopPresentation(meetingId, "screen").catch(() => {});
+            }
+          })
           .on(RoomEvent.Reconnecting, showReconnecting)
           .on(RoomEvent.SignalReconnecting, showReconnecting)
           .on(RoomEvent.Reconnected, () => {
@@ -623,6 +630,15 @@ export function MeetingRoomPage() {
         return;
       }
 
+      // Redis la nguon su that. Metadata co the con cu neu SFU dang noi lai
+      // hoac lan phat su kien truoc that bai; poll de ca phong tu hoi phuc.
+      try {
+        const presentationRes = await meetingApi.getPresentation(meetingId);
+        setPresentation(presentationRes.data || null);
+      } catch {
+        // Khong chan dong bo phong cho/quyen khi rieng request nay loi.
+      }
+
       // Dong chu phong cung duyet duoc, nen cung phai thay hang doi. Doc
       // quyen tu chinh peopleRes vua lay - khong dung bien laDongChu ben
       // ngoai vi refresh nam trong useCallback, them dep la dung lai ca vong
@@ -767,7 +783,7 @@ export function MeetingRoomPage() {
       }
       // Nha suat trinh bay de nguoi khac dung duoc.
       try {
-        await meetingApi.stopPresentation(meetingId);
+        await meetingApi.stopPresentation(meetingId, "screen", presentation?.startedAt);
       } catch {
         // khong nha duoc thi host van go duoc ho
       }
@@ -806,7 +822,7 @@ export function MeetingRoomPage() {
       // Nguoi dung bam Huy o hop chon man hinh - khong phai loi. Tra lai
       // suat vua gianh, neu khong ca phong se ket o focus mode voi mot man
       // hinh trong.
-      claim.then(() => meetingApi.stopPresentation(meetingId).catch(() => {})).catch(() => {});
+      claim.then((res) => meetingApi.stopPresentation(meetingId, "screen", res.data.startedAt).catch(() => {})).catch(() => {});
       return;
     }
 
@@ -828,7 +844,8 @@ export function MeetingRoomPage() {
       setVersion((v) => v + 1);
     } catch {
       tracks.forEach((t) => t.stop());
-      await meetingApi.stopPresentation(meetingId).catch(() => {});
+      const claimed = await claim;
+      await meetingApi.stopPresentation(meetingId, "screen", claimed.data.startedAt).catch(() => {});
     }
   }
 
@@ -867,7 +884,7 @@ export function MeetingRoomPage() {
         await roomRef.current?.localParticipant.setScreenShareEnabled(false).catch(() => {});
         setSharing(false);
       }
-      await meetingApi.stopPresentation(meetingId);
+      await meetingApi.stopPresentation(meetingId, undefined, presentation?.startedAt);
       setPresentation(null);
     } catch (err) {
       setNotice(extractApiError(err, "Không dừng trình bày được"));

@@ -148,14 +148,18 @@ public class LiveKitService
     // LiveKit se quet sach danh sach nguoi trong mot cuoc hop that.
     public async Task<HashSet<long>?> ListParticipantIdsAsync(long meetingId)
     {
+        var participants = await ListParticipantsAsync(meetingId);
+        return participants is null ? null : participants
+            .Select(p => long.TryParse(p.Identity, out var id) ? (long?)id : null)
+            .Where(id => id.HasValue).Select(id => id!.Value).ToHashSet();
+    }
+
+    public async Task<IReadOnlyCollection<ParticipantInfo>?> ListParticipantsAsync(long meetingId)
+    {
         try
         {
             var resp = await _roomService.ListParticipants(new ListParticipantsRequest { Room = RoomName(meetingId) });
-            var ids = new HashSet<long>();
-            foreach (var p in resp.Participants)
-                if (long.TryParse(p.Identity, out var id))
-                    ids.Add(id);
-            return ids;
+            return resp.Participants.ToArray();
         }
         catch (Exception)
         {

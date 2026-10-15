@@ -53,6 +53,21 @@ jobs:
         if: matrix.service == 'Media'
         run: dotnet run --project MediaService/tests/MeetingServerPolicy.Checks/MeetingServerPolicy.Checks.csproj -c Release
 
+  presentation-checks:
+    name: Presentation lifecycle
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet run --project MediaService/tests/PresentationLifecycle.Checks/PresentationLifecycle.Checks.csproj -c Release
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

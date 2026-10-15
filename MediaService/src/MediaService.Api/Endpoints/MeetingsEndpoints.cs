@@ -300,9 +300,10 @@ public static class MeetingsEndpoints
         // sai. Idempotent: goi lai khi da roi van tra 204.
         group.MapPost("/{meetingId:long}/leave", async (
             long meetingId, System.Security.Claims.ClaimsPrincipal principal, MediaDbContext db,
-            ILoggerFactory loggerFactory) =>
+            ILoggerFactory loggerFactory, PresentationLifecycle presentation) =>
         {
             var callerId = principal.GetUserId()!.Value;
+            await presentation.ReleaseAsync(meetingId, callerId);
             var participant = await db.MeetingParticipants
                 .FirstOrDefaultAsync(p => p.MeetingId == meetingId && p.UserId == callerId && p.LeftAt == null);
             if (participant is null)

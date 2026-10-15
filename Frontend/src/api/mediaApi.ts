@@ -110,7 +110,11 @@ export const meetingApi = {
       clearKey: opts?.clearKey ?? null,
     }),
 
-  stopPresentation: (meetingId: number) => mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`),
+  getPresentation: (meetingId: number) =>
+    mediaHttp.get<PresentationState | null>(`/meetings/${meetingId}/presentation`),
+
+  stopPresentation: (meetingId: number, kind?: "screen", startedAt?: string) =>
+    mediaHttp.delete<void>(`/meetings/${meetingId}/presentation`, { params: { kind, startedAt } }),
 
   createInvite: (meetingId: number, type: "link" | "direct", invitedUserId?: number) =>
     mediaHttp.post<MeetingInvite>(`/meetings/${meetingId}/invites`, { type, invitedUserId: invitedUserId ?? null }),

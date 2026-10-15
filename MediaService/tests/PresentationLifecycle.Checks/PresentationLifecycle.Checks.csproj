@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="3.1.13" />
+    <PackageReference Include="Livekit.Server.Sdk.Dotnet" Version="1.2.0" />
+    <Compile Include="../../src/MediaService.Api/Services/PresentationStore.cs" Link="PresentationStore.cs" />
+    <Compile Include="../../src/MediaService.Api/Services/PresentationLifecycle.cs" Link="PresentationLifecycle.cs" />
+    <Compile Include="../../src/MediaService.Api/Services/LiveKitService.cs" Link="LiveKitService.cs" />
+    <Compile Include="../../src/MediaService.Api/Models/MeetingLimits.cs" Link="MeetingLimits.cs" />
+    <Compile Include="../../src/MediaService.Api/Models/Meeting.cs" Link="Meeting.cs" />
+    <Compile Include="../../src/MediaService.Api/Models/MeetingParticipant.cs" Link="MeetingParticipant.cs" />
+  </ItemGroup>
+</Project>
