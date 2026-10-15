@@ -26,7 +26,6 @@ function TrangThaiMic({ muted }: { muted: boolean }) {
 export function ParticipantTile({
   participant,
   isLocal,
-  version,
   label,
   stage = false,
   videoHidden = false,
@@ -87,31 +86,37 @@ export function ParticipantTile({
   // o man hinh khong gan am thanh nao ca, nen nguoi chia se mot video co
   // tieng thi ca phong nhin thay hinh ma khong nghe gi.
   const audioPub = source === "screen" ? screenAudioPub : micPub;
+  const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted && !videoHidden;
+  // version chi de render lai trang thai publication. Khong dung no de gan
+  // lai media: su kien doi nguoi noi cung tang version, gay ngat hinh/tieng.
+  // Khi an/tat camera, video element bi thao khoi DOM; track phai duoc gan
+  // lai khi element xuat hien, ke ca khi doi tuong track van la cu.
+  const videoTrack = hasVideo ? videoPub?.track : undefined;
+  const audioTrack = audioPub?.track;
 
   useEffect(() => {
     const el = videoRef.current;
-    const track = videoPub?.track;
+    const track = videoTrack;
     if (!el || !track) return;
     track.attach(el);
     return () => {
       track.detach(el);
     };
-  }, [videoPub?.track, version]);
+  }, [videoTrack]);
 
   useEffect(() => {
     // KHONG attach am thanh cua chinh minh - se tu nghe lai tieng minh (voi
     // lai), va voi man hinh chia se thi thanh mot vong lap tieng.
     if (isLocal) return;
     const el = audioRef.current;
-    const track = audioPub?.track;
+    const track = audioTrack;
     if (!el || !track) return;
     track.attach(el);
     return () => {
       track.detach(el);
     };
-  }, [audioPub?.track, version, isLocal]);
+  }, [audioTrack, isLocal]);
 
-  const hasVideo = Boolean(videoPub?.track) && !videoPub?.isMuted && !videoHidden;
   // Noi dung trinh chieu bi cat vien la mat chu - luon hien nguyen khung du
   // o dang o luoi nho.
   const contain = stage || source === "screen";
