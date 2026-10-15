@@ -268,6 +268,24 @@
   background: var(--accent-bg);
 }
 
+.cw-icon-btn.cw-create-meeting {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  background: var(--calli-teal-dark);
+  color: #fff;
+}
+
+.cw-icon-btn.cw-create-meeting:hover {
+  filter: brightness(1.08);
+}
+
+.cw-create-meeting:focus-visible {
+  outline: 2px solid var(--calli-navy-line);
+  outline-offset: 3px;
+}
+
 .cw-msgs {
   flex: 1;
   min-height: 0;

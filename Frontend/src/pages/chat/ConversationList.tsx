@@ -7,6 +7,7 @@ import { meetingApi, type MeetingServerId } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
 import { Avatar } from "../../components/Avatar";
 import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
+import { IconCamera } from "../meeting/MeetingIcons";
 import type { ConversationSummary } from "../../types/chat";
 import type { AuthUser } from "../../types/auth";
 import type { Friend, FriendRequest } from "../../types/friend";
@@ -332,8 +333,15 @@ export function ConversationList({
           ) : (
             /* KHONG phai cuoc hop cua mot cuoc tro chuyen nao - day la phong
                hop TUY CHINH, moi nguoi vao bang link. */
-            <button className="cw-pill" onClick={() => setHienDatTenHop(true)}>
-              Khởi tạo cuộc họp
+            <button
+              type="button"
+              className="cw-icon-btn cw-create-meeting"
+              onClick={() => setHienDatTenHop(true)}
+              title="Khởi tạo cuộc họp"
+              aria-label="Khởi tạo cuộc họp"
+              aria-haspopup="dialog"
+            >
+              <IconCamera size={26} />
             </button>
           )}
         </div>

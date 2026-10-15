@@ -32,6 +32,7 @@ import { Modal } from "../../components/Modal";
 import "./workspace.css";
 import { meetingApi, type MeetingServerId } from "../../api/mediaApi";
 import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
+import { IconCamera } from "../meeting/MeetingIcons";
 import type { Meeting } from "../../types/media";
 import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
 import { SystemMessage } from "./SystemMessage";
@@ -1363,8 +1364,15 @@ export function ChatRoomPage() {
               panel trai: do la phong hop TUY CHINH, khong gan vao nhom nao. */}
           {conversation?.type === "group" &&
             (!activeMeeting ? (
-              <button className="cw-pill" onClick={() => setShowCreateMeeting(true)}>
-                Khởi tạo cuộc họp
+              <button
+                type="button"
+                className="cw-icon-btn cw-create-meeting"
+                onClick={() => setShowCreateMeeting(true)}
+                title="Khởi tạo cuộc họp"
+                aria-label="Khởi tạo cuộc họp"
+                aria-haspopup="dialog"
+              >
+                <IconCamera size={26} />
               </button>
             ) : (
               <button className="cw-pill" onClick={handleJoinMeeting}>
