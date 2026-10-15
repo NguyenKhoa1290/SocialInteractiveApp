@@ -268,7 +268,8 @@ spec:
           ports:
             - containerPort: 6379
           resources:
-            requests: {{memory: 32Mi, cpu: 20m}}
+            # LimitedSwap: memory request = limit keeps Redis out of swap.
+            requests: {{memory: 128Mi, cpu: 20m}}
             limits: {{memory: 128Mi}}
 """)
 emit(f"""

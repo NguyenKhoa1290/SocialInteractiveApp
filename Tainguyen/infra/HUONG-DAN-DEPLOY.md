@@ -856,6 +856,38 @@ RabbitMQ + MinIO) và `chat-app` (6 service + frontend).
 **`all.yaml` bị `.gitignore`** vì generator nhét khoá MinIO/Postgres từ `secrets.env` vào. Nên khi
 dựng trên máy mới: **sửa `gen-manifests.py`, không sửa `all.yaml`** — file kia sinh lại là mất hết.
 
+#### Swap và ngoại lệ Redis — 06/10/2026
+
+Server đang dùng cgroup v2, k3s `v1.36.3+k3s1`, khoảng 15,1 GiB RAM và
+16,9 GiB swap (2 GiB trên SSD, phần còn lại trên HDD). Đã đổi
+`/etc/sysctl.d/99-swappiness.conf` từ `vm.swappiness=10` thành `60` để ưu tiên
+đưa các trang bộ nhớ ít dùng vào swap sớm hơn. SSD có ưu tiên swap cao hơn HDD.
+Swappiness là mức ưu tiên tương đối, không phải phần trăm RAM làm ngưỡng kích hoạt.
+Tham khảo: [Linux kernel](https://docs.kernel.org/admin-guide/sysctl/vm.html#swappiness).
+
+Kubelet được cấu hình qua
+`/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/99-swap.conf`:
+
+```yaml
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+failSwapOn: false
+memorySwap:
+  swapBehavior: LimitedSwap
+```
+
+Redis của Calli đặt memory request và limit cùng `128Mi`; Redis của HAU Exam
+cùng `256Mi`. Với LimitedSwap, container có memory request bằng limit không được
+dùng swap, kể cả khi Pod vẫn thuộc Burstable QoS. Giữ hai giá trị bằng nhau khi
+chỉnh manifest. Tham khảo: [Kubernetes](https://kubernetes.io/docs/concepts/cluster-administration/swap-memory-management/).
+
+Redis của HAU Research chạy Docker: `mem_limit: 1g` và `memswap_limit: 1g` trong
+`/opt/hau-research/sources/backend/docker-compose.yml`. Hai giới hạn bằng nhau
+chặn swap cho container. Tham khảo: [Docker](https://docs.docker.com/engine/containers/resource_constraints/#prevent-a-container-from-using-swap).
+
+Bản sao trước khi sửa nằm ở
+`/home/nguyenkhoa/.local/state/chat-app-repairs/20261006-swap/` trên server.
+
 #### MinIO: tự huỷ lần tải nhiều phần bỏ dở
 
 **Sự cố 04/10/2026 — MinIO không lên sau khi server khởi động lại.**

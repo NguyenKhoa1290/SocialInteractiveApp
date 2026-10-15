@@ -68,12 +68,12 @@ export function CreateMeetingDialog({
           autoFocus
           disabled={creating}
         />
-        <p className="md-note">Có thể để trống; hệ thống sẽ đặt tên theo số cuộc họp.</p>
+        <p className="md-note">Có thể để trống, hệ thống sẽ đặt tên theo số cuộc họp.</p>
         <fieldset className="meeting-server-options" disabled={creating}>
           <legend>Server cuộc họp</legend>
           <label className="meeting-server-option" aria-disabled="true">
             <input type="radio" name="meeting-server" value="public" disabled checked={false} />
-            <span><strong>Server công khai</strong><small>Đã khóa — VPS đã hết hạn</small></span>
+            <span><strong>Server công khai</strong><small>Đã khóa do VPS đã hết hạn</small></span>
           </label>
           <label className="meeting-server-option" aria-disabled={!canCreate}>
             <input
@@ -82,7 +82,7 @@ export function CreateMeetingDialog({
               onChange={() => setServer("home")}
               aria-describedby="meeting-home-status"
             />
-            <span><strong>Server nhà</strong><small id="meeting-home-status">
+            <span><strong>Server ưu tiên</strong><small id="meeting-home-status">
               {loadingServers ? "Đang kiểm tra…" : serverError ? "Chưa kiểm tra được trạng thái" : home?.available ? "Sẵn sàng" : home?.reason ?? "Server nhà chưa sẵn sàng"}
             </small></span>
           </label>
