@@ -1,3 +1,13 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-app
+  namespace: chat-app
+spec:
+  hard:
+    limits.memory: 5Gi
+    requests.memory: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

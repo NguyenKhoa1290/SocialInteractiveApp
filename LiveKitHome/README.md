@@ -60,6 +60,8 @@ The package must be readable by the server (public or with an image pull secret)
 Apply `deployment.yaml` once, then include `livekit-home-proxy` in the existing
 `image-watcher` CronJob's deployment loop so it refreshes this image as well.
 The deployment uses `Recreate` because the SFU and proxy use host ports.
+It also expands the application namespace memory quota to accommodate the new
+SFU and proxy. Apply it after the base manifests, whose quota covers API services.
 
 `compose.yml` is an alternative for isolated testing. Stop that stack before
 applying the Kubernetes deployment; both use the same host ports. Do not run
