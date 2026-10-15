@@ -2079,15 +2079,23 @@
 /* --- Popup nhan tin ----------------------------------------------------- */
 
 .mpop-head-chat {
+  /* The temporary-room header has three text rows. Let it grow when the
+     storage note wraps instead of overflowing the fixed generic header. */
+  box-sizing: border-box;
+  height: auto;
+  min-height: calc(92px * var(--s));
   gap: calc(14px * var(--s));
-  padding: 0 calc(12px * var(--s));
+  padding: calc(12px * var(--s));
   background: #f4f8f9;
 }
 
 .mpop-chat-ten {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
+  gap: calc(4px * var(--s));
+  line-height: 1.35;
 }
 
 .mpop-chat-ten b {
@@ -2108,6 +2116,9 @@
   color: var(--text-m);
   font-size: calc(15px * var(--s));
   font-weight: 300;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mpop-chat-than {
@@ -2175,9 +2186,17 @@
     gap: calc(10px * var(--s));
   }
   .mpop-chat-ten em{
-    font-size: calc(11px * var(--s));
+    font-size: max(11px, calc(14px * var(--s)));
     font-style: normal;
     font-weight: 200;
+  }
+
+  .mpop-head-chat {
+    gap: calc(10px * var(--s));
+  }
+
+  .mpop-head-chat .mpop-close {
+    margin-right: 0;
   }
 }
 
@@ -2396,7 +2415,9 @@
 }
 
 .mpop-head-chat .mpop-close {
+  flex: none;
   margin-left: 0;
+  white-space: nowrap;
 }
 
 .disc-icon-bat {
