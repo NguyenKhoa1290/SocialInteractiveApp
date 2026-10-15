@@ -155,6 +155,7 @@ export function MeetingRoomPage() {
   // Canh bao KHONG chi mang (vd khong mo duoc camera) - phong van dung
   // duoc, khac han "error" la truong hop hong han khong vao duoc phong.
   const [notice, setNotice] = useState<string | null>(null);
+  const [connectionNotice, setConnectionNotice] = useState<"reconnecting" | "restored" | null>(null);
 
   const [meeting, setMeeting] = useState<MeetingWithCallerStatus | null>(null);
   // Chu phong lan poll truoc, de biet khi nao no VUA doi. Khong phai state:
@@ -353,12 +354,22 @@ export function MeetingRoomPage() {
   useEffect(() => {
     let cancelled = false;
     let created: Room | null = null;
+    let reconnecting = false;
+    let connectionNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const showReconnecting = () => {
+      if (cancelled) return;
+      clearTimeout(connectionNoticeTimer);
+      reconnecting = true;
+      setConnectionNotice("reconnecting");
+    };
 
     async function connect() {
       // Lan chay bi StrictMode huy da duoc danh dau cancelled TRUOC khi
       // toi luot no trong hang doi -> bo qua han, khong tao Room, khong
       // dong toi camera.
       if (cancelled) return;
+      setConnectionNotice(null);
       try {
         let token = initialToken?.livekitToken ?? null;
         let url = initialToken?.livekitUrl ?? null;
@@ -435,6 +446,19 @@ export function MeetingRoomPage() {
           .on(RoomEvent.TrackUnmuted, syncLocalDeviceState)
           .on(RoomEvent.LocalTrackPublished, syncLocalDeviceState)
           .on(RoomEvent.LocalTrackUnpublished, syncLocalDeviceState)
+          .on(RoomEvent.Reconnecting, showReconnecting)
+          .on(RoomEvent.SignalReconnecting, showReconnecting)
+          .on(RoomEvent.Reconnected, () => {
+            if (cancelled || !reconnecting) return;
+            reconnecting = false;
+            syncRemotes();
+            syncLocalDeviceState();
+            setConnectionNotice("restored");
+            clearTimeout(connectionNoticeTimer);
+            connectionNoticeTimer = setTimeout(() => {
+              if (!cancelled) setConnectionNotice(null);
+            }, 4000);
+          })
           .on(RoomEvent.RoomMetadataChanged, (metadata) => {
             setPresentation(parsePresentation(metadata));
           })
@@ -454,7 +478,11 @@ export function MeetingRoomPage() {
             bump();
           })
           .on(RoomEvent.Disconnected, () => {
-            if (!cancelled) setStatus("left");
+            clearTimeout(connectionNoticeTimer);
+            if (!cancelled) {
+              setConnectionNotice(null);
+              setStatus("left");
+            }
           });
 
         await r.connect(url, token);
@@ -508,6 +536,7 @@ export function MeetingRoomPage() {
 
     return () => {
       cancelled = true;
+      clearTimeout(connectionNoticeTimer);
       roomRef.current = null;
       // Ngat phong cung phai xep hang - neu goi truc tiep o day, no se chay
       // TRONG LUC connect() cua chinh lan nay con dang do (Room chua kip gan
@@ -1516,6 +1545,16 @@ export function MeetingRoomPage() {
           Rời khỏi
         </button>
       </header>
+
+      <div className="mroom-connection-status" role="status" aria-live="polite" aria-atomic="true">
+        {connectionNotice && (
+          <p className={`mroom-connection-notice mroom-connection-notice-${connectionNotice}`}>
+            {connectionNotice === "reconnecting"
+              ? "Đang kết nối lại phòng họp… Âm thanh và video có thể tạm gián đoạn."
+              : "Đã kết nối lại. Bạn có thể tiếp tục cuộc họp."}
+          </p>
+        )}
+      </div>
 
       {error && <p className="meet-error">{error}</p>}
       {notice && (

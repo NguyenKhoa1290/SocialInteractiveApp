@@ -1456,6 +1456,33 @@
 
 /* --- Dai bao loi / thong bao -------------------------------------------- */
 
+.mroom-connection-status {
+  position: absolute;
+  bottom: calc(20px * var(--s));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: max-content;
+  max-width: min(90vw, 720px);
+  pointer-events: none;
+}
+
+.mroom-connection-notice {
+  margin: 0;
+  padding: 12px 18px;
+  border: 1px solid var(--calli-teal);
+  border-radius: 8px;
+  background: var(--calli-navy);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.mroom-connection-notice-restored {
+  background: var(--calli-teal-dark);
+}
+
 .mroom > .meet-error,
 .mroom > .meet-notice {
   position: absolute;
