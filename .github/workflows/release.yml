@@ -39,6 +39,7 @@ jobs:
           - { image: chat-app-media,        context: MediaService/src/MediaService.Api }
           - { image: chat-app-admin,        context: AdminService/src/AdminService.Api }
           - { image: chat-app-frontend,     context: Frontend }
+          - { image: chat-app-livekit-home-proxy, context: LiveKitHome }
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,26 @@
+services:
+  livekit:
+    image: livekit/livekit-server:v1.9.12@sha256:2c13cbf2edcbf13ea7b20d05c10b394d04d8fb3fe358269cff845a90b4de9576
+    container_name: callimeet-home-livekit
+    network_mode: host
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ../livekit.yaml:/etc/livekit.yaml:ro
+    logging:
+      options: { max-size: "10m", max-file: "3" }
+  proxy:
+    build: .
+    container_name: callimeet-home-proxy
+    network_mode: host
+    restart: unless-stopped
+    depends_on: [livekit]
+    environment:
+      PINGGY_BIN: /pinggy
+      SFU_MEDIA_HOST: ${SFU_MEDIA_HOST:-192.168.101.18}
+      ROTATION_SECONDS: ${ROTATION_SECONDS:-3000}
+    volumes:
+      - ../bin/pinggy:/pinggy:ro
+      - ../pinggy-data:/root/.config
+    logging:
+      options: { max-size: "10m", max-file: "3" }
