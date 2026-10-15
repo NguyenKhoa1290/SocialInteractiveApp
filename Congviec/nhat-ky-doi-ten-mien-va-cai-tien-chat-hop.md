@@ -50,6 +50,7 @@ headless, không ước lượng từ ảnh chụp.
 19. [Thảo luận trong phòng họp: trả lời và sửa tin nhắn](#19-thảo-luận-trong-phòng-họp-trả-lời-và-sửa-tin-nhắn)
 20. [Tách biệt danh duy nhất và tên hiển thị](#20-tách-biệt-danh-duy-nhất-và-tên-hiển-thị)
 21. [Hoàn thiện thao tác mobile và ảnh đại diện](#21-hoàn-thiện-thao-tác-mobile-và-ảnh-đại-diện)
+32. [LiveKit server nhà qua Pinggy và thông báo kết nối lại](#32-livekit-server-nhà-qua-pinggy-và-thông-báo-kết-nối-lại)
 
 ---
 
@@ -1403,3 +1404,93 @@ Commits:
 - GitHub Actions `CI` và `Build & Push images`: thành công;
 - đã xác nhận production phục vụ bundle CSS/JS mới và các header cache/404
   đúng như cấu hình.
+
+---
+
+## 32. LiveKit server nhà qua Pinggy và thông báo kết nối lại
+
+**Đợt làm ngày 15/10/2026** — LiveKit, Pinggy, Media Service, frontend và CI/CD.
+
+### Quyết định tạm thời
+
+VPS trước đây chỉ chạy LiveKit đã hết hạn. Chuyển LiveKit sang máy chủ đang
+chạy CalliMeet và hai dự án HAU Research / HAU Exam; dùng Pinggy để đưa đường
+truyền media ra Internet. **Tạm giữ phương án này theo quyết định của chủ dự
+án; chưa kết luận Pinggy Free phù hợp để vận hành liên tục lâu dài.**
+
+Bản triển khai hiện tại mở tunnel miễn phí bằng CLI, không truyền token tài
+khoản Pinggy và chưa cần hai tài khoản luân phiên. LiveKit tự host vẫn có API
+key/secret riêng, lưu trong `.ENV` và Kubernetes Secret, không đưa lên Git.
+
+### Cách triển khai
+
+- LiveKit giữ các cổng nội bộ cố định: `7880` cho API/signaling, `7881` cho
+  ICE/TCP và `7882` cho ICE/UDP. Proxy signaling nghe trên loopback `7883`.
+- Signaling có địa chỉ cố định `wss://media.callimeet.com/livekit`, đi qua
+  Cloudflare Tunnel hiện có. Âm thanh/video đi qua tunnel TCP/UDP của Pinggy.
+- Proxy chạy thường trực; khoảng mỗi **50 phút** mở cặp tunnel mới, cập nhật
+  địa chỉ/cổng ICE rồi gửi tín hiệu reconnect tới SDK của người đang họp.
+  Giữ tunnel cũ thêm **một phút** trước khi đóng; LiveKit không bị khởi động
+  lại trong lượt chuyển tunnel này. Trạng thái tunnel được kiểm tra mỗi 15 giây.
+- Đã sửa đích chuyển tiếp UDP sang IP LAN của server: LiveKit không nghe UDP
+  trên `127.0.0.1` trong cấu hình đang dùng.
+- Chạy bằng Deployment `livekit-home-proxy` trong namespace `chat-app`.
+  Image proxy được build/push bằng GitHub Actions và có trong vòng theo dõi
+  của `image-watcher`. Bản Docker Compose chỉ dùng lúc thử nghiệm đã dừng.
+- Quota namespace ứng dụng được mở rộng lên `limits.memory: 5Gi` và
+  `requests.memory: 2Gi` để nhận thêm SFU và proxy; đây là hạn mức, không phải
+  số RAM thực tế luôn bị chiếm.
+
+Xem mã, manifest và hướng dẫn tại [LiveKitHome](../LiveKitHome/README.md).
+
+### Giao diện và API
+
+Popup tạo phòng có hai mục: **Server công khai** bị khóa với lý do VPS hết
+hạn, và **Server nhà**. API cũng chặn lựa chọn công khai; chỉ cho tạo phòng
+trên server nhà khi `LiveKit__HomeEnabled=true` đã được cấu hình sau kiểm tra.
+
+Frontend lắng nghe `Reconnecting`, `SignalReconnecting` và `Reconnected` của
+LiveKit. Khi kết nối gián đoạn, hiện **“Đang kết nối lại phòng họp…”**; sau khi
+phục hồi hiện **“Đã kết nối lại”** rồi tự ẩn sau **4 giây**. Thông báo áp dụng
+cho trạng thái kết nối thực tế, kể cả gián đoạn mạng, không khẳng định mọi
+lần reconnect đều do đổi tunnel. Timer được dọn khi rời trang hoặc ngắt phòng.
+
+### Những gì đã kiểm tra
+
+- Hai phiên Chrome truyền/nhận được âm thanh và video qua Pinggy TCP.
+- Thử chu kỳ chuyển tunnel rút ngắn **120 giây**: SDK tự reconnect trong
+  **2571 ms** và **2708 ms**; lượng byte âm thanh/video nhận tiếp tục tăng
+  sau chuyển cổng. Đây là kết quả thử hai người, không phải cam kết thời gian
+  gián đoạn cho mọi mạng hoặc phòng đông người.
+- Sau triển khai Kubernetes, hai phiên Chrome truyền/nhận được âm thanh và
+  video qua Pinggy **UDP**.
+- API trả danh sách server đúng trạng thái; tạo phòng trên server công khai
+  trả `503`, lựa chọn server không hợp lệ trả `400`.
+- Build frontend/backend, kiểm tra chính sách chọn server và kiểm tra proxy
+  đều đạt. CI và Build & Push images thành công; production đã phục vụ bundle
+  có thông báo kết nối lại.
+
+### Giới hạn chưa được kiểm chứng — cần theo dõi
+
+Theo [tài liệu Pinggy](https://pinggy.io/help/), tunnel Free có thời hạn
+**60 phút** và địa chỉ thay đổi khi mở lại. Mở tunnel mới sau 50 phút chỉ xử
+lý vòng đời của từng tunnel; **không chứng minh rằng sẽ không gặp các hạn mức
+khác**.
+
+Chưa kiểm chứng việc chạy liên tục nhiều giờ/ngày, hết hạn thực tế ở phút 60,
+hạn mức theo IP/tài khoản, số tunnel đồng thời, tần suất tạo lại, hoặc khả năng
+bị giới hạn khi dùng dài hạn. Chưa có cơ sở khẳng định có hay không có các
+giới hạn đó. Chủ dự án chấp nhận **tạm sử dụng và theo dõi**; chưa mua gói
+Pinggy và chưa triển khai hai tài khoản để luân phiên.
+
+Nếu phát sinh lỗi, lưu thời điểm, mã/thông báo lỗi Pinggy và trạng thái proxy
+để phân biệt lỗi mạng với việc dịch vụ từ chối tunnel. Không ghi API secret
+hoặc JWT của người tham gia vào nhật ký.
+
+Commits triển khai:
+
+- `d4f2835` — chọn server nhà và khóa server công khai hết hạn;
+- `fda2928` — proxy Pinggy, ánh xạ ICE và reconnect SDK;
+- `32db641` — bổ sung proxy vào image-watcher;
+- `d3e2efe` — cấp quota cho triển khai LiveKit server nhà;
+- `cf3617a` — thông báo khi kết nối lại và khi phục hồi.
