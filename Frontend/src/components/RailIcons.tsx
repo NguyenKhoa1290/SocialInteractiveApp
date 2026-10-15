@@ -26,6 +26,16 @@ export function IconFriends({ size = 26 }: P) {
   );
 }
 
+export function IconAddMember({ size = 26 }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="8.2" cy="7" r="3.6" />
+      <path d="M1.4 19c0-3.3 2.8-5.4 6.8-5.4s6.8 2.1 6.8 5.4v1H1.4v-1Z" />
+      <path d="M18.6 8.8v8M14.6 12.8h8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // Luoi 3x3 - dung cho Mini App, giong bieu tuong trong ban thiet ke.
 export function IconGrid({ size = 26 }: P) {
   return (

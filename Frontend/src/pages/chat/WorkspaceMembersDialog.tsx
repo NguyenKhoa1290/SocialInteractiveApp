@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { workspaceApi } from "../../api/workspaceApi";
 import { Avatar } from "../../components/Avatar";
 import { Modal } from "../../components/Modal";
+import { IconAddMember, IconGear } from "../../components/RailIcons";
+import { IconPhoNhom } from "../meeting/MeetingIcons";
 import { extractApiError } from "../../lib/apiError";
 import { useAuthStore } from "../../store/authStore";
 import type { Workspace, WorkspaceMember } from "../../types/workspace";
@@ -119,15 +121,25 @@ export function WorkspaceMembersDialog({
           </label>
           {canManage && (
             <div className="wmd-toolbar-actions">
-              <button type="button" className="cw-pill wmd-add" onClick={() => setShowAddMember(true)}>
-                Thêm thành viên
+              <button
+                type="button"
+                className="cw-icon-btn wmd-icon-action"
+                onClick={() => setShowAddMember(true)}
+                title="Thêm thành viên"
+                aria-label="Thêm thành viên"
+                aria-haspopup="dialog"
+              >
+                <IconAddMember />
               </button>
               <button
                 type="button"
-                className="cw-pill wmd-settings"
+                className="cw-icon-btn wmd-icon-action"
                 onClick={() => setShowSettings(true)}
+                title="Cài đặt nhóm"
+                aria-label="Cài đặt nhóm"
+                aria-haspopup="dialog"
               >
-                Cài đặt nhóm
+                <IconGear />
               </button>
             </div>
           )}
@@ -154,13 +166,29 @@ export function WorkspaceMembersDialog({
                 </div>
                 <div className="wmd-actions">
                   {isLeader && member.role === "member" && (
-                    <button type="button" disabled={busy !== null} onClick={() => void changeRole(member, "deputy")}>
-                      Phong phó nhóm
+                    <button
+                      type="button"
+                      className="cw-icon-btn wmd-icon-action"
+                      disabled={busy !== null}
+                      onClick={() => void changeRole(member, "deputy")}
+                      title={`Phong phó nhóm cho ${member.nickname}`}
+                      aria-label={`Phong phó nhóm cho ${member.nickname}`}
+                      aria-busy={busy === `role:${member.userId}`}
+                    >
+                      <IconPhoNhom size={26} />
                     </button>
                   )}
                   {isLeader && member.role === "deputy" && (
-                    <button type="button" disabled={busy !== null} onClick={() => void changeRole(member, "member")}>
-                      Gỡ phó nhóm
+                    <button
+                      type="button"
+                      className="cw-icon-btn wmd-icon-action"
+                      disabled={busy !== null}
+                      onClick={() => void changeRole(member, "member")}
+                      title={`Gỡ phó nhóm của ${member.nickname}`}
+                      aria-label={`Gỡ phó nhóm của ${member.nickname}`}
+                      aria-busy={busy === `role:${member.userId}`}
+                    >
+                      <IconPhoNhom size={26} ha />
                     </button>
                   )}
                   {isLeader && !isMe && member.role !== "leader" && (

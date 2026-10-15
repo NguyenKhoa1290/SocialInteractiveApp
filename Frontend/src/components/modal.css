@@ -496,20 +496,11 @@
   font: 400 16px/1.2 var(--sans);
 }
 
-.wmd-add {
-  flex: none;
-}
-
 .wmd-toolbar-actions {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.wmd-settings {
-  background: var(--calli-muted);
-  color: var(--calli-navy);
 }
 
 .wmd-summary {
@@ -604,6 +595,31 @@
   color: var(--danger);
 }
 
+.wmd-icon-action,
+.wmd-actions .wmd-icon-action {
+  flex: none;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 5px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--calli-navy-icon);
+  line-height: 0;
+}
+
+.wmd-icon-action:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+.wmd-icon-action:focus-visible {
+  outline: 2px solid var(--calli-navy-line);
+  outline-offset: 3px;
+}
+
 .wmd-empty {
   margin: 20px 0;
   color: var(--text-m);
@@ -625,10 +641,6 @@
     align-self: stretch;
     justify-content: center;
     width: 100%;
-  }
-
-  .wmd-toolbar-actions .cw-pill {
-    white-space: nowrap;
   }
 
   .wmd-list {
