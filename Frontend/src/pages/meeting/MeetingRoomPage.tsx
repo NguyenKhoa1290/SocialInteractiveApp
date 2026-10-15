@@ -1058,32 +1058,32 @@ export function MeetingRoomPage() {
     return remotes.find((p) => Number(p.identity) === userId);
   };
 
-  // Ai len khung trung tam, theo thu tu uu tien:
-  //   1. Luot TRINH BAY dang dien ra (chia se man hinh, hoac Mini App)
-  //   2. Nguoi TOI tu ghim
-  //
-  // Trinh bay DUNG TREN ghim, khong phai nguoc lai. Truoc day ghim thang, va
-  // do la cho hong: dang phat IPTV ma bam vao mot o thi khung trinh bay bien
-  // mat - the <video> bi go khoi bo cuc, luong dut. Gio suot luot trinh bay
-  // ghim bi tat han (xem onGhim ben duoi) va con so ghim cu bi xoa khi luot
-  // moi bat dau, nen hai thu khong bao gio tranh cho nhau.
-  //
-  // Ghim va viec thoat che do tap trung deu la trang thai CUC BO cua tung
-  // nguoi - khong gui len server, khong anh huong ai khac.
-  const coTrinhBay = presentation !== null;
-  const pinnedParticipant = coTrinhBay ? undefined : findParticipant(pinnedUserId);
+  // Ghim cua client uu tien len khung focus; bo ghim thi tu quay ve luot
+  // trinh bay mac dinh. Screen/IPTV van con o dai nho khi ghim mot nguoi;
+  // IptvPlayerHost giu nguyen trinh phat khi chuyen giua hai vi tri.
+  const pinnedParticipant = findParticipant(pinnedUserId);
   const autoFocusParticipant =
     presentation?.kind === "screen" && !gridOverride ? findParticipant(presentation.userId) : undefined;
 
-  const stageParticipant = autoFocusParticipant ?? pinnedParticipant;
+  const stageParticipant = pinnedParticipant ?? autoFocusParticipant;
   // Khung lon dang chieu MAN HINH hay khuon mat? Ghim mot nguoi la muon xem
   // NGUOI do; focus tu dong khi ai do trinh chieu la muon xem MAN HINH.
-  const stageIsScreen = Boolean(autoFocusParticipant);
-  const showAppStage = presentation?.kind === "mini_app" && !gridOverride;
+  const stageIsScreen = !pinnedParticipant && Boolean(autoFocusParticipant);
+  const showAppStage = !pinnedParticipant && presentation?.kind === "mini_app" && !gridOverride;
   const inFocusLayout = Boolean(stageParticipant) || showAppStage;
 
   // Chu cua khung lon: nguoi dang chia se man hinh, hoac nguoi minh ghim.
   const stageUserId = stageIsScreen ? (presentation?.userId ?? null) : pinnedUserId;
+
+  function togglePin(userId: number) {
+    setPinnedUserId((previous) => previous === userId ? null : userId);
+    setGridOverride(false);
+  }
+
+  function unpin() {
+    setPinnedUserId(null);
+    setGridOverride(false);
+  }
 
   // Moi LUOT TRINH BAY MOI thi tra lai che do tu dong. Viec bam "Xem dang
   // luoi" chi ap dung cho luot dang dien ra, khong phai tat focus mode vinh
@@ -1094,11 +1094,7 @@ export function MeetingRoomPage() {
     : null;
   useEffect(() => {
     setGridOverride(false);
-    // Xoa luon con so ghim cu. Ghim bi tat trong luc trinh bay, nhung nguoi
-    // dung co the da ghim ai do TRUOC khi luot nay bat dau - de lai thi vua
-    // het trinh bay la khung lon nhay sang mot nguoi ho khong con nho la
-    // minh da ghim.
-    setPinnedUserId(null);
+    // Luot trinh bay moi khong ghi de lua chon ghim rieng cua client.
   }, [presentationKey]);
 
   // UC-34 1d: chinh am luong CUA NGUOI KHAC o phia minh. LiveKit ap thang
@@ -1406,13 +1402,9 @@ export function MeetingRoomPage() {
         // Ghim la lua chon xem RIENG cua toi - khong gui len server, khong ai
         // khac bi anh huong, nen khong can quyen gi. O man hinh chia se thi
         // khong ghim: khung do da tu len giua roi.
-        //
-        // Va CHI ghim duoc o che do luoi binh thuong: dang co nguoi chia se
-        // man hinh hay dang phat IPTV thi khung lon la cua luot trinh bay,
-        // ghim vao do se day noi dung dang chieu ra ngoai.
         onGhim={
-          t.kind === "participant" && !coTrinhBay
-            ? () => setPinnedUserId((truoc) => (truoc === t.userId ? null : t.userId))
+          t.kind === "participant"
+            ? () => togglePin(t.userId)
             : undefined
         }
         dangGhim={t.kind === "participant" && pinnedUserId === t.userId}
@@ -1426,22 +1418,21 @@ export function MeetingRoomPage() {
   // Dieu huong cac trang o. Trong che do tap trung, CSS dat khoi nay ngay
   // duoi danh sach nguoi hop de mui ten khong chen vao giua cot o nho.
   // Khoi giua thanh tren: dang chieu gi, va nhung nut di kem. null = khong
-  // co gi de bao. Ghim va trinh bay dung chung mot cho vi khong bao gio xay
-  // ra cung luc - dang trinh bay thi ghim bi tat (xem stageParticipant).
-  const bangChieu: { chu: string; nut: { chu: string; bam: () => void }[] } | null = presentation
+  // co gi de bao. Khi ghim, nut Bo ghim tra ve luot trinh bay dang chay.
+  const bangChieu: { chu: string; nut: { chu: string; bam: () => void }[] } | null = pinnedParticipant
     ? {
-        chu: `${presentation.nickname} đang phát ${presentation.kind === "screen" ? "màn hình" : "nội dung"}`,
-        nut: [
-          ...(presentation.userId === currentUserId || isHost
-            ? [{ chu: "Dừng", bam: () => void handleStopPresentation() }]
-            : []),
-          { chu: gridOverride ? "Dạng khung" : "Dạng lưới", bam: () => setGridOverride((v) => !v) },
-        ],
+        chu: `Bạn đang ghim ${nameOfUserId(pinnedUserId!)}`,
+        nut: [{ chu: "Bỏ ghim", bam: unpin }],
       }
-    : pinnedUserId !== null
+    : presentation
       ? {
-          chu: `Bạn đang ghim ${nameOfUserId(pinnedUserId)}`,
-          nut: [{ chu: "Bỏ ghim", bam: () => setPinnedUserId(null) }],
+          chu: `${presentation.nickname} đang phát ${presentation.kind === "screen" ? "màn hình" : "nội dung"}`,
+          nut: [
+            ...(presentation.userId === currentUserId || isHost
+              ? [{ chu: "Dừng", bam: () => void handleStopPresentation() }]
+              : []),
+            { chu: gridOverride ? "Dạng khung" : "Dạng lưới", bam: () => setGridOverride((v) => !v) },
+          ],
         }
       : null;
 
@@ -1614,6 +1605,8 @@ export function MeetingRoomPage() {
                           : nameOfUserId(stageUserId!)
                       }
                       stage
+                      onGhim={pinnedParticipant ? unpin : undefined}
+                      dangGhim={Boolean(pinnedParticipant)}
                       // Nguoi dang duoc ghim/chieu ma noi thi khung lon cung
                       // sang vien - tru khi khung dang chieu MAN HINH.
                       dangNoi={!stageIsScreen && stageUserId != null && dangNoiRef.current.has(stageUserId)}

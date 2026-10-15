@@ -61,13 +61,8 @@ export function ParticipantTile({
   // Duong kinh vong tron TRUOC khi nhan --s. Thiet ke dat co dinh, khong doi
   // theo do lon cua o: 122 o luoi thuong, 61 o dai nho cua focus mode.
   avatarSize?: number;
-  // Bam vao o de ghim nguoi do vao khung lon. Ban thiet ke khong ve nut ghim
-  // o dau ca, nen chinh cai o la nut - khong ton mot mm giao dien nao.
-  //
-  // Bo trong khi KHONG ghim duoc; luc do o khong doi con tro, khong sang
-  // vien khi ro chuot va khong co title - de nguoi dung khong bam vao mot
-  // thu khong phan hoi. Xem MeetingRoomPage: dang co nguoi trinh bay thi
-  // khung lon thuoc ve luot trinh bay, ghim bi tat.
+  // Bam o nguoi de ghim vao khung focus cua client, bam lai de bo ghim.
+  // O screen khong gan handler nay; viec ghim khong doi luot trinh bay chung.
   onGhim?: () => void;
   dangGhim?: boolean;
   // Nguoi nay DANG noi -> sang vien o. Do MeetingRoomPage tinh tu su kien
