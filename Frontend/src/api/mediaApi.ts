@@ -13,14 +13,23 @@ import type {
   WaitingParticipant,
 } from "../types/media";
 
+export type MeetingServerId = "public" | "home";
+export interface MeetingServerOption {
+  id: MeetingServerId;
+  name: string;
+  available: boolean;
+  reason: string | null;
+}
+
 export const meetingApi = {
+  servers: () => mediaHttp.get<MeetingServerOption[]>("/meetings/servers"),
   // mode=in_chat gan cuoc hop voi 1 hoi thoai (ca nhom vao thang duoc);
   // mode=standalone la cuoc hop doc lap, chi vao duoc bang link moi.
   // Ten gia tri phai dung theo enum trong media-service-api.yaml
   // (`enum: [in_chat, standalone]`) - truoc day Frontend gui "direct", chay
   // dung nhung lech hop dong API.
-  create: (mode: "in_chat" | "standalone", conversationId?: number, name?: string) =>
-    mediaHttp.post<Meeting>("/meetings", { mode, conversationId: conversationId ?? null, name: name?.trim() || null }),
+  create: (mode: "in_chat" | "standalone", conversationId?: number, name?: string, server: MeetingServerId = "home") =>
+    mediaHttp.post<Meeting>("/meetings", { mode, conversationId: conversationId ?? null, name: name?.trim() || null, server }),
 
   // 204 (data rong) khi hoi thoai khong co cuoc hop nao dang mo.
   getActiveForConversation: (conversationId: number) =>

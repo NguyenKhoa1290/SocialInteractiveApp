@@ -273,6 +273,7 @@ services:
       ChatServiceClient__BaseUrl: http://chat:8080
       LiveKit__ServerUrl: ${LIVEKIT_SERVER_URL:?can .env voi key LiveKit Cloud}
       LiveKit__ClientUrl: ${LIVEKIT_CLIENT_URL:?can .env voi key LiveKit Cloud}
+      LiveKit__HomeEnabled: ${LIVEKIT_HOME_ENABLED:-false}
       LiveKit__ApiKey: ${LIVEKIT_API_KEY:?can .env voi key LiveKit Cloud}
       LiveKit__ApiSecret: ${LIVEKIT_API_SECRET:?can .env voi key LiveKit Cloud}
 

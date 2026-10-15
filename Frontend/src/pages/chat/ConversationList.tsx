@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
-import { meetingApi } from "../../api/mediaApi";
+import { meetingApi, type MeetingServerId } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
 import { Avatar } from "../../components/Avatar";
 import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
@@ -187,9 +187,9 @@ export function ConversationList({
 
   // Tao phong tam sau khi nguoi dung xac nhan ten. Ten rong duoc backend
   // doi thanh "Cuoc hop #ID", nen khong can ep nhap.
-  async function moPhongHopTuyChinh(name: string) {
+  async function moPhongHopTuyChinh(name: string, server: MeetingServerId) {
     setError(null);
-    const { data: hop } = await meetingApi.create("standalone", undefined, name);
+    const { data: hop } = await meetingApi.create("standalone", undefined, name, server);
     const { data: moi } = await meetingApi.createInvite(hop.id, "link");
     const link = `${window.location.origin}/meetings/join/${moi.inviteToken}`;
 

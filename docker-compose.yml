@@ -136,6 +136,7 @@ services:
       # commit len repo. Xem .env.example.
       LiveKit__ServerUrl: ${LIVEKIT_SERVER_URL:-http://host.docker.internal:7880}
       LiveKit__ClientUrl: ${LIVEKIT_CLIENT_URL:-ws://localhost:7880}
+      LiveKit__HomeEnabled: ${LIVEKIT_HOME_ENABLED:-false}
       LiveKit__ApiKey: ${LIVEKIT_API_KEY:-devkey_1e01d3e9a13a}
       LiveKit__ApiSecret: ${LIVEKIT_API_SECRET:-cdbb2977cd95310f859cd9eeedc9d4233ec2959ce1300f44}
 

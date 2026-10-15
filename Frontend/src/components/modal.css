@@ -172,6 +172,55 @@
   font-size: 15px;
 }
 
+.meeting-server-options {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.meeting-server-options legend {
+  margin-bottom: 10px;
+  color: var(--calli-navy-line);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.meeting-create-form .meeting-server-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid var(--calli-navy-line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.meeting-server-option[aria-disabled="true"] {
+  border-color: var(--calli-muted);
+  cursor: default;
+}
+
+.meeting-create-form .meeting-server-option input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  accent-color: var(--calli-teal-dark);
+}
+
+.meeting-server-option span {
+  display: grid;
+  gap: 5px;
+}
+
+.meeting-server-option small {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 .meeting-create-actions {
   display: flex;
   justify-content: center;

@@ -4,7 +4,7 @@ namespace MediaService.Api.Endpoints;
 
 public record ErrorResponse(string Error, string Message);
 
-public record CreateMeetingRequest(string Mode, long? ConversationId, string? Name);
+public record CreateMeetingRequest(string Mode, long? ConversationId, string? Name, string? Server = null);
 
 // Doi cau hinh phong khi dang hop - hien chi co cong tac phong cho. Dung
 // nullable de sau nay them truong khac ma khong bat client phai gui lai het.

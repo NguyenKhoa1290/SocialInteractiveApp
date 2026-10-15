@@ -14,11 +14,20 @@ public static class MeetingsEndpoints
     {
         var group = app.MapGroup("/meetings").RequireAuthorization();
 
+        group.MapGet("/servers", (MeetingServerPolicy servers) => Results.Ok(servers.GetServers()));
+
         group.MapPost("", async (
             CreateMeetingRequest req, System.Security.Claims.ClaimsPrincipal principal,
             MediaDbContext db, LiveKitService liveKit, ChatServiceClient chat,
-            MeetingInviteNotificationPublisher publisher, ILoggerFactory loggerFactory) =>
+            MeetingInviteNotificationPublisher publisher, ILoggerFactory loggerFactory,
+            MeetingServerPolicy servers) =>
         {
+            // Check before creating a chat conversation or writing to the DB.
+            // Older clients that omit the selection also use the home server.
+            var rejection = servers.ValidateSelection(req.Server);
+            if (rejection is not null)
+                return Results.Json(new ErrorResponse(rejection.Error, rejection.Message), statusCode: rejection.StatusCode);
+
             var hostId = principal.GetUserId()!.Value;
 
             if (req.Mode == "in_chat" && req.ConversationId is null)

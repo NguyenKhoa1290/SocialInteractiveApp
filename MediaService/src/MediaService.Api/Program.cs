@@ -55,6 +55,7 @@ var liveKitOptions = builder.Configuration.GetSection("LiveKit").Get<LiveKitOpti
     ?? throw new InvalidOperationException("Thieu cau hinh LiveKit trong appsettings");
 builder.Services.AddSingleton(liveKitOptions);
 builder.Services.AddSingleton<LiveKitService>();
+builder.Services.AddSingleton<MeetingServerPolicy>();
 
 // CHI con MOT hang doi: media.meeting-invite, cho viec moi ban be truc tiep
 // (UC-32). Identity Service consume no roi day thong bao xuong nguoi duoc moi

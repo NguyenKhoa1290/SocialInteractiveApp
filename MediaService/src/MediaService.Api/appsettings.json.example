@@ -23,6 +23,7 @@
     "BaseUrl": "http://localhost:5261"
   },
   "LiveKit": {
+    "HomeEnabled": false,
     "ServerUrl": "http://localhost:7880",
     "ClientUrl": "ws://localhost:7880",
     "ApiKey": "<livekit-api-key>",

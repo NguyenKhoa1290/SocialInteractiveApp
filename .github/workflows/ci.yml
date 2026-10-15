@@ -49,6 +49,10 @@ jobs:
         # biet cua Microsoft.OpenApi) chua xu ly duoc, bat len la chan het CI.
         run: dotnet build -c Release --no-restore
 
+      - name: Check meeting server selection policy
+        if: matrix.service == 'Media'
+        run: dotnet run --project MediaService/tests/MeetingServerPolicy.Checks/MeetingServerPolicy.Checks.csproj -c Release
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

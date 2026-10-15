@@ -30,7 +30,7 @@ import { Avatar } from "../../components/Avatar";
 import { IconAttach, IconCaret, IconImage, IconSend, IconStorage } from "./ComposerIcons";
 import { Modal } from "../../components/Modal";
 import "./workspace.css";
-import { meetingApi } from "../../api/mediaApi";
+import { meetingApi, type MeetingServerId } from "../../api/mediaApi";
 import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
 import type { Meeting } from "../../types/media";
 import { FileMessageContent, UploadingMessage } from "./FileMessageContent";
@@ -332,9 +332,9 @@ export function ChatRoomPage() {
     };
   }, [conversation, peerUserId, conversationId]);
 
-  async function handleStartMeeting(name: string) {
+  async function handleStartMeeting(name: string, server: MeetingServerId) {
     setError(null);
-    const res = await meetingApi.create("in_chat", conversationId, name);
+    const res = await meetingApi.create("in_chat", conversationId, name, server);
     const join = await meetingApi.joinInChat(res.data.id);
     navigate(`/meetings/${res.data.id}`, {
       state: { livekitToken: join.data.livekitToken, livekitUrl: join.data.livekitUrl },
