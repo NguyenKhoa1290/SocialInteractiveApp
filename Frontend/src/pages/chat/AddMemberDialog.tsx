@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
+import { matchesUserSearch } from "../../lib/userSearch";
 import { Modal } from "../../components/Modal";
 import { Avatar } from "../../components/Avatar";
 import type { Friend } from "../../types/friend";
@@ -55,8 +56,7 @@ export function AddMemberDialog({
   const daO = useMemo(() => new Set(members.map((m) => m.userId)), [members]);
 
   const hienThi = useMemo(() => {
-    const ten = q.trim().toLowerCase();
-    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten) || f.displayName.toLowerCase().includes(ten));
+    return (friends ?? []).filter((f) => matchesUserSearch(q, f));
   }, [friends, q]);
 
   async function them(f: Friend) {
@@ -87,15 +87,17 @@ export function AddMemberDialog({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Tìm trong danh sách bạn bè"
-          aria-label="Tìm bạn bè"
+          type="search"
+          placeholder="Tìm bạn bè theo ID hoặc tên"
+          aria-label="Tìm bạn bè theo ID hoặc tên"
+          autoComplete="off"
           autoFocus
         />
       </div>
 
       {error && <p className="md-note" style={{ color: "var(--danger)" }}>{error}</p>}
 
-      <div className="am-list">
+      <div className="am-list" role="region" aria-label="Kết quả tìm bạn bè" tabIndex={0}>
         {friends === null && <p className="md-note">Đang tải…</p>}
         {friends !== null && friends.length === 0 && (
           <p className="md-note">
@@ -111,7 +113,10 @@ export function AddMemberDialog({
           return (
             <div key={f.userId} className="am-row">
               <Avatar userId={f.userId} nickname={f.displayName} avatarUpdatedAt={f.avatarUpdatedAt} size={56} />
-              <span className="am-name">{f.displayName}</span>
+              <span className="am-person">
+                <span className="am-name">{f.displayName}</span>
+                <span className="am-identity">@{f.nickname} · #{f.userId}</span>
+              </span>
               {oTrongNhom ? (
                 // Van HIEN nguoi da o trong nhom, chi khoa nut lai - an di thi
                 // nguoi dung khong hieu vi sao tim mai khong thay ban minh.

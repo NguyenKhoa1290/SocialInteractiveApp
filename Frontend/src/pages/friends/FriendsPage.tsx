@@ -112,7 +112,9 @@ export function FriendsPage() {
       <form onSubmit={handleSearch} className="friend-search-form">
         <input
           className="friend-input"
-          placeholder="Tìm theo nickname..."
+          placeholder="Tìm theo ID hoặc tên..."
+          aria-label="Tìm người dùng theo ID hoặc tên"
+          maxLength={100}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />

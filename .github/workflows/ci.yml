@@ -68,6 +68,24 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet run --project MediaService/tests/PresentationLifecycle.Checks/PresentationLifecycle.Checks.csproj -c Release
 
+  user-search-checks:
+    name: User search
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: search-check-only
+          POSTGRES_DB: user_search_checks
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet run --project IdentityService/tests/UserSearch.Checks/UserSearch.Checks.csproj -c Release
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

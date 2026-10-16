@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
 import { friendApi } from "../../api/friendApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { meetingApi, type MeetingServerId } from "../../api/mediaApi";
 import { extractApiError } from "../../lib/apiError";
+import { matchesUserSearch } from "../../lib/userSearch";
 import { Avatar } from "../../components/Avatar";
 import { CreateMeetingDialog } from "../meeting/CreateMeetingDialog";
 import { IconCamera } from "../meeting/MeetingIcons";
@@ -93,6 +94,19 @@ export function ConversationList({
   const [ketQua, setKetQua] = useState<AuthUser[] | null>(null);
   const [dangTim, setDangTim] = useState(false);
   const [daGui, setDaGui] = useState<Set<number>>(new Set());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [dangKetBan, setDangKetBan] = useState<number | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const searchResultsId = useId();
+
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (!searchBoxRef.current?.contains(event.target as Node)) setSearchOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
 
   // Doan xem truoc: tin cuoi cua tung hoi thoai, giai ma ngay tai client vi
   // server khong doc duoc noi dung (ma hoa dau cuoi).
@@ -144,30 +158,42 @@ export function ConversationList({
   // nao cung goi thi vua ton request vua cho ra ket qua nhay lung tung.
   useEffect(() => {
     const ten = q.trim();
-    if (ten.length < 2) {
-      setKetQua(null);
+    setKetQua(null);
+    setSearchError(null);
+    if (kind !== "p2p" || ten.length === 0) {
+      setDangTim(false);
       return;
     }
+    let active = true;
+    const controller = new AbortController();
     setDangTim(true);
     const t = setTimeout(async () => {
       try {
-        const { data } = await friendApi.searchUsers(ten);
-        setKetQua(data);
+        const { data } = await friendApi.searchUsers(ten, controller.signal);
+        if (active) setKetQua(data);
       } catch {
-        setKetQua([]);
+        if (active) setSearchError("Không tìm kiếm được lúc này. Bạn thử lại sau.");
       } finally {
-        setDangTim(false);
+        if (active) setDangTim(false);
       }
     }, 350);
-    return () => clearTimeout(t);
-  }, [q]);
+    return () => {
+      active = false;
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [q, kind]);
 
   async function ketBan(u: AuthUser) {
+    setDangKetBan(u.id);
+    setSearchError(null);
     try {
       await friendApi.sendRequest(u.id);
       setDaGui((s) => new Set(s).add(u.id));
     } catch (err) {
-      setError(extractApiError(err, "Không gửi được lời mời"));
+      setSearchError(extractApiError(err, "Không gửi được lời mời"));
+    } finally {
+      setDangKetBan(null);
     }
   }
 
@@ -182,8 +208,7 @@ export function ConversationList({
   // O tim kiem o muc ca nhan phuc vu HAI viec: tim nguoi la de ket ban (goi
   // API), va loc chinh danh sach ban be dang co (loc tai cho).
   const banHienThi = useMemo(() => {
-    const ten = q.trim().toLowerCase();
-    return (friends ?? []).filter((f) => ten === "" || f.nickname.toLowerCase().includes(ten) || f.displayName.toLowerCase().includes(ten));
+    return (friends ?? []).filter((f) => matchesUserSearch(q, f));
   }, [friends, q]);
 
   // Tao phong tam sau khi nguoi dung xac nhan ten. Ten rong duoc backend
@@ -280,43 +305,70 @@ export function ConversationList({
   return (
     <>
       <div className="cw-left-top">
-        <div className="cw-search">
-          <IconSearch />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={kind === "group" ? "Tìm kiếm nhóm" : "Tìm kiếm người dùng"}
-            aria-label={kind === "group" ? "Tìm kiếm nhóm" : "Tìm kiếm người dùng"}
-          />
-        </div>
+        <div
+          className="cw-people-search"
+          ref={searchBoxRef}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && kind === "p2p" && searchOpen) {
+              event.preventDefault();
+              event.stopPropagation();
+              setSearchOpen(false);
+            }
+          }}
+        >
+          <div className="cw-search">
+            <IconSearch />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onClick={() => setSearchOpen(true)}
+              placeholder={kind === "group" ? "Tìm kiếm nhóm" : "Tìm theo ID hoặc tên"}
+              aria-label={kind === "group" ? "Tìm kiếm nhóm" : "Tìm người dùng theo ID hoặc tên"}
+              aria-controls={kind === "p2p" && searchOpen && q.trim() ? searchResultsId : undefined}
+              autoComplete="off"
+              maxLength={100}
+              enterKeyHint="search"
+            />
+          </div>
 
-        {/* Ket qua tim kiem thay cho danh sach khi dang go - dung nhu the
-            "Ten nguoi dung / Ket ban +" trong ban thiet ke. Chi o muc CA NHAN:
-            man nhom tim theo TEN NHOM trong danh sach da co, khong tim nguoi. */}
-        {kind === "p2p" && ketQua?.map((u) => {
-          // Da la ban roi ma van moi "Ket ban +" thi bam vao chi nhan loi -
-          // cho thang duong nhan tin, do la thu nguoi ta dinh lam.
-          const daLaBan = (friends ?? []).some((f) => f.userId === u.id);
-          return (
-            <div key={u.id} className="cw-card">
-              <Avatar userId={u.id} nickname={u.displayName} avatarUpdatedAt={u.avatarUpdatedAt} size={68} />
-              <div className="cw-card-body">
-                <p className="cw-card-name">{u.displayName}</p>
-              </div>
-              {daLaBan ? (
-                <button className="cw-pill" onClick={() => void moChat(u.id)} disabled={dangMo === u.id}>
-                  {dangMo === u.id ? "Đang mở…" : "Nhắn tin"}
-                </button>
-              ) : (
-                <button className="cw-pill" onClick={() => void ketBan(u)} disabled={daGui.has(u.id)}>
-                  {daGui.has(u.id) ? "Đã gửi" : "Kết bạn +"}
-                </button>
-              )}
+          {kind === "p2p" && searchOpen && q.trim() && (
+            <div
+              className="cw-people-suggestions"
+              id={searchResultsId}
+              role="region"
+              aria-label="Gợi ý người dùng"
+              aria-busy={dangTim}
+              tabIndex={0}
+            >
+              {dangTim && <p className="cw-empty" role="status">Đang tìm…</p>}
+              {searchError && <p className="cw-empty" role="status">{searchError}</p>}
+              {!dangTim && !searchError && ketQua?.length === 0 && <p className="cw-empty" role="status">Không tìm thấy ai</p>}
+              {ketQua?.map((u) => {
+                const daLaBan = (friends ?? []).some((f) => f.userId === u.id);
+                return (
+                  <div key={u.id} className="cw-card cw-person-suggestion">
+                    <Avatar userId={u.id} nickname={u.displayName} avatarUpdatedAt={u.avatarUpdatedAt} size={56} />
+                    <div className="cw-card-body">
+                      <p className="cw-card-name">{u.displayName}</p>
+                      <p className="cw-person-identity">@{u.nickname} · #{u.id}</p>
+                    </div>
+                    {daLaBan ? (
+                      <button type="button" className="cw-pill" onClick={() => void moChat(u.id)} disabled={dangMo === u.id}>
+                        {dangMo === u.id ? "Đang mở…" : "Nhắn tin"}
+                      </button>
+                    ) : (
+                      <button type="button" className="cw-pill" onClick={() => void ketBan(u)} disabled={daGui.has(u.id) || dangKetBan !== null}>
+                        {daGui.has(u.id) ? "Đã gửi" : dangKetBan === u.id ? "Đang gửi…" : "Kết bạn +"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-        {kind === "p2p" && dangTim && ketQua === null && <p className="cw-empty">Đang tìm…</p>}
-        {kind === "p2p" && ketQua?.length === 0 && <p className="cw-empty">Không tìm thấy ai</p>}
+          )}
+        </div>
 
         <div className="cw-section">
           <p className="cw-section-label">{kind === "group" ? "Danh sách nhóm" : "Danh sách bạn bè"}</p>

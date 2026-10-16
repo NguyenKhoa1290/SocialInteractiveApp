@@ -72,9 +72,8 @@ public static class UsersEndpoints
             return Results.Ok(UserResponse.FromEntity(user));
         });
 
-        // Tim nguoi dung theo nickname (tu de xuat, phuc vu man hinh "Tim
-        // ban" o Frontend - tinh nang ban be khong co trong tai lieu goc,
-        // xem FriendsEndpoints.cs). Chi tim user Active, loai chinh minh.
+        // Tim theo ID, @nickname hoac ten hien thi. Chi tim user Active,
+        // loai chinh minh; ID trung chinh xac duoc xep truoc.
         users.MapGet("/search", async (string q, ClaimsPrincipal principal, IdentityDbContext db) =>
         {
             var userId = GetUserId(principal);
@@ -84,11 +83,10 @@ public static class UsersEndpoints
             if (string.IsNullOrWhiteSpace(q))
                 return Results.Ok(Array.Empty<UserResponse>());
 
-            var results = await db.Users
-                .Where(u => u.Id != userId && u.Status == Models.UserStatus.Active && EF.Functions.ILike(u.Nickname, $"%{q}%"))
-                .OrderBy(u => u.Nickname)
-                .Take(20)
-                .ToListAsync();
+            if (q.Length > 100)
+                return Results.BadRequest(new ErrorResponse("invalid_query", "Tu khoa tim kiem toi da 100 ky tu"));
+
+            var results = await UserSearch.Apply(db.Users, userId.Value, q).ToListAsync();
 
             return Results.Ok(results.Select(UserResponse.FromEntity));
         });

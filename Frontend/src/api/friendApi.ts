@@ -3,7 +3,8 @@ import type { Friend, FriendRequest } from "../types/friend";
 import type { AuthUser } from "../types/auth";
 
 export const friendApi = {
-  searchUsers: (q: string) => identityHttp.get<AuthUser[]>("/users/search", { params: { q } }),
+  searchUsers: (q: string, signal?: AbortSignal) =>
+    identityHttp.get<AuthUser[]>("/users/search", { params: { q }, signal }),
 
   sendRequest: (addresseeId: number) => identityHttp.post<FriendRequest | Friend>("/friends/requests", { addresseeId }),
 

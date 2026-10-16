@@ -435,15 +435,32 @@
   max-height: 46vh;
   overflow-y: auto;
   padding-right: 4px;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
 }
 
 .am-row {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 10px 12px;
   border: 2px solid var(--calli-navy-line);
   border-radius: 10px;
+}
+
+.am-person {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.am-identity {
+  font-size: 12px;
+  color: var(--text-m);
+  overflow-wrap: anywhere;
 }
 
 .am-name {
@@ -462,6 +479,43 @@
   font-size: 14px;
   font-weight: 300;
   color: var(--text-m);
+}
+
+@media (max-width: 620px) {
+  /* Popup nay giu chu/nut du lon de go va bam khi dung dien thoai. */
+  .md-card:has(.am-search) {
+    zoom: 1;
+    width: calc(100% - 24px) !important;
+    min-height: 0;
+    max-height: calc(100dvh - 24px);
+    padding: 48px 16px 20px;
+    border-radius: 20px;
+  }
+
+  .am-list {
+    max-height: min(46vh, calc(100dvh - 220px));
+  }
+
+  .am-row {
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .am-name {
+    font-size: 18px;
+  }
+
+  .am-row .cw-pill {
+    min-width: 54px;
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .am-in {
+    max-width: 76px;
+    font-size: 12px;
+  }
 }
 
 /* --- Popup quan ly thanh vien trong chat nhom -------------------------- */
