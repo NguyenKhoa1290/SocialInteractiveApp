@@ -33,9 +33,22 @@ rtc:
   udp_port: 7882
   use_external_ip: false
   node_ip: 192.168.101.18
+  interfaces:
+    includes: [wlp3s0]
 keys:
   <api-key>: <api-secret>
 ```
+
+The interface must own `node_ip` (`wlp3s0` on this server). Keep the filter
+when Ethernet and Wi-Fi are both active: advertising one fixed IP for sockets
+on several interfaces can leave ICE checks reaching the wrong socket. On
+2026-10-16, the unfiltered configuration failed both LAN and Pinggy checks;
+an isolated SFU restricted to `wlp3s0` passed bidirectional audio/video.
+After applying the filter, two Chrome clients also received audio/video through
+the production Pinggy UDP tunnel while the RDP service remained running.
+Ethernet carrier loss also interrupted the tunnels that day. The interface
+filter fixes the SFU configuration; it cannot prevent a physical link outage.
+See the [LiveKit interface configuration](https://github.com/livekit/livekit/blob/v1.9.12/config-sample.yaml).
 
 Place this rule before the existing catch-all rule for `media.callimeet.com`
 in `/etc/cloudflared/config.yml`. Back up and validate the config before loading it.
