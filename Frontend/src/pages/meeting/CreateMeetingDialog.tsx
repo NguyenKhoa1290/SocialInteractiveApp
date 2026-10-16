@@ -71,7 +71,7 @@ export function CreateMeetingDialog({
         <p className="md-note">Có thể để trống, hệ thống sẽ đặt tên theo số cuộc họp.</p>
         <fieldset className="meeting-server-options" disabled={creating}>
           <legend>Server cuộc họp</legend>
-          <label className="meeting-server-option" aria-disabled="true">
+          <label className="meeting-server-option " aria-disabled="true">
             <input type="radio" name="meeting-server" value="public" disabled checked={false} />
             <span><strong>Server công khai</strong><small>Đã khóa do VPS đã hết hạn</small></span>
           </label>
