@@ -128,3 +128,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node --check server.mjs
+      - name: Check the portable LiveKit configuration with real audio/video
+        run: |
+          npm ci --prefix ../Frontend
+          npx playwright install --with-deps chromium
+          npm run test:loopback
+      - name: Verify packaged Pinggy CLI
+        run: docker build -t callimeet-proxy-check .

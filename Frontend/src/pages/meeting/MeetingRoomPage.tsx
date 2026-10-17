@@ -417,6 +417,10 @@ export function MeetingRoomPage() {
         const r = new Room({
           adaptiveStream: true,
           dynacast: true,
+          reconnectPolicy: {
+            nextRetryDelayInMs: ({ elapsedMs, retryCount }) =>
+              elapsedMs >= 180_000 ? null : Math.min(5000, 500 * 2 ** Math.min(retryCount, 4)),
+          },
           audioCaptureDefaults: tuyChonMicro(locTiengOn),
         });
         created = r;

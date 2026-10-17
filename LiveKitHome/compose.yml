@@ -5,8 +5,10 @@ services:
     network_mode: host
     restart: unless-stopped
     command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?Set LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET:?Set LIVEKIT_API_SECRET}"
     volumes:
-      - ../livekit.yaml:/etc/livekit.yaml:ro
+      - ./livekit.template.yaml:/etc/livekit.yaml:ro
     logging:
       options: { max-size: "10m", max-file: "3" }
   proxy:
@@ -16,11 +18,8 @@ services:
     restart: unless-stopped
     depends_on: [livekit]
     environment:
-      PINGGY_BIN: /pinggy
-      SFU_MEDIA_HOST: ${SFU_MEDIA_HOST:-192.168.101.18}
+      SFU_MEDIA_HOST: "127.0.0.1"
       ROTATION_SECONDS: ${ROTATION_SECONDS:-3000}
-    volumes:
-      - ../bin/pinggy:/pinggy:ro
-      - ../pinggy-data:/root/.config
+    tmpfs: [/root/.config]
     logging:
       options: { max-size: "10m", max-file: "3" }

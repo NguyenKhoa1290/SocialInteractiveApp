@@ -8,6 +8,33 @@ spec:
     limits.memory: 5Gi
     requests.memory: 2Gi
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: livekit-home-config
+  namespace: chat-app
+data:
+  livekit.yaml: |
+    port: 7880
+    rtc:
+      tcp_port: 7881
+      udp_port: 7882
+      use_external_ip: false
+      node_ip: 127.0.0.1
+      enable_loopback_candidate: true
+      interfaces:
+        includes: [lo]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: livekit-home
+  namespace: chat-app
+spec:
+  selector: {app: livekit-home-proxy}
+  ports:
+    - {name: api, port: 7880, targetPort: 7880}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,39 +56,51 @@ spec:
         - name: livekit
           image: livekit/livekit-server:v1.9.12@sha256:2c13cbf2edcbf13ea7b20d05c10b394d04d8fb3fe358269cff845a90b4de9576
           args: ["--config", "/etc/livekit.yaml"]
+          env:
+            - name: LIVEKIT_API_KEY
+              valueFrom: {secretKeyRef: {name: livekit-credentials, key: LiveKit__ApiKey}}
+            - name: LIVEKIT_API_SECRET
+              valueFrom: {secretKeyRef: {name: livekit-credentials, key: LiveKit__ApiSecret}}
+            - name: LIVEKIT_KEYS
+              value: "$(LIVEKIT_API_KEY): $(LIVEKIT_API_SECRET)"
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {memory: 2Gi}
           readinessProbe:
             tcpSocket: {port: 7880}
             periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 7880}
+            periodSeconds: 10
+            failureThreshold: 6
           volumeMounts:
-            - {name: livekit-config, mountPath: /etc/livekit.yaml, readOnly: true}
+            - {name: livekit-config, mountPath: /etc/livekit.yaml, subPath: livekit.yaml, readOnly: true}
         - name: proxy
           image: ghcr.io/nguyenkhoa1290/chat-app-livekit-home-proxy:latest
           imagePullPolicy: Always
           env:
-            - {name: PINGGY_BIN, value: /pinggy}
-            # LiveKit binds UDP to the LAN interface, not to loopback.
-            - {name: SFU_MEDIA_HOST, value: "192.168.101.18"}
+            - {name: SFU_MEDIA_HOST, value: "127.0.0.1"}
             - {name: ROTATION_SECONDS, value: "3000"}
           resources:
             requests: {cpu: 100m, memory: 128Mi}
             limits: {memory: 768Mi}
           startupProbe:
-            httpGet: {host: "127.0.0.1", path: /health, port: 7883}
+            httpGet: {host: "127.0.0.1", path: /live, port: 7883}
             periodSeconds: 5
             failureThreshold: 48
           readinessProbe:
             httpGet: {host: "127.0.0.1", path: /health, port: 7883}
             periodSeconds: 10
+          livenessProbe:
+            httpGet: {host: "127.0.0.1", path: /live, port: 7883}
+            periodSeconds: 10
+            failureThreshold: 6
           volumeMounts:
-            - {name: pinggy-binary, mountPath: /pinggy, readOnly: true}
             - {name: pinggy-data, mountPath: /root/.config}
       volumes:
         - name: livekit-config
-          hostPath: {path: /home/nguyenkhoa/callimeet-home/livekit.yaml, type: File}
-        - name: pinggy-binary
-          hostPath: {path: /home/nguyenkhoa/callimeet-home/bin/pinggy, type: File}
+          configMap:
+            name: livekit-home-config
+            items: [{key: livekit.yaml, path: livekit.yaml}]
         - name: pinggy-data
-          hostPath: {path: /home/nguyenkhoa/callimeet-home/k8s-pinggy-data, type: DirectoryOrCreate}
+          emptyDir: {}

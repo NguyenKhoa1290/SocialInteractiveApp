@@ -5,9 +5,10 @@ import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket, { WebSocketServer } from 'ws';
 import { mapSignal, reconnectSignal } from './candidates.mjs';
+import { defaultRoute, RecoveryState } from './network.mjs';
 
 const execute = promisify(execFile);
-const cli = process.env.PINGGY_BIN || '/pinggy';
+const cli = process.env.PINGGY_BIN || '/app/node_modules/.bin/pinggy';
 const rotationMs = Number(process.env.ROTATION_SECONDS || 3000) * 1000;
 if (!Number.isFinite(rotationMs) || rotationMs < 30_000 || rotationMs > 3_300_000) {
   throw new Error('ROTATION_SECONDS must be between 30 and 3300');
@@ -20,10 +21,17 @@ let stopping = false;
 const owned = new Set();
 const retiring = new Map();
 const retiredNames = new Set();
+const recovery = new RecoveryState();
+let commandQueue = Promise.resolve();
 
-async function run(...args) {
-  const { stdout, stderr } = await execute(cli, args, { timeout: 90_000, maxBuffer: 1_048_576 });
-  return (stdout + '\n' + stderr).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+function run(...args) {
+  // Retirement timers can overlap recovery. Serialize config-store writes.
+  const command = commandQueue.then(async () => {
+    const { stdout, stderr } = await execute(cli, args, { timeout: 90_000, maxBuffer: 1_048_576 });
+    return (stdout + '\n' + stderr).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+  });
+  commandQueue = command.catch(() => {});
+  return command;
 }
 
 async function stopTunnel(name) {
@@ -53,8 +61,13 @@ async function rotate() {
   try { tcp = await openTunnel('tcp', 7881, generation); }
   catch (error) { await stopTunnel(udp.name); throw error; }
   if (stopping) { await stopTunnel(udp.name); await stopTunnel(tcp.name); return; }
+  if (await defaultRoute() !== recovery.observed) {
+    await stopTunnel(udp.name); await stopTunnel(tcp.name);
+    throw Object.assign(new Error('Route changed during startup'), { code: 'ROUTE_CHANGED' });
+  }
   const previous = endpoints;
   endpoints = { udp, tcp };
+  recovery.recovered();
   console.log(`Media tunnels ready (${generation}); ${clients.size} signaling connections`);
   if (previous) {
     retiredNames.add(previous.udp.name);
@@ -83,13 +96,14 @@ function rtcPath(url) {
 
 const server = http.createServer((req, res) => {
   const path = rtcPath(req.url || '/');
+  if (path === '/live') { res.writeHead(200); res.end('ok'); return; }
   if (path === '/health') {
-    res.writeHead(endpoints ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ ready: !!endpoints }));
+    res.writeHead(recovery.ready ? 200 : 503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ ready: recovery.ready }));
     return;
   }
-  if (!endpoints || !/^\/rtc(?:[/?]|$)/.test(path)) {
-    res.writeHead(endpoints ? 404 : 503); res.end(); return;
+  if (!recovery.ready || !/^\/rtc(?:[/?]|$)/.test(path)) {
+    res.writeHead(recovery.ready ? 404 : 503); res.end(); return;
   }
   const headers = { ...req.headers, host: '127.0.0.1:7880' };
   const proxy = http.request(upstream + path, { method: req.method, headers }, (response) => {
@@ -103,7 +117,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ noServer: true, maxPayload: 10 * 1024 * 1024 });
 server.on('upgrade', (req, socket, head) => {
   const path = rtcPath(req.url || '/');
-  if (!endpoints || !/^\/rtc(?:[/?]|$)/.test(path)) { socket.destroy(); return; }
+  if (!recovery.ready || !/^\/rtc(?:[/?]|$)/.test(path)) { socket.destroy(); return; }
   wss.handleUpgrade(req, socket, head, (client) => {
     const remote = new WebSocket(`ws://127.0.0.1:7880${path}`, { handshakeTimeout: 15_000, maxPayload: 10 * 1024 * 1024 });
     clients.add(client);
@@ -130,13 +144,25 @@ server.on('upgrade', (req, socket, head) => {
     client.on('error', close);
     remote.on('close', () => { clients.delete(client); client.close(1012); });
     remote.on('error', () => { clients.delete(client); client.close(1011); });
+    // Detect half-open signaling after a route change without waiting for TCP
+    // keepalive. LiveKit SDK resumes/reconnects after a terminated WebSocket.
+    client.alive = true;
+    client.on('pong', () => { client.alive = true; });
   });
 });
 
 server.listen(7883, '127.0.0.1');
+const heartbeat = setInterval(() => {
+  for (const client of clients) {
+    if (!client.alive) { client.terminate(); continue; }
+    client.alive = false;
+    client.ping();
+  }
+}, 10_000);
 async function shutdown() {
   if (stopping) return;
   stopping = true;
+  clearInterval(heartbeat);
   server.close();
   for (const timer of retiring.values()) clearTimeout(timer);
   for (const client of clients) client.terminate();
@@ -147,27 +173,39 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 let rotatedAt = 0;
+let checkedAt = 0;
+let running = false;
 while (!stopping) {
   try {
-    let running = false;
-    if (endpoints) {
+    const stable = recovery.observe(await defaultRoute());
+    if (!stable) { await delay(5000); continue; }
+    if (endpoints && Date.now() - checkedAt >= 15_000) {
       const rows = (await run('ps')).split('\n');
       running = [endpoints.udp, endpoints.tcp].every((tunnel) =>
         rows.some((row) => row.trimStart().startsWith(tunnel.id.slice(0, 12)) && /\brunning\b/.test(row)));
+      checkedAt = Date.now();
+      if (!running) recovery.ready = false;
     }
-    if (!running || Date.now() - rotatedAt >= rotationMs) {
-      await rotate(); rotatedAt = Date.now();
+    if (recovery.needsRotation(Date.now(), running, rotatedAt + rotationMs)) {
+      console.log('Refreshing media tunnels after startup, expiry, failure or route change');
+      await rotate();
+      // Startup may take long enough for the route to change again. Never
+      // declare an old-route generation healthy in that case.
+      if (await defaultRoute() !== recovery.observed) { running = false; continue; }
+      rotatedAt = Date.now(); running = true; checkedAt = 0;
+      recovery.recovered();
     }
-    await delay(15_000);
+    await delay(5000);
   }
   catch (error) {
     // No command output/URLs containing authentication are logged.
-    console.error(`Unable to open media tunnels (${error.code || error.name}); retrying in 15 seconds`);
+    recovery.failed(Date.now());
+    console.error(`Unable to open media tunnels (${error.code || error.name}); retrying with backoff`);
     // Clean up incomplete generations, retaining the current usable pair.
     const activeNames = new Set(endpoints ? [endpoints.udp.name, endpoints.tcp.name] : []);
     for (const name of [...owned]) {
       if (!activeNames.has(name) && !retiredNames.has(name)) await stopTunnel(name);
     }
-    await delay(15_000);
+    await delay(5000);
   }
 }

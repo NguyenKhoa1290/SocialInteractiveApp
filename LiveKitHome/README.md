@@ -1,58 +1,56 @@
-# LiveKit on the home server
+﻿# LiveKit on the home server
 
-LiveKit keeps its rooms and local ports (`7880` HTTP, `7881` ICE/TCP,
-`7882` ICE/UDP). `server.mjs` proxies signaling on loopback port `7883` and
-maps server ICE candidates to the current Pinggy public TCP/UDP endpoints.
-The existing Cloudflare tunnel carries signaling only, at
-`wss://media.callimeet.com/livekit`. Audio/video travels through Pinggy.
+Cloudflare carries signaling at `wss://media.callimeet.com/livekit`; Pinggy
+carries audio/video. The proxy forwards signaling to LiveKit on port 7880 and
+rewrites ICE candidates to the current public UDP/TCP endpoints.
 
-Every 50 minutes the proxy opens a new pair of tunnels, switches the ICE
-mapping and requests a full reconnect through the LiveKit SDK protocol.
-The old tunnels remain open for another minute. LiveKit itself stays running.
-Tunnel status is checked every 15 seconds; a failed pair is replaced early.
-Free tunnels do not require two accounts for this implementation.
+## Automatic recovery
 
-## Server prerequisites
+LiveKit and Pinggy exchange media on loopback (127.0.0.1, interface lo, ports
+7881/7882). No LAN IP or physical interface name is embedded in this path.
+Switching Ethernet/Wi-Fi does not require restarting the SFU or losing rooms.
 
-The deployment targets the existing single-node k3s server, LAN IP
-`192.168.101.18`. Change `SFU_MEDIA_HOST`, `rtc.node_ip` and host paths if moving
-to another server. Pinggy must forward UDP to the LAN interface: LiveKit does
-not bind UDP to loopback with this configuration.
+The proxy samples the Linux IPv4 default route every five seconds. A changed
+interface, gateway or source IP must persist for two samples before it opens
+fresh tunnels. It also checks Pinggy status every 15 seconds and rotates every
+50 minutes. Failed attempts back off from 5 to 30 seconds and keep retrying.
+Readiness fails while disconnected; Internet loss does not fail liveness.
 
-Keep these files outside the repository:
+After opening both tunnels, the proxy requests an SDK reconnect/republish and
+keeps the old pair for another minute. WebSocket ping/pong detects half-open
+signaling in roughly 10-20 seconds. Meeting clients retry recoverable failures
+for up to three minutes, with at most five seconds between attempts. Leaving
+or being removed still ends the session.
 
-- `/home/nguyenkhoa/callimeet-home/bin/pinggy`: Pinggy CLI v0.6.1, executable.
-- `/home/nguyenkhoa/callimeet-home/livekit.yaml`: mode 600, with fresh API keys.
+Media pauses during an outage; these polling intervals are not a recovery-time
+guarantee. A full machine/SFU reboot loses LiveKit's in-memory state. Client
+recovery requires the server to return within the retry window and valid room
+authorization. Existing meeting ownership/disconnection grace is unchanged.
 
-Example structure, replacing placeholders locally:
+## Kubernetes installation and migration
 
-```yaml
-port: 7880
-rtc:
-  tcp_port: 7881
-  udp_port: 7882
-  use_external_ip: false
-  node_ip: 192.168.101.18
-  interfaces:
-    includes: [wlp3s0]
-keys:
-  <api-key>: <api-secret>
-```
+Use Linux single-node k3s with a stable node address. Enable k3s and cloudflared
+as system services. Kubernetes restores the Deployment after boot and restarts
+crashed containers; the proxy waits for network access and opens fresh tunnels.
+OS routing, Wi-Fi credentials and the k3s node address still need configuring
+on a new machine.
 
-The interface must own `node_ip` (`wlp3s0` on this server). Keep the filter
-when Ethernet and Wi-Fi are both active: advertising one fixed IP for sockets
-on several interfaces can leave ICE checks reaching the wrong socket. On
-2026-10-16, the unfiltered configuration failed both LAN and Pinggy checks;
-an isolated SFU restricted to `wlp3s0` passed bidirectional audio/video.
-After applying the filter, two Chrome clients also received audio/video through
-the production Pinggy UDP tunnel while the RDP service remained running.
-Ethernet carrier loss also interrupted the tunnels that day. The interface
-filter fixes the SFU configuration; it cannot prevent a physical link outage.
-See the [LiveKit interface configuration](https://github.com/livekit/livekit/blob/v1.9.12/config-sample.yaml).
+Keep credentials in the existing `chat-app/livekit-credentials` Secret:
 
-Place this rule before the existing catch-all rule for `media.callimeet.com`
-in `/etc/cloudflared/config.yml`. Back up and validate the config before loading it.
-The SSH ingress rule must remain intact.
+- `LiveKit__ApiKey`, `LiveKit__ApiSecret`: SFU/API credentials.
+- `LiveKit__ClientUrl`: your public signaling URL.
+- `LiveKit__HomeEnabled`: true after verification.
+- `LiveKit__ServerUrl`: http://livekit-home:7880.
+
+Apply the base application manifests, then `LiveKitHome/deployment.yaml` and
+`Tainguyen/infra/k8s/image-watcher.yaml`. The home manifest supplies a ConfigMap,
+internal API Service and Deployment. Keys come from the Secret; Pinggy CLI
+0.6.1 is packaged in the image. There are no machine-specific host file mounts.
+The namespace quota increase accommodates the SFU/proxy. On an existing server,
+apply the new image-watcher once to grant manifest deployment permissions.
+
+Add this ingress before the media hostname's catch-all in cloudflared, changing
+the hostname on another deployment. Validate before loading the configuration:
 
 ```yaml
   - hostname: media.callimeet.com
@@ -60,39 +58,31 @@ The SSH ingress rule must remain intact.
     service: http://127.0.0.1:7883
 ```
 
-Update the existing `livekit-credentials` Kubernetes Secret locally, preserving
-a protected backup, with `LiveKit__ServerUrl=http://192.168.101.18:7880`,
-`LiveKit__ClientUrl=wss://media.callimeet.com/livekit`, and the keys above.
-Set `LiveKit__HomeEnabled=true` after connectivity checks pass. Restart Media
-Service to load the Secret; no API secrets belong in Git or the browser.
+cloudflared runs on the same host. Existing SSH/RDP ingress rules can remain.
+The Linux Compose alternative uses `livekit.template.yaml`: supply protected
+LIVEKIT_API_KEY and LIVEKIT_API_SECRET environment variables. Its restart policy
+is unless-stopped. Do not run both supervisors on the same host ports.
 
-## CI/CD and deployment
+## CI/CD and verification
 
-GitHub Actions builds `ghcr.io/nguyenkhoa1290/chat-app-livekit-home-proxy:latest`.
-The package must be readable by the server (public or with an image pull secret).
-Apply `deployment.yaml` once, then include `livekit-home-proxy` in the existing
-`image-watcher` CronJob's deployment loop so it refreshes this image as well.
-The deployment uses `Recreate` because the SFU and proxy use host ports.
-It also expands the application namespace memory quota to accommodate the new
-SFU and proxy. Apply it after the base manifests, whose quota covers API services.
+CI runs recovery tests, a real SFU/two-browser loopback audio/video check on
+Linux, and builds the proxy to verify its native Pinggy CLI. Automatic image
+publishing waits for successful push CI. Images carry a source revision and
+SHA tag. The image-watcher polls GHCR every two minutes, downloads the LiveKit
+manifest from that exact revision, applies it, pins the proxy digest and waits
+for readiness. It switches Media's API URL to the internal Service. Failed
+apply/rollout does not mark the digest deployed, so the next job retries.
+The GHCR package must be publicly readable or registry access configured.
 
-`compose.yml` is an alternative for isolated testing. Stop that stack before
-applying the Kubernetes deployment; both use the same host ports. Do not run
-both supervisors at once.
+`npm ci && npm test` checks ICE rewriting, SDK reconnect, route selection,
+DHCP changes, route loss and retry backoff. `npm run test:loopback` requires
+Linux, Docker, Playwright Chromium and the frontend's installed SDK.
 
-## Verification
+For production, `connectivity-check.mjs <config.json>` accepts a protected file
+outside Git: {url, tokens: [jwtA, jwtB]}. Use short-lived tokens for a separate
+diagnostic room. WATCH_ROTATION_SECONDS verifies reconnect events and increasing
+received audio/video after recovery. Never supply API secrets to the browser.
 
-`npm ci && npm test` checks candidate rewriting and SDK reconnect messages.
-The optional `connectivity-check.mjs` requires Playwright and the frontend's
-installed SDK. Supply a JSON file outside Git containing `url` and two short-lived
-participant JWTs in `tokens`. It checks that both clients receive audio/video;
-`WATCH_ROTATION_SECONDS` additionally verifies reconnection and increasing
-received media bytes after rotation. It never needs an API secret.
-
-On 2026-10-15, two Chrome sessions received audio/video through Pinggy TCP and
-survived a shortened 120-second rotation, reconnecting in 2571 and 2708 ms.
-This does not establish UDP quality, capacity for large meetings, or guaranteed
-recovery time on other networks. Actual 60-minute expiry was not waited out.
-
-References: [LiveKit ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/),
+References: [LiveKit configuration](https://github.com/livekit/livekit/blob/v1.9.12/config-sample.yaml),
+[LiveKit ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/),
 [Pinggy UDP](https://pinggy.io/docs/udp_tunnels/), [Pinggy CLI](https://pinggy.io/docs/cli/).

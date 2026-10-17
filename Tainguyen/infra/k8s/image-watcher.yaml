@@ -30,6 +30,9 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "create", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["services", "resourcequotas"]
+    verbs: ["get", "create", "patch", "update"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "patch"]
@@ -111,7 +114,29 @@ spec:
                     fi
 
                     echo "$d: co ban moi -> $DIGEST"
-                    kubectl rollout restart "deploy/$d" -n chat-app
+                    if [ "$d" = livekit-home-proxy ]; then
+                      # Apply configuration from this image's source revision.
+                      REVISION=$(curl -sf \
+                        -H "Authorization: Bearer $TOKEN" \
+                        -H "Accept: application/vnd.oci.image.index.v1+json" \
+                        "https://ghcr.io/v2/$REPO/manifests/$DIGEST" \
+                        | jq -r '.annotations["org.opencontainers.image.revision"] // empty')
+                      if ! printf '%s' "$REVISION" | grep -Eq '^[0-9a-f]{40}$'; then
+                        echo "$d: missing source revision; retaining current deployment"
+                        continue
+                      fi
+                      if ! curl -fsS "https://raw.githubusercontent.com/NguyenKhoa1290/SocialInteractiveApp/$REVISION/LiveKitHome/deployment.yaml" -o /tmp/livekit-home.yaml; then
+                        continue
+                      fi
+                      kubectl apply -f /tmp/livekit-home.yaml || continue
+                      kubectl set image deploy/livekit-home-proxy -n chat-app "proxy=ghcr.io/$REPO@$DIGEST" || continue
+                    fi
+                    kubectl rollout restart "deploy/$d" -n chat-app || continue
+                    kubectl rollout status "deploy/$d" -n chat-app --timeout=240s || continue
+                    if [ "$d" = livekit-home-proxy ]; then
+                      kubectl set env deploy/media -n chat-app LiveKit__ServerUrl=http://livekit-home:7880 || continue
+                      kubectl rollout status deploy/media -n chat-app --timeout=240s || continue
+                    fi
                     kubectl patch cm image-digests -n chat-app --type merge \
                       -p "{\"data\":{\"$d\":\"$DIGEST\"}}"
                   done

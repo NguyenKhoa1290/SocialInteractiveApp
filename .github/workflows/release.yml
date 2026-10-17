@@ -10,7 +10,9 @@
 name: Build & Push images
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -23,6 +25,7 @@ env:
 
 jobs:
   images:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)
     name: ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
@@ -42,6 +45,8 @@ jobs:
           - { image: chat-app-livekit-home-proxy, context: LiveKitHome }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -85,11 +90,12 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
+          annotations: index:org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || github.sha }}
           build-args: ${{ steps.args.outputs.value }}
           # Hai the: SHA de biet chinh xac ban nao dang chay va de quay lui;
           # latest de image-watcher ben k3s theo doi.
           tags: |
-            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo }}/${{ matrix.image }}:${{ github.event.workflow_run.head_sha || github.sha }}
             ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo }}/${{ matrix.image }}:latest
           # Cache layer qua GitHub Actions cache - lan build sau chi dung lai
           # lop da co, khong keo lai toan bo image nen.

@@ -746,6 +746,7 @@ SERVICES = [
         ("IdentityClient__BaseUrl", "http://identity:8080"),
     ]),
     ("media", 5300, [
+        ("LiveKit__ServerUrl", "http://livekit-home:7880"),
         ("ConnectionStrings__MediaDb", f"Host={data_host('media-db')};Port=5432;Database=media;Username=media_admin;Password={DB_PW}"),
         ("ConnectionStrings__MiniAppDb", f"Host={data_host('miniapp-db')};Port=5432;Database=miniapp;Username=miniapp_admin;Password={DB_PW}"),
         *CORS_ORIGINS, *RABBIT,
