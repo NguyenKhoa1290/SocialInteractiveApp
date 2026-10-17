@@ -35,7 +35,7 @@ rules:
     verbs: ["get", "create", "patch", "update"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "list", "patch"]
+    verbs: ["get", "list", "watch", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -128,10 +128,11 @@ spec:
                       if ! curl -fsS "https://raw.githubusercontent.com/NguyenKhoa1290/SocialInteractiveApp/$REVISION/LiveKitHome/deployment.yaml" -o /tmp/livekit-home.yaml; then
                         continue
                       fi
+                      sed -i "s|ghcr.io/$REPO:latest|ghcr.io/$REPO@$DIGEST|" /tmp/livekit-home.yaml
                       kubectl apply -f /tmp/livekit-home.yaml || continue
-                      kubectl set image deploy/livekit-home-proxy -n chat-app "proxy=ghcr.io/$REPO@$DIGEST" || continue
+                    else
+                      kubectl rollout restart "deploy/$d" -n chat-app || continue
                     fi
-                    kubectl rollout restart "deploy/$d" -n chat-app || continue
                     kubectl rollout status "deploy/$d" -n chat-app --timeout=240s || continue
                     if [ "$d" = livekit-home-proxy ]; then
                       kubectl set env deploy/media -n chat-app LiveKit__ServerUrl=http://livekit-home:7880 || continue
