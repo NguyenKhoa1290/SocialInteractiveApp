@@ -6,6 +6,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket, { WebSocketServer } from 'ws';
 import { mapSignal, reconnectSignal } from './candidates.mjs';
 import { defaultRoute, RecoveryState } from './network.mjs';
+import { clearUnreachableDaemon } from './daemon-recovery.mjs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const execute = promisify(execFile);
 const cli = process.env.PINGGY_BIN || '/app/node_modules/.bin/pinggy';
@@ -199,6 +202,9 @@ while (!stopping) {
   }
   catch (error) {
     // No command output/URLs containing authentication are logged.
+    if (await clearUnreachableDaemon(join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'pinggy'))) {
+      console.log('Cleared unreachable Pinggy daemon metadata; recreating control connection');
+    }
     recovery.failed(Date.now());
     console.error(`Unable to open media tunnels (${error.code || error.name}); retrying with backoff`);
     // Clean up incomplete generations, retaining the current usable pair.
