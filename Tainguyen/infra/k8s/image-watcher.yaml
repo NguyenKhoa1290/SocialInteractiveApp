@@ -132,7 +132,12 @@ spec:
                       sed -i "s|ghcr.io/$REPO:latest|ghcr.io/$REPO@$DIGEST|" /tmp/livekit-home.yaml
                       kubectl apply -f /tmp/livekit-home.yaml || continue
                     else
-                      kubectl rollout restart "deploy/$d" -n chat-app || continue
+                      # A pinned deployment must move to the new digest;
+                      # restarting alone would keep running the old image.
+                      CONTAINER=$(kubectl get "deploy/$d" -n chat-app -o json \
+                        | jq -r --arg repo "ghcr.io/$REPO" '.spec.template.spec.containers[] | select((.image | split("@")[0] | split(":")[0]) == $repo) | .name')
+                      [ -z "$CONTAINER" ] && { echo "$d: matching container not found"; continue; }
+                      kubectl set image "deploy/$d" -n chat-app "$CONTAINER=ghcr.io/$REPO@$DIGEST" || continue
                     fi
                     kubectl rollout status "deploy/$d" -n chat-app --timeout=240s || continue
                     if [ "$d" = livekit-home-proxy ]; then
