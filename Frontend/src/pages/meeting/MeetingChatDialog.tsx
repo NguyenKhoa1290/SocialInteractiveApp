@@ -22,6 +22,7 @@ export function MeetingChatDialog({
   chuPhongId,
   anhChuPhong,
   onClose,
+  inline = false,
 }: {
   conversationId: number | null;
   meetingId: number;
@@ -34,6 +35,7 @@ export function MeetingChatDialog({
   chuPhongId: number;
   anhChuPhong: string | null;
   onClose: () => void;
+  inline?: boolean;
 }) {
   // O tim kiem tren dau popup (Figma 149:940 co bieu tuong kinh lup o goc
   // phai). Loc THAT tren danh sach tin da tai - khong dung nut chet.
@@ -41,7 +43,7 @@ export function MeetingChatDialog({
   const [tim, setTim] = useState("");
 
   return (
-    <aside className="mpop mpop-chat" style={{ width: "min(calc(1000px * var(--s)), 96vw)" }}>
+    <aside className={`mpop mpop-chat${inline ? " mroom-chat-inline" : ""}`} style={inline ? undefined : { width: "min(calc(1000px * var(--s)), 96vw)" }}>
       <header className="mpop-head mpop-head-chat">
         {laPhongTam || workspaceId === null ? (
           <Avatar userId={chuPhongId} nickname={tenChuPhong} avatarUpdatedAt={anhChuPhong} size={68} />
