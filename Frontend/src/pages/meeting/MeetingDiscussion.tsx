@@ -424,7 +424,7 @@ export function MeetingDiscussion({
                   {formatChatTimeSeparator(m.createdAt)}
                 </time>
               )}
-            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}${incoming ? ` incoming ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
+            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}${incoming ? " incoming" : ""}${m.type !== "system" ? ` ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
               {incoming && <span className="message-avatar-slot">{group.end && m.senderId != null && (
                 <Avatar userId={m.senderId} nickname={senderProfile?.displayName ?? m.senderDisplayName}
                   avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />

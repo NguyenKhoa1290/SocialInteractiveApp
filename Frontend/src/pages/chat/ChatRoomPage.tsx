@@ -1602,7 +1602,7 @@ export function ChatRoomPage() {
                   {formatChatTimeSeparator(m.createdAt)}
                 </time>
               )}
-            <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}${incoming ? ` incoming ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
+            <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}${incoming ? " incoming" : ""}${m.type !== "system" ? ` ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
               {incoming && <span className="message-avatar-slot">{group.end && m.senderId != null && (
                 <Avatar userId={m.senderId} nickname={senderProfile?.displayName ?? tenNguoiGuiTinNhan(m)}
                   avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />
