@@ -37,6 +37,19 @@ export function shouldShowChatSender(
   return !previous || current.senderId !== previous.senderId || shouldShowChatTimeSeparator(current, previous);
 }
 
+// System notices, replies and a new timeline interval break a visual group.
+export function chatMessageGroup(messages: readonly Message[], index: number) {
+  const current = messages[index];
+  const previous = messages[index - 1];
+  const next = messages[index + 1];
+  const joins = (a: Message | undefined, b: Message | undefined) => Boolean(
+    a && b && a.type !== "system" && b.type !== "system" &&
+    a.senderId != null && a.senderId === b.senderId &&
+    !b.replyToId && !shouldShowChatTimeSeparator(b, a),
+  );
+  return { start: !joins(previous, current), end: !joins(current, next) };
+}
+
 export function formatChatTimeSeparator(createdAt: string) {
   const time = validTime(createdAt);
   if (time === null) return "";

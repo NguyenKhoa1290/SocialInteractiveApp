@@ -1,0 +1,35 @@
+/* Incoming groups share one avatar column. Absolute positioning keeps avatar
+   aligned with the final bubble without shrinking file/image content. */
+.cw-row.incoming,
+.disc-row.incoming {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  padding-left: calc(44px * var(--s));
+}
+.message-avatar-slot {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(34px * var(--s));
+  height: calc(34px * var(--s));
+  display: flex;
+  align-items: flex-end;
+}
+.message-avatar-slot .avatar { border-radius: 50%; object-fit: cover; flex: none; }
+.cw-row.incoming.group-continue { margin-top: calc(-14px * var(--s)); }
+.disc-row.incoming.group-continue { margin-top: calc(-10px * var(--s)); }
+.incoming .cw-bubble,
+.incoming .disc-bubble { border-radius: calc(22px * var(--s)); }
+.incoming.group-more .cw-bubble,
+.incoming.group-more .disc-bubble { border-bottom-left-radius: calc(4px * var(--s)); }
+.incoming.group-continue .cw-bubble,
+.incoming.group-continue .disc-bubble { border-top-left-radius: calc(4px * var(--s)); }
+.cw-row.incoming .cw-bubble-wrap { max-width: min(calc(484px * var(--s)), 100%); }
+.cw-row.incoming .cw-sender { padding-left: calc(10px * var(--s)); }
+.disc-row.incoming .disc-bubble {
+  max-width: min(calc(377px * var(--s)), calc(100% - 32px));
+}
+@media (max-width: 900px) {
+  .cw-row.incoming.group-continue { margin-top: calc(-8px * var(--s)); }
+}

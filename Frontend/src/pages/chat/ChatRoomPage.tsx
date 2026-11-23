@@ -1,3 +1,5 @@
+import { useMessageSenders } from "../../lib/useMessageSenders";
+import "../../components/message-groups.css";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { chatApi } from "../../api/chatApi";
@@ -39,7 +41,7 @@ import { SystemMessage } from "./SystemMessage";
 import type { Message, MessageType } from "../../types/chat";
 import { doanLoaiMedia } from "../../lib/mediaKind";
 import { useChatUnreadStore } from "../../store/chatUnreadStore";
-import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
+import { chatMessageGroup, formatChatTimeSeparator, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
 import type { ConversationDetail } from "../../api/chatApi";
 import { type UploadState } from "../../components/UploadProgressBar";
 import { AlertDialog } from "../../components/AlertDialog";
@@ -262,6 +264,7 @@ export function ChatRoomPage() {
   // Cung ly do closure nhu tren: handler onMessageEdited can biet tin nhan
   // dang co trong danh sach co kem khoa rieng cua minh khong.
   const messagesRef = useRef<Message[]>([]);
+  const messageSenders = useMessageSenders(messages);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -1581,7 +1584,10 @@ export function ChatRoomPage() {
           const laHeThong = m.type === "system";
           const previous = messages[index - 1];
           const showTime = !laHeThong && shouldShowChatTimeSeparator(m, previous);
-          const showSender = !laHeThong && !cuaMinh && shouldShowChatSender(m, previous, currentUserId);
+          const group = chatMessageGroup(messages, index);
+          const incoming = !cuaMinh && m.type !== "system";
+          const showSender = incoming && group.start;
+          const senderProfile = m.senderId == null ? undefined : messageSenders[m.senderId];
           const suaDuoc = cuaMinh && m.type === "text" && !m.isDeleted;
           const thuHoiDuoc = cuaMinh && !m.isDeleted;
           const truongNhomXoaDuoc = isLeader && !cuaMinh && !m.isDeleted;
@@ -1596,9 +1602,13 @@ export function ChatRoomPage() {
                   {formatChatTimeSeparator(m.createdAt)}
                 </time>
               )}
-            <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}`}>
+            <div id={`msg-${m.id}`} className={`cw-row${cuaMinh ? " mine" : ""}${incoming ? ` incoming ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
+              {incoming && <span className="message-avatar-slot">{group.end && m.senderId != null && (
+                <Avatar userId={m.senderId} nickname={senderProfile?.displayName ?? tenNguoiGuiTinNhan(m)}
+                  avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />
+              )}</span>}
               <div className="cw-bubble-wrap">
-                {showSender && <p className="cw-sender">{tenNguoiGuiTinNhan(m)}</p>}
+                {showSender && <p className="cw-sender">{m.senderDisplayName || senderProfile?.displayName || tenNguoiGuiTinNhan(m)}</p>}
 
                 {/* Khoi trich dan tin duoc tra loi. Tim trong danh sach dang
                     co; tin qua cu (chua nap toi) thi hien chu chung thay vi

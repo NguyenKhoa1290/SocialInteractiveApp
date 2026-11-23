@@ -1,3 +1,6 @@
+import { Avatar } from "../../components/Avatar";
+import "../../components/message-groups.css";
+import { useMessageSenders } from "../../lib/useMessageSenders";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { chatApi } from "../../api/chatApi";
 import type { UploadTracker } from "../../api/chatApi";
@@ -10,7 +13,7 @@ import { UploadProgressBar, type UploadState } from "../../components/UploadProg
 import { MessageActionMenu, type MessageAction } from "../../components/MessageActionMenu";
 import { IconAttach, IconImage, IconSend } from "../chat/ComposerIcons";
 import { doanLoaiMedia } from "../../lib/mediaKind";
-import { formatChatTimeSeparator, shouldShowChatSender, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
+import { chatMessageGroup, formatChatTimeSeparator, shouldShowChatTimeSeparator } from "../../lib/chatTimeline";
 import "./discussion.css";
 
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
@@ -62,6 +65,7 @@ export function MeetingDiscussion({
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<Message[]>([]);
+  const messageSenders = useMessageSenders(messages);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const loadingOlderRef = useRef(false);
@@ -406,7 +410,10 @@ export function MeetingDiscussion({
           const mine = m.senderId === currentUserId;
           const previous = visibleMessages[index - 1];
           const showTime = shouldShowChatTimeSeparator(m, previous);
-          const showSender = !mine && shouldShowChatSender(m, previous, currentUserId);
+          const group = chatMessageGroup(visibleMessages, index);
+          const incoming = !mine && m.type !== "system";
+          const showSender = incoming && group.start;
+          const senderProfile = m.senderId == null ? undefined : messageSenders[m.senderId];
           const reply = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) : undefined;
           const canReply = !m.isDeleted;
           const canEdit = mine && m.type === "text" && !m.isDeleted;
@@ -417,8 +424,12 @@ export function MeetingDiscussion({
                   {formatChatTimeSeparator(m.createdAt)}
                 </time>
               )}
-            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}`}>
-              {showSender && <div className="disc-sender">{m.senderDisplayName ?? "Người dùng Calli"}</div>}
+            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}${incoming ? ` incoming ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
+              {incoming && <span className="message-avatar-slot">{group.end && m.senderId != null && (
+                <Avatar userId={m.senderId} nickname={senderProfile?.displayName ?? m.senderDisplayName}
+                  avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />
+              )}</span>}
+              {showSender && <div className="disc-sender">{m.senderDisplayName ?? senderProfile?.displayName ?? "Người dùng Calli"}</div>}
               {m.replyToId != null && (
                 <button
                   type="button"
