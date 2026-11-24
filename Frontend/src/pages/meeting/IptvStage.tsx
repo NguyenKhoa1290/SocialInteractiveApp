@@ -26,7 +26,12 @@ export function IptvStage({ compact = false }: {
 
   return (
     <div className={compact ? "meet-app-stage meet-app-compact" : "meet-app-stage"}>
-      {status === "error" && <p className="meet-error">{slot?.error}</p>}
+      {status === "error" && (
+        <div className="iptv-player-overlay" role="status">
+          <span>{slot?.error}</span>
+          <button type="button" onClick={slot?.requestStream}>Yêu cầu lại IPTV</button>
+        </div>
+      )}
 
       {/* Ba dong duoi chi hien khi CHUA co hinh nao ca - luc dang phat thi
           khung sach tron mot mau video. */}

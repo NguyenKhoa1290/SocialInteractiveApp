@@ -225,6 +225,7 @@ export function IptvPlayer({
   tenKenh,
   tuyChon,
   metadata,
+  onRequestStream,
 }: {
   src: string;
   preferredAudioTrack?: string | null;
@@ -232,6 +233,7 @@ export function IptvPlayer({
   tenKenh?: string | null;
   tuyChon?: TuyChonPhat;
   metadata?: IptvStreamMetadata | null;
+  onRequestStream?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -777,7 +779,7 @@ export function IptvPlayer({
         {(status === "recovering" || status === "failed") && (
           <div className="iptv-player-overlay">
             <span>{message}</span>
-            {status === "failed" && <button onClick={reload}>Thử lại</button>}
+            <button type="button" onClick={onRequestStream ?? reload}>Yêu cầu lại IPTV</button>
           </div>
         )}
       </div>

@@ -43,6 +43,7 @@ type IptvSlotApi = {
   streamUrl: string | null;
   // Gan lam ref cho o muon dat trinh phat vao.
   mount: (el: HTMLDivElement | null) => void;
+  requestStream: () => void;
 };
 
 const IptvSlotContext = createContext<IptvSlotApi | null>(null);
@@ -87,6 +88,13 @@ export function IptvPlayerHost({
   const [audioTrack, setAudioTrack] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<IptvStreamMetadata | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requestVersion, setRequestVersion] = useState(0);
+  const requestInFlight = useRef(false);
+  const requestStream = useCallback(() => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setRequestVersion((v) => v + 1);
+  }, []);
 
   useEffect(() => {
     // Doi kenh la doi han luong - phai bo trinh phat cu di, khong tai cho.
@@ -97,17 +105,22 @@ export function IptvPlayerHost({
     // Link dan thang: URL da nam san trong trang thai trinh bay, khong ton
     // mot vong goi API nao.
     if (channelUrl) {
+      requestInFlight.current = false;
       setStreamUrl(channelUrl);
       setAudioTrack(null);
       setMetadata(null);
       return;
     }
 
-    if (channelId === null) return;
+    if (channelId === null && !channelUrl) {
+      requestInFlight.current = false;
+      return;
+    }
 
     let cancelled = false;
-    iptvApi
-      .getStreamUrl(meetingId, channelId)
+    requestInFlight.current = true;
+    const request = iptvApi.getStreamUrl(meetingId, channelId!);
+    request
       .then((res) => {
         if (cancelled) return;
         setStreamUrl(res.data.streamUrl);
@@ -123,12 +136,15 @@ export function IptvPlayerHost({
       })
       .catch((err) => {
         if (!cancelled) setError(extractApiError(err, "Không lấy được luồng phát"));
+      })
+      .finally(() => {
+        if (!cancelled) requestInFlight.current = false;
       });
 
     return () => {
       cancelled = true;
     };
-  }, [meetingId, channelId, channelUrl]);
+  }, [meetingId, channelId, channelUrl, requestVersion]);
 
   // Bam y dinh cua nguoi xem: mot lan tam dung khi the <video> DANG o trong
   // document la do nguoi dung bam nut; tam dung khi no da bi go ra la do
@@ -170,7 +186,7 @@ export function IptvPlayerHost({
   const status: SlotStatus =
     channelId === null && !channelUrl ? "idle" : error ? "error" : streamUrl ? "ready" : "loading";
 
-  const api = useMemo<IptvSlotApi>(() => ({ status, error, streamUrl, mount }), [status, error, streamUrl, mount]);
+  const api = useMemo<IptvSlotApi>(() => ({ status, error, streamUrl, mount, requestStream }), [status, error, streamUrl, mount, requestStream]);
 
   return (
     <IptvSlotContext.Provider value={api}>
@@ -178,11 +194,13 @@ export function IptvPlayerHost({
       {streamUrl &&
         createPortal(
           <IptvPlayer
+            key={requestVersion}
             src={streamUrl}
             preferredAudioTrack={audioTrack}
             tenKenh={channelName}
             tuyChon={tuyChon}
             metadata={metadata}
+            onRequestStream={requestStream}
           />,
           holderRef.current,
         )}
