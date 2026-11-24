@@ -127,11 +127,11 @@ export function MeetingChatDialog({
               loc={tim}
             />
           </div>
-          <p className="mpop-chat-nhac">
+          {!inline && <p className="mpop-chat-nhac">
             {laPhongTam
               ? "Chú ý: tin nhắn tạm, không mã hoá và không lưu trữ"
               : "Chú ý: tin nhắn thảo luận không mã hoá"}
-          </p>
+          </p>}
         </>
       )}
     </aside>
