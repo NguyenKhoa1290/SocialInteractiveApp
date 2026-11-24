@@ -238,13 +238,12 @@ export function MeetingRoomPage() {
   // duoc subscribe; phan con lai huy dang ky nen LiveKit khong gui toi day.
   const [page, setPage] = useState(0);
   const [isNarrow, setIsNarrow] = useState(
-    // Cung mot moc voi CSS cua phong hop. Neu JS dung 768px ma CSS doi bo
-    // cuc tu 900px thi vung 769-900 se co taskbar/mobile layout, nhung van
-    // render 9 o va subscribe qua nhieu camera.
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+    // Keep the responsive mode and subscription page size aligned with CSS.
+    // A narrow OR short viewport uses the mobile meeting layout.
+    () => typeof window !== "undefined" && window.matchMedia("(width < 1000px), (height < 600px)").matches,
   );
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
+    const mq = window.matchMedia("(width < 1000px), (height < 600px)");
     const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
