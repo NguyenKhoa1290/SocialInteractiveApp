@@ -239,11 +239,11 @@ export function MeetingRoomPage() {
   const [page, setPage] = useState(0);
   const [isNarrow, setIsNarrow] = useState(
     // Keep the responsive mode and subscription page size aligned with CSS.
-    // A narrow OR short viewport uses the mobile meeting layout.
-    () => typeof window !== "undefined" && window.matchMedia("(width < 1000px), (height < 600px)").matches,
+    // Keep the original mobile layout at 900px and below.
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
   );
   useEffect(() => {
-    const mq = window.matchMedia("(width < 1000px), (height < 600px)");
+    const mq = window.matchMedia("(max-width: 900px)");
     const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);

@@ -1503,7 +1503,7 @@
    cạnh phải để nhất quán với thao tác trong phòng họp; chỉ thu hẹp bề rộng
    để không chiếm phần lớn màn hình điện thoại. */
 
-@media (width < 1000px), (height < 600px) {
+@media (max-width: 900px) {
   .mroom {
     /* Bao gom vung an toan day man hinh (iPhone/Android co gesture bar). */
     /* Cao bang nut lon nhat + hai le; khong dung gia tri thanh doc cu vi
@@ -2155,7 +2155,7 @@
 
 /* --- Man hep ------------------------------------------------------------ */
 
-@media (width < 1000px), (height < 600px) {
+@media (max-width: 900px) {
   .mpop {
     inset: 0;
     transform: none;
@@ -2459,7 +2459,7 @@
 /* Dien thoai: khung trinh bay nam tren, nguoi xem nam ben duoi. Khong dung
    lai cot ngang cua desktop, vi no de lai mot dai o qua hep ben phai va lam
    noi dung IPTV/man hinh bi thu nho qua muc. */
-@media (width < 1000px), (height < 600px) {
+@media (max-width: 900px) {
   .mroom-body:has(.mroom-focus) {
     padding: calc(14px * var(--s));
   }
@@ -2585,7 +2585,7 @@
 }
 
 /* Desktop watch-and-chat: replace the participant column, retain its audio. */
-@media (min-width: 1000px) and (min-height: 600px) {
+@media (min-width: 901px) {
   .mroom-body:has(.mroom-chat-inline) {
     padding: clamp(12px, 1.2vw, 20px);
     --mroom-khe: clamp(8px, 1vw, 16px);
