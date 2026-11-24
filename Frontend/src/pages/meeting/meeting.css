@@ -2607,8 +2607,20 @@
     color: #293546;
     --s: 0.8;
   }
-  .mroom-chat-inline .mpop-head-chat { flex-wrap: wrap; }
+  .mroom-chat-inline .mpop-head-chat {
+    flex-wrap: nowrap;
+    flex: none;
+    min-height: 52px;
+    margin: 12px 12px 0;
+    padding: 8px;
+    gap: 8px;
+    border-width: 1px;
+  }
   .mroom-chat-inline .mpop-chat-ten { flex: 1; min-width: 100px; }
   .mroom-chat-inline .mpop-chat-ten b { font-size: 17px; }
-  .mroom-chat-inline .mpop-chat-than { flex: 1; min-height: 0; }
+  .mroom-chat-inline .mpop-chat-than { flex: 1; min-height: 0; margin: 12px; }
+  .mroom-chat-inline .disc-compose { padding: 6px 8px; gap: 6px; min-height: 52px; }
+  .mroom-chat-inline .disc-compose-input { padding: 10px; font-size: 16px; min-height: 40px; }
+  .mroom-chat-inline .disc-compose .disc-icon { width: 30px; height: 34px; }
+  .mroom-chat-inline .disc-compose .disc-icon svg { width: 24px; height: 24px; }
 }

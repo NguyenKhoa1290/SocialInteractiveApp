@@ -1,5 +1,10 @@
 /* Incoming groups share one avatar column. Absolute positioning keeps avatar
    aligned with the final bubble without shrinking file/image content. */
+.cw-composer-input::placeholder,
+.disc-compose-input::placeholder {
+  font-size: var(--placeholder-size, inherit);
+  white-space: nowrap;
+}
 .cw-row.incoming,
 .disc-row.incoming {
   position: relative;

@@ -1,3 +1,4 @@
+import { useFittedPlaceholder } from "../../lib/useFittedPlaceholder";
 import { Avatar } from "../../components/Avatar";
 import "../../components/message-groups.css";
 import { useMessageSenders } from "../../lib/useMessageSenders";
@@ -76,6 +77,7 @@ export function MeetingDiscussion({
   const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
   const mediaAutoScrollIdsRef = useRef<Set<number>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  useFittedPlaceholder(composerRef);
   // Enter dau tien da xuong dong nhung van co the tro thanh "double Enter"
   // neu lan thu hai den nhanh hon nua giay.
   const lastEnterAtRef = useRef<number | null>(null);

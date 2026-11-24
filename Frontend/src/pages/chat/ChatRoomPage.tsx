@@ -1,3 +1,4 @@
+import { useFittedPlaceholder } from "../../lib/useFittedPlaceholder";
 import { useMessageSenders } from "../../lib/useMessageSenders";
 import "../../components/message-groups.css";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -186,6 +187,7 @@ export function ChatRoomPage() {
   // ma chong cache gan vao dia chi anh - nen dung chung mot o.
   const [peer, setPeer] = useState<{ ten: string; anh: string | null } | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  useFittedPlaceholder(composerRef);
   // Enter thu nhat da xuong dong nhung van co the tro thanh "double Enter"
   // neu lan thu hai den nhanh hon nua giay.
   const lastEnterAtRef = useRef<number | null>(null);

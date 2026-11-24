@@ -46,21 +46,21 @@ export function MeetingChatDialog({
     <aside className={`mpop mpop-chat${inline ? " mroom-chat-inline" : ""}`} style={inline ? undefined : { width: "min(calc(1000px * var(--s)), 96vw)" }}>
       <header className="mpop-head mpop-head-chat">
         {laPhongTam || workspaceId === null ? (
-          <Avatar userId={chuPhongId} nickname={tenChuPhong} avatarUpdatedAt={anhChuPhong} size={68} />
+          <Avatar userId={chuPhongId} nickname={tenChuPhong} avatarUpdatedAt={anhChuPhong} size={inline ? 32 : 68} />
         ) : (
-          <Avatar workspaceId={workspaceId} nickname={tenNhom ?? "Nhóm"} avatarUpdatedAt={anhNhom} size={68} />
+          <Avatar workspaceId={workspaceId} nickname={tenNhom ?? "Nhóm"} avatarUpdatedAt={anhNhom} size={inline ? 32 : 68} />
         )}
 
         <span className="mpop-chat-ten">
           {laPhongTam || workspaceId === null ? (
             <>
-              <b>{meetingName}</b>
+              {!inline && <b>{meetingName}</b>}
               <span>Tạo bởi: {tenChuPhong}</span>
-              <em>Tin nhắn tạm không lưu trữ và giới hạn 2gb gửi file</em>
+              {!inline && <em>Tin nhắn tạm không lưu trữ và giới hạn 2gb gửi file</em>}
             </>
           ) : (
             <>
-              <b>{meetingName}</b>
+              {!inline && <b>{meetingName}</b>}
               {tenNhom && <span>{tenNhom}</span>}
             </>
           )}
