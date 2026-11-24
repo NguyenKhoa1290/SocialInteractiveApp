@@ -92,7 +92,7 @@
   align-items: stretch;
   justify-content: center;
   border: 0;
-  border-radius: calc(25px * var(--s));
+  border-radius: calc(10px * var(--s));
   background: rgba(183, 182, 186, 0.23);
   overflow: hidden;
 }

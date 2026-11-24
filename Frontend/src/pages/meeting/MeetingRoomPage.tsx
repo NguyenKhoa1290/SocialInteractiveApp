@@ -355,6 +355,7 @@ export function MeetingRoomPage() {
     let created: Room | null = null;
     let reconnecting = false;
     let connectionNoticeTimer: ReturnType<typeof setTimeout> | undefined;
+    const speakerTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
     const showReconnecting = () => {
       if (cancelled) return;
@@ -476,19 +477,33 @@ export function MeetingRoomPage() {
           .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
             // Ghi moc "vua noi" cho tung nguoi dang noi (gom ca chinh minh).
             // Chi doi thu tu khi tap nguoi noi doi, khong phai moi khung tieng.
-            const luc = Date.now();
             const dang = new Set<number>();
             for (const s of speakers) {
               const uid = Number(s.identity);
               if (Number.isNaN(uid)) continue;
-              lastSpokeRef.current[uid] = luc;
               dang.add(uid);
+              // Only sustained speech changes order; brief interjections still
+              // light the border immediately without shuffling the grid.
+              if (!dangNoiRef.current.has(uid)) {
+                speakerTimers.set(uid, setTimeout(() => {
+                  speakerTimers.delete(uid);
+                  if (cancelled || !dangNoiRef.current.has(uid)) return;
+                  lastSpokeRef.current[uid] = Date.now();
+                  bump();
+                }, 3000));
+              }
+            }
+            for (const [uid, timer] of speakerTimers) {
+              if (!dang.has(uid)) { clearTimeout(timer); speakerTimers.delete(uid); }
             }
             // Thay ca tap: ai vua ngung noi thi tat vien ngay o su kien nay.
             dangNoiRef.current = dang;
             bump();
           })
           .on(RoomEvent.Disconnected, () => {
+            for (const timer of speakerTimers.values()) clearTimeout(timer);
+            speakerTimers.clear();
+            dangNoiRef.current = new Set();
             clearTimeout(connectionNoticeTimer);
             if (!cancelled) {
               setConnectionNotice(null);
@@ -547,6 +562,9 @@ export function MeetingRoomPage() {
 
     return () => {
       cancelled = true;
+      for (const timer of speakerTimers.values()) clearTimeout(timer);
+      speakerTimers.clear();
+      dangNoiRef.current = new Set();
       clearTimeout(connectionNoticeTimer);
       roomRef.current = null;
       // Ngat phong cung phai xep hang - neu goi truc tiep o day, no se chay
