@@ -1685,7 +1685,10 @@ export function ChatRoomPage() {
                       align={cuaMinh ? "end" : "start"}
                       actions={[
                         ...(traLoiDuoc
-                          ? [{ id: "reply", label: "Trả lời", onSelect: () => setReplyTo(m) }]
+                          ? [{ id: "reply", label: "Trả lời", onSelect: () => {
+                            setReplyTo(m);
+                            composerRef.current?.focus({ preventScroll: true });
+                          } }]
                           : []),
                         ...(suaDuoc ? [{ id: "edit", label: "Sửa", onSelect: () => startEdit(m) }] : []),
                         ...(thuHoiDuoc
