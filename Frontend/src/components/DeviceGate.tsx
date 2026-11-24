@@ -2,25 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import wordmark from "../assets/calli/calli-wordmark.svg";
 import "./device-gate.css";
 
-// Tat ca man hinh deu co bo cuc responsive, ke ca phong hop tren dien thoai.
-// Tuy nhien van can mot gioi han vat ly de khong dua nguoi dung vao mot
-// khung qua nho / qua dai ma giao dien khong con doc duoc.
-//
-// Rieng phong hop tren may tinh can chieu rong toi thieu de giu duoc bo cuc
-// desktop. Dien thoai dung bo cuc rieng, nen KHONG ap dung gioi han nay cho
-// thiet bi cam ung. Lop bao chi phu len ung dung dang chay, de viec doi kich
-// thuoc cua so khong lam ngat ket noi dang hop.
-
-// Do rong toi thieu cua PHONG HOP (px CSS).
-//
-// Con so nay la MUC THOAI MAI chu khong phai muc vo. Do tren he thong that:
-// khong trang nao tran ngang cho toi tan 640px, va phong hop tu chuyen thanh
-// doc xuong day o be hep. Nhung popup trong phong hop rong 826 x --s = 661px,
-// nen duoi ~700px la chung cham sat hai mep. 900 de lai mot khoang tho, dong
-// thoi khong lam phien: mot cua so chiem NUA man hinh 1920 la 960px - van
-// yen. Muon noi/that chat thi doi moi con so nay.
-const RONG_TOI_THIEU = 900;
-
+// Meeting routes use their own responsive layout without a blocking overlay.
 // Gioi han cua giao dien responsive thong thuong. 22:9 la ty le doc dai
 // nhat da duoc ho tro; vuot qua moc nay, cot noi dung qua hep so voi chieu
 // cao. Chieu nguoc lai cung chan khung qua ngang/thap (hon 22:9), vi thanh
@@ -47,41 +29,6 @@ function lyDoPhongTo({ rong, cao }: Khung): LyDoPhongTo {
   return null;
 }
 
-// Co phai dien thoai/may tinh bang khong.
-//
-// Cho kho: Chrome tren Android co "Che do may tinh" - no thay chuoi UA thanh
-// UA may ban va noi khung nhin ra 980px, nen moi cach nhan dang dua tren UA
-// deu tra loi sai. Nen o day di tu trong ra ngoai: bon dau hieu, chi can mot
-// cai dung la du.
-function laDiDong(): boolean {
-  if (typeof window === "undefined") return false;
-  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
-
-  // 1. Trinh duyet tu khai. Chi tin khi no noi "dung" - che do may tinh dat
-  //    co nay ve false, nen mot cau false khong chung minh duoc gi.
-  if (nav.userAgentData?.mobile === true) return true;
-
-  // 2. Chuoi UA - bat duoc che do binh thuong tren moi trinh duyet.
-  if (/Android|iPhone|iPod|iPad|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent))
-    return true;
-
-  // 3. iPad tu iPadOS 13 khai la "Macintosh" ngay ca o che do mac dinh. May
-  //    Mac that khong co man cam ung, nen Macintosh + nhieu diem cham =
-  //    iPad.
-  if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true;
-
-  // 4. Duong cuoi, va la duong duy nhat con dung khi UA da bi thay: PHAN CUNG
-  //    thi khong gia duoc. `hover: none` = khong co con tro nao ro len duoc,
-  //    `pointer: coarse` = dau tro to nhu dau ngon tay.
-  //
-  //    Laptop co man cam ung KHONG dinh vao day: con ban di chuot nen trinh
-  //    duyet van bao `hover: hover` va `pointer: fine`. Cai lot luoi nguoc
-  //    lai la may tinh bang Windows dung khong chuot - nhung o do Calli cung
-  //    khong dung duoc that, nen bao la dung.
-  const khongCoChuot = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-  return khongCoChuot && navigator.maxTouchPoints > 0;
-}
-
 function ManBao({
   tieuDe,
   children,
@@ -100,12 +47,7 @@ function ManBao({
   );
 }
 
-export function DeviceGate({ children, blockNarrow = false }: { children: ReactNode; blockNarrow?: boolean }) {
-  // Thiet bi khong doi giua chung mot phien, nen chi do MOT lan. Do lai moi
-  // lan render vua thua vua khien man hinh chop khi trinh duyet doi cau tra
-  // loi cho matchMedia luc dang xoay may.
-  const [diDong] = useState(laDiDong);
-
+export function DeviceGate({ children, allowSmallViewport = false }: { children: ReactNode; allowSmallViewport?: boolean }) {
   const [khung, setKhung] = useState(layKhung);
   useEffect(() => {
     const doLai = () => setKhung(layKhung());
@@ -140,17 +82,7 @@ export function DeviceGate({ children, blockNarrow = false }: { children: ReactN
   return (
     <>
       {children}
-      {blockNarrow && !diDong && khung.rong < RONG_TOI_THIEU ? (
-        <ManBao tieuDe="Hãy mở rộng cửa sổ">
-          <p>
-            Phòng họp cần cửa sổ rộng ít nhất <b>{RONG_TOI_THIEU}px</b> để hiển thị đủ. Kéo rộng cửa sổ trình
-            duyệt là lời nhắc này tự biến mất.
-          </p>
-          <p className="dgate-phu">
-            Đang rộng {khung.rong}px - thiếu {RONG_TOI_THIEU - khung.rong}px.
-          </p>
-        </ManBao>
-      ) : lyDo ? (
+      {!allowSmallViewport && lyDo ? (
         <PopupPhongTo />
       ) : null}
     </>
