@@ -1478,7 +1478,9 @@ export function MeetingRoomPage() {
   function moPanel(ten: "chat" | "nguoi" | "caidat" | "app") {
     const chatOpen = showDiscussion || sideChat;
     setShowDiscussion(ten === "chat" && isNarrow ? !chatOpen : false);
-    setSideChat(ten === "chat" && !isNarrow ? !chatOpen : false);
+    // Desktop sidebar stays mounted alongside other panels, preserving drafts
+    // and scroll position. On narrow screens it is a full popup, so close it.
+    setSideChat((current) => ten === "chat" ? (!isNarrow && !chatOpen) : (!isNarrow && current));
     setShowPeople(ten === "nguoi" ? !showPeople : false);
     setShowSettings(ten === "caidat" ? !showSettings : false);
     setShowApps(ten === "app" && !dangChayMiniApp ? !showApps : false);
