@@ -23,6 +23,7 @@ export function MeetingChatDialog({
   anhChuPhong,
   onClose,
   inline = false,
+  onToggleSize,
 }: {
   conversationId: number | null;
   meetingId: number;
@@ -36,6 +37,7 @@ export function MeetingChatDialog({
   anhChuPhong: string | null;
   onClose: () => void;
   inline?: boolean;
+  onToggleSize?: () => void;
 }) {
   // O tim kiem tren dau popup (Figma 149:940 co bieu tuong kinh lup o goc
   // phai). Loc THAT tren danh sach tin da tai - khong dung nut chet.
@@ -81,11 +83,20 @@ export function MeetingChatDialog({
           </svg>
         </button>
 
-        <button type="button" className="mpop-close" onClick={onClose}>
+        {onToggleSize && (
+          <button type="button" className="disc-icon" onClick={onToggleSize}
+            title={inline ? "Mở chat lớn" : "Thu nhỏ chat"}
+            aria-label={inline ? "Mở chat lớn" : "Thu nhỏ chat"}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d={inline ? "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" : "M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5"}
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+        <button type="button" className="mpop-close" onClick={onClose} aria-label="Đóng" title="Đóng">
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
           </svg>
-          Đóng
         </button>
       </header>
 

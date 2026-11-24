@@ -1076,7 +1076,7 @@ export function MeetingRoomPage() {
   const stageIsScreen = !pinnedParticipant && Boolean(autoFocusParticipant);
   const showAppStage = !pinnedParticipant && presentation?.kind === "mini_app" && !gridOverride;
   const inFocusLayout = Boolean(stageParticipant) || showAppStage;
-  const desktopSideChat = sideChat && !isNarrow && inFocusLayout;
+  const desktopSideChat = sideChat && !isNarrow;
   useEffect(() => {
     if (!desktopSideChat || !room?.localParticipant.isCameraEnabled) return;
     // Stop publishing the local camera, rather than merely hiding its tile.
@@ -1285,7 +1285,7 @@ export function MeetingRoomPage() {
   // tuVaoNhom={false} - hai ben cung goi thi luc panel dong se roi nhom va
   // trang mat luon duong nghe.
   const chatDangMoRef = useRef(false);
-  chatDangMoRef.current = showDiscussion || desktopSideChat;
+  chatDangMoRef.current = showDiscussion || sideChat;
   useEffect(() => {
     const convId = meeting?.conversationId;
     if (convId == null) return;
@@ -1313,8 +1313,8 @@ export function MeetingRoomPage() {
   }, [meeting?.conversationId, meetingId, currentUserId]);
 
   useEffect(() => {
-    if (showDiscussion || desktopSideChat) setChuaDocChat(0);
-  }, [showDiscussion, desktopSideChat]);
+    if (showDiscussion || sideChat) setChuaDocChat(0);
+  }, [showDiscussion, sideChat]);
 
   useEffect(() => {
     localStorage.setItem("meet-tiet-kiem", tietKiem ? "1" : "0");
@@ -1325,7 +1325,7 @@ export function MeetingRoomPage() {
   // di vong Chat -> WorkSpace.
   useEffect(() => {
     const convId = meeting?.conversationId;
-    if ((!showDiscussion && !desktopSideChat) || convId == null || meeting?.isTemporary || nhomCuaHop) return;
+    if ((!showDiscussion && !sideChat) || convId == null || meeting?.isTemporary || nhomCuaHop) return;
     let huy = false;
     void (async () => {
       try {
@@ -1340,7 +1340,7 @@ export function MeetingRoomPage() {
     return () => {
       huy = true;
     };
-  }, [showDiscussion, desktopSideChat, meeting?.conversationId, meeting?.isTemporary, nhomCuaHop]);
+  }, [showDiscussion, sideChat, meeting?.conversationId, meeting?.isTemporary, nhomCuaHop]);
 
   // Hoi Identity ve anh dai dien cua nhung nguoi trong phong. Chi hoi NHUNG
   // NGUOI CHUA CO trong bang, va ghi ca nguoi khong tra ve (null) de khong
@@ -1444,7 +1444,11 @@ export function MeetingRoomPage() {
           tenChuPhong={nameOfUserId(meeting?.hostId ?? -1)}
           chuPhongId={meeting?.hostId ?? -1}
           anhChuPhong={anhCua[meeting?.hostId ?? -1] ?? null}
-          onClose={() => inline ? setSideChat(false) : setShowDiscussion(false)}
+          onClose={() => { setSideChat(false); setShowDiscussion(false); }}
+          onToggleSize={isNarrow ? undefined : () => {
+            setSideChat(!inline);
+            setShowDiscussion(inline);
+          }}
         />
   );
 
@@ -1473,7 +1477,9 @@ export function MeetingRoomPage() {
   const dangChayMiniApp = presentation?.kind === "mini_app";
 
   function moPanel(ten: "chat" | "nguoi" | "caidat" | "app") {
-    setShowDiscussion(ten === "chat" ? !showDiscussion : false);
+    const chatOpen = showDiscussion || sideChat;
+    setShowDiscussion(ten === "chat" && isNarrow ? !chatOpen : false);
+    setSideChat(ten === "chat" && !isNarrow ? !chatOpen : false);
     setShowPeople(ten === "nguoi" ? !showPeople : false);
     setShowSettings(ten === "caidat" ? !showSettings : false);
     setShowApps(ten === "app" && !dangChayMiniApp ? !showApps : false);
@@ -1575,12 +1581,6 @@ export function MeetingRoomPage() {
                 {n.chu}
               </button>
             ))}
-            {!isNarrow && inFocusLayout && (
-              <button type="button" className="mroom-pill" aria-pressed={desktopSideChat}
-                onClick={() => { setSideChat((v) => !v); setShowDiscussion(false); }}>
-                {desktopSideChat ? "Hiện người tham gia" : "Vừa xem vừa chat"}
-              </button>
-            )}
           </span>
         )}
 
@@ -1667,6 +1667,7 @@ export function MeetingRoomPage() {
               <div className="mroom-luoi-hang">
                 <div className={`meet-grid ${kieuLuoi}`}>{visibleTiles.map(renderTile)}</div>
                 {pager}
+                {desktopSideChat && renderMeetingChat(true)}
               </div>
             )}
           </div>
@@ -1736,7 +1737,7 @@ export function MeetingRoomPage() {
         </button>
 
         <button
-          className={`mroom-btn${showDiscussion ? " mroom-btn-bat" : ""}`}
+          className={`mroom-btn${showDiscussion || sideChat ? " mroom-btn-bat" : ""}`}
           onClick={() => moPanel("chat")}
           title="Thảo luận"
         >
@@ -1838,7 +1839,7 @@ export function MeetingRoomPage() {
         />
       )}
 
-      {showDiscussion && !desktopSideChat && renderMeetingChat(false)}
+      {(showDiscussion || (sideChat && isNarrow)) && !desktopSideChat && renderMeetingChat(false)}
 
       {showApps && (
         <MeetingAppsDialog

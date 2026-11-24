@@ -62,11 +62,10 @@ export function Modal({
         aria-label={ariaLabel ?? title}
         style={{ width: `calc(${width}px * var(--s))` }}
       >
-        <button type="button" className="md-close" onClick={close}>
+        <button type="button" className="md-close" onClick={close} aria-label="Đóng" title="Đóng">
           <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
           </svg>
-          Đóng
         </button>
 
         {title !== "" && <h2 className="md-title">{title}</h2>}

@@ -56,7 +56,7 @@ export function AuthLayout({
       }}
     >
       <div className="auth-card" role="dialog" aria-modal="true" aria-label={title}>
-        <button type="button" className="auth-close" onClick={close}>
+        <button type="button" className="auth-close" onClick={close} aria-label="Đóng" title="Đóng">
           <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M5 5l14 14M19 5L5 19"
@@ -65,7 +65,6 @@ export function AuthLayout({
               strokeLinecap="round"
             />
           </svg>
-          Đóng
         </button>
 
         <img className="auth-logo" src={wordmark} alt="Calli" />

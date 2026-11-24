@@ -2587,7 +2587,8 @@
 /* Desktop watch-and-chat: replace the participant column, retain its audio. */
 @media (min-width: 901px) {
   .mroom-dai[hidden] { display: none !important; }
-  .mroom-focus > .mroom-chat-inline {
+  .mroom-focus > .mroom-chat-inline,
+  .mroom-luoi-hang > .mroom-chat-inline {
     position: static;
     inset: auto;
     transform: none;
@@ -2616,7 +2617,8 @@
     gap: 8px;
     border-width: 1px;
   }
-  .mroom-chat-inline .mpop-chat-ten { flex: 1; min-width: 100px; }
+  .mroom-chat-inline .mpop-chat-ten { flex: 1; min-width: 0; overflow: hidden; }
+  .mroom-chat-inline .mpop-chat-ten > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mroom-chat-inline .mpop-chat-ten b { font-size: 17px; }
   .mroom-chat-inline .mpop-chat-than { flex: 1; min-height: 0; margin: 12px; }
   .mroom-chat-inline .disc-compose { padding: 6px 8px; gap: 6px; min-height: 52px; }
@@ -2624,3 +2626,13 @@
   .mroom-chat-inline .disc-compose .disc-icon { width: 30px; height: 34px; }
   .mroom-chat-inline .disc-compose .disc-icon svg { width: 24px; height: 24px; }
 }
+
+.mpop .mpop-close,
+.mroom-chat-inline .mpop-close {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 8px;
+  justify-content: center;
+}
+.mpop-head-chat > .disc-icon { flex-shrink: 0; }

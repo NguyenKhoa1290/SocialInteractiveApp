@@ -77,11 +77,10 @@ export function E2eePopup() {
       <div className="e2-card" role="dialog" aria-modal="true" aria-label={tieuDe}>
         {/* Dong = tam bo qua, KHONG phai bo tinh nang: van dung duoc moi thu
             khong can ma hoa. Lan sau vao lai popup hien lai. */}
-        <button type="button" className="e2-close" onClick={() => setBoQua(true)}>
+        <button type="button" className="e2-close" onClick={() => setBoQua(true)} aria-label="Đóng" title="Đóng">
           <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
           </svg>
-          Đóng
         </button>
 
         <img className="e2-logo" src={wordmark} alt="Calli" />
