@@ -1,3 +1,4 @@
+import { meetingThreads } from "../../lib/meetingThreads";
 import { useFittedPlaceholder } from "../../lib/useFittedPlaceholder";
 import { Avatar } from "../../components/Avatar";
 import "../../components/message-groups.css";
@@ -74,6 +75,7 @@ export function MeetingDiscussion({
   activeDiscussionRef.current = `${conversationId}:${meetingId}`;
   const initialScrollPendingRef = useRef(false);
   const scrollToBottomPendingRef = useRef(false);
+  const replyScrollTarget = useRef<number | null>(null);
   const prependScrollRef = useRef<{ messageId: number; top: number } | null>(null);
   const mediaAutoScrollIdsRef = useRef<Set<number>>(new Set());
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -97,6 +99,7 @@ export function MeetingDiscussion({
     setLoadingOlderMessages(false);
     loadingOlderRef.current = false;
     initialScrollPendingRef.current = false;
+    replyScrollTarget.current = null;
     scrollToBottomPendingRef.current = false;
     prependScrollRef.current = null;
     mediaAutoScrollIdsRef.current.clear();
@@ -121,6 +124,7 @@ export function MeetingDiscussion({
           if (messagesRef.current.some((m) => m.id === msg.id)) return;
           const shouldStickToBottom = msg.senderId === currentUserId || isMessageListNearBottom();
           scrollToBottomPendingRef.current = shouldStickToBottom;
+          if (shouldStickToBottom) replyScrollTarget.current = msg.replyToId == null ? null : msg.id;
           if (shouldStickToBottom && msg.fileId != null && (msg.type === "image" || msg.type === "video")) {
             mediaAutoScrollIdsRef.current.add(msg.id);
           }
@@ -158,8 +162,13 @@ export function MeetingDiscussion({
       if (activeDiscussionRef.current !== requestDiscussion) return;
       const container = messagesContainerRef.current;
       if (!container) return;
-      container.scrollTop = container.scrollHeight;
-      bottomRef.current?.scrollIntoView({ block: "end" });
+      const target = replyScrollTarget.current == null ? null
+        : container.querySelector<HTMLElement>(`#disc-message-${replyScrollTarget.current}`);
+      if (target) target.scrollIntoView({ block: "nearest" });
+      else {
+        container.scrollTop = container.scrollHeight;
+        bottomRef.current?.scrollIntoView({ block: "end" });
+      }
     };
 
     apply();
@@ -244,6 +253,7 @@ export function MeetingDiscussion({
     setError(null);
     try {
       const res = await chatApi.sendMeetingText(conversationId, meetingId, text.trim(), replyTo?.id);
+      replyScrollTarget.current = res.data.replyToId == null ? null : res.data.id;
       scrollToBottomPendingRef.current = true;
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
       setText("");
@@ -372,6 +382,7 @@ export function MeetingDiscussion({
       // truoc khi cho phep gan tep vao thao luan.
       await chatApi.completeUpload(urlRes.fileId, urlRes.uploadId);
       const res = await chatApi.sendMeetingFile(conversationId, meetingId, type, urlRes.fileId);
+      replyScrollTarget.current = null;
       scrollToBottomPendingRef.current = true;
       if (type === "image" || type === "video") mediaAutoScrollIdsRef.current.add(res.data.id);
       setMessages((prev) => (prev.some((m) => m.id === res.data.id) ? prev : [...prev, res.data]));
@@ -385,15 +396,11 @@ export function MeetingDiscussion({
     }
   }
 
-  const visibleMessages = messages.filter((m) => {
-    const q = loc.trim().toLowerCase();
-    if (!q) return true;
-    return (m.content ?? "").toLowerCase().includes(q) ||
-      (m.senderDisplayName ?? "").toLowerCase().includes(q);
-  });
+  const threadEntries = meetingThreads(messages, loc);
+  const visibleMessages = threadEntries.map((entry) => entry.message);
 
   return (
-    <div className={`disc${compact ? " disc-compact" : ""}`}>
+    <div className={`disc disc-threaded${compact ? " disc-compact" : ""}`}>
       <div
         className="disc-messages"
         ref={messagesContainerRef}
@@ -409,11 +416,16 @@ export function MeetingDiscussion({
         {!loading && messages.length === 0 && <p className="disc-empty">Chưa có nội dung nào trong thảo luận.</p>}
 
         {visibleMessages.map((m, index) => {
+          const entry = threadEntries[index];
           const mine = m.senderId === currentUserId;
           const previous = visibleMessages[index - 1];
-          const showTime = shouldShowChatTimeSeparator(m, previous);
+          const showTime = !entry.isReply && shouldShowChatTimeSeparator(m, previous);
           const group = chatMessageGroup(visibleMessages, index);
-          const incoming = !mine && m.type !== "system";
+          const incoming = m.type !== "system";
+          const before = threadEntries[index - 1];
+          const after = threadEntries[index + 1];
+          if (before?.isReply !== entry.isReply || (entry.isReply && before?.rootId !== entry.rootId)) group.start = true;
+          if (after?.isReply !== entry.isReply || (entry.isReply && after?.rootId !== entry.rootId)) group.end = true;
           const showSender = incoming && group.start;
           const senderProfile = m.senderId == null ? undefined : messageSenders[m.senderId];
           const reply = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) : undefined;
@@ -426,13 +438,13 @@ export function MeetingDiscussion({
                   {formatChatTimeSeparator(m.createdAt)}
                 </time>
               )}
-            <div id={`disc-message-${m.id}`} className={`disc-row${mine ? " mine" : ""}${incoming ? " incoming" : ""}${m.type !== "system" ? ` ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
+            <div id={`disc-message-${m.id}`} className={`disc-row${entry.isReply ? " disc-thread-reply" : ""}${mine ? " mine" : ""}${incoming ? " incoming" : ""}${m.type !== "system" ? ` ${group.start ? "group-start" : "group-continue"} ${group.end ? "group-end" : "group-more"}` : ""}`}>
               {incoming && <span className="message-avatar-slot">{group.end && m.senderId != null && (
                 <Avatar userId={m.senderId} nickname={senderProfile?.displayName ?? m.senderDisplayName}
                   avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />
               )}</span>}
-              {showSender && <div className="disc-sender">{m.senderDisplayName ?? senderProfile?.displayName ?? "Người dùng Calli"}</div>}
-              {m.replyToId != null && (
+              {showSender && <div className="disc-sender">{(mine ? "B\u1ea1n" : null) ?? m.senderDisplayName ?? senderProfile?.displayName ?? "Người dùng Calli"}<time dateTime={m.createdAt} className="disc-thread-time">{new Date(m.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</time></div>}
+              {m.replyToId != null && (!entry.parentLoaded || m.replyToId !== entry.rootId) && (
                 <button
                   type="button"
                   className="disc-quote"
@@ -496,7 +508,7 @@ export function MeetingDiscussion({
                   <MessageActionMenu
                     open={openMessageMenuId === m.id}
                     onOpenChange={(open) => setOpenMessageMenuId(open ? m.id : null)}
-                    align={mine ? "end" : "start"}
+                    align="start"
                     actions={[
                       ...(canReply
                         ? [{ id: "reply", label: "Trả lời", onSelect: () => { setEditingId(null); setReplyTo(m); } }]

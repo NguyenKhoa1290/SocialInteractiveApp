@@ -417,3 +417,19 @@
 .disc-compact .disc-messages {
   max-height: none;
 }
+
+/* Meeting discussion only: everyone reads left-to-right in one column. */
+.disc-threaded .disc-row,
+.disc-threaded .disc-row.mine { align-items: flex-start; }
+.disc-threaded .disc-row .disc-message-content { flex-direction: row; }
+.disc-threaded .disc-row .disc-bubble { border-radius: calc(22px * var(--s)); }
+.disc-threaded .disc-row.group-more .disc-bubble { border-bottom-left-radius: calc(4px * var(--s)); }
+.disc-threaded .disc-row.group-continue .disc-bubble { border-top-left-radius: calc(4px * var(--s)); }
+.disc-threaded .disc-thread-reply {
+  margin-left: calc(20px * var(--s));
+  border-left: 2px solid rgba(133, 174, 176, 0.45);
+  padding-left: calc(50px * var(--s));
+}
+.disc-threaded .disc-thread-reply .message-avatar-slot { left: calc(6px * var(--s)); }
+.disc-threaded .disc-sender { display: flex; align-items: baseline; gap: 6px; }
+.disc-thread-time { font-size: 0.85em; font-weight: 400; opacity: 0.7; white-space: nowrap; }
