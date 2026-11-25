@@ -1,3 +1,4 @@
+import { MeetingChatResizeHandle } from "./MeetingChatResizeHandle";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -1449,6 +1450,8 @@ export function MeetingRoomPage() {
   // Khoi giua thanh tren: dang chieu gi, va nhung nut di kem. null = khong
   // co gi de bao. Khi ghim, nut Bo ghim tra ve luot trinh bay dang chay.
   const renderMeetingChat = (inline: boolean) => (
+    <>
+      {inline && <MeetingChatResizeHandle />}
         <MeetingChatDialog
           inline={inline}
           conversationId={meeting?.conversationId ?? null}
@@ -1467,6 +1470,7 @@ export function MeetingRoomPage() {
             setShowDiscussion(inline);
           }}
         />
+    </>
   );
 
   const bangChieu: { chu: string; nut: { chu: string; bam: () => void }[] } | null = pinnedParticipant

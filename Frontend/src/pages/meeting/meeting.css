@@ -2585,7 +2585,31 @@
 }
 
 /* Desktop watch-and-chat: replace the participant column, retain its audio. */
+.mroom-chat-resizer { display: none; }
 @media (min-width: 901px) {
+  .mroom-chat-resizer {
+    display: flex;
+    flex: 0 0 8px;
+    align-self: stretch;
+    align-items: center;
+    justify-content: center;
+    cursor: col-resize;
+    touch-action: none;
+    border-radius: 4px;
+    outline-offset: 3px;
+  }
+  .mroom-chat-resizer::after {
+    content: "";
+    width: 4px;
+    height: 48px;
+    border-radius: 2px;
+    background: #83adb0;
+  }
+  .mroom-chat-resizer:hover,
+  .mroom-chat-resizer:focus-visible { background: #83adb033; }
+  .mroom-chat-resizer:focus-visible { outline: 2px solid #83adb0; }
+  .mroom-chat-resizing,
+  .mroom-chat-resizing * { cursor: col-resize !important; user-select: none !important; }
   .mroom-body:has(.mroom-chat-inline) {
     padding: clamp(12px, 1.2vw, 20px);
     --mroom-khe: clamp(8px, 1vw, 16px);
@@ -2603,9 +2627,10 @@
     inset: auto;
     transform: none;
     zoom: 1;
-    flex: 0 0 clamp(320px, 27vw, 440px);
-    width: clamp(320px, 27vw, 440px);
-    max-width: 40%;
+    flex: 0 0 var(--meeting-chat-width, clamp(320px, 27vw, 440px));
+    width: var(--meeting-chat-width, clamp(320px, 27vw, 440px));
+    min-width: 320px;
+    max-width: none;
     height: 100%;
     max-height: 100%;
     min-height: 0;
