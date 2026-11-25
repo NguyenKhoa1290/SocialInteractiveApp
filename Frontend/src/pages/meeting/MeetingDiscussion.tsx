@@ -300,13 +300,6 @@ export function MeetingDiscussion({
     return m.type === "image" ? "Hình ảnh" : m.type === "video" ? "Video" : m.type === "voice" ? "Tin nhắn âm thanh" : "Tệp đính kèm";
   }
 
-  function nhayToi(messageId: number) {
-    const target = document.getElementById(`disc-message-${messageId}`);
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
-    target?.classList.remove("disc-flash");
-    requestAnimationFrame(() => target?.classList.add("disc-flash"));
-  }
-
   function startEdit(m: Message) {
     setReplyTo(null);
     setEditingId(m.id);
@@ -428,7 +421,6 @@ export function MeetingDiscussion({
           if (after?.isReply !== entry.isReply || (entry.isReply && after?.rootId !== entry.rootId)) group.end = true;
           const showSender = incoming && group.start;
           const senderProfile = m.senderId == null ? undefined : messageSenders[m.senderId];
-          const reply = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) : undefined;
           const canReply = !m.isDeleted;
           const canEdit = mine && m.type === "text" && !m.isDeleted;
           return (
@@ -444,19 +436,6 @@ export function MeetingDiscussion({
                   avatarUpdatedAt={senderProfile?.avatarUpdatedAt} size={34} />
               )}</span>}
               {showSender && <div className="disc-sender">{(mine ? "B\u1ea1n" : null) ?? m.senderDisplayName ?? senderProfile?.displayName ?? "Người dùng Calli"}<time dateTime={m.createdAt} className="disc-thread-time">{new Date(m.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</time></div>}
-              {m.replyToId != null && (!entry.parentLoaded || m.replyToId !== entry.rootId) && (
-                <button
-                  type="button"
-                  className="disc-quote"
-                  onClick={() => nhayToi(m.replyToId!)}
-                  title="Tới tin nhắn gốc"
-                >
-                  <span className="disc-quote-who">{reply?.senderDisplayName ?? (reply?.senderId === currentUserId ? "Bạn" : "Người dùng Calli")}</span>
-                  <span className="disc-quote-text">{reply ? tomTat(reply) : "Tin nhắn cũ"}</span>
-                </button>
-              )}
-              {/* Tach hang noi dung khoi ten va o trich dan de menu ba cham
-                  luon can giua theo chinh bong bong dang thao tac. */}
               <div className="disc-message-content">
                 <div className="disc-bubble">
                   {m.isDeleted ? (
