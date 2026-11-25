@@ -1274,6 +1274,20 @@ export function ChatRoomPage() {
           title={tenHoiThoai}
           peerUserId={peerUserId}
           peerAvatarUpdatedAt={peer?.anh}
+          pastMeetingDiscussions={pastMeetingIds.length > 0 ? (
+            <div className="chat-meeting-actions">
+              {pastMeetingIds.map((mid) => (
+                <Link
+                  key={mid}
+                  to={`/app/chat/${conversationId}/meetings/${mid}`}
+                  state={{ backgroundLocation: location }}
+                  className="chat-meeting-link"
+                >
+                  Cuộc họp #{mid}
+                </Link>
+              ))}
+            </div>
+          ) : undefined}
           dangerLabel={conversation?.type === "group" ? "Xóa nhóm" : "Xóa bạn"}
           onDanger={conversation?.type === "group" ? handleDeleteGroup : handleRemoveFriend}
           // `members` la co bao "day la nhom" - chi nhom moi co danh sach
@@ -1434,28 +1448,6 @@ export function ChatRoomPage() {
             >
               Xem thảo luận
             </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Cuoc hop DA KET THUC van con thao luan de xem lai - thanh vien nhom
-          van nhan tiep duoc trong do (khach vang lai thi mat quyen). */}
-      {!activeMeeting && pastMeetingIds.length > 0 && (
-        <div className="chat-meeting-card chat-meeting-past">
-          <div className="chat-meeting-head">
-            <strong>Thảo luận của các cuộc họp trước</strong>
-          </div>
-          <div className="chat-meeting-actions">
-            {pastMeetingIds.map((mid) => (
-              <Link
-                key={mid}
-                to={`/app/chat/${conversationId}/meetings/${mid}`}
-                state={{ backgroundLocation: location }}
-                className="chat-meeting-link"
-              >
-                Cuộc họp #{mid}
-              </Link>
-            ))}
           </div>
         </div>
       )}

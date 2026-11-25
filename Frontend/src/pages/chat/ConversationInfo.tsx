@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { chatApi } from "../../api/chatApi";
 import { workspaceApi } from "../../api/workspaceApi";
 import { extractApiError } from "../../lib/apiError";
@@ -130,6 +130,7 @@ function MenuTuyChinh({
 export function ConversationInfo({
   conversationId,
   title,
+  pastMeetingDiscussions,
   peerUserId,
   peerAvatarUpdatedAt,
   dangerLabel,
@@ -150,6 +151,7 @@ export function ConversationInfo({
 }: {
   conversationId: number;
   title: string;
+  pastMeetingDiscussions?: ReactNode;
   peerUserId?: number | null;
   peerAvatarUpdatedAt?: string | null;
   dangerLabel: string;
@@ -173,6 +175,7 @@ export function ConversationInfo({
   // Danh sach thanh vien mo san, con media de gap. Anh/video can URL ky rieng,
   // nen chi tai khi nguoi dung thuc su mo muc nay.
   const [hienThanhVien, setHienThanhVien] = useState(true);
+  const [hienThaoLuan, setHienThaoLuan] = useState(false);
   const [hienMedia, setHienMedia] = useState(false);
   const [media, setMedia] = useState<FileMeta[] | null>(null);
   const [urls, setUrls] = useState<Record<number, string>>({});
@@ -440,6 +443,16 @@ export function ConversationInfo({
         ))}
       {hienMedia && dangTaiMedia && media !== null && (
         <p className="cw-media-loading">Đang tải thêm…</p>
+      )}
+
+      {pastMeetingDiscussions && (
+        <>
+          <div className="cw-info-head">
+            <span className="cw-info-label">Thảo luận các cuộc họp trước</span>
+            <NutGap mo={hienThaoLuan} doi={() => setHienThaoLuan((v) => !v)} ten="thảo luận các cuộc họp trước" />
+          </div>
+          {hienThaoLuan && pastMeetingDiscussions}
+        </>
       )}
 
       {onDanger && (
