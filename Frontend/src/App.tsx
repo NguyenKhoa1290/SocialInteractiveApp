@@ -91,11 +91,8 @@ function AppRoutes() {
   // khong tai lai hoi thoai/API khi mo hay dong popup. Truy cap thang URL van
   // dung route du phong ben duoi de F5 va chia se lien ket hoat dong.
   const backgroundLocation = (location.state as { backgroundLocation?: Location } | null)?.backgroundLocation;
-  // Meetings, invite pages and discussion have their own responsive layouts.
-  const isMeetingRoute = location.pathname.startsWith("/meetings/");
-
   return (
-    <DeviceGate allowSmallViewport={isMeetingRoute}>
+    <DeviceGate>
       <Routes location={backgroundLocation ?? location}>
         {/* Ban thiet ke ve cac man xac thuc la POPUP chong len trang chu,
             khong phai trang rieng. Nen moi duong dan o day van la duong dan
