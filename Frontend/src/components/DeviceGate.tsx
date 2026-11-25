@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import wordmark from "../assets/calli/calli-wordmark.svg";
 import "./device-gate.css";
 
-// Meeting routes use their own responsive layout without a blocking overlay.
+// Desktop meeting windows can resize freely; mobile devices keep viewport limits.
 // Gioi han cua giao dien responsive thong thuong. 22:9 la ty le doc dai
 // nhat da duoc ho tro; vuot qua moc nay, cot noi dung qua hep so voi chieu
 // cao. Chieu nguoc lai cung chan khung qua ngang/thap (hon 22:9), vi thanh
@@ -29,6 +29,35 @@ function lyDoPhongTo({ rong, cao }: Khung): LyDoPhongTo {
   return null;
 }
 
+function laDiDong(): boolean {
+  if (typeof window === "undefined") return false;
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+
+  // 1. Trinh duyet tu khai. Chi tin khi no noi "dung" - che do may tinh dat
+  //    co nay ve false, nen mot cau false khong chung minh duoc gi.
+  if (nav.userAgentData?.mobile === true) return true;
+
+  // 2. Chuoi UA - bat duoc che do binh thuong tren moi trinh duyet.
+  if (/Android|iPhone|iPod|iPad|Windows Phone|IEMobile|BlackBerry|Opera Mini/i.test(navigator.userAgent))
+    return true;
+
+  // 3. iPad tu iPadOS 13 khai la "Macintosh" ngay ca o che do mac dinh. May
+  //    Mac that khong co man cam ung, nen Macintosh + nhieu diem cham =
+  //    iPad.
+  if (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) return true;
+
+  // 4. Duong cuoi, va la duong duy nhat con dung khi UA da bi thay: PHAN CUNG
+  //    thi khong gia duoc. `hover: none` = khong co con tro nao ro len duoc,
+  //    `pointer: coarse` = dau tro to nhu dau ngon tay.
+  //
+  //    Laptop co man cam ung KHONG dinh vao day: con ban di chuot nen trinh
+  //    duyet van bao `hover: hover` va `pointer: fine`. Cai lot luoi nguoc
+  //    lai la may tinh bang Windows dung khong chuot - nhung o do Calli cung
+  //    khong dung duoc that, nen bao la dung.
+  const khongCoChuot = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  return khongCoChuot && navigator.maxTouchPoints > 0;
+}
+
 function ManBao({
   tieuDe,
   children,
@@ -48,6 +77,7 @@ function ManBao({
 }
 
 export function DeviceGate({ children, allowSmallViewport = false }: { children: ReactNode; allowSmallViewport?: boolean }) {
+  const [diDong] = useState(laDiDong);
   const [khung, setKhung] = useState(layKhung);
   useEffect(() => {
     const doLai = () => setKhung(layKhung());
@@ -82,7 +112,7 @@ export function DeviceGate({ children, allowSmallViewport = false }: { children:
   return (
     <>
       {children}
-      {!allowSmallViewport && lyDo ? (
+      {(!allowSmallViewport || diDong) && lyDo ? (
         <PopupPhongTo />
       ) : null}
     </>
